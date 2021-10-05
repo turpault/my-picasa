@@ -1,0 +1,67 @@
+{
+  "name": "my-picasa",
+  "version": "0.0.1",
+  "description": "My picasa replacement in pure JS",
+  "author": "Jocelyn Turapult (turpault@gmail.com)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/turpault/my-picasa/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:turpault/my-picasa.git"
+  },
+  "files": [
+    "dist/src"
+  ],
+  "testGlob": "./dist/test/**/*.spec.js?(x)",
+  "homepage": "https://github.com/turpault/my-picasa#readme",
+  "keywords": [
+    "typescript",
+    "tdd"
+  ],
+  "main": "dist/src/index.js",
+  "browser": "dist/src/index.js",
+  "scripts": {
+    "build": "tsc -d",
+    "bundle": "webpack --progress",
+    "reset": "rimraf node_modules dist && yarn install && yarn test",
+    "test": "run-s test:node test:browser:run",
+    "test:node": "mocha --require ts-node/register/transpile-only --require test/setup.ts --require source-map-support/register test/*.spec.ts",
+    "test:browser:run": "run-p -r start test:browser:run2",
+    "test:browser:run2": "run-s start:wait test:browser",
+    "test:browser": "cross-var mocha-headless-chrome $HL_CHROME_PARAMS -t 30000 -f http://localhost:8080/test.bundle",
+    "start": "tsc-watch --onFirstSuccess \"webpack-dev-server --no-info\"",
+    "start:wait": "wait-on -t 30000 http://localhost:8080/test.bundle"
+  },
+  "devDependencies": {
+    "@types/chai": "~4.1.2",
+    "@types/mocha": "~5.2.0",
+    "@types/sinon": "~5.0.1",
+    "@types/sinon-chai": "~3.2.0",
+    "chai": "~4.1.0",
+    "chai-subset": "~1.6.0",
+    "cross-var": "^1.1.0",
+    "glob": "~7.1.2",
+    "mocha": "~5.2.0",
+    "mocha-env-reporter": "~3.0.0",
+    "mocha-headless-chrome": "^2.0.0",
+    "mocha-loader": "~1.1.1",
+    "npm-run-all": "^4.1.2",
+    "rimraf": "~2.6.1",
+    "sinon": "~6.0.1",
+    "sinon-chai": "~3.2.0",
+    "source-map-support": "~0.5.0",
+    "ts-node": "^7.0.0",
+    "tsc-watch-2": "^0.0.2",
+    "tslib": "~1.9.0",
+    "typescript": "~2.9.1",
+    "wait-on": "^2.1.0",
+    "webpack": "~4.12.0",
+    "webpack-cli": "^3.0.3",
+    "webpack-dev-server": "~3.1.1"
+  },
+  "peerDependencies": {
+    "tslib": "~1.7.1"
+  }
+}
