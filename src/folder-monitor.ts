@@ -2,6 +2,7 @@ import { buildEmitter, Emitter } from "./lib/event.js";
 import { walk } from "./walker.js";
 export type Sortable = {
   key: string;
+  name: string;
 };
 
 export type Folder = Sortable & {
@@ -30,18 +31,18 @@ class SortedList<T extends Sortable> {
         this.array.push(t);
         return { position: i, inserted: true };
       }
-      if (this.array[i] && this.array[i].key === t.key) {
+      if (this.array[i] && this.array[i].name === t.name) {
         // replace existing
         this.array[i] = t;
         return { position: i, inserted: false };
       }
-      if (i > 0 && this.array[i - 1].key <= t.key) {
+      if (i > 0 && this.array[i - 1].name <= t.name) {
         debugger;
       }
-      if (this.array[i].key > t.key) {
+      if (this.array[i].name > t.name) {
         debugger;
       }
-      if (this.array.find((d) => d.key === t.key)) {
+      if (this.array.find((d) => d.name === t.name)) {
         debugger;
       }
       this.array.splice(i, 0, t);
@@ -82,6 +83,7 @@ class SortedList<T extends Sortable> {
     if (this.sorter(arr[mid], x)) {
       return this.indexOf(arr, x, start, mid - 1);
     } else if (!this.sorter(x, arr[mid])) {
+      // Found one match,
       return mid;
     } else {
       // If element at mid is smaller than x,
