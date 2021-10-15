@@ -1,23 +1,32 @@
 {
   "compilerOptions": {
     "lib": [
-      "es2015"
+      "ESNext"
     ],
-    "module": "commonjs",
-    "target": "es5",
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "node",
     "strict": true,
     "importHelpers": true,
     "noImplicitReturns": true,
     "strictNullChecks": true,
+    "allowJs": true,
     "sourceMap": true,
-    "outDir": "dist",
+    "allowSyntheticDefaultImports" : true,
+    "rootDir": "./",
+    "outDir": "./public/dist/",
     "typeRoots": [
       "./node_modules/@types",
       "./custom-typings"
     ]
   },
+  "include": [
+    "./src/**/*.ts",
+    "./src/**/*.js"
+  ],
   "exclude": [
-    "node_modules",
-    "dist"
+    "dist",
+    "public"
   ]
 }
+

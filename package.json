@@ -24,45 +24,31 @@
   "browser": "dist/src/index.js",
   "scripts": {
     "build": "tsc -d",
-    "bundle": "webpack --progress",
+    "clean": "rimraf dist",
     "reset": "rimraf node_modules dist",
-    "test": "npm run test:node && npm run test:browser:run",
-    "test:node": "mocha --require ts-node/register/transpile-only --require test/setup.ts --require source-map-support/register test/*.spec.ts",
-    "test:browser:run": "run-p -r start test:browser:run2",
-    "test:browser:run2": "run-s start:wait test:browser",
-    "test:browser": "cross-var mocha-headless-chrome $HL_CHROME_PARAMS -t 30000 -f http://localhost:8080/test.bundle",
-    "start": "tsc-watch --onFirstSuccess \"webpack-dev-server --port 8080\"",
-    "start:wait": "wait-on -t 30000 http://localhost:8080/test.bundle"
+    "start": "tsc-watch"
   },
   "devDependencies": {
-    "@types/chai": "^4",
-    "@types/mocha": "^8",
-    "@types/web" : "^0",
-    "chai": "^4",
-    "chai-subset": "^1",
+    "@types/ini": "^1.3.31",
+    "@types/web": "^0",
     "cross-var": "^1",
     "glob": "^7",
-    "mocha": "^8",
-    "mocha-env-reporter": "^4",
-    "mocha-headless-chrome": "^3",
-    "mocha-loader": "^5",
     "npm-run-all": "^4",
     "rimraf": "^3",
     "source-map-support": "^0",
     "ts-node": "^10",
     "tsc-watch-2": "^0",
-    "tslib": "^2",
+    "tslib": "^2.3.1",
     "typescript": "^4",
     "util": "^0.12.4",
-    "wait-on": "^6",
-    "webpack": "^5",
-    "webpack-cli": "^4",
-    "webpack-dev-server": "^4"
+    "wait-on": "^6"
   },
   "peerDependencies": {
     "tslib": "^2"
   },
   "dependencies": {
-    "@types/node": "^16"
+    "@types/node": "^16",
+    "infinite-list": "^1.1.0",
+    "ini": "^2.0.0"
   }
 }
