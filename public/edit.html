@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html dir="ltr" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0"
+    />
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css" />
+    <link href="resources/styles.css" rel="stylesheet" />
+    <link href="resources/fontawesome/all.min.css" rel="stylesheet" />
+    <script src="https://unpkg.com/panzoom@9.4.0/dist/panzoom.min.js"></script>
+    <script type="module" src="dist/src/editor.js"></script>
+  </head>
+  <body>
+    <div id="permission" class="w3-modal">
+      <div class="w3-modal-content">
+        <div class="w3-container">
+          <p>I need some permissions to access the filesystem...</p>
+          <a id="request-permissions" class="w3-button">Ok</a>
+        </div>
+      </div>
+    </div>
+    <div id="crop">
+      <span id="crop-buttons" class="w3-bar w3-blue">
+        <button
+          class="w3-button w3-bar-item override-pointer-active"
+          id="btn-orientation"
+        >
+          <i class="fa fa-redo"></i>
+        </button>
+        <button
+          class="w3-button override-pointer-active w3-bar-item"
+          id="btn-5x5"
+        >
+          5x5
+        </button>
+        <button
+          class="w3-button override-pointer-active w3-bar-item"
+          id="btn-4x3"
+        >
+          4x3
+        </button>
+        <button
+          class="w3-button override-pointer-active w3-bar-item"
+          id="btn-16x9"
+        >
+          16x9
+        </button>
+        <button
+          class="w3-button w3-bar-item override-pointer-active"
+          id="btn-ok-crop"
+        >
+          <i class="fa fa-check-circle"></i>
+        </button>
+        <button
+          class="w3-button w3-bar-item override-pointer-active"
+          id="btn-cancel-crop"
+        >
+          <i class="fa fa-times"></i>
+        </button>
+      </span>
+    </div>
+
+    <div class="w3-bar-block draggable w3-gray" id="tools">
+      <div class="w3-bar-item w3-white">Actions</div>
+      <div id="actions">
+        <button class="w3-button" id="btn-crop">Crop</button>
+        <button class="w3-button" id="btn-sepia">Sepia</button>
+      </div>
+      <div class="w3-bar-item">History</div>
+      <div id="history" class="w3-bar-item"></div>
+    </div>
+
+    <div id="image-container">
+      <canvas class="fill-with-aspect" id="edited-image"></canvas>
+    </div>
+  </body>
+</html>

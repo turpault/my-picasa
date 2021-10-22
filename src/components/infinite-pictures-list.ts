@@ -1,15 +1,12 @@
-import {
-  emptyPlaceHolder,
-  loadMore,
-  makeNThumbnails,
-  picture,
-} from "../element-templates.js";
-import { Folder, FolderMonitor } from "../folder-monitor.js";
+import { loadMore } from "../element-templates.js";
+import { FolderMonitor } from "../folder-monitor.js";
 import { getFolderInfo, thumbnail } from "../folder-utils.js";
 import {
   default as Infinite,
   default as InfiniteList,
 } from "../lib/infinite-list/InfiniteList.js";
+import { Folder } from "../types/types.js";
+import { emptyPlaceHolder, makeNThumbnails } from "./thumbnail.js";
 
 export function make(e: HTMLElement, monitor: FolderMonitor): {} {
   const infiniteList = Infinite({

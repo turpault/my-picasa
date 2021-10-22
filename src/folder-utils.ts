@@ -1,26 +1,9 @@
-import { Folder } from "./folder-monitor.js";
 import { readPictureWithTransforms } from "./imageProcess/client.js";
+import exifreader from "./lib/exif/exifreader.js";
+import { getFileContents } from "./lib/file.js";
 import ini from "./lib/ini.js";
 import Jimp from "./lib/jimp/jimp.js";
-
-export type PicasaFileMeta = {
-  star?: boolean;
-  rotate?: string; // f.e. rotate(angle)
-  faces?: string; // f.e. rect64(5a6b0000c28ab778),42d7ff00b9602bb9
-  crop?: string; // f.e. rect64(5a491bc4dd659056)
-  filters?: string; // crop64=1,5a491bc4dd659056;enhance=1;finetune2=1,0.000000,0.000000,0.190877,00000000,0.000000;autolight=1;tilt=1,-0.233232,0.000000;crop64=1,1ef60000fe77df8d;fill=1,0.448598;autolight=1;fill=1,0.177570;finetune2=1,0.000000,0.000000,0.235789,00000000,0.000000;
-};
-
-export type ImageFileMeta = {
-  thumbnail?: string; // From the .thumbnails file
-};
-
-export type PicasaFolderMeta = {
-  [name: string]: PicasaFileMeta;
-};
-export type ImageFolderMeta = {
-  [name: string]: ImageFileMeta;
-};
+import { Folder, ImageFolderMeta, PicasaFolderMeta } from "./types/types.js";
 
 const folderMap: Map<
   string,
@@ -53,6 +36,7 @@ setInterval(async () => {
     await writable.close();
   });
 }, 10000);
+
 export async function getFolderInfo(
   f: Folder
 ): Promise<{ picasa: PicasaFolderMeta; image: ImageFolderMeta }> {
@@ -61,19 +45,7 @@ export async function getFolderInfo(
       f.key,
       (async () => {
         try {
-          const [picasa, image] = await Promise.all([
-            f.handle
-              .getFileHandle(".picasa.ini")
-              .then((handle: any) => getFileContents(handle, "string"))
-              .then((data: string) => ini.decode(data) as PicasaFolderMeta)
-              .catch(() => ({})),
-            f.handle
-              .getFileHandle(".thumbnails.ini")
-              .then((handle: any) => getFileContents(handle, "string"))
-              .then((data: string) => ini.decode(data) as ImageFolderMeta)
-              .catch(() => ({})),
-          ]);
-
+          const { picasa, image } = await getFolderInfoFromHandle(f.handle);
           // Add missing pictures
           for (const p of f.pictures) {
             if (!picasa[p.name]) {
@@ -96,13 +68,29 @@ export async function getFolderInfo(
   return folderMap.get(f.key)!;
 }
 
+export async function getFolderInfoFromHandle(
+  fh: any
+): Promise<{ picasa: PicasaFolderMeta; image: ImageFolderMeta }> {
+  const [picasa, image] = await Promise.all([
+    fh
+      .getFileHandle(".picasa.ini")
+      .then((handle: any) => getFileContents(handle, "string"))
+      .then((data: string) => ini.decode(data) as PicasaFolderMeta)
+      .catch(() => ({})),
+    fh
+      .getFileHandle(".thumbnails.ini")
+      .then((handle: any) => getFileContents(handle, "string"))
+      .then((data: string) => ini.decode(data) as ImageFolderMeta)
+      .catch(() => ({})),
+  ]);
+
+  return { picasa, image };
+}
+
 export async function thumbnail(f: Folder, name: string): Promise<string> {
   const info = await getFolderInfo(f);
   if (!info.image[name].thumbnail) {
-    const info = await getFolderInfo(f);
-    const fileMeta = info.picasa[name];
     const img = await f.handle.getFileHandle(name);
-
     const image = await readPictureWithTransforms(img, info.picasa[name], [
       ["scaleToFit", 256, 256, Jimp.RESIZE_NEAREST_NEIGHBOR],
     ]);
@@ -115,30 +103,8 @@ export async function thumbnail(f: Folder, name: string): Promise<string> {
   return info.image[name].thumbnail!;
 }
 
-export async function getFileContents(
-  fh: any,
-  format: "base64" | "buffer" | "string" = "base64"
-): Promise<string | ArrayBuffer> {
-  const file = await fh.getFile();
-  let reader = new FileReader();
-  if (format === "base64") {
-    reader.readAsDataURL(file);
-  } else if (format === "buffer") {
-    reader.readAsArrayBuffer(file);
-  } else {
-    reader.readAsText(file);
-  }
-
-  return new Promise<string | ArrayBuffer>((resolve, reject) => {
-    reader.onload = function () {
-      if (reader.result === null) {
-        reject(new Error("Empty"));
-      } else {
-        resolve(reader.result);
-      }
-    };
-    reader.onerror = function () {
-      reject(reader.error);
-    };
-  });
+export async function getFileExifData(f: Folder, name: string): Promise<any> {
+  const img = await f.handle.getFileHandle(name);
+  const contents = await getFileContents(img, "buffer");
+  return exifreader.load(contents);
 }

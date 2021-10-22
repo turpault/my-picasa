@@ -27,10 +27,23 @@ export async function walk(
     return la < lb ? -m : la > lb ? m : 0;
   });
   // Only notify that the current folder is a dir if it contains pictures
-  const images = ["jpeg", "jpg", "png", "gif"];
+  const pictureExtensions = ["jpeg", "jpg", "png", "gif"];
   const pictures = sorted.filter((a) => {
     const ext = a.name.split(".").pop()!.toLowerCase();
-    return a.kind === "file" && images.includes(ext) && !a.name.startsWith(".");
+    return (
+      a.kind === "file" &&
+      pictureExtensions.includes(ext) &&
+      !a.name.startsWith(".")
+    );
+  });
+  const videoExtensions = ["mp4", "mov"];
+  const videos = sorted.filter((a) => {
+    const ext = a.name.split(".").pop()!.toLowerCase();
+    return (
+      a.kind === "file" &&
+      videoExtensions.includes(ext) &&
+      !a.name.startsWith(".")
+    );
   });
   if (pictures.length > 0) {
     await cb("directory", {
@@ -38,6 +51,7 @@ export async function walk(
       name: dir.name,
       handle: dir,
       pictures,
+      videos,
     });
   }
 

@@ -8,6 +8,7 @@ indent_style = space
 
 [*.{js,jsx,ts,tsx}]
 indent_size = 2
+column_width = 120
 
 [*.json]
 indent_size = 2
