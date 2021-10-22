@@ -20,7 +20,7 @@
     "typescript",
     "tdd"
   ],
-  "main": "dist/src/index.js",
+  "main": "dist/index.js",
   "browser": "dist/src/index.js",
   "scripts": {
     "build": "tsc -d",
@@ -29,7 +29,7 @@
     "start": "run-p start:*",
     "start:tsc": "tsc-watch",
     "start:tsc-server": "tsc-watch -p tsconfig-server.json",
-    "start:httpd": "nodemon dist/index.js"
+    "start:httpd": "nodemon -- dist/index.js"
   },
   "devDependencies": {
     "@types/ini": "^1.3.31",

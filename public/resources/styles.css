@@ -60,6 +60,14 @@ body {
 #controls {
 }
 
+#image-strip {
+  position: fixed;
+  text-align: center;
+  bottom: 0;
+  width: 60%;
+  overflow-x: scroll;
+}
+
 #tools {
   cursor: grab;
 }
@@ -104,7 +112,7 @@ body {
   pointer-events: none;
 }
 #crop-buttons {
-  
+
 }
 
 .disabled {
@@ -167,7 +175,7 @@ body {
   opacity: 1; /* Fully shown on mouse-over */
 }
 
-/* The slider handle (use -webkit- (Chrome, Opera, Safari, Edge) and -moz- (Firefox) to override default look) */ 
+/* The slider handle (use -webkit- (Chrome, Opera, Safari, Edge) and -moz- (Firefox) to override default look) */
 .slider::-webkit-slider-thumb {
   -webkit-appearance: none; /* Override default look */
   appearance: none;

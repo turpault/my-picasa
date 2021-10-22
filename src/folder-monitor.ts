@@ -96,12 +96,9 @@ export class FolderMonitor {
     // Return true if it's
     // a dir that is not excluded
     if (type === "directory") {
-      const folder = {
+      const folder: Folder = {...data,
         key: data.path,
         ttl: new Date(),
-        name: data.name,
-        handle: data.handle,
-        pictures: data.pictures,
       };
       const insertRes = this.folders.insert(folder);
       if (insertRes.inserted) {

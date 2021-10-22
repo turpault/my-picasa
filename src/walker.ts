@@ -1,65 +1,71 @@
+import { Folder, FolderEntry } from "./types/types";
+
 export async function walk(
   dir: any,
   cb: Function,
   parent: string = ""
 ): Promise<void> {
-  const lst: { name: string; kind: string; handle: any }[] = [];
-  // Get the directory contents
-  for await (const [name, handle] of dir) {
-    lst.push({ name, handle, kind: handle.kind });
-  }
-  // Directory first, directories are reverse sorted, files are sorted
-  const sorted = lst.sort((a, b) => {
-    if (a.kind != b.kind) {
-      if (a.kind == "directory") {
-        return -1;
-      }
-      if (b.kind == "directory") {
-        return 1;
-      }
-    }
-    let m = 1;
-    if (a.kind === "directory" && a.kind === b.kind) {
-      m = -1;
-    }
-    const la = a.name.toLowerCase();
-    const lb = b.name.toLowerCase();
-    return la < lb ? -m : la > lb ? m : 0;
+  const { pictures, videos, subfolders } = await folderContents(dir);
+
+  const sorted = subfolders.sort((a, b) => {
+    return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
   });
-  // Only notify that the current folder is a dir if it contains pictures
-  const pictureExtensions = ["jpeg", "jpg", "png", "gif"];
-  const pictures = sorted.filter((a) => {
-    const ext = a.name.split(".").pop()!.toLowerCase();
-    return (
-      a.kind === "file" &&
-      pictureExtensions.includes(ext) &&
-      !a.name.startsWith(".")
-    );
-  });
-  const videoExtensions = ["mp4", "mov"];
-  const videos = sorted.filter((a) => {
-    const ext = a.name.split(".").pop()!.toLowerCase();
-    return (
-      a.kind === "file" &&
-      videoExtensions.includes(ext) &&
-      !a.name.startsWith(".")
-    );
-  });
-  if (pictures.length > 0) {
-    await cb("directory", {
-      path: parent,
+
+  if (pictures.length > 0 || videos.length > 0) {
+    // Generate a folder object
+    const f: Folder = {
+      ttl: new Date(),
+      key: parent,
       name: dir.name,
       handle: dir,
       pictures,
       videos,
-    });
+    };
+    await cb("directory", f);
   }
 
   // enumerate subfolders
-  for (const { name, handle, kind } of sorted) {
-    const path = parent + "/" + name;
-    if (kind == "directory" && name.substr(0, 1) !== ".") {
-      await walk(handle, cb, path);
+  for (const f of sorted) {
+    const path = parent + "/" + f.name;
+    if (f.name.substr(0, 1) !== ".") {
+      await walk(f.handle, cb, path);
     }
   }
+}
+
+export async function folderContents(fh: any): Promise<{
+  pictures: FolderEntry[];
+  videos: FolderEntry[];
+  subfolders: FolderEntry[];
+}> {
+  const lst: { name: string; kind: string; handle: any }[] = [];
+  for await (const [name, handle] of fh) {
+    lst.push({ name, handle, kind: handle.kind });
+  }
+  const pictures: FolderEntry[] = [];
+  const videos: FolderEntry[] = [];
+  const subfolders: FolderEntry[] = [];
+  const pictureExtensions = ["jpeg", "jpg", "png", "gif"];
+  const videoExtensions = ["mp4", "mov"];
+
+  for (const a of lst) {
+    const ext = a.name.split(".").pop()!.toLowerCase();
+    if (
+      a.kind === "file" &&
+      pictureExtensions.includes(ext) &&
+      !a.name.startsWith(".")
+    )
+      pictures.push(a);
+
+    if (
+      a.kind === "file" &&
+      videoExtensions.includes(ext) &&
+      !a.name.startsWith(".")
+    )
+      videos.push(a);
+    if (a.kind === "directory") {
+      subfolders.push(a);
+    }
+  }
+  return { pictures, videos, subfolders };
 }

@@ -30,8 +30,16 @@ async function init() {
   $("#btn-sepia").on("click", async () => {
     imageController.addSepia();
   });
+
+  hotkeySetup();
 }
 
 window.addEventListener("load", () => {
   init();
 });
+
+function hotkeySetup() {
+  document.onkeyup = function(e) {
+    alert(e.key);
+  };
+}

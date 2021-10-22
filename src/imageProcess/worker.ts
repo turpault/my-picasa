@@ -41,15 +41,15 @@ async function buildContext(fh: any): Promise<string> {
 /*
 # Here is a list of valid filter identifiers
 #
-#|--Identifier-|--------------Parameters-------------|----------Description-----------|---------Example---------------|
-#| crop64      |  CROP_RECTANGLE*                    |   crop filter, crops the image | crop64=1,30a730d2bf1ab897     |
+#|--Identifier-|--------------Parameters-------------|----------Description-----------|---------Example---------------|-- Done--|
+#| crop64      |  CROP_RECTANGLE*                    |   crop filter, crops the image | crop64=1,30a730d2bf1ab897     | X
 #|             |                                     |    according to crop rectangle |                               |
-#| tilt        | !TILT_ANGLE,!SCALE                  |  tilts and scales image        | tilt=1,0.280632,0.000000      |
+#| tilt        | !TILT_ANGLE,!SCALE                  |  tilts and scales image        | tilt=1,0.280632,0.000000      | X
 #| redeye      |                                     |  redeye removal                | redeye=1                      |
 #| enhance     |                                     | "I'm feeling lucky" enhancement| enhance=1                     |
 #| autolight   |                                     | automatic contrast correction  | autolight=1                   |
-#| autocolor   |                                     | automatic color correction     | autocolor=1                   |
-#| retouch     |                                     | retouch                        | retouch=1                     |
+#| autocolor   |                                     | automatic color correction     | autocolor=1                   | X
+#| retouch     |                                     | retouch                        | retouch=1                     | ?
 #| finetune2   | (unidentified params)               | finetuning (brightness,        | finetune2=1,0.000000,0.000000,|
 #|             |                                     |highlights, shadows,color temp) | 0.000000,fff7f5f3,0.000000;   |
 #| unsharp2    | !AMOUNT                             | unsharp mask filter            | unsharp2=1,0.600000;          |
@@ -60,14 +60,14 @@ async function buildContext(fh: any): Promise<string> {
 #| tint        |!!PRESERVE_COLOR ,#TINT COLOR        | tint filter                    | tint=1,79.842102,ffff         |
 #| sat         |!SATURATION                          | saturation filter              | sat=1,0.161800;               |
 #| radblur     |!MOUSE_X,!MOUSE_Y,!SIZE,!AMOUNT      | radial blur                    | radblur=1,0.500000,0.500000,  |
-#|             |                                     |                                | 0.239766,0.146199;            | 
+#|             |                                     |                                | 0.239766,0.146199;            |
 #| glow2       |!INTENSITY,!!RADIUS                  | glow effect                    | glow2=1,0.650000,3.000000;    |
 #| ansel       |#COLOR                               | filtered black/white           | ansel=1,ffffffff;             |
 #| radsat      |!MOUSE_X,!MOUSE_Y,!RADIUS,!SHARPNESS | radial saturation              | radsat=1,0.421652,0.594697,   |
-#|             |                                     |                                | 0.333333,0.309942;            | 
+#|             |                                     |                                | 0.333333,0.309942;            |
 #| dir_tint    |!MOUSE_X,!MOUSE_Y,!GRADIENT,!SHADOW  | directed gradient              | dir_tint=1,0.306743,0.401515, |
 #|             |                                     |                                | 0.250000,0.250000,ff5bfff3;   |
-# LEGEND: 
+# LEGEND:
 # ! = float between 0 and 1, precision:6
 # !! = float with arbitrary range, precision:6
 # # = 32-bit color in hex notation, e.g.: fff7f5f3
@@ -87,13 +87,34 @@ async function transform(
         j.sepia();
         break;
       case "crop64":
-        const crop = decodeRect(args[0]);
+        const crop = decodeRect(args[1]);
         if (crop) {
           j.crop(crop.x, crop.y, crop.width, crop.height);
         }
         break;
+      case "bw":
+        j.greyscale();
+        break;
+      case "tilt":
+        const angle = parseInt(args[1]);
+        const scale = parseInt(args[2]);
+        j.scale(scale);
+        j.rotate(180 * angle/Math.PI, false);
+        break;
+      case "finetune2":
+        const brightness = parseFloat(args[1]);
+        const highlights = parseFloat(args[2]);
+        const shadows = parseFloat(args[3]);
+        const temp = parseFloat(args[4]);
+        const what = parseFloat(args[5]);
+        debugger;
+        break;
+      case "autocolor":
+        j.normalize();
+        break;
       default:
         debugger;
+        break;
     }
   }
   return context;
