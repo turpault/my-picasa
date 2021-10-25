@@ -3,15 +3,18 @@ import exifreader from "./lib/exif/exifreader.js";
 import { getFileContents } from "./lib/file.js";
 import ini from "./lib/ini.js";
 import Jimp from "./lib/jimp/jimp.js";
-import { Folder, FolderInfo, ImageFolderMeta, PicasaFolderMeta, ThumbnailSize } from "./types/types.js";
-import {folderContents} from './walker.js';
+import {
+  Folder,
+  FolderInfo,
+  FolderPixels,
+  PicasaFolderMeta,
+  ThumbnailSize,
+} from "./types/types.js";
+import { folderContents } from "./walker.js";
 
-const folderMap: Map<
-  string,
-  Promise<{ picasa: PicasaFolderMeta; image: ImageFolderMeta }>
-> = new Map();
+const folderMap: Map<string, Promise<FolderInfo>> = new Map();
 let dirtyPicasaMap: Map<any, PicasaFolderMeta> = new Map();
-let dirtyImageMap: Map<any, ImageFolderMeta> = new Map();
+let dirtyPixelsMap: Map<any, FolderPixels> = new Map();
 
 setInterval(async () => {
   const d = dirtyPicasaMap;
@@ -25,8 +28,8 @@ setInterval(async () => {
     await writable.write(asIni);
     await writable.close();
   });
-  const i = dirtyImageMap;
-  dirtyImageMap = new Map();
+  const i = dirtyPixelsMap;
+  dirtyPixelsMap = new Map();
   i.forEach(async (value, key) => {
     const iniHandleWrite = await key.getFileHandle(".thumbnails.ini", {
       create: true,
@@ -38,19 +41,17 @@ setInterval(async () => {
   });
 }, 10000);
 
-export async function getFolderInfo(
-  f: Folder
-): Promise<FolderInfo> {
+export async function getFolderInfo(f: Folder): Promise<FolderInfo> {
   if (!folderMap.has(f.key)) {
     folderMap.set(
       f.key,
       (async () => {
         try {
-          const { picasa, image } = await getFolderInfoFromHandle(f.handle, f.pictures);
-          return { picasa, image };
+          const folderInfo = await getFolderInfoFromHandle(f.handle);
+          return folderInfo;
         } catch (e) {
           console.error("Cannot decode ini file: ", e);
-          return { picasa: {}, image: {} };
+          return { ...f, pictures: [], videos: [], picasa: {}, pixels: {} };
         }
       })()
     );
@@ -63,7 +64,7 @@ export async function getFolderInfoFromHandle(
   pictures?: any[],
   videos?: any[]
 ): Promise<FolderInfo> {
-  const [picasa, image] = await Promise.all([
+  const [picasa, pixels] = await Promise.all([
     fh
       .getFileHandle(".picasa.ini")
       .then((handle: any) => getFileContents(handle, "string"))
@@ -72,14 +73,21 @@ export async function getFolderInfoFromHandle(
     fh
       .getFileHandle(".thumbnails.ini")
       .then((handle: any) => getFileContents(handle, "string"))
-      .then((data: string) => ini.decode(data) as ImageFolderMeta)
+      .then((data: string) => ini.decode(data) as FolderPixels)
       .catch(() => ({})),
   ]);
-  if(!pictures || !videos) {
+  if (!pictures || !videos) {
     const contents = await folderContents(fh);
     pictures = contents.pictures;
     videos = contents.videos;
   }
+
+  const folder: Folder = {
+    key: fh.name,
+    ttl: new Date(),
+    name: fh.name,
+    handle: fh,
+  };
 
   // Add missing pictures to the picasa contents
   for (const p of pictures) {
@@ -87,33 +95,53 @@ export async function getFolderInfoFromHandle(
       picasa[p.name] = {};
       dirtyPicasaMap.set(fh, picasa);
     }
-    if (!image[p.name]) {
-      image[p.name] = {};
-      dirtyImageMap.set(fh, image);
+    if (!pixels[p.name]) {
+      pixels[p.name] = {};
+      dirtyPixelsMap.set(fh, pixels);
     }
   }
-  return { picasa, image };
+  return { ...folder, picasa, pixels, pictures, videos };
 }
 
-export async function thumbnail(f: Folder, name: string, size:ThumbnailSize = "th-medium"): Promise<string> {
+export async function updatePicasaData(fh: any, picasa: PicasaFolderMeta) {
+  const iniHandleWrite = await fh.getFileHandle(".picasa.ini", {
+    create: true,
+  });
+  const writable = await iniHandleWrite.createWritable();
+  const asIni = ini.encode(picasa);
+  await writable.write(asIni);
+  await writable.close();
+}
+
+export async function thumbnail(
+  f: Folder,
+  name: string,
+  size: ThumbnailSize = "th-medium"
+): Promise<string> {
   const info = await getFolderInfo(f);
   const sizes = {
-    "th-small": 50,
+    "th-small": 100,
     "th-medium": 250,
-    "th-large": 500
+    "th-large": 500,
   };
-  if (!info.image[name][<any>size]) {
+  const transform = info.picasa[name].filters || "";
+  const transformRef = "transform-" + size;
+  if (
+    !info.pixels[name][<any>size] ||
+    info.pixels[name][<any>transformRef] !== transform
+  ) {
     const img = await f.handle.getFileHandle(name);
-    const image = await readPictureWithTransforms(img, info.picasa[name], [
+    const image = await readPictureWithTransforms(img, transform, [
       ["scaleToFit", sizes[size], sizes[size], Jimp.RESIZE_NEAREST_NEIGHBOR],
     ]);
 
-    info.image[name][<any>size] = image;
+    info.pixels[name][<any>size] = image;
+    info.pixels[name][<any>transformRef] = transform;
 
     // make dirty
-    dirtyImageMap.set(f.handle, info.image);
+    dirtyPixelsMap.set(f.handle, info.pixels);
   }
-  return info.image[name][<any>size] as string;
+  return info.pixels[name][<any>size] as string;
 }
 
 export async function getFileExifData(f: Folder, name: string): Promise<any> {

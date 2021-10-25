@@ -8,10 +8,11 @@ export class ImagePanZoomController {
     this.panner = panzoom(c);
     this.canvas = c;
     this.events = buildEmitter<PanZoomEvent>();
-    this.panner.on("panend", () => {
+    this.panner.on("pan", () => {
       this.events.emit("pan", {});
     });
-    this.panner.on("zoomend", () => {
+    
+    this.panner.on("zoom", () => {
       this.events.emit("zoom", {});
     });
   }
@@ -23,6 +24,17 @@ export class ImagePanZoomController {
     const targetY = (canvasRatio * (y - transform.y)) / transform.scale;
     return { x: targetX, y: targetY };
   }
+
+  screenToCanvasRatio(x: number, y: number): { x: number; y: number } {
+    const transform = this.panner.getTransform();
+    const canvasRatio = this.canvas.width / this.canvas.clientWidth;
+    const targetX =
+      (canvasRatio * (x - transform.x)) / transform.scale / this.canvas.width;
+    const targetY =
+      (canvasRatio * (y - transform.y)) / transform.scale / this.canvas.height;
+    return { x: targetX, y: targetY };
+  }
+
   inBounds(bounds: { x: number; y: number }): boolean {
     return (
       bounds.x >= 0 &&

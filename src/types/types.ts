@@ -10,29 +10,33 @@ export type PicasaFileMeta = {
 
 export type ThumbnailSize = "th-small" | "th-medium" | "th-large";
 export type ImageFileMeta = {
-  [k in keyof ThumbnailSize]?: string ;
+  [k in keyof ThumbnailSize]?: string;
 };
 
 export type PicasaFolderMeta = {
   [name: string]: PicasaFileMeta;
 };
-export type ImageFolderMeta = {
+export type FolderPixels = {
   [name: string]: ImageFileMeta;
 };
 
-export type CropToolEvent = {
-  cropped: {
-    topLeft: { x: number; y: number };
-    bottomRight: { x: number; y: number };
-  };
-};
-
 export type ActiveImageEvent = {
-  changed: { name: string }
+  changed: { name: string };
 };
 
 export type SliderEvent = {
   value: number;
+};
+
+type iconFct = (context: string) => Promise<boolean>;
+type activateFct = () => Promise<boolean>;
+
+export type Tool = {
+  filterName: string;
+  icon: iconFct;
+  build: Function;
+  buildUI: (index: number, args: string[]) => HTMLElement;
+  activate: activateFct;
 };
 
 export type PanZoomEvent = {
@@ -41,9 +45,11 @@ export type PanZoomEvent = {
 };
 
 export type ImageControllerEvent = {
+  updated: {
+    context: string;
+    operations: string[];
+  };
   operationListChanged: {};
-  cropEdit: {};
-  rotateEdit: {};
 };
 
 export type AlbumListEvent = {
@@ -57,19 +63,22 @@ export type Sortable = {
 };
 
 export type FolderEntry = {
-  name: string,
-  handle: any
+  name: string;
+  handle: any;
 };
 
 export type Folder = Sortable & {
   ttl: Date;
   name: string;
   handle: any;
+};
+
+export type FolderInfo = Folder & {
+  picasa: PicasaFolderMeta;
+  pixels: FolderPixels;
   videos: FolderEntry[];
   pictures: FolderEntry[];
 };
-
-export type FolderInfo = { picasa: PicasaFolderMeta; image: ImageFolderMeta };
 export type FolderEvent = {
   added: { folder: Folder; index: number; list: Array<Folder> };
   updated: { folder: Folder; index: number; list: Array<Folder> };

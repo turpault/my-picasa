@@ -1,27 +1,43 @@
-import { Emitter } from "../lib/event";
-import { ActiveImageManager } from "../selection/active-manager";
-import { ActiveImageEvent, Folder } from "../types/types";
+import { thumbnail } from "../folder-utils.js";
 import { jBone as $ } from "../lib/jbone/jbone.js";
-import { thumbnail } from "../folder-utils";
+import { ActiveImageManager } from "../selection/active-manager.js";
+import { FolderInfo } from "../types/types.js";
 
-export function make(e: HTMLElement, f:Folder, selector:ActiveImageManager)  {
-  $("#left", e).on('click', () => {
+function nameToId(prefix: string, n: string) {
+  return prefix + "_" + n.replace(/[^a-z0-9A-Z_]/g, "");
+}
+export function make(
+  e: HTMLElement,
+  f: FolderInfo,
+  selector: ActiveImageManager
+) {
+  $("#left", e).on("click", () => {
     selector.selectPrevious();
   });
-  $("#right", e).on('click', () => {
+  $("#right", e).on("click", () => {
     selector.selectPrevious();
   });
-  const picList = $("#thumbs", e);
-  Promise.all(f.pictures.map(img => thumbnail(f, img.name, "th-small"))).then((thumbnails) => {
-    for(const [idx, p] of f.pictures.entries()) {
-      const b = $(`<button id="th-${p.name}" class="strip-btn" style="background-image: url(${thumbnails[idx]})"></button>`);
-      b.on('click', () => {
-        selector.select(p.name);
-      });
+  const picList = $("#image-strip-thumbs", e);
+  Promise.all(f.pictures.map((img) => thumbnail(f, img.name, "th-small"))).then(
+    (thumbnails) => {
+      for (const [idx, p] of f.pictures.entries()) {
+        const b = $(
+          `<button id="${nameToId(
+            "th",
+            p.name
+          )}" class="w3-button strip-btn" style="background-image: url(${
+            thumbnails[idx]
+          })"></button>`
+        );
+        b.on("click", () => {
+          selector.select(p.name);
+        });
+        picList.append(b);
+      }
     }
-  });
+  );
 
-  selector.event.on("changed", (event: {name: string}) => {
-    $(`#th-${event.name}`)[0].scrollIntoView();
+  selector.event.on("changed", (event: { name: string }) => {
+    $(`#${nameToId("th", event.name)}`)[0].scrollIntoView();
   });
 }

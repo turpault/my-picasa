@@ -37,6 +37,12 @@
         </button>
         <button
           class="w3-button override-pointer-active w3-bar-item"
+          id="btn-6x4"
+        >
+          6x4
+        </button>
+        <button
+          class="w3-button override-pointer-active w3-bar-item"
           id="btn-4x3"
         >
           4x3
@@ -63,12 +69,19 @@
     </div>
 
     <div class="w3-bar-block draggable w3-gray" id="tools">
-      <div class="w3-bar-item w3-white">Actions</div>
-      <div id="actions">
-        <button class="w3-button" id="btn-crop">Crop</button>
-        <button class="w3-button" id="btn-sepia">Sepia</button>
+      <div class="w3-bar-item w3-white">Description</div>
+      <div id="description">
+        <label>Label</label>
+        <input
+          class="w3-input"
+          style="background: none"
+          id="description"
+          type="text"
+        />
       </div>
-      <div class="w3-bar-item">History</div>
+      <div class="w3-bar-item w3-white">Actions</div>
+      <div id="actions"></div>
+      <div class="w3-bar-item w3-white">History</div>
       <div id="history" class="w3-bar-item"></div>
     </div>
 
@@ -77,7 +90,17 @@
     </div>
 
     <div id="image-strip">
-      <a id="previous-image" class="w3-button fa fa-left"></a><span id="thumbs"></span><a id="next-image" class="w3-button fa fa-right"></a>
+      <button
+        id="previous-image"
+        class="w3-circle fa fa-arrow-left w3-green"
+        style="position: absolute; left: 0; top: 0"
+      ></button>
+      <button
+        id="next-image"
+        class="w3-circle fa fa-arrow-right w3-green"
+        style="position: absolute; right: 0; top: 0"
+      ></button>
+      <div id="image-strip-thumbs"></div>
     </div>
   </body>
 </html>

@@ -55,9 +55,9 @@ export function albumWithThumbnails(
   getFolderInfo(f)
     .then((info) => {
       let idx = 0;
-      makeNThumbnails(element, Object.keys(info.image).length);
+      makeNThumbnails(element, Object.keys(info.pixels).length);
 
-      for (const k in info.image) {
+      for (const k in info.pixels) {
         const p = element.children[idx++] as HTMLImageElement;
         p.src = "resources/images/loading250.gif";
         thumbnail(f, k).then((img) => {

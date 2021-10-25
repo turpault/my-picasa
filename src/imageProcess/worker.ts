@@ -6,26 +6,21 @@ import { PicasaFileMeta } from "../types/types.js";
 
 async function readPictureWithTransforms(
   fh: any,
-  options: PicasaFileMeta,
+  transforms: string,
   extraOperations: any[]
 ): Promise<string> {
-  const data = await getFileContents(fh, "buffer");
-
-  const j = await Jimp.read(data);
-
-  const crop = decodeRect(options.crop);
-  if (crop) {
-    j.crop(crop.x, crop.y, crop.width, crop.height);
+  const context = await buildContext(fh);
+  if (transforms) {
+    await transform(context, transforms);
   }
   if (extraOperations) {
-    for (const op of extraOperations) {
-      j[op[0]](...op.slice(1));
-    }
+    await execute(context, extraOperations);
   }
 
-  const t = await j.getBase64Async("image/jpeg");
+  const t = await encode(context, "image/jpeg");
+  destroyContext(context);
 
-  return t;
+  return t as string;
 }
 
 const contexts = new Map<string, any>();
@@ -75,10 +70,10 @@ async function buildContext(fh: any): Promise<string> {
 */
 
 async function transform(
-  context: string,
+  context: string | any,
   transformation: string
 ): Promise<string> {
-  const j = contexts.get(context);
+  const j = typeof context === "string" ? contexts.get(context) : context;
   // Transform is <cmd>=arg,arg;<cmd>...
   const operations = decodeOperations(transformation);
   for (const { name, args } of operations) {
@@ -88,8 +83,10 @@ async function transform(
         break;
       case "crop64":
         const crop = decodeRect(args[1]);
+        const w = j.bitmap.width;
+        const h = j.bitmap.height;
         if (crop) {
-          j.crop(crop.x, crop.y, crop.width, crop.height);
+          j.crop(crop.left * w, crop.top * h, w * crop.right, h * crop.bottom);
         }
         break;
       case "bw":
@@ -98,8 +95,11 @@ async function transform(
       case "tilt":
         const angle = parseInt(args[1]);
         const scale = parseInt(args[2]);
-        j.scale(scale);
-        j.rotate(180 * angle/Math.PI, false);
+        if (scale !== 0) {
+          debugger;
+          j.scale(scale + 1);
+        }
+        j.rotate((10 * angle) / Math.PI, false);
         break;
       case "finetune2":
         const brightness = parseFloat(args[1]);
@@ -107,17 +107,52 @@ async function transform(
         const shadows = parseFloat(args[3]);
         const temp = parseFloat(args[4]);
         const what = parseFloat(args[5]);
-        debugger;
         break;
       case "autocolor":
         j.normalize();
         break;
+      case "Polaroid": {
+        const angle = parseFloat(args[1]);
+        const c = j.clone();
+        const minDim = Math.min(j.bitmap.height, j.bitmap.width) * 0.9;
+        c.cover(
+          minDim,
+          minDim,
+          Jimp.HORIZONTAL_ALIGN_CENTER | Jimp.VERTICAL_ALIGN_MIDDLE
+        );
+        c.background(Jimp.cssColorToHex("#ffffff"));
+        const newImage = await new Jimp(
+          j.bitmap.width,
+          j.bitmap.height,
+          Jimp.cssColorToHex("#ffffff")
+        );
+        newImage.blit(
+          c,
+          newImage.bitmap.width / 20,
+          newImage.bitmap.width / 20
+        );
+        const col =
+          args[2].length > 6 ? args[2].slice(2) + args[2].slice(0, 2) : args[2];
+        const bgng = Jimp.cssColorToHex(col);
+        newImage.background(bgng);
+        // ARGB to RGBA
+        newImage.rotate(-angle, true);
+        contexts.set(context, newImage);
+        break;
+      }
       default:
-        debugger;
         break;
     }
   }
   return context;
+}
+
+async function execute(context: string, operations: string[][]): Promise<void> {
+  const j = contexts.get(context);
+  for (const op of operations) {
+    j[op[0]](...op.slice(1));
+  }
+  return;
 }
 
 async function cloneContext(context: string): Promise<string> {
@@ -136,12 +171,12 @@ async function encode(
   mime: string = "image/jpeg"
 ): Promise<string | ImageData> {
   const j = contexts.get(context);
-  if ((mime = "imagedata")) {
-    const imageData = new ImageData(
-      Uint8ClampedArray.from(j.bitmap.data),
-      j.bitmap.width,
-      j.bitmap.height
-    );
+  if (mime === "raw") {
+    let a = Uint8ClampedArray.from(j.bitmap.data);
+    if (a.length > j.bitmap.width * j.bitmap.height * 4) {
+      a = a.slice(0, j.bitmap.width * j.bitmap.height * 4);
+    }
+    const imageData = new ImageData(a, j.bitmap.width, j.bitmap.height);
     return imageData;
   }
   const t = await j.getBase64Async(mime);
@@ -151,7 +186,11 @@ async function encode(
 // Only process 2 pictures at any given time
 const q = new Queue(2, { fifo: false });
 
+let reqId = 0;
 function response(e: Promise<any>, data: any[]) {
+  const msg = `${reqId++}: ${data[0]}(${data.slice(1).join(",")})`;
+  console.time(msg);
+  console.info(msg);
   return e
     .then((res) => {
       postMessage([data[0], { res }]);
@@ -159,7 +198,8 @@ function response(e: Promise<any>, data: any[]) {
     .catch((error) => {
       console.warn(data.join(","), error);
       postMessage([data[0], { error }]);
-    });
+    })
+    .finally(() => console.timeEnd(msg));
 }
 
 onmessage = (e: { data: any[] }) => {
@@ -196,6 +236,9 @@ onmessage = (e: { data: any[] }) => {
       q.add(() =>
         response((destroyContext as Function)(...e.data.slice(2)), e.data)
       );
+      break;
+    case "execute":
+      q.add(() => response((execute as Function)(...e.data.slice(2)), e.data));
       break;
   }
 };

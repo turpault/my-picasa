@@ -8,20 +8,18 @@ export async function walk(
   const { pictures, videos, subfolders } = await folderContents(dir);
 
   const sorted = subfolders.sort((a, b) => {
-    return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+    return a.name < b.name ? 1 : a.name > b.name ? -1 : 0;
   });
 
   if (pictures.length > 0 || videos.length > 0) {
     // Generate a folder object
-    const f: Folder = {
+    const folder: Folder = {
       ttl: new Date(),
       key: parent,
       name: dir.name,
       handle: dir,
-      pictures,
-      videos,
     };
-    await cb("directory", f);
+    await cb("directory", { folder, pictures, videos });
   }
 
   // enumerate subfolders

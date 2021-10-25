@@ -1,4 +1,4 @@
-import { getFolderInfo, getFolderInfoFromHandle } from "../folder-utils.js";
+import { getFolderInfoFromHandle, updatePicasaData } from "../folder-utils.js";
 import {
   buildContext,
   cloneContext,
@@ -6,24 +6,22 @@ import {
   encode,
   transform,
 } from "../imageProcess/client.js";
+import { setImageDataToCanvasElement } from "../lib/dom.js";
 import { buildEmitter, Emitter } from "../lib/event.js";
-import { jBone as $ } from "../lib/jbone/jbone.js";
 import { ImagePanZoomController } from "../lib/panzoom.js";
 import { encodeRect } from "../lib/utils.js";
-import { CropToolEvent, ImageControllerEvent } from "../types/types.js";
-import { make as makeCrop } from "./crop.js";
+import { ImageControllerEvent } from "../types/types.js";
 
 export class ImageController {
-  constructor(canvas: HTMLCanvasElement, folder: any, name: string) {
+  constructor(canvas: HTMLCanvasElement, panZoomCtrl: ImagePanZoomController) {
     this.canvas = canvas;
-    this.folder = folder;
-    this.name = name;
+    this.folder;
     this.context = "";
+    this.name = "";
     this.liveContext = "";
     this.operations = [];
     this.events = buildEmitter<ImageControllerEvent>();
-
-    this.init();
+    this.zoomController = panZoomCtrl;
   }
 
   operationList(): string {
@@ -38,62 +36,67 @@ export class ImageController {
     await transform(this.liveContext, this.operationList());
   }
 
-  async init() {
-    const file = await this.folder.getFileHandle(this.name);
-    const folderData = await getFolderInfoFromHandle(this.folder);
-    this.operations = (
-      (folderData.picasa[this.name] || {}).filters || ""
-    ).split(";");
+  init(folder: any, name: string) {
+    this.folder = folder;
+    this.display(name);
+  }
 
+  async display(name: string) {
+    if (this.context) {
+      const context = this.context;
+      this.context = "";
+      await destroyContext(context);
+    }
+    this.name = name;
+
+    const folderData = await getFolderInfoFromHandle(this.folder);
+    this.operations = ((folderData.picasa[this.name] || {}).filters || "")
+      .split(";")
+      .filter((v) => v);
+    this.description = folderData.picasa[this.name].description;
+
+    const file = await this.folder.getFileHandle(this.name);
     this.context = await buildContext(file);
+
+    this.update();
+  }
+
+  async update() {
     await this.rebuildContext();
     const data = (await encode(this.liveContext, "raw")) as ImageData;
-
-    this.zoomController = new ImagePanZoomController(this.canvas);
-    this.cropTool = makeCrop($("#crop")[0], this.zoomController, this.events);
-
     setImageDataToCanvasElement(data, this.canvas);
     this.recenter();
-
-    this.cropTool.on("cropped", async ({ topLeft, bottomRight }) => {
-      this.addCrop(topLeft, bottomRight);
+    this.events.emit("updated", {
+      context: this.liveContext,
+      operations: this.operations,
     });
   }
 
-  async addCrop(
-    topLeft: { x: number; y: number },
-    bottomRight: { x: number; y: number }
-  ) {
-    this.operations.push(
-      `crop64=${encodeRect({
-        x: topLeft.x,
-        y: topLeft.y,
-        width: bottomRight.x - topLeft.x,
-        height: bottomRight.y - topLeft.y,
-      })}`
-    );
-    await this.rebuildContext();
-    const data = (await encode(this.liveContext, "raw")) as ImageData;
-    setImageDataToCanvasElement(data, this.canvas);
-    this.events.emit("operationListChanged", {});
-    this.recenter();
+  async addOperation(expression: string) {
+    this.operations.push(expression);
+    await Promise.all([this.save(), this.update()]);
   }
 
-  async addSepia() {
-    this.operations.push("sepia");
-    await this.rebuildContext();
-    const data = (await encode(this.liveContext, "raw")) as ImageData;
-    setImageDataToCanvasElement(data, this.canvas);
-    this.events.emit("operationListChanged", {});
+  async updateDescription(description: string) {
+    this.description = description;
+    await Promise.all([this.save(), this.update()]);
   }
 
-  async onEditOperation(idx: number) {}
-  async onDeleteOperation(idx: number) {
+  async deleteOperation(idx: number) {
     this.operations.splice(idx, 1);
-    await this.rebuildContext();
-    const data = (await encode(this.liveContext, "raw")) as ImageData;
-    setImageDataToCanvasElement(data, this.canvas);
-    this.events.emit("operationListChanged", {});
+    await Promise.all([this.save(), this.update()]);
+  }
+
+  async updateOperation(idx: number, op: string) {
+    this.operations[idx] = op;
+    await Promise.all([this.save(), this.update()]);
+  }
+
+  async save() {
+    const folderData = await getFolderInfoFromHandle(this.folder);
+    folderData.picasa[this.name].description = this.description;
+    folderData.picasa[this.name].filters = this.operationList();
+    await updatePicasaData(this.folder, folderData.picasa);
   }
 
   recenter() {
@@ -107,19 +110,8 @@ export class ImageController {
   private name: string;
   private context: string;
   private liveContext: string;
-  private cropTool?: Emitter<CropToolEvent>;
+  private description: string;
   private zoomController?: ImagePanZoomController;
   private operations: string[];
   events: Emitter<ImageControllerEvent>;
-}
-
-function setImageDataToCanvasElement(
-  imagedata: ImageData,
-  canvas: HTMLCanvasElement
-): void {
-  var ctx = canvas.getContext("2d")!;
-  canvas.width = imagedata.width;
-  canvas.height = imagedata.height;
-
-  ctx.putImageData(imagedata, 0, 0);
 }

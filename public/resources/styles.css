@@ -62,14 +62,52 @@ body {
 
 #image-strip {
   position: fixed;
-  text-align: center;
-  bottom: 0;
-  width: 60%;
+  /* text-align: center; */
+  left: 50%;
+  bottom: 10px;
+  width: 300px;
+  margin-left: -150px;
+  white-space: nowrap;
+  /* vertical-align: top; */
+}
+#image-strip-thumbs {
+  width: 300px;
   overflow-x: scroll;
+  white-space: nowrap;
+  padding-left: 100px;
+  padding-right: 100px;
+}
+#image-strip-thumbs > button,
+#image-strip > button {
+  height: 50px;
+  width: 50px;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 #tools {
-  cursor: grab;
+  /* cursor: grab; */
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100%;
+  opacity: 70%;
+}
+
+.tool-button {
+  /* line-height: 70px; */
+}
+.tool-button > canvas{
+  height: 50px;
+  display: block;
+}
+
+.inline {
+  width: auto !important;
+  display:inline-block !important;
+}
+#history > * {
+  border-top: solid 1px;
 }
 
 .draggable {

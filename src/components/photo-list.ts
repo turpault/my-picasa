@@ -1,11 +1,7 @@
 import { FolderMonitor } from "../folder-monitor.js";
 import { getFolderInfo } from "../folder-utils.js";
 import { Emitter } from "../lib/event.js";
-import {
-  AlbumListEvent,
-  AlbumListEventSource,
-  Folder,
-} from "../types/types.js";
+import { AlbumListEvent, Folder } from "../types/types.js";
 import { makeNThumbnails, thumbnailData } from "./thumbnail.js";
 
 // Create two elements, allergic to visibility
@@ -60,9 +56,9 @@ export function make(
 
   function albumWithThumbnails(f: Folder, element: HTMLElement) {
     return getFolderInfo(f).then((info) => {
-      makeNThumbnails(element, Object.keys(info.image).length);
+      makeNThumbnails(element, Object.keys(info.pixels).length);
 
-      const keys = Object.keys(info.image).reverse();
+      const keys = Object.keys(info.pixels).reverse();
       let idx = keys.length;
       for (const k of keys) {
         thumbnailData(

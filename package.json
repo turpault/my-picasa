@@ -29,7 +29,7 @@
     "start": "run-p start:*",
     "start:tsc": "tsc-watch",
     "start:tsc-server": "tsc-watch -p tsconfig-server.json",
-    "start:httpd": "nodemon -- dist/index.js"
+    "start:httpd": "nodemon --watch src dist/index.js"
   },
   "devDependencies": {
     "@types/ini": "^1.3.31",

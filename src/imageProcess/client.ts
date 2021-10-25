@@ -7,7 +7,7 @@ let requests: Map<string, { resolve: Function; reject: Function }> = new Map();
 let requestId = 0;
 export async function readPictureWithTransforms(
   fh: any,
-  options: PicasaFileMeta,
+  transform: string,
   extraOperations: any[]
 ): Promise<string> {
   const id = (requestId++).toString();
@@ -17,7 +17,7 @@ export async function readPictureWithTransforms(
       id,
       "readPictureWithTransforms",
       fh,
-      options,
+      transform,
       extraOperations,
     ]);
   });
@@ -28,6 +28,17 @@ export async function buildContext(fh: any): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     requests.set(id, { resolve, reject });
     worker.postMessage([id, "buildContext", fh]);
+  });
+}
+
+export async function execute(
+  context: string,
+  operations: string[][]
+): Promise<string> {
+  const id = (requestId++).toString();
+  return new Promise<string>((resolve, reject) => {
+    requests.set(id, { resolve, reject });
+    worker.postMessage([id, "execute", context, operations]);
   });
 }
 
