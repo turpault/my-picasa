@@ -4,12 +4,12 @@ import {
   cloneContext,
   destroyContext,
   encode,
-  transform,
+  setOptions,
+  transform
 } from "../imageProcess/client.js";
 import { setImageDataToCanvasElement } from "../lib/dom.js";
 import { buildEmitter, Emitter } from "../lib/event.js";
 import { ImagePanZoomController } from "../lib/panzoom.js";
-import { encodeRect } from "../lib/utils.js";
 import { ImageControllerEvent } from "../types/types.js";
 
 export class ImageController {
@@ -33,6 +33,9 @@ export class ImageController {
       await destroyContext(this.liveContext);
     }
     this.liveContext = await cloneContext(this.context);
+    await setOptions(this.liveContext, {
+      caption: this.caption
+    });
     await transform(this.liveContext, this.operationList());
   }
 
@@ -53,7 +56,7 @@ export class ImageController {
     this.operations = ((folderData.picasa[this.name] || {}).filters || "")
       .split(";")
       .filter((v) => v);
-    this.description = folderData.picasa[this.name].description;
+    this.caption = folderData.picasa[this.name].caption;
 
     const file = await this.folder.getFileHandle(this.name);
     this.context = await buildContext(file);
@@ -77,8 +80,8 @@ export class ImageController {
     await Promise.all([this.save(), this.update()]);
   }
 
-  async updateDescription(description: string) {
-    this.description = description;
+  async updateCaption(caption: string) {
+    this.caption = caption;
     await Promise.all([this.save(), this.update()]);
   }
 
@@ -94,7 +97,7 @@ export class ImageController {
 
   async save() {
     const folderData = await getFolderInfoFromHandle(this.folder);
-    folderData.picasa[this.name].description = this.description;
+    folderData.picasa[this.name].caption = this.caption;
     folderData.picasa[this.name].filters = this.operationList();
     await updatePicasaData(this.folder, folderData.picasa);
   }
@@ -110,7 +113,7 @@ export class ImageController {
   private name: string;
   private context: string;
   private liveContext: string;
-  private description: string;
+  private caption?: string;
   private zoomController?: ImagePanZoomController;
   private operations: string[];
   events: Emitter<ImageControllerEvent>;

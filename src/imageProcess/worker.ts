@@ -2,7 +2,6 @@ import { getFileContents } from "../lib/file.js";
 import Jimp from "../lib/jimp/jimp.js";
 import { Queue } from "../lib/queue.js";
 import { decodeOperations, decodeRect } from "../lib/utils.js";
-import { PicasaFileMeta } from "../types/types.js";
 
 async function readPictureWithTransforms(
   fh: any,
@@ -24,6 +23,21 @@ async function readPictureWithTransforms(
 }
 
 const contexts = new Map<string, any>();
+const options = new Map<string, any>();
+const fonts = new Map<string, any>();
+
+// Only process 2 pictures at any given time
+const q = new Queue(2, { fifo: false });
+
+
+async function getFont(name:string): Promise<any> {
+  if(!fonts.has(name)) {
+    const f = await Jimp.loadFont(`/resources/bitmapfonts/${name}.fnt`);
+    fonts.set(name, f);
+  }
+  return fonts.get(name);
+}
+
 let id = 0;
 async function buildContext(fh: any): Promise<string> {
   const data = await getFileContents(fh, "buffer");
@@ -134,6 +148,13 @@ async function transform(
         const col =
           args[2].length > 6 ? args[2].slice(2) + args[2].slice(0, 2) : args[2];
         const bgng = Jimp.cssColorToHex(col);
+
+        const imgOptions = options.get(context);
+        if(imgOptions && imgOptions.caption) {
+          const font = await getFont("polaroid");
+          // load font from .fnt file
+          newImage.print(font, newImage.bitmap.width *0.1, newImage.bitmap.height * 0.8, imgOptions.caption, newImage.bitmap.width * 0.8);
+        }
         newImage.background(bgng);
         // ARGB to RGBA
         newImage.rotate(-angle, true);
@@ -155,6 +176,14 @@ async function execute(context: string, operations: string[][]): Promise<void> {
   return;
 }
 
+
+export async function setOptions(
+  context: string,
+  options: any
+): Promise<void> {
+  options.set(context, options);
+  return;
+}
 async function cloneContext(context: string): Promise<string> {
   const j = contexts.get(context);
   const key = (++id).toString();
@@ -163,7 +192,9 @@ async function cloneContext(context: string): Promise<string> {
 }
 
 async function destroyContext(context: string): Promise<void> {
-  contexts.delete(context);
+  q.event.once('drain', () => {
+    contexts.delete(context);
+  });
 }
 
 async function encode(
@@ -183,8 +214,6 @@ async function encode(
   return t;
 }
 
-// Only process 2 pictures at any given time
-const q = new Queue(2, { fifo: false });
 
 let reqId = 0;
 function response(e: Promise<any>, data: any[]) {
@@ -196,13 +225,14 @@ function response(e: Promise<any>, data: any[]) {
       postMessage([data[0], { res }]);
     })
     .catch((error) => {
-      console.warn(data.join(","), error);
+      console.warn(msg, error);
       postMessage([data[0], { error }]);
     })
     .finally(() => console.timeEnd(msg));
 }
 
 onmessage = (e: { data: any[] }) => {
+
   console.log("Worker: Message received from main script");
 
   switch (e.data[1]) {
@@ -240,5 +270,8 @@ onmessage = (e: { data: any[] }) => {
     case "execute":
       q.add(() => response((execute as Function)(...e.data.slice(2)), e.data));
       break;
-  }
+      case "setOptions":
+        q.add(() => response((setOptions as Function)(...e.data.slice(2)), e.data));
+        break;
+    }
 };

@@ -84,7 +84,7 @@ export function make(e: HTMLElement, ctrl: ImageController): ToolRegistrar {
   const history = $("#history", e);
   const description = $("#description", e);
   description.on("input", () => {
-    ctrl.updateDescription(description.val());
+    ctrl.updateCaption(description.val());
   });
   ctrl.events.on("updated", ({ context, operations }) => {
     // Refresh the icons

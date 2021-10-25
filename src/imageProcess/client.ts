@@ -42,6 +42,17 @@ export async function execute(
   });
 }
 
+export async function setOptions(
+  context: string,
+  options: any
+): Promise<string> {
+  const id = (requestId++).toString();
+  return new Promise<string>((resolve, reject) => {
+    requests.set(id, { resolve, reject });
+    worker.postMessage([id, "setOptions", context, options]);
+  });
+}
+
 export async function transform(
   context: string,
   transformation: string

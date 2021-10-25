@@ -1,11 +1,17 @@
+import { buildEmitter, Emitter } from "./event";
+
 export type Task = (() => PromiseLike<any>) | (() => any);
 
+export type QueueEvent = {
+  drain: {};
+};
 export class Queue {
   constructor(concurrency: number = 1, options?: { fifo?: boolean }) {
     this.q = [];
     this.concurrency = concurrency;
     this.active = 0;
     this.options = options || {};
+    this.event = buildEmitter<QueueEvent>();
   }
   add(r: Task): void {
     this.q.push(r);
@@ -27,11 +33,13 @@ export class Queue {
           this.startIfNeeded();
         });
       } else {
+        this.event.emit('drain', {});
         // starving....
         break;
       }
     }
   }
+  event: Emitter<QueueEvent>;
   private q: Task[];
   private concurrency: number;
   private active: number;
