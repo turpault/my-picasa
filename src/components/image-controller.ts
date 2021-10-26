@@ -5,11 +5,12 @@ import {
   destroyContext,
   encode,
   setOptions,
-  transform
+  transform,
 } from "../imageProcess/client.js";
 import { setImageDataToCanvasElement } from "../lib/dom.js";
 import { buildEmitter, Emitter } from "../lib/event.js";
 import { ImagePanZoomController } from "../lib/panzoom.js";
+import { Queue } from "../lib/queue.js";
 import { ImageControllerEvent } from "../types/types.js";
 
 export class ImageController {
@@ -22,21 +23,30 @@ export class ImageController {
     this.operations = [];
     this.events = buildEmitter<ImageControllerEvent>();
     this.zoomController = panZoomCtrl;
+    this.q = new Queue(1);
+    this.q.event.on("drain", () => {
+      this.events.emit("idle", {});
+    });
   }
 
   operationList(): string {
     return this.operations.join(";");
   }
 
-  async rebuildContext() {
-    if (this.liveContext) {
-      await destroyContext(this.liveContext);
-    }
-    this.liveContext = await cloneContext(this.context);
-    await setOptions(this.liveContext, {
-      caption: this.caption
+  async rebuildContext(): Promise<boolean> {
+    this.q.clear();
+    this.events.emit("busy", {});
+    return this.q.add(async () => {
+      if (this.liveContext) {
+        await destroyContext(this.liveContext);
+      }
+      this.liveContext = await cloneContext(this.context);
+      await setOptions(this.liveContext, {
+        caption: this.caption,
+      });
+      await transform(this.liveContext, this.operationList());
+      return true;
     });
-    await transform(this.liveContext, this.operationList());
   }
 
   init(folder: any, name: string) {
@@ -65,14 +75,16 @@ export class ImageController {
   }
 
   async update() {
-    await this.rebuildContext();
-    const data = (await encode(this.liveContext, "raw")) as ImageData;
-    setImageDataToCanvasElement(data, this.canvas);
-    this.recenter();
-    this.events.emit("updated", {
-      context: this.liveContext,
-      operations: this.operations,
-    });
+    if (await this.rebuildContext()) {
+      const data = (await encode(this.liveContext, "raw")) as ImageData;
+      setImageDataToCanvasElement(data, this.canvas);
+      this.recenter();
+      this.events.emit("updated", {
+        context: this.liveContext,
+        operations: this.operations,
+        caption: this.caption,
+      });
+    }
   }
 
   async addOperation(expression: string) {
@@ -116,5 +128,6 @@ export class ImageController {
   private caption?: string;
   private zoomController?: ImagePanZoomController;
   private operations: string[];
+  private q: Queue;
   events: Emitter<ImageControllerEvent>;
 }

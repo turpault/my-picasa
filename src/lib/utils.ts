@@ -2,6 +2,10 @@ export async function sleep(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));
 }
 
+export function uuid(): string {
+  return (crypto as unknown as any).randomUUID();
+}
+
 /*
 # Picasa uses a special string format to store crop boxes of
 # detected faces and from an applied crop filters. The number encased 

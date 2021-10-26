@@ -83,14 +83,14 @@ export function make(e: HTMLElement, ctrl: ImageController): ToolRegistrar {
 
   const history = $("#history", e);
   const description = $("#description", e);
-  description.on("input", () => {
+  description.on("change", () => {
     ctrl.updateCaption(description.val());
   });
-  ctrl.events.on("updated", ({ context, operations }) => {
+  ctrl.events.on("updated", ({ context, operations, caption }) => {
     // Refresh the icons
     registrar.refreshTools(context);
 
-    description.val("Test");
+    description.val(caption);
     // Update the operation list
     history.empty();
 

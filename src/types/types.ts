@@ -48,7 +48,10 @@ export type ImageControllerEvent = {
   updated: {
     context: string;
     operations: string[];
+    caption: string | undefined;
   };
+  idle: {};
+  busy: {};
   operationListChanged: {};
 };
 

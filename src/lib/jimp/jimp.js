@@ -41260,7 +41260,7 @@ var xtend = require("xtend")
 module.exports = createXHR
 // Allow use of default import syntax in TypeScript
 module.exports.default = createXHR;
-createXHR.XMLHttpRequest = window.XMLHttpRequest || noop
+createXHR.XMLHttpRequest = window.XMLHttpRequest || globalThis.XMLHttpRequest || noop
 createXHR.XDomainRequest = "withCredentials" in (new createXHR.XMLHttpRequest()) ? createXHR.XMLHttpRequest : window.XDomainRequest
 
 forEachArray(["get", "put", "post", "patch", "head", "delete"], function(method) {

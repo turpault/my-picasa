@@ -50,6 +50,12 @@ async function init() {
   activeManager.event.on("changed", (event: { name: string }) => {
     imageController.display(event.name);
   });
+  imageController.events.on("idle", () => {
+    $("#busy-spinner").css("display", "none");
+  });
+  imageController.events.on("busy", () => {
+    $("#busy-spinner").css("display", "block");
+  });
 }
 
 window.addEventListener("load", () => {
@@ -58,6 +64,6 @@ window.addEventListener("load", () => {
 
 function hotkeySetup() {
   document.onkeyup = function (e) {
-    alert(e.key);
+    // alert(e.key);
   };
 }

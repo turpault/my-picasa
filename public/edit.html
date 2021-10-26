@@ -13,6 +13,9 @@
     <script type="module" src="dist/src/editor.js"></script>
   </head>
   <body>
+    <div id="busy-spinner" class="w3-modal w3-display-container fill">
+      <img src="resources/images/thinking.gif" class="w3-display-middle" />
+    </div>
     <div id="permission" class="w3-modal">
       <div class="w3-modal-content">
         <div class="w3-container">
@@ -70,7 +73,7 @@
 
     <div class="w3-bar-block draggable w3-gray" id="tools">
       <div class="w3-bar-item w3-white">Description</div>
-      <div id="description">
+      <div>
         <label>Label</label>
         <input
           class="w3-input"

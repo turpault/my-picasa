@@ -1,7 +1,13 @@
+declare var globalThis: any;
+globalThis.global = {
+  XMLHttpRequest: globalThis.XMLHttpRequest,
+};
+
+import { kill } from "process";
 import { getFileContents } from "../lib/file.js";
 import Jimp from "../lib/jimp/jimp.js";
 import { Queue } from "../lib/queue.js";
-import { decodeOperations, decodeRect } from "../lib/utils.js";
+import { decodeOperations, decodeRect, uuid } from "../lib/utils.js";
 
 async function readPictureWithTransforms(
   fh: any,
@@ -27,22 +33,27 @@ const options = new Map<string, any>();
 const fonts = new Map<string, any>();
 
 // Only process 2 pictures at any given time
-const q = new Queue(2, { fifo: false });
+const q = new Queue(5, { fifo: false });
 
-
-async function getFont(name:string): Promise<any> {
-  if(!fonts.has(name)) {
-    const f = await Jimp.loadFont(`/resources/bitmapfonts/${name}.fnt`);
+async function getFont(name: string): Promise<any> {
+  if (!fonts.has(name)) {
+    const f = await Jimp.loadFont(`/resources/bitmapfonts/${name}.ttf.fnt`);
     fonts.set(name, f);
   }
   return fonts.get(name);
 }
 
-let id = 0;
+function getContext(context: string): any {
+  const j = contexts.get(context);
+  if (!j) {
+    throw new Error("context not found");
+  }
+  return j;
+}
 async function buildContext(fh: any): Promise<string> {
   const data = await getFileContents(fh, "buffer");
   const j = await Jimp.read(data);
-  const key = (++id).toString();
+  const key = uuid();
   contexts.set(key, j);
   return key;
 }
@@ -87,7 +98,7 @@ async function transform(
   context: string | any,
   transformation: string
 ): Promise<string> {
-  const j = typeof context === "string" ? contexts.get(context) : context;
+  const j = typeof context === "string" ? getContext(context) : context;
   // Transform is <cmd>=arg,arg;<cmd>...
   const operations = decodeOperations(transformation);
   for (const { name, args } of operations) {
@@ -150,10 +161,15 @@ async function transform(
         const bgng = Jimp.cssColorToHex(col);
 
         const imgOptions = options.get(context);
-        if(imgOptions && imgOptions.caption) {
+        if (imgOptions && imgOptions.caption) {
           const font = await getFont("polaroid");
-          // load font from .fnt file
-          newImage.print(font, newImage.bitmap.width *0.1, newImage.bitmap.height * 0.8, imgOptions.caption, newImage.bitmap.width * 0.8);
+          newImage.print(
+            font,
+            newImage.bitmap.width * 0.1,
+            newImage.bitmap.height * 0.8,
+            imgOptions.caption,
+            newImage.bitmap.width * 0.8
+          );
         }
         newImage.background(bgng);
         // ARGB to RGBA
@@ -169,39 +185,36 @@ async function transform(
 }
 
 async function execute(context: string, operations: string[][]): Promise<void> {
-  const j = contexts.get(context);
+  const j = getContext(context);
   for (const op of operations) {
     j[op[0]](...op.slice(1));
   }
   return;
 }
 
-
 export async function setOptions(
   context: string,
-  options: any
+  _options: any
 ): Promise<void> {
-  options.set(context, options);
+  options.set(context, _options);
   return;
 }
 async function cloneContext(context: string): Promise<string> {
-  const j = contexts.get(context);
-  const key = (++id).toString();
+  const j = getContext(context);
+  const key = uuid();
   contexts.set(key, j.clone());
   return key;
 }
 
 async function destroyContext(context: string): Promise<void> {
-  q.event.once('drain', () => {
-    contexts.delete(context);
-  });
+  contexts.delete(context);
 }
 
 async function encode(
   context: string,
   mime: string = "image/jpeg"
 ): Promise<string | ImageData> {
-  const j = contexts.get(context);
+  const j = getContext(context);
   if (mime === "raw") {
     let a = Uint8ClampedArray.from(j.bitmap.data);
     if (a.length > j.bitmap.width * j.bitmap.height * 4) {
@@ -213,7 +226,6 @@ async function encode(
   const t = await j.getBase64Async(mime);
   return t;
 }
-
 
 let reqId = 0;
 function response(e: Promise<any>, data: any[]) {
@@ -232,7 +244,6 @@ function response(e: Promise<any>, data: any[]) {
 }
 
 onmessage = (e: { data: any[] }) => {
-
   console.log("Worker: Message received from main script");
 
   switch (e.data[1]) {
@@ -270,8 +281,10 @@ onmessage = (e: { data: any[] }) => {
     case "execute":
       q.add(() => response((execute as Function)(...e.data.slice(2)), e.data));
       break;
-      case "setOptions":
-        q.add(() => response((setOptions as Function)(...e.data.slice(2)), e.data));
-        break;
-    }
+    case "setOptions":
+      q.add(() =>
+        response((setOptions as Function)(...e.data.slice(2)), e.data)
+      );
+      break;
+  }
 };
