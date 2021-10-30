@@ -1,5 +1,7 @@
+import { ImageController } from "./components/image-controller.js";
 import { makeNThumbnails } from "./components/thumbnail.js";
 import { Folder } from "./types/types.js";
+import { jBone as $ } from "./lib/jbone/jbone.js";
 
 export function folder(f: Folder): HTMLElement {
   const e = document.createElement("li");
@@ -34,4 +36,41 @@ export function loadMore(domElement: HTMLElement) {
   makeNThumbnails(domElement, 1);
   const first = domElement.childNodes[0] as HTMLImageElement;
   first.src = "resources/images/loading250.gif";
+}
+
+export function toolHeader(
+  name: string,
+  index: number,
+  imageCtrl: ImageController
+) {
+  const e = $(`<div class="tool-box">
+  <div class="w3-bar">
+    <a class="w3-bar-item inline">${name}</a>
+    <a id="delete" class="inline w3-button w3-bar-item w3-right fa fa-times"></a>
+    <a id="up" class="inline w3-button w3-bar-item w3-right fa fa-arrow-up"></a>
+    <a id="down" class="inline w3-button w3-bar-item w3-right fa fa-arrow-down"></a>
+  </div>
+  </div>`);
+  $("#delete", e).on("click", () => {
+    imageCtrl.deleteOperation(index);
+  });
+  $("#up", e)
+    .on("click", () => {
+      imageCtrl.moveDown(index);
+    })[0]
+    .style.setProperty(
+      "display",
+      ...(index < imageCtrl.operationList().length - 1
+        ? ["", ""]
+        : ["none", "important"])
+    );
+  $("#down", e)
+    .on("click", () => {
+      imageCtrl.moveUp(index);
+    })[0]
+    .style.setProperty(
+      "display",
+      ...(index > 0 ? ["", ""] : ["none", "important"])
+    );
+  return e;
 }

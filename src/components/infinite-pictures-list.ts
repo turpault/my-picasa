@@ -12,8 +12,8 @@ export function make(e: HTMLElement, monitor: FolderMonitor): {} {
   const infiniteList = Infinite({
     itemRenderer: (index: number, domElement: HTMLElement) => {
       emptyPlaceHolder(domElement);
-      if (index < monitor.folders.array.length) {
-        albumWithThumbnails(monitor.folders.array[index], domElement, () => {
+      if (index < monitor.folders.length) {
+        albumWithThumbnails(monitor.folders[index], domElement, () => {
           infiniteList.refreshItemHeight(index);
         });
       }
@@ -25,11 +25,7 @@ export function make(e: HTMLElement, monitor: FolderMonitor): {} {
       return "album";
     },
 
-    pageFetcher: (fromIndex: number, callback: Function) => {
-      monitor.events.once("added", () => {
-        callback(monitor.folders.array.length - fromIndex, true);
-      });
-    },
+    pageFetcher: (fromIndex: number, callback: Function) => {},
 
     initialPage: {
       hasMore: true,
@@ -38,12 +34,6 @@ export function make(e: HTMLElement, monitor: FolderMonitor): {} {
   });
   infiniteList.attach(e);
 
-  monitor.events.on("added", (event: { folder: Folder; index: number }) => {
-    infiniteList.refreshItemHeight(event.index);
-  });
-  monitor.events.on("updated", (event: { folder: Folder; index: number }) => {
-    infiniteList.refreshItemHeight(event.index);
-  });
   return InfiniteList;
 }
 
@@ -55,7 +45,7 @@ export function albumWithThumbnails(
   getFolderInfo(f)
     .then((info) => {
       let idx = 0;
-      makeNThumbnails(element, Object.keys(info.pixels).length);
+      makeNThumbnails(element, info.pictures.length);
 
       for (const k in info.pixels) {
         const p = element.children[idx++] as HTMLImageElement;

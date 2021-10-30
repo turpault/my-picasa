@@ -21,7 +21,7 @@ export class ActiveImageManager {
 
   selectNext() {
     const idx = this.list.indexOf(this.current);
-    if (idx < this.list.length) {
+    if (idx < this.list.length-1) {
       this.current = this.list[idx + 1];
       this.event.emit("changed", { name: this.current });
     }

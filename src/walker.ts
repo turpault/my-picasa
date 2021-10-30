@@ -1,4 +1,11 @@
+import { Directory } from "./lib/handles";
 import { Folder, FolderEntry } from "./types/types";
+
+export async function walkFromServer(): Promise<
+  { name: string; path: string }[]
+> {
+  return fetch("/folders").then((v) => v.json());
+}
 
 export async function walk(
   dir: any,
@@ -14,7 +21,6 @@ export async function walk(
   if (pictures.length > 0 || videos.length > 0) {
     // Generate a folder object
     const folder: Folder = {
-      ttl: new Date(),
       key: parent,
       name: dir.name,
       handle: dir,
@@ -31,15 +37,13 @@ export async function walk(
   }
 }
 
-export async function folderContents(fh: any): Promise<{
+export async function folderContents(fh: Directory): Promise<{
   pictures: FolderEntry[];
   videos: FolderEntry[];
   subfolders: FolderEntry[];
 }> {
-  const lst: { name: string; kind: string; handle: any }[] = [];
-  for await (const [name, handle] of fh) {
-    lst.push({ name, handle, kind: handle.kind });
-  }
+  const lst: { name: string; kind: string; handle: any }[] =
+    await fh.getFiles();
   const pictures: FolderEntry[] = [];
   const videos: FolderEntry[] = [];
   const subfolders: FolderEntry[] = [];

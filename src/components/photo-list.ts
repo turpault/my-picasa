@@ -56,9 +56,9 @@ export function make(
 
   function albumWithThumbnails(f: Folder, element: HTMLElement) {
     return getFolderInfo(f).then((info) => {
-      makeNThumbnails(element, Object.keys(info.pixels).length);
+      makeNThumbnails(element, info.pictures.length);
 
-      const keys = Object.keys(info.pixels).reverse();
+      const keys = info.pictures.map((p) => p.name).reverse();
       let idx = keys.length;
       for (const k of keys) {
         thumbnailData(
@@ -93,7 +93,7 @@ export function make(
       }
       const e = pool.values().next().value;
       pool.delete(e);
-      await albumWithThumbnails(monitor.folders.array[index], e);
+      await albumWithThumbnails(monitor.folders[index], e);
       container.appendChild(e);
       displayed.add(e);
       index++;

@@ -21,6 +21,8 @@ body {
   margin: 0;
   height: 100%;
   overflow: hidden;
+  font-family: system-ui;
+  font-size: small;
 }
 
 .full-container {
@@ -41,6 +43,8 @@ body {
   max-height: 100%;
   object-fit: contain;
   max-width: 100%;
+  /* width: 100%; */
+  /* height:100%; */
 }
 #map {
   width: 200px;
@@ -66,7 +70,7 @@ body {
   left: 50%;
   bottom: 10px;
   width: 300px;
-  margin-left: -150px;
+  /* margin-left: 0px; */
   white-space: nowrap;
   /* vertical-align: top; */
 }
@@ -87,40 +91,85 @@ body {
 
 #tools {
   /* cursor: grab; */
-  position: fixed;
   left: 0;
   top: 0;
   height: 100%;
-  opacity: 70%;
+  position: absolute;
+  width: 300px;
+  overflow-y: scroll;
+  background-color: lightgray;
+}
+.tool-box {
+  background-color: #939393;
+  padding: 4px;
+}
+.tool-button {
+  /* line-height: 57px; */
+  width: 75px;
+  height: 90px;
+  text-align: center;
+  position: relative;
+}
+.tool-control {padding: 8px;}
+
+.tool-control > label {
+  display:block;
+  font-style: italic;
 }
 
-.tool-button {
-  /* line-height: 70px; */
+.tool-button > label {
+  display:block;
+  position: absolute;
+  bottom: 0;
+  margin: auto;
+  color: black;
+  left: 0;
+  text-align: center;
+  width: 100%;
 }
+
 .tool-button > canvas{
-  height: 50px;
-  display: block;
+  /* height: 100%; */
+  /* display: block; */
+  /* max-width: 100%; */
+  /* height: 100%; */
+  /* width: 100%; */
+  /* margin: auto; */
+  /* text-align: center; */
+  position: absolute;
+  padding: 0;
+  /* left: 0; */
+  top: 5px;
+  /* left: auto; */
 }
 
 .inline {
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  /* padding-top: 8px !important; */
+  line-height: 10px;
   width: auto !important;
   display:inline-block !important;
 }
 #history > * {
-  border-top: solid 1px;
+  border: solid 1px;
+  margin-top: 8px;
 }
 
 .draggable {
   position: absolute;
   z-index: 9;
 }
+.drop-area {background-color: lightgreen;}
 
 #image-container {
-  left: 0;
   position: absolute;
+  left: 300px;
   right: 0;
   top: 0;
   bottom: 0;
+  overflow: hidden;
+  background-color: #9e9e9e!important;
 }
 
 #buttons {
@@ -144,7 +193,7 @@ body {
 }
 
 #crop {
-  position: fixed;
+  position: absolute;
   border: 3px solid blue;
   z-index: 99;
   pointer-events: none;
@@ -193,6 +242,7 @@ body {
 
 .slidecontainer {
   width: 100%; /* Width of the outside container */
+  /* padding: 0 !important; */
 }
 
 /* The slider itself */

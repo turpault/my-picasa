@@ -13,7 +13,7 @@ export function make(
   const metasidebar = $(e);
   const map = $("#map", e);
   let mapLeaflet: any;
-  let marker:any;
+  let marker: any;
   const close = $("#closemetasidebar");
   close.on("click", () => {
     metasidebar.css("display", "none");
@@ -40,7 +40,7 @@ export function make(
         attribution:
           '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors',
       }).addTo(mapLeaflet);
-      marker = L.marker([0,0]);
+      marker = L.marker([0, 0]);
       marker.addTo(mapLeaflet);
     }
 
@@ -72,7 +72,7 @@ export function make(
       }
       for (const idx in data) {
         meta.append(
-          `<div class="w3-tag w3-gray">${idx}</div><div>${data[idx].description}</div>`
+          `<div class="w3-tag">${idx}</div><div>${data[idx].description}</div>`
         );
       }
     });

@@ -1,10 +1,12 @@
 import { readPictureWithTransforms } from "./imageProcess/client.js";
 import exifreader from "./lib/exif/exifreader.js";
 import { getFileContents } from "./lib/file.js";
+import { File, Directory } from "./lib/handles.js";
 import ini from "./lib/ini.js";
 import Jimp from "./lib/jimp/jimp.js";
 import {
   Folder,
+  FolderEntry,
   FolderInfo,
   FolderPixels,
   PicasaFolderMeta,
@@ -13,31 +15,21 @@ import {
 import { folderContents } from "./walker.js";
 
 const folderMap: Map<string, Promise<FolderInfo>> = new Map();
-let dirtyPicasaMap: Map<any, PicasaFolderMeta> = new Map();
-let dirtyPixelsMap: Map<any, FolderPixels> = new Map();
+let dirtyPicasaMap: Map<Directory, PicasaFolderMeta> = new Map();
+let dirtyPixelsMap: Map<Directory, FolderPixels> = new Map();
 
 setInterval(async () => {
   const d = dirtyPicasaMap;
   dirtyPicasaMap = new Map();
   d.forEach(async (value, key) => {
-    const iniHandleWrite = await key.getFileHandle(".picasa.ini", {
-      create: true,
-    });
-    const writable = await iniHandleWrite.createWritable();
-    const asIni = ini.encode(value);
-    await writable.write(asIni);
-    await writable.close();
+    const iniHandleWrite = await key.getFileHandle(".picasa.ini");
+    await iniHandleWrite.writeFileContents(ini.encode(value));
   });
   const i = dirtyPixelsMap;
   dirtyPixelsMap = new Map();
   i.forEach(async (value, key) => {
-    const iniHandleWrite = await key.getFileHandle(".thumbnails.ini", {
-      create: true,
-    });
-    const writable = await iniHandleWrite.createWritable();
-    const asIni = ini.encode(value);
-    await writable.write(asIni);
-    await writable.close();
+    const iniHandleWrite = await key.getFileHandle(".thumbnails.ini");
+    await iniHandleWrite.writeFileContents(ini.encode(value));
   });
 }, 10000);
 
@@ -60,21 +52,21 @@ export async function getFolderInfo(f: Folder): Promise<FolderInfo> {
 }
 
 export async function getFolderInfoFromHandle(
-  fh: any,
-  pictures?: any[],
-  videos?: any[]
+  fh: Directory,
+  pictures?: FolderEntry[],
+  videos?: FolderEntry[]
 ): Promise<FolderInfo> {
   const [picasa, pixels] = await Promise.all([
     fh
       .getFileHandle(".picasa.ini")
-      .then((handle: any) => getFileContents(handle, "string"))
-      .then((data: string) => ini.decode(data) as PicasaFolderMeta)
-      .catch(() => ({})),
+      .then((handle: File) => getFileContents(handle, "string"))
+      .then((data) => ini.decode(data as string) as PicasaFolderMeta)
+      .catch(() => ({} as PicasaFolderMeta)),
     fh
       .getFileHandle(".thumbnails.ini")
       .then((handle: any) => getFileContents(handle, "string"))
-      .then((data: string) => ini.decode(data) as FolderPixels)
-      .catch(() => ({})),
+      .then((data) => ini.decode(data as string) as FolderPixels)
+      .catch(() => ({} as FolderPixels)),
   ]);
   if (!pictures || !videos) {
     const contents = await folderContents(fh);
@@ -84,7 +76,6 @@ export async function getFolderInfoFromHandle(
 
   const folder: Folder = {
     key: fh.name,
-    ttl: new Date(),
     name: fh.name,
     handle: fh,
   };
@@ -103,14 +94,12 @@ export async function getFolderInfoFromHandle(
   return { ...folder, picasa, pixels, pictures, videos };
 }
 
-export async function updatePicasaData(fh: any, picasa: PicasaFolderMeta) {
-  const iniHandleWrite = await fh.getFileHandle(".picasa.ini", {
-    create: true,
-  });
-  const writable = await iniHandleWrite.createWritable();
-  const asIni = ini.encode(picasa);
-  await writable.write(asIni);
-  await writable.close();
+export async function updatePicasaData(
+  fh: Directory,
+  picasa: PicasaFolderMeta
+) {
+  const iniHandleWrite = await fh.getFileHandle(".picasa.ini");
+  return iniHandleWrite.writeFileContents(ini.encode(picasa));
 }
 
 export async function thumbnail(
@@ -131,9 +120,12 @@ export async function thumbnail(
     info.pixels[name][<any>transformRef] !== transform
   ) {
     const img = await f.handle.getFileHandle(name);
-    const image = await readPictureWithTransforms(img, transform, [
-      ["scaleToFit", sizes[size], sizes[size], Jimp.RESIZE_NEAREST_NEIGHBOR],
-    ]);
+    const image = await readPictureWithTransforms(
+      img,
+      info.picasa[name],
+      transform,
+      [["scaleToFit", sizes[size], sizes[size], Jimp.RESIZE_NEAREST_NEIGHBOR]]
+    );
 
     info.pixels[name][<any>size] = image;
     info.pixels[name][<any>transformRef] = transform;

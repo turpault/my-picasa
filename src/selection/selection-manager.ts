@@ -22,6 +22,9 @@ export class SelectionManager {
   isSelected(key: string): boolean {
     return this.selection.has(key);
   }
+  selected(): string[] {
+    return Array.from(this.selection);
+  }
   select(key: string) {
     if (!this.selection.has(key)) {
       this.selection.add(key);

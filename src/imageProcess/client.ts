@@ -23,6 +23,7 @@ let requests: Map<string, { resolve: Function; reject: Function }> = new Map();
 let requestId = 0;
 export async function readPictureWithTransforms(
   fh: any,
+  options: any,
   transform: string,
   extraOperations: any[]
 ): Promise<string> {
@@ -34,6 +35,7 @@ export async function readPictureWithTransforms(
       id,
       "readPictureWithTransforms",
       fh,
+      options,
       transform,
       extraOperations,
     ]);

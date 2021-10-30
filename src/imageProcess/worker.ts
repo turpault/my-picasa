@@ -3,18 +3,23 @@ globalThis.global = {
   XMLHttpRequest: globalThis.XMLHttpRequest,
 };
 
-import { kill } from "process";
 import { getFileContents } from "../lib/file.js";
+import { Directory, File } from "../lib/handles.js";
 import Jimp from "../lib/jimp/jimp.js";
 import { Queue } from "../lib/queue.js";
 import { decodeOperations, decodeRect, uuid } from "../lib/utils.js";
+import { PicasaFileMeta } from "../types/types.js";
 
 async function readPictureWithTransforms(
   fh: any,
+  options: any,
   transforms: string,
   extraOperations: any[]
 ): Promise<string> {
   const context = await buildContext(fh);
+  if (options) {
+    await setOptions(context, options);
+  }
   if (transforms) {
     await transform(context, transforms);
   }
@@ -29,15 +34,30 @@ async function readPictureWithTransforms(
 }
 
 const contexts = new Map<string, any>();
-const options = new Map<string, any>();
+const options = new Map<string, PicasaFileMeta>();
 const fonts = new Map<string, any>();
 
 // Only process 2 pictures at any given time
 const q = new Queue(5, { fifo: false });
 
-async function getFont(name: string): Promise<any> {
+async function getFont(name: string, width: number): Promise<any> {
+  const ranges = {
+    "400": 8,
+    "800": 16,
+    "1500": 32,
+    "3000": 64,
+    "6000": 128,
+  };
+  // get the font size
+  let size: number = 128; // max
+  for (const [w, fontSize] of Object.entries(ranges)) {
+    if (parseInt(w) > width) {
+      size = fontSize;
+      break;
+    }
+  }
   if (!fonts.has(name)) {
-    const f = await Jimp.loadFont(`/resources/bitmapfonts/${name}.ttf.fnt`);
+    const f = await Jimp.loadFont(`/resources/bitmapfonts/${name}_${size}.fnt`);
     fonts.set(name, f);
   }
   return fonts.get(name);
@@ -51,7 +71,8 @@ function getContext(context: string): any {
   return j;
 }
 async function buildContext(fh: any): Promise<string> {
-  const data = await getFileContents(fh, "buffer");
+  const d: File = new File(fh.path);
+  const data = await getFileContents(d, "buffer");
   const j = await Jimp.read(data);
   const key = uuid();
   contexts.set(key, j);
@@ -87,6 +108,9 @@ async function buildContext(fh: any): Promise<string> {
 #|             |                                     |                                | 0.333333,0.309942;            |
 #| dir_tint    |!MOUSE_X,!MOUSE_Y,!GRADIENT,!SHADOW  | directed gradient              | dir_tint=1,0.306743,0.401515, |
 #|             |                                     |                                | 0.250000,0.250000,ff5bfff3;   |
+#| rotate      | angle (increments of 90)            | rotation (clockwise)           | 1,3                           |  New
+#| mirror      |                                     | mirror                         | 1                             |  New
+#| flip        |                                     | flip                           | 1                             |  New
 # LEGEND:
 # ! = float between 0 and 1, precision:6
 # !! = float with arbitrary range, precision:6
@@ -98,7 +122,7 @@ async function transform(
   context: string | any,
   transformation: string
 ): Promise<string> {
-  const j = typeof context === "string" ? getContext(context) : context;
+  let j = typeof context === "string" ? getContext(context) : context;
   // Transform is <cmd>=arg,arg;<cmd>...
   const operations = decodeOperations(transformation);
   for (const { name, args } of operations) {
@@ -106,12 +130,29 @@ async function transform(
       case "sepia":
         j.sepia();
         break;
+      case "rotate":
+        let r: number;
+        if (args[1] && (r = parseInt(args[1])) != 0) {
+          j.rotate(r * 90);
+        }
+        break;
+      case "flip":
+        j.flip(false, true);
+        break;
+      case "mirror":
+        j.flip(true, false);
+        break;
       case "crop64":
         const crop = decodeRect(args[1]);
         const w = j.bitmap.width;
         const h = j.bitmap.height;
         if (crop) {
-          j.crop(crop.left * w, crop.top * h, w * crop.right, h * crop.bottom);
+          j.crop(
+            crop.left * w,
+            crop.top * h,
+            w * (crop.right - crop.left),
+            h * (crop.bottom - crop.top)
+          );
         }
         break;
       case "bw":
@@ -130,8 +171,22 @@ async function transform(
         const brightness = parseFloat(args[1]);
         const highlights = parseFloat(args[2]);
         const shadows = parseFloat(args[3]);
-        const temp = parseFloat(args[4]);
+        const temp = args[4];
         const what = parseFloat(args[5]);
+        const req = [];
+        if (brightness) {
+          req.push({ apply: "brighten", params: [brightness * 100] });
+        }
+        if (highlights) {
+          req.push({ apply: "saturate", params: [highlights * 100] });
+        }
+        if (shadows) {
+          req.push({ apply: "darken", params: [shadows * 100] });
+        }
+        if (what) {
+          req.push({ apply: "mix", params: [temp, what * 100] });
+        }
+        j.color(req);
         break;
       case "autocolor":
         j.normalize();
@@ -162,7 +217,7 @@ async function transform(
 
         const imgOptions = options.get(context);
         if (imgOptions && imgOptions.caption) {
-          const font = await getFont("polaroid");
+          const font = await getFont("verdana_regular", newImage.bitmap.width);
           newImage.print(
             font,
             newImage.bitmap.width * 0.1,
@@ -175,6 +230,7 @@ async function transform(
         // ARGB to RGBA
         newImage.rotate(-angle, true);
         contexts.set(context, newImage);
+        j = newImage;
         break;
       }
       default:
@@ -194,7 +250,7 @@ async function execute(context: string, operations: string[][]): Promise<void> {
 
 export async function setOptions(
   context: string,
-  _options: any
+  _options: PicasaFileMeta
 ): Promise<void> {
   options.set(context, _options);
   return;

@@ -14,7 +14,9 @@ export function makeThumbnail(): HTMLElement {
 }
 
 function thumbnailDragged(e: any /* BoneEvent*/) {
-  e.originalEvent.dataTransfer.effectAllowed = "copyMove";
+  SelectionManager.get().select(e.target.id);
+  e.dataTransfer.effectAllowed = "move";
+  e.preventDefault();
 }
 
 function thumbnailClicked(e: any /* BoneEvent*/) {

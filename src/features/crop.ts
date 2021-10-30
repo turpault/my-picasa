@@ -1,5 +1,6 @@
 import { ImageController } from "../components/image-controller.js";
 import { ToolRegistrar } from "../components/tools.js";
+import { toolHeader } from "../element-templates.js";
 import { transform } from "../imageProcess/client.js";
 import { jBone as $ } from "../lib/jbone/jbone.js";
 import { ImagePanZoomController } from "../lib/panzoom.js";
@@ -11,7 +12,8 @@ export function setupCrop(
   toolRegistrar: ToolRegistrar
 ) {
   const name = "Crop";
-  const e = $("#crop")[0];
+  const elem = $("#crop");
+  const e = elem[0] as HTMLElement;
 
   type modes = "6x4" | "4x3" | "16x9" | "5x5";
   let mode: modes = "4x3";
@@ -30,8 +32,10 @@ export function setupCrop(
   }
 
   function resize() {
-    h = window.innerHeight;
-    w = window.innerWidth;
+    h = e.parentElement!.clientHeight;
+    w = e.parentElement!.clientWidth;
+    const offsetL = e.parentElement!.offsetLeft;
+    const offsetT = e.parentElement!.offsetTop;
     const ratios: {
       [key: string]: number;
     } = {
@@ -49,15 +53,19 @@ export function setupCrop(
     }
     if (winRatio < cropRatio) {
       // constraint by width
-      l = w * 0.1;
-      r = l;
-      t = (h - (w * 0.8) / cropRatio) / 2;
-      b = t;
+      const cw = w * 0.1;
+      l = +cw;
+      r = cw;
+      const ch = (h - (w * 0.8) / cropRatio) / 2;
+      t = ch;
+      b = ch;
     } else {
-      t = h * 0.1;
-      b = t;
-      l = (w - h * 0.8 * cropRatio) / 2;
-      r = l;
+      const ch = h * 0.1;
+      t = ch;
+      b = ch;
+      const cw = (w - h * 0.8 * cropRatio) / 2;
+      l = cw;
+      r = cw;
     }
 
     e.style.left = `${l}px`;
@@ -66,9 +74,8 @@ export function setupCrop(
     e.style.bottom = `${b}px`;
     validate();
   }
-  $(window).on("resize", (e: Event) => {
-    resize();
-  });
+  new ResizeObserver(resize).observe(e.parentElement!);
+
   $("#btn-6x4").on("click", () => {
     mode = "6x4";
     resize();
@@ -126,12 +133,7 @@ export function setupCrop(
       return `${this.filterName}=1,${encodeRect({ left, top, right, bottom })}`;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = $(`<li class="w3-display-container">${name}
-      <span class="w3-button w3-display-right">&times;</span>
-    </li>`);
-      $("span", e).on("click", () => {
-        imageCtrl.deleteOperation(index);
-      });
+      const e = toolHeader(name, index, imageCtrl);
       return e[0];
     },
   });

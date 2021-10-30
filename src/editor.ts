@@ -1,19 +1,24 @@
 import { ImageController } from "./components/image-controller.js";
 import { make } from "./components/image-strip.js";
-import { make as makeTools, ToolRegistrar } from "./components/tools.js";
+import { make as makeTools } from "./components/tools.js";
+import { setupAutocolor } from "./features/autocolor.js";
+import { setupBrightness } from "./features/brightness.js";
 import { setupCrop } from "./features/crop.js";
+import { setupFlip } from "./features/flip.js";
+import { setupMirror } from "./features/mirror.js";
 import { setupPolaroid } from "./features/polaroid.js";
+import { setupRotate } from "./features/rotate.js";
 import { setupSepia } from "./features/sepia.js";
 import { subFolder } from "./folder-monitor.js";
 import { getFolderInfoFromHandle } from "./folder-utils.js";
-import { get } from "./lib/idb-keyval.js";
 import { jBone as $ } from "./lib/jbone/jbone.js";
 import { ImagePanZoomController } from "./lib/panzoom.js";
 import { ActiveImageManager } from "./selection/active-manager.js";
-import { Folder, FolderInfo } from "./types/types.js";
+import { FolderInfo } from "./types/types.js";
 
 let root: any;
 async function init() {
+  /*
   if (!root) {
     root = await get("root");
   }
@@ -26,19 +31,26 @@ async function init() {
   if ((await root.queryPermission({ mode: "readwrite" })) !== "granted") {
     $("#permission").css("display", "block");
   }
+  */
+
   const canvas = $("#edited-image")[0];
 
   const hash = decodeURIComponent(location.hash).replace("#", "");
 
-  const { folder, name } = await subFolder(root, hash);
+  const { folder, name } = await subFolder(hash);
 
   const zoomController = new ImagePanZoomController(canvas);
   const imageController = new ImageController(canvas, zoomController);
   const toolRegistrar = makeTools($("#tools")[0], imageController);
   // Add all the activable features
   setupCrop(zoomController, imageController, toolRegistrar);
+  setupBrightness(imageController, toolRegistrar);
   setupSepia(imageController, toolRegistrar);
+  setupAutocolor(imageController, toolRegistrar);
   setupPolaroid(imageController, toolRegistrar);
+  setupRotate(imageController, toolRegistrar);
+  setupFlip(imageController, toolRegistrar);
+  setupMirror(imageController, toolRegistrar);
 
   const f: FolderInfo = await getFolderInfoFromHandle(folder);
   const activeManager = new ActiveImageManager(Object.keys(f.pixels), name);

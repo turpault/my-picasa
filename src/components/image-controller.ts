@@ -9,9 +9,10 @@ import {
 } from "../imageProcess/client.js";
 import { setImageDataToCanvasElement } from "../lib/dom.js";
 import { buildEmitter, Emitter } from "../lib/event.js";
+import { jBone as $ } from "../lib/jbone/jbone.js";
 import { ImagePanZoomController } from "../lib/panzoom.js";
 import { Queue } from "../lib/queue.js";
-import { ImageControllerEvent } from "../types/types.js";
+import { ImageControllerEvent, PicasaFileMeta } from "../types/types.js";
 
 export class ImageController {
   constructor(canvas: HTMLCanvasElement, panZoomCtrl: ImagePanZoomController) {
@@ -20,17 +21,23 @@ export class ImageController {
     this.context = "";
     this.name = "";
     this.liveContext = "";
-    this.operations = [];
     this.events = buildEmitter<ImageControllerEvent>();
     this.zoomController = panZoomCtrl;
     this.q = new Queue(1);
     this.q.event.on("drain", () => {
       this.events.emit("idle", {});
     });
+    this.meta = {};
+    const parent = $(this.canvas).parent();
+    this.parent = parent[0];
+    new ResizeObserver(() => this.recenter()).observe(this.parent);
   }
 
-  operationList(): string {
-    return this.operations.join(";");
+  operationList(): string[] {
+    return (this.meta.filters || "").split(";").filter((v) => v);
+  }
+  operations(): string {
+    return this.meta.filters || "";
   }
 
   async rebuildContext(): Promise<boolean> {
@@ -41,10 +48,8 @@ export class ImageController {
         await destroyContext(this.liveContext);
       }
       this.liveContext = await cloneContext(this.context);
-      await setOptions(this.liveContext, {
-        caption: this.caption,
-      });
-      await transform(this.liveContext, this.operationList());
+      await setOptions(this.liveContext, this.meta);
+      await transform(this.liveContext, this.operations());
       return true;
     });
   }
@@ -63,11 +68,7 @@ export class ImageController {
     this.name = name;
 
     const folderData = await getFolderInfoFromHandle(this.folder);
-    this.operations = ((folderData.picasa[this.name] || {}).filters || "")
-      .split(";")
-      .filter((v) => v);
-    this.caption = folderData.picasa[this.name].caption;
-
+    this.meta = folderData.picasa[this.name] || {};
     const file = await this.folder.getFileHandle(this.name);
     this.context = await buildContext(file);
 
@@ -75,48 +76,73 @@ export class ImageController {
   }
 
   async update() {
+    this.events.emit("updated", {
+      context: this.liveContext,
+      meta: this.meta,
+    });
     if (await this.rebuildContext()) {
       const data = (await encode(this.liveContext, "raw")) as ImageData;
       setImageDataToCanvasElement(data, this.canvas);
       this.recenter();
-      this.events.emit("updated", {
+      this.events.emit("liveViewUpdated", {
         context: this.liveContext,
-        operations: this.operations,
-        caption: this.caption,
       });
     }
   }
 
   async addOperation(expression: string) {
-    this.operations.push(expression);
+    const lst = this.operationList();
+    lst.push(expression);
+    this.meta.filters = lst.join(";");
     await Promise.all([this.save(), this.update()]);
   }
 
   async updateCaption(caption: string) {
-    this.caption = caption;
+    this.meta.caption = caption;
     await Promise.all([this.save(), this.update()]);
   }
 
   async deleteOperation(idx: number) {
-    this.operations.splice(idx, 1);
+    const lst = this.operationList();
+    lst.splice(idx, 1);
+    this.meta.filters = lst.join(";");
     await Promise.all([this.save(), this.update()]);
+  }
+  async moveDown(idx: number) {
+    const lst = this.operationList();
+    if (idx < lst.length - 1) {
+      const op = lst.splice(idx, 1)[0];
+      lst.splice(idx+1, 0, op);
+      this.meta.filters = lst.join(";");
+      await Promise.all([this.save(), this.update()]);
+    }
+  }
+  async moveUp(idx: number) {
+    if (idx > 0) {
+      const lst = this.operationList();
+      const op = lst.splice(idx, 1)[0];
+      lst.splice(idx - 1, 0, op);
+      this.meta.filters = lst.join(";");
+      await Promise.all([this.save(), this.update()]);
+    }
   }
 
   async updateOperation(idx: number, op: string) {
-    this.operations[idx] = op;
+    const lst = this.operationList();
+    lst[idx] = op;
+    this.meta.filters = lst.join(";");
     await Promise.all([this.save(), this.update()]);
   }
 
   async save() {
     const folderData = await getFolderInfoFromHandle(this.folder);
-    folderData.picasa[this.name].caption = this.caption;
-    folderData.picasa[this.name].filters = this.operationList();
+    folderData.picasa[this.name] = this.meta;
     await updatePicasaData(this.folder, folderData.picasa);
   }
 
   recenter() {
-    const h = window.innerHeight;
-    const w = window.innerWidth;
+    const h = this.parent.clientHeight;
+    const w = this.parent.clientWidth;
     this.zoomController!.recenter(w, h);
   }
 
@@ -125,9 +151,9 @@ export class ImageController {
   private name: string;
   private context: string;
   private liveContext: string;
-  private caption?: string;
+  private meta: PicasaFileMeta;
   private zoomController?: ImagePanZoomController;
-  private operations: string[];
   private q: Queue;
+  private parent: HTMLElement;
   events: Emitter<ImageControllerEvent>;
 }
