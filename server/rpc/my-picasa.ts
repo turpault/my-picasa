@@ -3,15 +3,13 @@ import { encode } from "punycode";
 import {
   buildContext,
   cloneContext,
+  destroyContext,
+  execute,
   setOptions,
   transform,
 } from "./rpcFunctions/sharp-processor";
-import {
-  folder,
-  readFileContents,
-  writeFileContents,
-} from "../rpcFunctions/fs";
-import { Exceptions } from "../types/exceptions";
+import { folder, readFileContents, writeFileContents } from "./rpcFunctions/fs";
+import { Exceptions } from "../../shared/types/exceptions";
 import { createJob } from "./rpcFunctions/fileJobs";
 import { getJob } from "./rpcFunctions/fileJobs";
 import { folders } from "./rpcFunctions/walker";
@@ -34,13 +32,21 @@ export const MyPicasa: ServiceMap = {
       handler: cloneContext,
       arguments: ["context:string"],
     },
+    destroyContext: {
+      handler: destroyContext,
+      arguments: ["context:string"],
+    },
     transform: {
       handler: transform,
-      arguments: ["context:string", "operations:object"],
+      arguments: ["context:string", "operations:string"],
     },
     setOptions: {
       handler: setOptions,
       arguments: ["context:string", "options:object"],
+    },
+    execute: {
+      handler: execute,
+      arguments: ["context:string", "operations:object"],
     },
     encode: {
       handler: encode,

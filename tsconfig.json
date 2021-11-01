@@ -13,7 +13,7 @@
     "allowJs": true,
     "sourceMap": true,
     "allowSyntheticDefaultImports" : true,
-    "rootDir": "./",
+    "rootDirs": ["./client", "./shared"],
     "outDir": "./public/dist/",
     "typeRoots": [
       "./node_modules/@types",
@@ -21,8 +21,9 @@
     ]
   },
   "include": [
-    "./src/**/*.ts",
-    "./src/**/*.js"
+    "./client/**/*.ts",
+    "./shared/**/*.ts",
+    "./client/**/*.js"
   ],
   "exclude": [
     "dist",

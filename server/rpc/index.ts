@@ -1,4 +1,4 @@
-import { SocketAdaptorInterface } from "./socket/socketAdaptorInterface";
+import { SocketAdaptorInterface } from "../../shared/socket/socketAdaptorInterface";
 import { MyPicasa } from "./my-picasa";
 import { registerServices } from "./rpcHandler";
 

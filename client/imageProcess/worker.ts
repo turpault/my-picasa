@@ -1,37 +1,82 @@
-import { randomUUID } from "crypto";
-import { readFile } from "fs/promises";
-import sharp, { Sharp } from "sharp";
-import { decodeOperations, decodeRect } from "../../../shared/lib/utils";
-import { PicasaFileMeta } from "../../../shared/types/types.js";
+declare var globalThis: any;
+globalThis.global = {
+  XMLHttpRequest: globalThis.XMLHttpRequest,
+};
 
-const contexts = new Map<string, Sharp>();
+import { decodeOperations, decodeRect, uuid } from "../../shared/lib/utils.js";
+import { PicasaFileMeta } from "../../shared/types/types.js";
+import { getFileContents } from "../lib/file.js";
+import { File } from "../lib/handles.js";
+import Jimp from "../lib/jimp/jimp.js";
+import { Queue } from "../lib/queue.js";
+
+async function readPictureWithTransforms(
+  fh: any,
+  options: any,
+  transforms: string,
+  extraOperations: any[]
+): Promise<string> {
+  const context = await buildContext(fh);
+  if (options) {
+    await setOptions(context, options);
+  }
+  if (transforms) {
+    await transform(context, transforms);
+  }
+  if (extraOperations) {
+    await execute(context, extraOperations);
+  }
+
+  const t = await encode(context, "image/jpeg");
+  destroyContext(context);
+
+  return t as string;
+}
+
+const contexts = new Map<string, any>();
 const options = new Map<string, PicasaFileMeta>();
+const fonts = new Map<string, any>();
 
-function getContext(context: string): Sharp {
+// Only process 2 pictures at any given time
+const q = new Queue(5, { fifo: false });
+
+async function getFont(name: string, width: number): Promise<any> {
+  const ranges = {
+    "400": 8,
+    "800": 16,
+    "1500": 32,
+    "3000": 64,
+    "6000": 128,
+  };
+  // get the font size
+  let size: number = 128; // max
+  for (const [w, fontSize] of Object.entries(ranges)) {
+    if (parseInt(w) > width) {
+      size = fontSize;
+      break;
+    }
+  }
+  if (!fonts.has(name)) {
+    const f = await Jimp.loadFont(`/resources/bitmapfonts/${name}_${size}.fnt`);
+    fonts.set(name, f);
+  }
+  return fonts.get(name);
+}
+
+function getContext(context: string): any {
   const j = contexts.get(context);
   if (!j) {
     throw new Error("context not found");
   }
   return j;
 }
-
-function setContext(context: string, j: Sharp) {
-  contexts.set(context, j);
-}
-
-export async function buildContext(file: any): Promise<string> {
-  const fileData = await readFile(file);
-  const contextId = randomUUID.toString();
-  const s = sharp(fileData);
-  s.rotate();
-  contexts.set(contextId, s);
-  return contextId;
-}
-export async function cloneContext(context: string): Promise<string> {
-  const j = getContext(context);
-  const contextId = randomUUID.toString();
-  setContext(contextId, j.clone());
-  return contextId;
+async function buildContext(fh: any): Promise<string> {
+  const d: File = new File(fh.path);
+  const data = await getFileContents(d, "buffer");
+  const j = await Jimp.read(data);
+  const key = uuid();
+  contexts.set(key, j);
+  return key;
 }
 
 /*
@@ -73,21 +118,17 @@ export async function cloneContext(context: string): Promise<string> {
 # [] = crop rectangle
 */
 
-export async function transform(
-  context: string,
+async function transform(
+  context: string | any,
   transformation: string
 ): Promise<string> {
+  let j = typeof context === "string" ? getContext(context) : context;
   // Transform is <cmd>=arg,arg;<cmd>...
   const operations = decodeOperations(transformation);
   for (const { name, args } of operations) {
-    let j = getContext(context);
     switch (name) {
       case "sepia":
-        j.recomb([
-          [0.3588, 0.7044, 0.1368],
-          [0.299, 0.587, 0.114],
-          [0.2392, 0.4696, 0.0912],
-        ]);
+        j.sepia();
         break;
       case "rotate":
         let r: number;
@@ -96,23 +137,22 @@ export async function transform(
         }
         break;
       case "flip":
-        j.flip();
+        j.flip(false, true);
         break;
       case "mirror":
-        j.flop();
+        j.flip(true, false);
         break;
       case "crop64":
         const crop = decodeRect(args[1]);
+        const w = j.bitmap.width;
+        const h = j.bitmap.height;
         if (crop) {
-          const metadata = await j.metadata();
-          const w = metadata.width!;
-          const h = metadata.height!;
-          j.extract({
-            left: crop.left * w,
-            top: crop.top * h,
-            width: w * (crop.right - crop.left),
-            height: h * (crop.bottom - crop.top),
-          });
+          j.crop(
+            crop.left * w,
+            crop.top * h,
+            w * (crop.right - crop.left),
+            h * (crop.bottom - crop.top)
+          );
         }
         break;
       case "bw":
@@ -122,12 +162,10 @@ export async function transform(
         const angle = parseInt(args[1]);
         const scale = parseInt(args[2]);
         if (scale !== 0) {
-          const metadata = await j.metadata();
-          const w = metadata.width!;
-          const h = metadata.height;
-          j = j.resize(w * (1 + scale));
+          debugger;
+          j.scale(scale + 1);
         }
-        j = j.rotate((10 * angle) / Math.PI);
+        j.rotate((10 * angle) / Math.PI, false);
         break;
       case "finetune2":
         const brightness = parseFloat(args[1]);
@@ -135,59 +173,47 @@ export async function transform(
         const shadows = parseFloat(args[3]);
         const temp = args[4];
         const what = parseFloat(args[5]);
-        const modulate: {
-          brightness?: number | undefined;
-          saturation?: number | undefined;
-          hue?: number | undefined;
-          lightness?: number | undefined;
-        } = {};
-        let doModulate = false;
+        const req = [];
         if (brightness) {
-          doModulate = true;
-          modulate.brightness = brightness;
+          req.push({ apply: "brighten", params: [brightness * 100] });
         }
         if (highlights) {
-          doModulate = true;
-          modulate.lightness = highlights;
+          req.push({ apply: "saturate", params: [highlights * 100] });
         }
         if (shadows) {
-          debugger;
+          req.push({ apply: "darken", params: [shadows * 100] });
         }
-        if (doModulate) j = j.modulate(modulate);
-
+        if (what) {
+          req.push({ apply: "mix", params: [temp, what * 100] });
+        }
+        j.color(req);
         break;
       case "autocolor":
-        j = j.normalize();
+        j.normalize();
         break;
       case "Polaroid": {
         const angle = parseFloat(args[1]);
         const c = j.clone();
-        const metadata = await c.metadata();
-        const w = metadata.width!;
-        const h = metadata.height!;
-        const minDim = Math.min(w, h) * 0.9;
-        c.resize(minDim, minDim, { fit: "cover" });
-        const newImage = sharp({
-          create: {
-            width: w,
-            /** Number of pixels high. */
-            height: h,
-            /** Number of bands e.g. 3 for RGB, 4 for RGBA */
-            channels: 4,
-            /** Parsed by the [color](https://www.npmjs.org/package/color) module to extract values for red, green, blue and alpha. */
-            background: "#ffffff",
-          },
-        });
-        newImage.composite([
-          {
-            input: await c.toBuffer(),
-            left: h / 20,
-            top: w / 20,
-          },
-        ]);
+        const minDim = Math.min(j.bitmap.height, j.bitmap.width) * 0.9;
+        c.cover(
+          minDim,
+          minDim,
+          Jimp.HORIZONTAL_ALIGN_CENTER | Jimp.VERTICAL_ALIGN_MIDDLE
+        );
+        c.background(Jimp.cssColorToHex("#ffffff"));
+        const newImage = await new Jimp(
+          j.bitmap.width,
+          j.bitmap.height,
+          Jimp.cssColorToHex("#ffffff")
+        );
+        newImage.blit(
+          c,
+          newImage.bitmap.width / 20,
+          newImage.bitmap.width / 20
+        );
         const col =
           args[2].length > 6 ? args[2].slice(2) + args[2].slice(0, 2) : args[2];
-        /*
+        const bgng = Jimp.cssColorToHex(col);
 
         const imgOptions = options.get(context);
         if (imgOptions && imgOptions.caption) {
@@ -199,9 +225,10 @@ export async function transform(
             imgOptions.caption,
             newImage.bitmap.width * 0.8
           );
-        }*/
+        }
+        newImage.background(bgng);
         // ARGB to RGBA
-        newImage.rotate(-angle, { background: col });
+        newImage.rotate(-angle, true);
         contexts.set(context, newImage);
         j = newImage;
         break;
@@ -209,9 +236,16 @@ export async function transform(
       default:
         break;
     }
-    setContext(context, j);
   }
   return context;
+}
+
+async function execute(context: string, operations: string[][]): Promise<void> {
+  const j = getContext(context);
+  for (const op of operations) {
+    j[op[0]](...op.slice(1));
+  }
+  return;
 }
 
 export async function setOptions(
@@ -221,34 +255,92 @@ export async function setOptions(
   options.set(context, _options);
   return;
 }
+async function cloneContext(context: string): Promise<string> {
+  const j = getContext(context);
+  const key = uuid();
+  contexts.set(key, j.clone());
+  return key;
+}
 
-export async function destroyContext(context: string): Promise<void> {
+async function destroyContext(context: string): Promise<void> {
   contexts.delete(context);
 }
 
-export async function encode(
+async function encode(
   context: string,
   mime: string = "image/jpeg"
-): Promise<Buffer> {
-  let j = getContext(context);
-  switch (mime) {
-    case "image/jpeg":
-      j = j.jpeg();
-      break;
-    case "image/png":
-      j = j.png();
+): Promise<string | ImageData> {
+  const j = getContext(context);
+  if (mime === "raw") {
+    let a = Uint8ClampedArray.from(j.bitmap.data);
+    if (a.length > j.bitmap.width * j.bitmap.height * 4) {
+      a = a.slice(0, j.bitmap.width * j.bitmap.height * 4);
+    }
+    const imageData = new ImageData(a, j.bitmap.width, j.bitmap.height);
+    return imageData;
   }
-  const t = await j.toBuffer();
+  const t = await j.getBase64Async(mime);
   return t;
 }
 
-export async function execute(
-  context: string,
-  operations: string[][]
-): Promise<void> {
-  for (const operation of operations) {
-    let j = getContext(context);
-    j = (j as any)[operation[0] as string](...operation.slice(1));
-    setContext(context, j);
-  }
+let reqId = 0;
+function response(e: Promise<any>, data: any[]) {
+  const msg = `${reqId++}: ${data[0]}(${data.slice(1).join(",")})`;
+  console.time(msg);
+  console.info(msg);
+  return e
+    .then((res) => {
+      postMessage([data[0], { res }]);
+    })
+    .catch((error) => {
+      console.warn(msg, error);
+      postMessage([data[0], { error }]);
+    })
+    .finally(() => console.timeEnd(msg));
 }
+
+onmessage = (e: { data: any[] }) => {
+  console.log("Worker: Message received from main script");
+
+  switch (e.data[1]) {
+    case "readPictureWithTransforms":
+      q.add(() =>
+        response(
+          (readPictureWithTransforms as Function)(...e.data.slice(2)),
+          e.data
+        )
+      );
+      break;
+    case "buildContext":
+      q.add(() =>
+        response((buildContext as Function)(...e.data.slice(2)), e.data)
+      );
+      break;
+    case "transform":
+      q.add(() =>
+        response((transform as Function)(...e.data.slice(2)), e.data)
+      );
+      break;
+    case "encode":
+      q.add(() => response((encode as Function)(...e.data.slice(2)), e.data));
+      break;
+    case "cloneContext":
+      q.add(() =>
+        response((cloneContext as Function)(...e.data.slice(2)), e.data)
+      );
+      break;
+    case "destroyContext":
+      q.add(() =>
+        response((destroyContext as Function)(...e.data.slice(2)), e.data)
+      );
+      break;
+    case "execute":
+      q.add(() => response((execute as Function)(...e.data.slice(2)), e.data));
+      break;
+    case "setOptions":
+      q.add(() =>
+        response((setOptions as Function)(...e.data.slice(2)), e.data)
+      );
+      break;
+  }
+};

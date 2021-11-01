@@ -24,18 +24,18 @@
   "browser": "dist/src/index.js",
   "scripts": {
     "build": "tsc -d",
-    "build:rpc": "node dist/server/rpc/generate src/rpc/generated-rpc",
+    "build:server": "tsc -d -p tsconfig-server.json",
+    "build:rpc": "node dist/server/rpc/generate client/rpc/generated-rpc",
     "clean": "rimraf dist",
     "reset": "rimraf node_modules dist",
     "start": "run-p start:*",
     "start:tsc": "tsc-watch",
     "start:tsc-server": "tsc-watch -p tsconfig-server.json",
-    "start:httpd": "nodemon --watch ./dist dist/index.js"
+    "start:httpd": "nodemon --watch ./dist dist/server/index.js"
   },
   "devDependencies": {
     "@types/ini": "^1.3.31",
     "@types/sharp": "^0.29.2",
-    "@types/uuid": "^8.3.1",
     "@types/web": "^0",
     "@types/ws": "^7.4.1",
     "cross-var": "^1",
@@ -63,7 +63,6 @@
     "infinite-list": "^1.1.0",
     "ini": "^2.0.0",
     "sharp": "^0.29.2",
-    "uuid": "^8.3.2",
     "wasm-vips": "^0.0.1",
     "xml2js": "^0.4.23"
   }

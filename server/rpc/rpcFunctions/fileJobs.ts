@@ -7,8 +7,8 @@ import {
   writeFile,
 } from "fs/promises";
 import { basename, dirname, extname, join } from "path";
-import { uuid } from "../../../src/lib/utils";
-import ini from "../../../src/lib/ini";
+import { uuid } from "../../../shared/lib/utils";
+import ini from "../../../shared/lib/ini";
 
 type Job = {
   id: string;

@@ -1,7 +1,7 @@
 import { resolve } from "path/posix";
 import { MessageEvent } from "ws";
-import { uuid } from "../../../shared/lib/utils";
-import { SocketAdaptorInterface } from "../../../shared/socket/socketAdaptorInterface";
+import { uuid } from "../lib/utils";
+import { SocketAdaptorInterface } from "./socketAdaptorInterface";
 
 const defaultTimeoutInSeconds = 180;
 

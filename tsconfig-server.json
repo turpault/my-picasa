@@ -14,13 +14,14 @@
     "noImplicitReturns": true,
     "strictNullChecks": true,
     "allowJs": true,
-    "rootDirs": ["./server", "./src"],
+    "rootDirs": ["./server", "./shared"],
     "typeRoots": [
       "./node_modules/@types"
     ]
   },
   "include": [
     "./server/**/*.ts",
+    "./shared/**/*.ts",
   ],
   "exclude": [
     "dist",
