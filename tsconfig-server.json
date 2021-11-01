@@ -14,7 +14,7 @@
     "noImplicitReturns": true,
     "strictNullChecks": true,
     "allowJs": true,
-    "rootDir": "./server",
+    "rootDirs": ["./server", "./src"],
     "typeRoots": [
       "./node_modules/@types"
     ]

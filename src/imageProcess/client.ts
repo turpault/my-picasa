@@ -1,55 +1,34 @@
-import { PicasaFileMeta } from "../types/types";
+import { SocketAdaptorInterface } from "../../server/rpc/socket/socketAdaptorInterface.js";
+import { connect } from "../client/connect.js";
+import { MyPicasa } from "../rpc/generated-rpc/MyPicasa.js";
 
-let workers = [
-  new Worker("/dist/src/imageProcess/worker.js", {
-    type: "module",
-  }),
-  new Worker("/dist/src/imageProcess/worker.js", {
-    type: "module",
-  }),
-];
-const workerContextMap = new Map<string, Worker>();
-function getWorkerForContext(context: string): Worker {
-  if (workerContextMap.has(context)) {
-    return workerContextMap.get(context)!;
+let connection: Promise<{ service: MyPicasa; socket: SocketAdaptorInterface }>;
+function getService(): Promise<{
+  service: MyPicasa;
+  socket: SocketAdaptorInterface;
+}> {
+  if (!connection) {
+    connection = connect(5500, "127.0.0.1", false, {});
   }
-  return workers[Math.floor(Math.random() * workers.length)];
-}
-function setWorkerForContext(context: string, worker: Worker) {
-  workerContextMap.set(context, worker);
+  return connection;
 }
 
-let requests: Map<string, { resolve: Function; reject: Function }> = new Map();
-let requestId = 0;
 export async function readPictureWithTransforms(
-  fh: any,
+  fh: string,
   options: any,
   transform: string,
   extraOperations: any[]
 ): Promise<string> {
-  const id = (requestId++).toString();
-  return new Promise<string>((resolve, reject) => {
-    requests.set(id, { resolve, reject });
-
-    getWorkerForContext("").postMessage([
-      id,
-      "readPictureWithTransforms",
-      fh,
-      options,
-      transform,
-      extraOperations,
-    ]);
-  });
+  const c = await getService();
+  const context = await c.service.buildContext(fh);
+  await c.service.setOptions(context, options);
+  await c.service.transform(context, transform);
+  return context;
 }
 
 export async function buildContext(fh: any): Promise<string> {
-  const id = (requestId++).toString();
-  const worker = getWorkerForContext("");
-  const context = await new Promise<string>((resolve, reject) => {
-    requests.set(id, { resolve, reject });
-    worker.postMessage([id, "buildContext", fh]);
-  });
-  setWorkerForContext(context, worker);
+  const c = await getService();
+  const context = await c.service.buildContext(fh);
   return context;
 }
 
@@ -57,80 +36,40 @@ export async function execute(
   context: string,
   operations: string[][]
 ): Promise<string> {
-  const id = (requestId++).toString();
-  const worker = getWorkerForContext(context);
-  return new Promise<string>((resolve, reject) => {
-    requests.set(id, { resolve, reject });
-    worker.postMessage([id, "execute", context, operations]);
-  });
+  const c = await getService();
+  await c.service.execute(operations);
+  return context;
 }
 
 export async function setOptions(
   context: string,
   options: any
 ): Promise<string> {
-  const id = (requestId++).toString();
-  const worker = getWorkerForContext(context);
-  return new Promise<string>((resolve, reject) => {
-    requests.set(id, { resolve, reject });
-    worker.postMessage([id, "setOptions", context, options]);
-  });
+  const c = await getService();
+  await c.service.setOptions(context, options);
+  return context;
 }
 
 export async function transform(
   context: string,
   transformation: string
 ): Promise<string> {
-  const id = (requestId++).toString();
-  const worker = getWorkerForContext(context);
-  return new Promise<string>((resolve, reject) => {
-    requests.set(id, { resolve, reject });
-    worker.postMessage([id, "transform", context, transformation]);
-  });
+  const c = await getService();
+  await c.service.transform(context, transformation);
+  return context;
 }
 
 export async function cloneContext(context: string): Promise<string> {
-  const id = (requestId++).toString();
-  const worker = getWorkerForContext(context);
-  const newContext = await new Promise<string>((resolve, reject) => {
-    requests.set(id, { resolve, reject });
-    worker.postMessage([id, "cloneContext", context]);
-  });
-  setWorkerForContext(newContext, worker);
+  const c = await getService();
+  const newContext = await c.service.cloneContext(context);
   return newContext;
 }
 
 export async function destroyContext(context: string): Promise<void> {
-  const id = (requestId++).toString();
-  const worker = getWorkerForContext(context);
-  return new Promise<void>((resolve, reject) => {
-    requests.set(id, { resolve, reject });
-    worker.postMessage([id, "destroyContext", context]);
-  });
+  const c = await getService();
+  await c.service.destroyContext(context);
 }
 
-export async function encode(
-  context: string,
-  mime: string
-): Promise<string | ImageData> {
-  const id = (requestId++).toString();
-  const worker = getWorkerForContext(context);
-  return new Promise<string>((resolve, reject) => {
-    requests.set(id, { resolve, reject });
-    worker.postMessage([id, "encode", context, mime]);
-  });
-}
-
-for (const worker of workers) {
-  worker.onmessage = (e) => {
-    const id = e.data[0] as string;
-    if (requests.has(id)) {
-      const { resolve, reject } = requests.get(id)!;
-      if (e.data[1].error) {
-        reject(e.data[1].error);
-      } else {
-        resolve(e.data[1].res);
-      }
-    }
-  };
+export async function encode(context: string, mime: string): Promise<string> {
+  return `/encode/${context}/${mime}`;
 }
