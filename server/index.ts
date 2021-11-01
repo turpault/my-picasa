@@ -4,9 +4,10 @@ import { readdir, readFile, stat, writeFile } from "fs/promises";
 import { Server } from "http";
 import { join } from "path";
 import WebSocket from "ws";
-import { SocketAdaptorInterface } from "./rpc/socket/socketAdaptorInterface";
-import { WsAdaptor } from "./rpc/socket/wsAdaptor";
+import { SocketAdaptorInterface } from "../shared/socket/socketAdaptorInterface";
+import { WsAdaptor } from "../shared/socket/wsAdaptor";
 import { RPCInit } from "./rpc/index";
+import { encode } from "./rpc/rpcFunctions/sharp-processor";
 const server: FastifyInstance = Fastify({
   logger: true,
   maxParamLength: 32000,
@@ -83,6 +84,11 @@ server.register(fastifystatic, {
 
 server.get("/ping", pingOpts, async (request, reply) => {
   return { pong: "it worked!" };
+});
+
+server.get("/encode/:context/:mime", async (request, reply) => {
+  const { context, mime } = request.params as any;
+  return encode(context, mime);
 });
 
 const start = async () => {

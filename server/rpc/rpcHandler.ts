@@ -1,5 +1,5 @@
-import { v4 as uuid } from "uuid";
-import { SocketAdaptorInterface } from "./socket/socketAdaptorInterface";
+import { uuid } from "../../shared/lib/utils";
+import { SocketAdaptorInterface } from "../../shared/socket/socketAdaptorInterface";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Describles a client-specific set of options.

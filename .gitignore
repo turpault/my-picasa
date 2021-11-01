@@ -35,9 +35,6 @@ node_modules
 # TypeScript target
 dist
 
-# internal link
-public/src
-
 # Visual Studio Code local project settings
 .vscode
 
