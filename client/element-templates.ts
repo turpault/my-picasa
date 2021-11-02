@@ -1,7 +1,7 @@
 import { ImageController } from "./components/image-controller.js";
 import { makeNThumbnails } from "./components/thumbnail.js";
 import { Folder } from "./types/types.js";
-import { jBone as $ } from "./lib/jbone/jbone.js";
+import { $ } from "./lib/dom.js";
 
 export function folder(f: Folder): HTMLElement {
   const e = document.createElement("li");
@@ -10,6 +10,11 @@ export function folder(f: Folder): HTMLElement {
 
   return e;
 }
+
+export function elementByFolder(f: Folder): HTMLElement {
+  return $(`#${"folder:" + f.key}`).get();
+}
+
 export function folderByElement(
   e: HTMLElement,
   folders: Folder[]
@@ -57,8 +62,8 @@ export function toolHeader(
   $("#up", e)
     .on("click", () => {
       imageCtrl.moveDown(index);
-    })[0]
-    .style.setProperty(
+    })
+    .css(
       "display",
       ...(index < imageCtrl.operationList().length - 1
         ? ["", ""]
@@ -67,10 +72,7 @@ export function toolHeader(
   $("#down", e)
     .on("click", () => {
       imageCtrl.moveUp(index);
-    })[0]
-    .style.setProperty(
-      "display",
-      ...(index > 0 ? ["", ""] : ["none", "important"])
-    );
+    })
+    .css("display", ...(index > 0 ? ["", ""] : ["none", "important"]));
   return e;
 }

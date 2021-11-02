@@ -1,6 +1,6 @@
 import { SocketAdaptorInterface } from "../../shared/socket/socketAdaptorInterface.js";
 import { WsAdaptor } from "../../shared/socket/wsAdaptor.js";
-import { MyPicasa } from "../rpc/generated-rpc/MyPicasa";
+import { MyPicasa } from "./generated-rpc/MyPicasa.js";
 export async function connect(
   port: number,
   address: string,
@@ -8,7 +8,7 @@ export async function connect(
   handlerMap: { [action: string]: Function }
 ): Promise<{ service: MyPicasa; socket: SocketAdaptorInterface }> {
   const wSocket = new WebSocket(
-    `${ssl ? "wss://" : "ws://"}${address}:${port}/cs`
+    `${ssl ? "wss://" : "ws://"}${address}:${port}/cmd`
   );
   return new Promise((resolve, reject) => {
     wSocket.onerror = (error) => {
@@ -42,4 +42,22 @@ export async function makeEventSource(
     },
   });
   return { service, socket };
+}
+
+let connection:
+  | Promise<{ service: MyPicasa; socket: SocketAdaptorInterface }>
+  | undefined;
+export function getService(): Promise<{
+  service: MyPicasa;
+  socket: SocketAdaptorInterface;
+}> {
+  if (!connection) {
+    connection = connect(5500, "127.0.0.1", false, {
+      error: () => {
+        connection = undefined;
+        debugger;
+      },
+    });
+  }
+  return connection;
 }

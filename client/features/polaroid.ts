@@ -2,7 +2,7 @@ import { ImageController } from "../components/image-controller.js";
 import { ToolRegistrar } from "../components/tools.js";
 import { toolHeader } from "../element-templates.js";
 import { transform } from "../imageProcess/client.js";
-import { jBone as $ } from "../lib/jbone/jbone.js";
+import { $ } from "../lib/dom.js";
 
 export function setupPolaroid(
   imageController: ImageController,
@@ -45,7 +45,7 @@ export function setupPolaroid(
 
       $("#colorpicker", e).on("input", update);
       $("#angle", e).on("input", update);
-      return e[0];
+      return e.get()!;
     },
   });
 }

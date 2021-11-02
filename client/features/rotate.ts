@@ -2,7 +2,7 @@ import { ImageController } from "../components/image-controller.js";
 import { ToolRegistrar } from "../components/tools.js";
 import { toolHeader } from "../element-templates.js";
 import { transform } from "../imageProcess/client.js";
-import { jBone as $ } from "../lib/jbone/jbone.js";
+import { $ } from "../lib/dom.js";
 
 export function setupRotate(
   imageController: ImageController,
@@ -24,7 +24,6 @@ export function setupRotate(
     },
     buildUI: function (index: number, args: string[]) {
       const e = toolHeader(name, index, imageController);
-
       e.append(`<div class="tool-control">
           <label>Type</label>
           <a id="rotate-left" class="w3-button">90 ⟲</a>
@@ -47,7 +46,7 @@ export function setupRotate(
       $("#rotate-invert", e)
         .on("click", () => update(2))
         .css("border", current === 2 ? "solid 1px" : "");
-      return e[0];
+      return e.get()!;
     },
   });
 }

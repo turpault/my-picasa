@@ -5,7 +5,7 @@ import { walkFromServer } from "./walker.js";
 
 export async function subFolder(
   key: string
-): Promise<{ folder: any; name: string }> {
+): Promise<{ folder: Directory; name: string }> {
   const [folderId, name] = key.split("|");
   const folder = new Directory("", folderId);
   return { folder, name };

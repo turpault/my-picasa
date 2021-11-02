@@ -3,6 +3,7 @@
   height: 250px;
   background-position: center;
   background-repeat: no-repeat;
+  background-size: contain;
 }
 
 #edited-image {
@@ -13,6 +14,10 @@
 
 .selected {
   background-color: cadetblue;
+}
+
+.highlight {
+  background-color:thistle;
 }
 
 html,
@@ -34,6 +39,7 @@ body {
 .fill {
   height: 100%;
   width: 100%;
+  position: relative;
 }
 
 .fill-with-aspect {
@@ -74,6 +80,7 @@ body {
   white-space: nowrap;
   /* vertical-align: top; */
 }
+
 #image-strip-thumbs {
   width: 300px;
   overflow-x: scroll;
@@ -105,10 +112,16 @@ body {
 }
 .tool-button {
   /* line-height: 57px; */
-  width: 75px;
+  width: 65px;
   height: 90px;
   text-align: center;
   position: relative;
+  background-position: top center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-color: none;
+  /* padding: 5px; */
+  margin: 5px;
 }
 .tool-control {padding: 8px;}
 
@@ -230,6 +243,9 @@ body {
 
 #images {
   overflow-y: scroll;
+  /* margin-bottom: 20px; */
+  /* padding-bottom: 20px; */
+  /* display: none; */
 }
 
 :root split-me {
@@ -279,3 +295,20 @@ body {
   background: #04AA6D; /* Green background */
   cursor: pointer; /* Cursor on hover */
 }
+
+.album {
+  position: absolute;
+  display: inline;
+}
+
+.album-photos {
+  
+}
+
+.filler {
+  height: 300px;
+  position: absolute;  
+  width: 100%;
+}
+
+.album > #header{padding-top: 40px;}

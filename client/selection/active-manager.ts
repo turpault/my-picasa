@@ -1,9 +1,9 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event.js";
-import { ActiveImageEvent } from "../../shared/types/types.js";
+import { ActiveImageEvent, FolderEntry } from "../../shared/types/types.js";
 
 export class ActiveImageManager {
-  constructor(lst: string[], current: string) {
-    this.list = lst;
+  constructor(lst: FolderEntry[], current: string) {
+    this.list = lst.map((v) => v.name);
     this.current = current;
     this.event = buildEmitter<ActiveImageEvent>();
   }

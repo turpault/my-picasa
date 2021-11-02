@@ -24,7 +24,7 @@ export function setupAutocolor(
     },
     buildUI: function (index: number, args: string[]) {
       const e = toolHeader(name, index, imageController);
-      return e[0];
+      return e.get()!;
     },
   });
 }

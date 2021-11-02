@@ -2,16 +2,16 @@ import { readdir, readFile, stat, writeFile } from "fs/promises";
 import { join } from "path";
 import { imagesRoot } from "../../utils/constants";
 
-export async function readFileContents(file: string): Promise<Buffer> {
+export async function readFileContents(file: string): Promise<string> {
   const p = join(imagesRoot, file);
-  return await readFile(p);
+  return await readFile(p, { encoding: "utf-8" });
 }
 
 export async function writeFileContents(
   file: string,
-  data: object
+  data: string
 ): Promise<void> {
-  return writeFile(join(imagesRoot, file), data as Buffer);
+  return writeFile(join(imagesRoot, file), data);
 }
 
 export async function folder(

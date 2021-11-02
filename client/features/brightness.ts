@@ -2,7 +2,7 @@ import { ImageController } from "../components/image-controller.js";
 import { ToolRegistrar } from "../components/tools.js";
 import { toolHeader } from "../element-templates.js";
 import { transform } from "../imageProcess/client.js";
-import { jBone as $ } from "../lib/jbone/jbone.js";
+import { $ } from "../lib/dom.js";
 
 export function setupBrightness(
   imageController: ImageController,
@@ -35,7 +35,6 @@ export function setupBrightness(
     },
     buildUI: function (index: number, args: string[]) {
       const e = toolHeader(name, index, imageController);
-
       e.append(`<div class="tool-control slidecontainer">
           <label>Brightness</label>
           <input type="range" min="0" max="100" value="0" id="brightness" class="slider">
@@ -78,7 +77,7 @@ export function setupBrightness(
       $("#shadows", e).on("change", update);
       $("#colorpicker", e).on("change", update);
       $("#amount", e).on("change", update);
-      return e[0];
+      return e.get()!;
     },
   });
 }

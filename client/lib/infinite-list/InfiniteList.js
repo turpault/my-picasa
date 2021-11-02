@@ -112,7 +112,7 @@ var InfiniteList = function (listConfig) {
     };
 
     function refresh(){
-        var topListItem = itemsRenderer.getRenderedItems()[0],
+        var topListItem = itemsRenderer.getRenderedItems().get(),
             topListItemIndex = topListItem && topListItem.getItemIndex() || 0,
             topItemStartsAt = topListItem && topListItem.getItemOffset() || 0,
             differenceFromTop = topOffset - topItemStartsAt;
@@ -202,7 +202,7 @@ var InfiniteList = function (listConfig) {
         var renderedItems = itemsRenderer.getRenderedItems();
         var renderedListItem = renderedItems.filter(function(rItem){
             return rItem.getItemIndex() == index;
-        })[0];
+        }).get();
 
         //we only need to do something if the index points to a rendered item.
         if (renderedListItem) {

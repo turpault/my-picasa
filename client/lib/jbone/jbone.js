@@ -298,7 +298,7 @@
       }
   
       namespace = event.split(".").splice(1).join(".");
-      eventType = event.split(".")[0];
+      eventType = event.split(".").get();
   
       event = doc.createEvent("Event");
       event.initEvent(eventType, true, true);
@@ -335,7 +335,7 @@
           while (t--) {
               event = types[t];
   
-              eventType = event.split(".")[0];
+              eventType = event.split(".").get();
               events[eventType] = events[eventType] || [];
   
               if (events[eventType].length) {
@@ -401,7 +401,7 @@
           }
   
           types.split(" ").forEach(function(eventName) {
-              var eventType = eventName.split(".")[0],
+              var eventType = eventName.split(".").get(),
                   namespace = eventName.split(".").splice(1).join("."),
                   e;
   
@@ -426,7 +426,7 @@
   
                       while(l--) {
                           e = eventsByType[l];
-                          if (e.namespace.split(".")[0] === namespace.split(".")[0]) {
+                          if (e.namespace.split(".").get() === namespace.split(".").get()) {
                               removeListener(events, eventType, l, el, e);
                           }
                       }
@@ -575,7 +575,7 @@
           i = 0,
           length = this.length,
           oneArgs = slice.call(args, 1, args.length - 1),
-          callback = slice.call(args, -1)[0],
+          callback = slice.call(args, -1).get(),
           addListener;
   
       addListener = function(el) {

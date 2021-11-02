@@ -1,53 +1,56 @@
+import { getService } from "../rpc/connect.js";
+
 export class File {
   constructor(path?: string) {
-    this.path = path || "";
+    this._path = path || "";
   }
-  async getFileContents(): Promise<Buffer> {
-    return fetch("/file/" + encodeURIComponent(this.path))
-      .then((res) => {
-        if (res.status === 200) {
-          return res.arrayBuffer();
-        }
-        throw new Error("404");
-      })
-      .then((ab) => Buffer.from(ab));
+  async getFileContents(): Promise<string> {
+    const service = await getService();
+    const contents = await service.service.readFileContents(this._path);
+    return contents;
   }
   async writeFileContents(data: any): Promise<any> {
-    return fetch("/file/" + encodeURIComponent(this.path), {
-      method: "POST",
-      body: data,
-    });
+    const service = await getService();
+    await service.service.writeFileContents(this._path, data);
   }
-  private path: string;
+
+  path() {
+    return this._path;
+  }
+
+  private _path: string;
 }
 export class Directory {
   constructor(name?: string, path?: string) {
     this.name = name || "";
-    this.path = path || "";
+    this._path = path || "";
   }
   async getFileHandle(sub: string): Promise<File> {
-    return new File((this.path ? this.path + "/" : "") + sub);
+    return new File((this._path ? this._path + "/" : "") + sub);
   }
   async getDirectoryHandle(sub: string): Promise<Directory> {
-    return new Directory(sub, (this.path ? this.path + "/" : "") + sub);
+    return new Directory(sub, (this._path ? this._path + "/" : "") + sub);
   }
   async getFiles(): Promise<
     { name: string; kind: string; handle: File | Directory }[]
   > {
-    const files = (await fetch("/folder/" + encodeURIComponent(this.path)).then(
-      (body) => body.json()
-    )) as {
+    const service = await getService();
+    const files = (await service.service.folder(this._path)) as {
       name: string;
       kind: string;
     }[];
+
     return files.map((f) => ({
       ...f,
       handle:
         f.kind === "directory"
-          ? new Directory(f.name, (this.path ? this.path + "/" : "") + f.name)
-          : new File((this.path ? this.path + "/" : "") + f.name),
+          ? new Directory(f.name, (this._path ? this._path + "/" : "") + f.name)
+          : new File((this._path ? this._path + "/" : "") + f.name),
     }));
   }
-  private path: string;
+  path() {
+    return this._path;
+  }
+  private _path: string;
   name: string;
 }
