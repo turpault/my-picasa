@@ -1,6 +1,6 @@
 import { SliderEvent } from "../../../shared/types/types.js";
 import { buildEmitter, Emitter } from "../../../shared/lib/event.js";
-import { jBone as $ } from "../jbone/jbone.js";
+import { $ } from "../dom.js";
 
 export function slider(
   e: HTMLElement,
@@ -15,8 +15,8 @@ export function slider(
   </div>`);
   const range = $("#range", child);
   range.on("input", () => {
-    event.emit("value", range.value());
+    event.emit("value", range.val());
   });
-  e.appendChild(child);
+  e.appendChild(child.get());
   return event;
 }

@@ -11,7 +11,7 @@ import { setupRotate } from "./features/rotate.js";
 import { setupSepia } from "./features/sepia.js";
 import { subFolder } from "./folder-monitor.js";
 import { getFolderInfoFromHandle } from "./folder-utils.js";
-import { jBone as $ } from "./lib/jbone/jbone.js";
+import { $ } from "./lib/dom.js";
 import { ImagePanZoomController } from "./lib/panzoom.js";
 import { ActiveImageManager } from "./selection/active-manager.js";
 import { FolderInfo } from "../shared/types/types.js";
@@ -33,15 +33,18 @@ async function init() {
   }
   */
 
-  const image = $("#edited-image")[0];
+  const image = $("#edited-image").get()!;
 
   const hash = decodeURIComponent(location.hash).replace("#", "");
 
   const { folder, name } = await subFolder(hash);
 
-  const zoomController = new ImagePanZoomController(image);
-  const imageController = new ImageController(image, zoomController);
-  const toolRegistrar = makeTools($("#tools")[0], imageController);
+  const zoomController = new ImagePanZoomController(image as HTMLImageElement);
+  const imageController = new ImageController(
+    image as HTMLImageElement,
+    zoomController
+  );
+  const toolRegistrar = makeTools($("#tools").get()!, imageController);
   // Add all the activable features
   setupCrop(zoomController, imageController, toolRegistrar);
   setupBrightness(imageController, toolRegistrar);
@@ -53,8 +56,8 @@ async function init() {
   setupMirror(imageController, toolRegistrar);
 
   const f: FolderInfo = await getFolderInfoFromHandle(folder);
-  const activeManager = new ActiveImageManager(Object.keys(f.pixels), name);
-  make($("#image-strip")[0], f, activeManager);
+  const activeManager = new ActiveImageManager(f.pictures, name);
+  make($("#image-strip").get()!, f, activeManager);
   hotkeySetup();
 
   imageController.init(folder, name);

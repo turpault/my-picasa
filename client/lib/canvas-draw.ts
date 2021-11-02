@@ -1,4 +1,4 @@
-import { jBone as $ } from "../lib/jbone/jbone.js";
+import { $ } from "./dom";
 
 export function cancelRectangleDraw(canvas: HTMLCanvasElement) {}
 export function drawRectangle(canvas: HTMLCanvasElement) {
@@ -104,16 +104,16 @@ export function drawRectangle(canvas: HTMLCanvasElement) {
   }
 
   // listen for mouse events
-  $canvas.on("mousedown", function (e: MouseEvent) {
+  $canvas.get().addEventListener("mousedown", function (e: MouseEvent): any {
     handleMouseDown(e);
   });
-  $canvas.on("mousemove", function (e: MouseEvent) {
+  $canvas.on("mousemove", function (e: MouseEvent): any {
     handleMouseMove(e);
   });
-  $canvas.on("mouseup", function (e: MouseEvent) {
+  $canvas.on("mouseup", function (e: MouseEvent): any {
     handleMouseUp(e);
   });
-  $canvas.on("mouseout", function (e: MouseEvent) {
+  $canvas.on("mouseout", function (e: MouseEvent): any {
     handleMouseOut(e);
   });
 }

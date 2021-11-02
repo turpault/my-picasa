@@ -3,7 +3,9 @@ export async function sleep(delay: number) {
 }
 
 export function uuid(): string {
-  return (crypto as unknown as any).randomUUID();
+  return (
+    new Date().getTime().toString(36) + Math.random().toString(36).slice(2)
+  );
 }
 
 /*
@@ -83,10 +85,33 @@ export function decodeOperations(
   return res;
 }
 
-export function decodeOperation(operation: string): {
+export function decodeOperation(
+  operation: string
+): {
   name: string;
   args: string[];
 } {
   const [name, argsList] = operation.split("=");
   return { name, args: argsList ? argsList.split(",") : [] };
+}
+
+export function flattenObject(ob: any) {
+  var toReturn: any = {};
+
+  for (var i in ob) {
+    if (!ob.hasOwnProperty(i)) continue;
+
+    if (typeof ob[i] == "object" && ob[i] !== null) {
+      var flatObject = flattenObject(ob[i]);
+      for (var x in flatObject) {
+        if (!flatObject.hasOwnProperty(x)) continue;
+        toReturn[x] = flatObject[x];
+      }
+    } else if (Buffer.isBuffer(ob[i])) {
+      toReturn[i] = ob[i].toString({ encoding: "utf8" });
+    } else {
+      toReturn[i] = ob[i];
+    }
+  }
+  return toReturn;
 }

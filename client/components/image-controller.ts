@@ -1,5 +1,6 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event.js";
 import {
+  Folder,
   ImageControllerEvent,
   PicasaFileMeta,
 } from "../../shared/types/types.js";
@@ -8,30 +9,38 @@ import {
   buildContext,
   cloneContext,
   destroyContext,
-  encode,
+  encodeToURL,
   setOptions,
   transform,
 } from "../imageProcess/client.js";
-import { jBone as $ } from "../lib/jbone/jbone.js";
 import { ImagePanZoomController } from "../lib/panzoom.js";
-import { Queue } from "../lib/queue.js";
+import { Queue } from "../../shared/lib/queue.js";
+import { Directory } from "../lib/handles.js";
+import { $ } from "../lib/dom.js";
 
 export class ImageController {
   constructor(image: HTMLImageElement, panZoomCtrl: ImagePanZoomController) {
     this.image = image;
-    this.folder;
+    this.dir = new Directory();
     this.context = "";
     this.name = "";
     this.liveContext = "";
     this.events = buildEmitter<ImageControllerEvent>();
     this.zoomController = panZoomCtrl;
     this.q = new Queue(1);
-    this.q.event.on("drain", () => {
-      this.events.emit("idle", {});
-    });
+    this.q.event.on("drain", () => {});
     this.meta = {};
-    const parent = $(this.image).parent();
-    this.parent = parent[0];
+    const i = $(this.image);
+    i.on("load", () => {
+      this.image.style.display = "";
+      this.recenter();
+      this.events.emit("idle", {});
+      this.events.emit("liveViewUpdated", {
+        context: this.liveContext,
+      });
+    });
+    const parent = i.parent();
+    this.parent = parent.get();
     new ResizeObserver(() => this.recenter()).observe(this.parent);
   }
 
@@ -56,8 +65,8 @@ export class ImageController {
     });
   }
 
-  init(folder: any, name: string) {
-    this.folder = folder;
+  init(dir: Directory, name: string) {
+    this.dir = dir;
     this.display(name);
   }
 
@@ -69,10 +78,10 @@ export class ImageController {
     }
     this.name = name;
 
-    const folderData = await getFolderInfoFromHandle(this.folder);
+    const folderData = await getFolderInfoFromHandle(this.dir);
     this.meta = folderData.picasa[this.name] || {};
-    const file = await this.folder.getFileHandle(this.name);
-    this.context = await buildContext(file);
+    const file = await this.dir.getFileHandle(this.name);
+    this.context = await buildContext(file.path());
 
     this.update();
   }
@@ -83,12 +92,9 @@ export class ImageController {
       meta: this.meta,
     });
     if (await this.rebuildContext()) {
-      const data = await encode(this.liveContext, "image/png");
+      const data = await encodeToURL(this.liveContext, "image/jpeg");
       this.image.src = data;
-      this.recenter();
-      this.events.emit("liveViewUpdated", {
-        context: this.liveContext,
-      });
+      this.image.style.display = "none";
     }
   }
 
@@ -137,9 +143,9 @@ export class ImageController {
   }
 
   async save() {
-    const folderData = await getFolderInfoFromHandle(this.folder);
+    const folderData = await getFolderInfoFromHandle(this.dir);
     folderData.picasa[this.name] = this.meta;
-    await updatePicasaData(this.folder, folderData.picasa);
+    await updatePicasaData(this.dir, folderData.picasa);
   }
 
   recenter() {
@@ -149,7 +155,7 @@ export class ImageController {
   }
 
   private image: HTMLImageElement;
-  private folder: any; // Folder handle
+  private dir: Directory; // Folder handle
   private name: string;
   private context: string;
   private liveContext: string;

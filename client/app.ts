@@ -1,11 +1,11 @@
+import { $ } from "../client/lib/dom.js";
 import { make as makeAlbumList } from "./components/album-list.js";
 import { make as makeMetadata } from "./components/metadata.js";
 import { make as makePhotoList } from "./components/photo-list.js";
 import { FolderMonitor } from "./folder-monitor.js";
-import { Directory } from "./lib/handles.js";
-import { get, set } from "./lib/idb-keyval.js";
-import { jBone as $ } from "./lib/jbone/jbone.js";
+import { buildEmitter } from "../shared/lib/event.js";
 import { SelectionManager } from "./selection/selection-manager.js";
+import { AlbumListEvent } from "./types/types.js";
 
 function init() {
   /*
@@ -21,12 +21,13 @@ function init() {
       }
     }*/
   const monitor = new FolderMonitor();
+  const emitter = buildEmitter<AlbumListEvent>();
 
-  const selectEmitter = makeAlbumList($("#folders")[0], monitor);
-  makePhotoList($("#images")[0], monitor, selectEmitter);
+  makeAlbumList($("#folders").get(), monitor, emitter);
+  makePhotoList($("#images").get(), monitor, emitter);
 
   makeMetadata(
-    $("#metadatasidebar")[0],
+    $("#metadatasidebar").get()!,
     SelectionManager.get().events,
     monitor
   );

@@ -1,6 +1,6 @@
 import { FolderMonitor } from "../folder-monitor.js";
 import { getFileExifData } from "../folder-utils.js";
-import { jBone as $ } from "../lib/jbone/jbone.js";
+import { $ } from "../lib/dom.js";
 import { SelectionEventSource } from "../selection/selection-manager.js";
 declare var L: any;
 
@@ -34,7 +34,7 @@ export function make(
   }) {
     if (!mapLeaflet) {
       // Create Leaflet map on map element.
-      mapLeaflet = L.map(map[0]);
+      mapLeaflet = L.map(map.get());
       // Add OSM tile layer to the Leaflet map.
       L.tileLayer("http://{s}.tile.osm.org/{z}/{x}/{y}.png", {
         attribution:
@@ -60,8 +60,12 @@ export function make(
     const { folder, name } = monitor.folderAndNameFromId(event.key);
     getFileExifData(folder, name).then((data) => {
       meta.empty();
-      const { GPSLatitude, GPSLatitudeRef, GPSLongitudeRef, GPSLongitude } =
-        data;
+      const {
+        GPSLatitude,
+        GPSLatitudeRef,
+        GPSLongitudeRef,
+        GPSLongitude,
+      } = data;
       if (GPSLatitude && GPSLongitude) {
         refreshMap({
           GPSLatitude,
@@ -72,7 +76,7 @@ export function make(
       }
       for (const idx in data) {
         meta.append(
-          `<div class="w3-tag">${idx}</div><div>${data[idx].description}</div>`
+          `<div><div class="w3-tag">${idx}</div><div>${data[idx].description}</div></div>`
         );
       }
     });

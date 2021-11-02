@@ -1,19 +1,23 @@
 import Fastify, { FastifyInstance, RouteShorthandOptions } from "fastify";
 import fastifystatic from "fastify-static";
-import { readdir, readFile, stat, writeFile } from "fs/promises";
 import { Server } from "http";
 import { join } from "path";
 import WebSocket from "ws";
 import { SocketAdaptorInterface } from "../shared/socket/socketAdaptorInterface";
 import { WsAdaptor } from "../shared/socket/wsAdaptor";
 import { RPCInit } from "./rpc/index";
+import { thumbnail } from "./rpc/routes/thumbnail";
 import { encode } from "./rpc/rpcFunctions/sharp-processor";
 const server: FastifyInstance = Fastify({
   logger: true,
   maxParamLength: 32000,
   bodyLimit: 50 * 1024 * 1024,
 });
-const imagesRoot = "/Volumes/Photos/Photos";
+
+server.register(fastifystatic, {
+  root: join(__dirname, "..", "..", "public"),
+  prefix: "/", // optional: default '/',
+});
 
 const pingOpts: RouteShorthandOptions = {
   schema: {
@@ -44,19 +48,10 @@ function socketAdaptorInit(serverClient: any): SocketAdaptorInterface {
 
 export function socketInit(httpServer: Server) {
   const wsServer = serverInit(httpServer);
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   wsServer.on("connection", (client: WebSocket) => {
     console.info("[socket]: Client has connected...");
     const socket = socketAdaptorInit(client);
-
-    if (reconnectTimer) clearTimeout(reconnectTimer);
-
-    socket.use((packet: any, next: Function) => {
-      // Handler
-      // console.debug('Received packet', packet);
-      next();
-    });
 
     RPCInit(socket, {});
 
@@ -72,16 +67,6 @@ export function socketInit(httpServer: Server) {
   return { httpServer, wsServer };
 }
 
-server.register(fastifystatic, {
-  root: join(__dirname, "..", "public"),
-  prefix: "/", // optional: default '/',
-  setHeaders: (res) => {
-    res.setHeader("Cross-Origin-Opener-Policy-Report-Only", "same-origin");
-    res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
-    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-  },
-});
-
 server.get("/ping", pingOpts, async (request, reply) => {
   return { pong: "it worked!" };
 });
@@ -89,6 +74,11 @@ server.get("/ping", pingOpts, async (request, reply) => {
 server.get("/encode/:context/:mime", async (request, reply) => {
   const { context, mime } = request.params as any;
   return encode(context, mime);
+});
+
+server.get("/thumbnail/:folder/:file/:resolution", async (request, reply) => {
+  const { folder, file, resolution } = request.params as any;
+  return thumbnail(folder, file, resolution);
 });
 
 const start = async () => {

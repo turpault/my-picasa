@@ -1,21 +1,20 @@
+import { decodeOperation } from "../../shared/lib/utils.js";
+import { Tool } from "../../shared/types/types.js";
 import { toolHeader } from "../element-templates.js";
 import {
   cloneContext,
+  commit,
   destroyContext,
   encode,
   execute,
 } from "../imageProcess/client.js";
-import { setImageDataToCanvasElement } from "../lib/dom.js";
-import { jBone as $ } from "../lib/jbone/jbone.js";
-import jimp from "../lib/jimp/jimp.js";
-import { decodeOperation } from "../../shared/lib/utils.js";
-import { Tool } from "../../shared/types/types.js";
+import { $ } from "../lib/dom.js";
 import { ImageController } from "./image-controller.js";
 
 async function toolIconForTool(context: string, tool: Tool): Promise<string> {
   const copy = await cloneContext(context);
   await tool.icon(copy);
-  const data = await encode(copy, "image/png");
+  const data = await encode(copy, "image/jpeg", "base64url");
   await destroyContext(copy);
   return data;
 }
@@ -35,16 +34,16 @@ export class ToolRegistrar {
     );
     this.toolButtons[toolName] = t;
     t.on("click", () => tool.activate());
-    this.toolListElement.appendChild(t[0]!);
+    this.toolListElement.appendChild(t.get());
   }
 
   async refreshToolIcons(context: string) {
     // Initial copy, resized
     const copy = await cloneContext(context);
     await execute(copy, [
-      ["background", jimp.cssColorToHex("#ffffff")],
-      ["scaleToFit", 60, 60, jimp.RESIZE_NEAREST_NEIGHBOR],
+      ["resize", 60, 60, { fit: "cover", kernel: "nearest" }],
     ]);
+    await commit(copy);
     for (const [toolName, tool] of Object.entries(this.tools)) {
       const data = await toolIconForTool(copy, tool);
       const target = this.toolButtons[toolName];
@@ -66,7 +65,7 @@ export class ToolRegistrar {
     )[0];
     if (!tool) {
       const e = toolHeader(filterName, index, ctrl);
-      return e[0];
+      return e.get()!;
     }
     return tool.buildUI(index, args);
   }
@@ -82,7 +81,7 @@ export class ToolRegistrar {
 }
 
 export function make(e: HTMLElement, ctrl: ImageController): ToolRegistrar {
-  const registrar = new ToolRegistrar($("#actions", e)[0]);
+  const registrar = new ToolRegistrar($("#actions", e).get());
 
   const history = $("#history", e);
   const description = $("#description", e);
@@ -104,7 +103,7 @@ export function make(e: HTMLElement, ctrl: ImageController): ToolRegistrar {
       .map(decodeOperation)
       .entries()) {
       const ui = registrar.makeUiForTool(name, index, args, ctrl);
-      if (ui) history[0].insertBefore(ui, history[0].firstChild);
+      if (ui) history.get().insertBefore(ui, history.get().firstChild);
     }
   });
   return registrar;

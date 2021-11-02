@@ -1,18 +1,27 @@
-import { folder, folderByElement } from "../element-templates.js";
-import { FolderMonitor } from "../folder-monitor.js";
-import { buildEmitter } from "../../shared/lib/event.js";
-import { jBone as $ } from "../lib/jbone/jbone.js";
-import { SelectionManager } from "../selection/selection-manager.js";
+import { AlbumListEventSource, Folder } from "../../shared/types/types.js";
 import {
-  AlbumListEvent,
-  AlbumListEventSource,
-  Folder,
-} from "../../shared/types/types.js";
+  elementByFolder,
+  folder,
+  folderByElement,
+} from "../element-templates.js";
+import { FolderMonitor } from "../folder-monitor.js";
+import { $ } from "../lib/dom.js";
+import { getService } from "../rpc/connect.js";
+import { SelectionManager } from "../selection/selection-manager.js";
 
 export function make(
   folders: HTMLElement,
-  monitor: FolderMonitor
-): AlbumListEventSource {
+  monitor: FolderMonitor,
+  emitter: AlbumListEventSource
+) {
+  let lastHighlight: any;
+  emitter.on("scrolled", ({ folder: f }) => {
+    if (lastHighlight) {
+      lastHighlight.removeClass("highlight");
+    }
+    lastHighlight = $(elementByFolder(f));
+    lastHighlight.addClass("highlight");
+  });
   monitor.events.on("updated", (event: { folders: Folder[] }) => {
     const e = $(folders);
     e.empty();
@@ -21,9 +30,8 @@ export function make(
       folders.appendChild(node);
     }
   });
-  const emitter = buildEmitter<AlbumListEvent>();
   const e = $(folders);
-  e.on("click", function (ev: MouseEvent) {
+  e.on("click", function (ev): any {
     const clicked = folderByElement(ev.target as HTMLElement, monitor.folders)!;
     emitter.emit("selected", clicked);
   });
@@ -38,30 +46,17 @@ export function make(
     $(ev.target).removeClass("drop-area");
     ev.preventDefault();
   });
-  e.on("drop", (ev: any) => {
+  e.on("drop", async (ev: any) => {
     const selection = SelectionManager.get().selected();
     const targetFolder = folderByElement(
       ev.target as HTMLElement,
       monitor.folders
     )!;
-    fetch("/job", {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        command: "move",
-        source: selection,
-        destination: targetFolder.folder.key,
-      }),
-    })
-      .then((job) => job.json())
-      .then((job) => {
-        alert("Started " + job.id);
-      });
-
-    debugger;
+    const s = await getService();
+    const jobId = await s.service.createJob("move", {
+      source: selection,
+      destination: targetFolder.folder.key,
+    });
+    alert("Started " + jobId);
   });
-  return emitter;
 }

@@ -1,7 +1,7 @@
-import { thumbnail } from "../folder-utils.js";
-import { jBone as $ } from "../lib/jbone/jbone.js";
 import { ActiveImageManager } from "../selection/active-manager.js";
 import { FolderInfo } from "../../shared/types/types.js";
+import { thumbnailUrl } from "../imageProcess/client.js";
+import { $ } from "../lib/dom.js";
 
 function nameToId(prefix: string, n: string) {
   return prefix + "_" + n.replace(/[^a-z0-9A-Z_]/g, "");
@@ -19,7 +19,7 @@ export function make(
   });
   const picList = $("#image-strip-thumbs", e);
   Promise.allSettled(
-    f.pictures.map((img) => thumbnail(f, img.name, "th-small"))
+    f.pictures.map((img) => thumbnailUrl(f.handle.path(), img.name, "th-small"))
   ).then((results) => {
     for (const [idx, p] of f.pictures.entries()) {
       const b = $(
@@ -38,6 +38,8 @@ export function make(
   });
 
   selector.event.on("changed", (event: { name: string }) => {
-    $(`#${nameToId("th", event.name)}`)[0].scrollIntoView();
+    $(`#${nameToId("th", event.name)}`)
+      .get()
+      .scrollIntoView();
   });
 }

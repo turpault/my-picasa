@@ -1,3 +1,4 @@
+import { inspect } from "util";
 import { uuid } from "../../shared/lib/utils";
 import { SocketAdaptorInterface } from "../../shared/socket/socketAdaptorInterface";
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -149,15 +150,21 @@ export function registerServices(
 
           const serviceFunc = service.functions[name];
           const commandArgs = payload.args;
+          let label: string = "";
           try {
             const convertedArguments = await getConvertedArguments(
               serviceFunc,
               commandArgs
             );
-
-            // console.info(`Calling ${name}(${inspect(convertedArguments)})`);
+            label = `Calling ${name}(${inspect(
+              convertedArguments,
+              false,
+              2,
+              true
+            ).slice(0, 200)})`;
+            console.time(label);
             await serviceFunc
-              .handler(context, dependencies, ...convertedArguments)
+              .handler(...convertedArguments)
               .then((response: any) => {
                 callback(null, response);
               });
@@ -166,6 +173,8 @@ export function registerServices(
             const errMessage = exception.message;
             console.info(errMessage, exception.stack);
             callback(errMessage);
+          } finally {
+            console.timeEnd(label);
           }
         }
       );

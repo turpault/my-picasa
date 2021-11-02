@@ -1,8 +1,9 @@
-import { randomUUID } from "crypto";
 import { readFile } from "fs/promises";
+import { join } from "path";
 import sharp, { Sharp } from "sharp";
-import { decodeOperations, decodeRect } from "../../../shared/lib/utils";
+import { decodeOperations, decodeRect, uuid } from "../../../shared/lib/utils";
 import { PicasaFileMeta } from "../../../shared/types/types.js";
+import { imagesRoot } from "../../utils/constants";
 
 const contexts = new Map<string, Sharp>();
 const options = new Map<string, PicasaFileMeta>();
@@ -19,17 +20,16 @@ function setContext(context: string, j: Sharp) {
   contexts.set(context, j);
 }
 
-export async function buildContext(file: any): Promise<string> {
-  const fileData = await readFile(file);
-  const contextId = randomUUID.toString();
-  const s = sharp(fileData);
-  s.rotate();
+export async function buildContext(file: string): Promise<string> {
+  const fileData = await readFile(join(imagesRoot, file));
+  const contextId = uuid();
+  let s = sharp(fileData, { limitInputPixels: false }).rotate();
   contexts.set(contextId, s);
   return contextId;
 }
 export async function cloneContext(context: string): Promise<string> {
   const j = getContext(context);
-  const contextId = randomUUID.toString();
+  const contextId = uuid();
   setContext(contextId, j.clone());
   return contextId;
 }
@@ -83,35 +83,37 @@ export async function transform(
     let j = getContext(context);
     switch (name) {
       case "sepia":
-        j.recomb([
+        j = j.recomb([
           [0.3588, 0.7044, 0.1368],
           [0.299, 0.587, 0.114],
           [0.2392, 0.4696, 0.0912],
         ]);
         break;
       case "rotate":
+        await commit(context);
+        j = getContext(context);
         let r: number;
         if (args[1] && (r = parseInt(args[1])) != 0) {
-          j.rotate(r * 90);
+          j = j.rotate(-r * 90);
         }
         break;
       case "flip":
-        j.flip();
+        j = j.flip();
         break;
       case "mirror":
-        j.flop();
+        j = j.flop();
         break;
       case "crop64":
         const crop = decodeRect(args[1]);
         if (crop) {
-          const metadata = await j.metadata();
-          const w = metadata.width!;
-          const h = metadata.height!;
-          j.extract({
-            left: crop.left * w,
-            top: crop.top * h,
-            width: w * (crop.right - crop.left),
-            height: h * (crop.bottom - crop.top),
+          const { info } = await j.raw().toBuffer({ resolveWithObject: true });
+          const w = info.width!;
+          const h = info.height!;
+          j = j.extract({
+            left: Math.floor(crop.left * w),
+            top: Math.floor(crop.top * h),
+            width: Math.floor(w * (crop.right - crop.left)),
+            height: Math.floor(h * (crop.bottom - crop.top)),
           });
         }
         break;
@@ -125,16 +127,16 @@ export async function transform(
           const metadata = await j.metadata();
           const w = metadata.width!;
           const h = metadata.height;
-          j = j.resize(w * (1 + scale));
+          j = j.resize(Math.floor(w * (1 + scale)));
         }
         j = j.rotate((10 * angle) / Math.PI);
         break;
       case "finetune2":
-        const brightness = parseFloat(args[1]);
-        const highlights = parseFloat(args[2]);
-        const shadows = parseFloat(args[3]);
+        const brightness = parseFloat(args[1] || "0");
+        const highlights = parseFloat(args[2] || "0");
+        const shadows = parseFloat(args[3] || "0");
         const temp = args[4];
-        const what = parseFloat(args[5]);
+        const what = parseFloat(args[5] || "0");
         const modulate: {
           brightness?: number | undefined;
           saturation?: number | undefined;
@@ -142,18 +144,32 @@ export async function transform(
           lightness?: number | undefined;
         } = {};
         let doModulate = false;
-        if (brightness) {
-          doModulate = true;
-          modulate.brightness = brightness;
+        modulate.brightness = 1 + brightness - shadows;
+        modulate.lightness = highlights;
+        if (modulate.brightness || modulate.lightness) {
+          j = j.modulate(modulate);
         }
-        if (highlights) {
-          doModulate = true;
-          modulate.lightness = highlights;
+        if (what) {
+          j = j.composite([
+            {
+              input: {
+                create: {
+                  width: 10,
+                  height: 10,
+                  channels: 4,
+                  background:
+                    "#" +
+                    temp +
+                    Math.floor(what * 255)
+                      .toString(16)
+                      .padStart(2, "0"),
+                },
+              },
+              tile: true,
+              blend: "multiply",
+            },
+          ]);
         }
-        if (shadows) {
-          debugger;
-        }
-        if (doModulate) j = j.modulate(modulate);
 
         break;
       case "autocolor":
@@ -161,13 +177,13 @@ export async function transform(
         break;
       case "Polaroid": {
         const angle = parseFloat(args[1]);
-        const c = j.clone();
+        let c = j.clone();
         const metadata = await c.metadata();
         const w = metadata.width!;
         const h = metadata.height!;
-        const minDim = Math.min(w, h) * 0.9;
-        c.resize(minDim, minDim, { fit: "cover" });
-        const newImage = sharp({
+        const minDim = Math.floor(Math.min(w, h) * 0.9);
+        c = c.resize(minDim, minDim, { fit: "cover" });
+        let newImage = sharp({
           create: {
             width: w,
             /** Number of pixels high. */
@@ -177,16 +193,25 @@ export async function transform(
             /** Parsed by the [color](https://www.npmjs.org/package/color) module to extract values for red, green, blue and alpha. */
             background: "#ffffff",
           },
+          limitInputPixels: false,
         });
-        newImage.composite([
+        const { data, info } = await c
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+
+        newImage = newImage.composite([
           {
-            input: await c.toBuffer(),
-            left: h / 20,
-            top: w / 20,
+            input: data,
+            left: Math.floor(h / 20),
+            top: Math.floor(w / 20),
+            raw: info,
           },
         ]);
         const col =
-          args[2].length > 6 ? args[2].slice(2) + args[2].slice(0, 2) : args[2];
+          "#" +
+          (args[2].length > 6
+            ? args[2].slice(2) + args[2].slice(0, 2)
+            : args[2]);
         /*
 
         const imgOptions = options.get(context);
@@ -201,9 +226,11 @@ export async function transform(
           );
         }*/
         // ARGB to RGBA
-        newImage.rotate(-angle, { background: col });
-        contexts.set(context, newImage);
-        j = newImage;
+        const updated = await newImage
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+        j = sharp(updated.data, { limitInputPixels: false, raw: updated.info });
+        j = j.rotate(-angle, { background: col });
         break;
       }
       default:
@@ -228,8 +255,9 @@ export async function destroyContext(context: string): Promise<void> {
 
 export async function encode(
   context: string,
-  mime: string = "image/jpeg"
-): Promise<Buffer> {
+  mime: string = "image/jpeg",
+  format: string = "Buffer"
+): Promise<Buffer | string> {
   let j = getContext(context);
   switch (mime) {
     case "image/jpeg":
@@ -237,9 +265,28 @@ export async function encode(
       break;
     case "image/png":
       j = j.png();
+      break;
+    case "raw":
+      j = j.raw();
+      break;
+    case "image/tiff":
+      j = j.tiff();
+      break;
+    case "image/gif":
+      j = j.gif();
+      break;
   }
-  const t = await j.toBuffer();
-  return t;
+  switch (format) {
+    case "base64":
+      return (await j.toBuffer()).toString(format);
+    case "base64url":
+      return (
+        "data:" + mime + ";base64," + (await j.toBuffer()).toString("base64")
+      );
+    case "Buffer":
+    default:
+      return j.toBuffer();
+  }
 }
 
 export async function execute(
@@ -251,4 +298,12 @@ export async function execute(
     j = (j as any)[operation[0] as string](...operation.slice(1));
     setContext(context, j);
   }
+}
+
+export async function commit(context: string): Promise<void> {
+  let j = getContext(context);
+  const updated = await j.raw().toBuffer({ resolveWithObject: true });
+  j = sharp(updated.data, { limitInputPixels: false, raw: updated.info });
+
+  setContext(context, j);
 }

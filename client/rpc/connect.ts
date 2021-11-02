@@ -1,0 +1,63 @@
+import { SocketAdaptorInterface } from "../../shared/socket/socketAdaptorInterface.js";
+import { WsAdaptor } from "../../shared/socket/wsAdaptor.js";
+import { MyPicasa } from "./generated-rpc/MyPicasa.js";
+export async function connect(
+  port: number,
+  address: string,
+  ssl: boolean,
+  handlerMap: { [action: string]: Function }
+): Promise<{ service: MyPicasa; socket: SocketAdaptorInterface }> {
+  const wSocket = new WebSocket(
+    `${ssl ? "wss://" : "ws://"}${address}:${port}/cmd`
+  );
+  return new Promise((resolve, reject) => {
+    wSocket.onerror = (error) => {
+      reject(error);
+    };
+    wSocket.onopen = () => {
+      try {
+        const socket = new WsAdaptor(wSocket);
+        socket.handlerMap = handlerMap;
+
+        const service = new MyPicasa();
+        service.initialize(socket);
+        resolve({ service, socket });
+      } catch (e) {
+        console.log(e);
+        reject();
+      }
+    };
+  });
+}
+
+export async function makeEventSource(
+  port: number,
+  address: string,
+  ssl: boolean,
+  cb: (type: string, payload: object) => {}
+): Promise<{ service: MyPicasa; socket: SocketAdaptorInterface }> {
+  const { service, socket } = await connect(port, address, ssl, {
+    message: (payload: object) => {
+      cb("message", payload);
+    },
+  });
+  return { service, socket };
+}
+
+let connection:
+  | Promise<{ service: MyPicasa; socket: SocketAdaptorInterface }>
+  | undefined;
+export function getService(): Promise<{
+  service: MyPicasa;
+  socket: SocketAdaptorInterface;
+}> {
+  if (!connection) {
+    connection = connect(5500, "127.0.0.1", false, {
+      error: () => {
+        connection = undefined;
+        debugger;
+      },
+    });
+  }
+  return connection;
+}

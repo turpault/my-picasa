@@ -2,9 +2,9 @@ import { ImageController } from "../components/image-controller.js";
 import { ToolRegistrar } from "../components/tools.js";
 import { toolHeader } from "../element-templates.js";
 import { transform } from "../imageProcess/client.js";
-import { jBone as $ } from "../lib/jbone/jbone.js";
 import { ImagePanZoomController } from "../lib/panzoom.js";
 import { encodeRect } from "../../shared/lib/utils.js";
+import { $ } from "../lib/dom.js";
 
 export function setupCrop(
   panZoomCtrl: ImagePanZoomController,
@@ -13,7 +13,7 @@ export function setupCrop(
 ) {
   const name = "Crop";
   const elem = $("#crop");
-  const e = elem[0] as HTMLElement;
+  const e = elem.get() as HTMLElement;
 
   type modes = "6x4" | "4x3" | "16x9" | "5x5";
   let mode: modes = "4x3";
@@ -134,7 +134,7 @@ export function setupCrop(
     },
     buildUI: function (index: number, args: string[]) {
       const e = toolHeader(name, index, imageCtrl);
-      return e[0];
+      return e.get()!;
     },
   });
 }

@@ -1,16 +1,16 @@
-import { thumbnail } from "../folder-utils.js";
-import { jBone as $ } from "../lib/jbone/jbone.js";
 import { SelectionManager } from "../selection/selection-manager.js";
 import { Folder } from "../../shared/types/types.js";
+import { thumbnailUrl } from "../imageProcess/client.js";
+import { $ } from "../lib/dom.js";
 
 export function makeThumbnail(): HTMLElement {
   const e = $(document.createElement("span") as HTMLImageElement);
   e.addClass("thumbnail w3-button w3-ripple");
   e.attr("draggable", "true");
-  e.on("ondragstart", thumbnailDragged);
+  e.on("dragstart", thumbnailDragged);
   e.on("click", thumbnailClicked);
   e.on("dblclick", thumbnailDblClicked);
-  return e[0];
+  return e.get();
 }
 
 function thumbnailDragged(e: any /* BoneEvent*/) {
@@ -32,10 +32,10 @@ function thumbnailDblClicked(e: any /* BoneEvent*/) {
 }
 
 SelectionManager.get().events.on("added", ({ key }) => {
-  $(document.getElementById(key)).addClass("selected");
+  $("#" + key).addClass("selected");
 });
 SelectionManager.get().events.on("removed", ({ key }) => {
-  $(document.getElementById(key)).removeClass("selected");
+  $("#" + key).removeClass("selected");
 });
 
 export function thumbnailData(
@@ -45,10 +45,10 @@ export function thumbnailData(
   id: string
 ) {
   e.id = id;
-  e.style.backgroundImage = "url(resources/images/loading250.gif";
-  thumbnail(f, name).then((img) => {
+  e.style.backgroundImage = 'url("resources/images/loading250.gif")';
+  thumbnailUrl(f.handle.path(), name).then((img) => {
     if (e.id === id) {
-      e.style.backgroundImage = `url(${img})`;
+      e.style.backgroundImage = `url("${img}")`;
     }
   });
   return e;

@@ -1,7 +1,5 @@
-import { resolve } from "path/posix";
-import { MessageEvent } from "ws";
-import { uuid } from "../lib/utils";
-import { SocketAdaptorInterface } from "./socketAdaptorInterface";
+import { uuid } from "../lib/utils.js";
+import { SocketAdaptorInterface } from "./socketAdaptorInterface.js";
 
 const defaultTimeoutInSeconds = 180;
 
@@ -87,12 +85,18 @@ export class WsAdaptor implements SocketAdaptorInterface {
       action,
       payload,
     });
+    try {
     return this.emitRetry(
       requestId,
       message,
       this.maxRetries - 1,
       this.timeoutMillis
     );
+    } catch(e) {
+      if(this.handlerMap.error) {
+        this.handlerMap.error(e);
+      }
+    }
   }
 
   /**
