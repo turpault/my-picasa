@@ -182,7 +182,7 @@ export async function transform(
         const w = metadata.width!;
         const h = metadata.height!;
         const minDim = Math.floor(Math.min(w, h) * 0.9);
-        c = c.resize(minDim, minDim, { fit: "cover" });
+        c = c.resize(minDim, minDim, { fit: "inside" });
         let newImage = sharp({
           create: {
             width: w,
@@ -278,11 +278,17 @@ export async function encode(
   }
   switch (format) {
     case "base64":
-      return (await j.toBuffer()).toString(format);
+      {
+        const { data, info } = await j.toBuffer({ resolveWithObject: true });
+        return data.toString(format);
+      }
+      break;
     case "base64url":
-      return (
-        "data:" + mime + ";base64," + (await j.toBuffer()).toString("base64")
-      );
+      {
+        const { data, info } = await j.toBuffer({ resolveWithObject: true });
+        return "data:" + mime + ";base64," + data.toString("base64");
+      }
+      break;
     case "Buffer":
     default:
       return j.toBuffer();
