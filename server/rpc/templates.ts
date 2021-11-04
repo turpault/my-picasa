@@ -9,6 +9,10 @@ export class <<CLASS>> {
     this.socket_ = socket;
   }
 
+  public on(event: string, cb: Function):void {
+    this.socket_.on(event, cb);
+  }
+
   // @ts-ignore
   private async emitNoPayload(command: string, payload: any): Promise<void> {
     return this.emit(command, payload);

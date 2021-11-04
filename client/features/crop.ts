@@ -7,12 +7,13 @@ import { encodeRect } from "../../shared/lib/utils.js";
 import { $ } from "../lib/dom.js";
 
 export function setupCrop(
+  container: HTMLElement,
   panZoomCtrl: ImagePanZoomController,
   imageCtrl: ImageController,
   toolRegistrar: ToolRegistrar
 ) {
   const name = "Crop";
-  const elem = $("#crop");
+  const elem = $("#crop", container);
   const e = elem.get() as HTMLElement;
 
   type modes = "6x4" | "4x3" | "16x9" | "5x5";
@@ -76,28 +77,28 @@ export function setupCrop(
   }
   new ResizeObserver(resize).observe(e.parentElement!);
 
-  $("#btn-6x4").on("click", () => {
+  $("#btn-6x4", elem).on("click", () => {
     mode = "6x4";
     resize();
   });
-  $("#btn-4x3").on("click", () => {
+  $("#btn-4x3", elem).on("click", () => {
     mode = "4x3";
     resize();
   });
-  $("#btn-16x9").on("click", () => {
+  $("#btn-16x9", elem).on("click", () => {
     mode = "16x9";
     resize();
   });
-  $("#btn-5x5").on("click", () => {
+  $("#btn-5x5", elem).on("click", () => {
     mode = "5x5";
     resize();
   });
-  const ok = $("#btn-ok-crop");
-  const cancel = $("#btn-cancel-crop");
+  const ok = $("#btn-ok-crop", elem);
+  const cancel = $("#btn-cancel-crop", elem);
   panZoomCtrl.events.on("pan", validate);
   panZoomCtrl.events.on("zoom", validate);
 
-  $("#btn-orientation").on("click", () => {
+  $("#btn-orientation", elem).on("click", () => {
     orientation = orientation === "portrait" ? "paysage" : "portrait";
     resize();
   });

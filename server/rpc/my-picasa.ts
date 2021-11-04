@@ -11,9 +11,9 @@ import {
 } from "./rpcFunctions/sharp-processor";
 import { folder, readFileContents, writeFileContents } from "./rpcFunctions/fs";
 import { Exceptions } from "../../shared/types/exceptions";
-import { createJob } from "./rpcFunctions/fileJobs";
+import { createFSJob } from "./rpcFunctions/fileJobs";
 import { getJob } from "./rpcFunctions/fileJobs";
-import { folders } from "./rpcFunctions/walker";
+import { folders, mediaInFolder } from "./rpcFunctions/walker";
 import { ServiceMap } from "./rpcHandler";
 import { exifData } from "./rpcFunctions/exif";
 
@@ -63,12 +63,16 @@ export const MyPicasa: ServiceMap = {
       arguments: ["hash:object"],
     },
     createJob: {
-      handler: createJob,
+      handler: createFSJob,
       arguments: ["jobName:string", "jobData:object"],
     },
     folders: {
       handler: folders,
       arguments: [],
+    },
+    media: {
+      handler: mediaInFolder,
+      arguments: ["folder:string"],
     },
     readFileContents: {
       handler: readFileContents,

@@ -1,51 +1,69 @@
-import { AlbumListEventSource, Folder } from "../../shared/types/types.js";
+import { Album, AlbumListEventSource } from "../../shared/types/types.js";
 import { FolderMonitor } from "../folder-monitor.js";
 import { getFolderInfo } from "../folder-utils.js";
 import { $ } from "../lib/dom.js";
+import { albumFromId, idFromAlbum } from "../../shared/lib/utils.js";
+import { getService } from "../rpc/connect.js";
+import { SelectionManager } from "../selection/selection-manager.js";
 import { makeNThumbnails, thumbnailData } from "./thumbnail.js";
 
 // Create two elements, allergic to visibility
 
-export function make(
+export function makePhotoList(
   container: HTMLElement,
   monitor: FolderMonitor,
-  select: AlbumListEventSource
+  events: AlbumListEventSource
 ) {
   let topIndex: number = -1;
   let bottomIndex: number = -1;
+  const pool: HTMLElement[] = [];
+  const displayed: HTMLElement[] = [];
 
-  let options = {
-    root: container,
-    rootMargin: "0px",
-    threshold: 1.0,
-  };
+  $(container).on("scroll", updateHighlighted);
 
-  const callback = (
-    entries: IntersectionObserverEntry[],
-    observer: IntersectionObserver
-  ) => {
-    entries.forEach((entry) => {
-      // Each entry describes an intersection change for one observed
-      // target element:
-      //   entry.boundingClientRect
-      //   entry.intersectionRatio
-      //   entry.intersectionRect
-      //   entry.isIntersecting
-      //   entry.rootBounds
-      //   entry.target
-      //   entry.time
-    });
-  };
-  let observer = new IntersectionObserver(callback, options);
-  // observer.observe(top);
-  // observer.observe(bottom);
-
+  $(container).on(
+    "dragstart",
+    (ev: any) => {
+      SelectionManager.get().select(ev.target.id);
+      ev.dataTransfer.effectAllowed = "move";
+      //ev.preventDefault();
+    },
+    false
+  );
   let reflow = false;
   let running = false;
+  function updateHighlighted() {
+    // Find the first visible element
+    const top = container.scrollTop;
+    const bottom = container.scrollTop + container.clientHeight;
+    let found, previous;
+    for (const e of displayed) {
+      if (parseInt(e.style.top) >= top) {
+        if (parseInt(e.style.top) > bottom) {
+          found = previous;
+        } else {
+          found = e;
+        }
+        break;
+      }
+    }
+
+    if (found) {
+      const album = albumFromId(found.id);
+      console.info(`Now visible album ${album.name}`);
+      events.emit("scrolled", {
+        album,
+      });
+    }
+  }
   window.requestAnimationFrame(addNewItemsIfNeeded);
   function addNewItemsIfNeeded() {
     if (running) {
       debugger;
+    }
+    if (!$(container).visible()) {
+      window.requestAnimationFrame(addNewItemsIfNeeded);
+      return;
     }
     running = true;
     if (reflow) {
@@ -66,9 +84,8 @@ export function make(
             }px`;
             elem.style.opacity = "1";
             lastElem = elem;
-            console.info(
-              `Flowing album ${elem.getAttribute("name")} : ${elem.style.top}`
-            );
+            const album = albumFromId(elem.id);
+            console.info(`Flowing album ${album.name} : ${elem.style.top}`);
           }
         }
         if (d.style.opacity == "0" && goneBack) {
@@ -79,46 +96,21 @@ export function make(
             }px`;
             elem.style.opacity = "1";
             lastElem = elem;
-            console.info(
-              `Flowing album ${elem.getAttribute("name")} : ${elem.style.top}`
-            );
+            const album = albumFromId(elem.id);
+            console.info(`Flowing album ${album.name} : ${elem.style.top}`);
           }
           break;
         }
       }
-      const displayedTop = parseInt(firstItem.style.top) - 100;
+      const displayedTop = parseInt(firstItem.style.top) - 10;
       const displayedBottom =
-        parseInt(lastItem.style.top) + lastItem.clientHeight + 100;
+        parseInt(lastItem.style.top) + lastItem.clientHeight + 10;
 
       $("#before", container).css("top", `${displayedTop}px`);
       $("#after", container).css("top", `${displayedBottom}px`);
 
-      // Find the first visible element
-      const top = container.scrollTop;
-      const bottom = container.scrollTop + container.clientHeight;
-      let found, previous;
-      for (const e of displayed) {
-        if (parseInt(e.style.top) > top) {
-          if (parseInt(e.style.top) > bottom) {
-            found = previous;
-            break;
-          } else {
-            found = e;
-          }
-        }
-      }
-
-      if (found) {
-        console.info(`Now visible album ${found.getAttribute("name")}`);
-        const index = parseInt(found.getAttribute("index")!);
-        select.emit("scrolled", {
-          folder: monitor.folders[index],
-          index,
-        });
-      }
-
       // Offset, we are < 0
-      if (displayedTop < 0) {
+      if (displayedTop < 0 || displayedTop > 1000) {
         for (const c of container.children) {
           const thisTop = parseInt((c as HTMLElement).style.top);
           (c as HTMLElement).style.top = `${thisTop - displayedTop}px`;
@@ -129,30 +121,39 @@ export function make(
       running = false;
       window.requestAnimationFrame(addNewItemsIfNeeded);
     } else {
-      const prune = [];
-      // prune elements out of bounds
-      const visibleScrollArea = {
-        top: container.scrollTop - 1000,
-        bottom: container.scrollTop + container.clientHeight + 1000,
-      };
-      for (const elem of displayed) {
-        const top = parseInt(elem.style.top);
-        const elemPos = {
-          top,
-          bottom: top + elem.clientHeight,
+      if (displayed.length > 3) {
+        const prune = [];
+        // prune elements out of bounds
+        const visibleScrollArea = {
+          top: container.scrollTop - 1000,
+          bottom: container.scrollTop + container.clientHeight + 1000,
         };
-        if (
-          elemPos.bottom < visibleScrollArea.top ||
-          elemPos.top > visibleScrollArea.bottom
-        ) {
-          console.info(`Pruning album ${elem.getAttribute("name")}`);
-          prune.push(elem);
+        for (const elem of displayed) {
+          const top = parseInt(elem.style.top);
+          const elemPos = {
+            top,
+            bottom: top + elem.clientHeight,
+          };
+          if (
+            elemPos.bottom < visibleScrollArea.top ||
+            elemPos.top > visibleScrollArea.bottom
+          ) {
+            const album = albumFromId(elem.id);
+            console.info(`Pruning album ${album.name}`);
+            prune.push(elem);
+          }
         }
-      }
-      for (const elem of prune) {
-        displayed.splice(displayed.indexOf(elem), 1);
-        elem.parentElement?.removeChild(elem);
-        pool.push(elem);
+        if (prune.length) {
+          for (const elem of prune) {
+            displayed.splice(displayed.indexOf(elem), 1);
+            elem.parentElement?.removeChild(elem);
+            pool.push(elem);
+          }
+          topIndex = parseInt(displayed[0].getAttribute("index")!);
+          bottomIndex = parseInt(
+            displayed[displayed.length - 1].getAttribute("index")!
+          );
+        }
       }
 
       const promises: Promise<void>[] = [];
@@ -165,8 +166,8 @@ export function make(
       }
       if (
         lastItem &&
-        parseInt(lastItem.style.top) + lastItem.clientHeight <
-          container.scrollTop + container.clientHeight
+        parseInt(lastItem.style.top) + lastItem.clientHeight <=
+          container.scrollTop + container.clientHeight + 300
       ) {
         promises.push(addAtBottom());
       }
@@ -181,34 +182,34 @@ export function make(
         window.requestAnimationFrame(addNewItemsIfNeeded);
       }
     }
+
+    getService().then((service) => {
+      service.on("folderChanged", (folders: string[]) => {
+        for (const d of displayed) {
+          const album = albumFromId(d.id);
+          if (folders.includes(album.key)) {
+            populateElement(d, album);
+          }
+        }
+      });
+    });
   }
 
-  monitor.events.on("updated", (event) => {});
-  const pool: HTMLElement[] = [];
-  const displayed: HTMLElement[] = [];
-  select.on("selected", (event) => {
-    refresh(event!.index);
-  });
-
   function albumWithThumbnails(
-    f: Folder,
+    album: Album,
     title: HTMLElement,
-    element: HTMLElement
+    element: HTMLElement,
+    events: AlbumListEventSource
   ) {
-    title.innerText = f.name;
+    title.innerText = album.name;
 
-    return getFolderInfo(f).then((info) => {
-      makeNThumbnails(element, info.pictures.length);
+    return getFolderInfo(album).then((info) => {
+      makeNThumbnails(element, info.pictures.length, events);
 
       const keys = info.pictures.map((p) => p.name).reverse();
       let idx = keys.length;
-      for (const k of keys) {
-        thumbnailData(
-          element.children[--idx] as HTMLElement,
-          f,
-          k,
-          monitor.idFromFolderAndName(f, k)
-        );
+      for (const name of keys) {
+        thumbnailData(element.children[--idx] as HTMLElement, { album, name });
       }
     });
   }
@@ -228,60 +229,65 @@ export function make(
     const e = pool.pop()!;
     return e;
   }
+  async function populateElement(e: HTMLElement, album: Album) {
+    await albumWithThumbnails(
+      album,
+      $("#name", e).get(),
+      $("#photos", e).get(),
+      events
+    );
+    e.id = idFromAlbum(album);
+    $(e).css({ top: `0px`, opacity: 0 });
+  }
+
   async function addAtTop() {
     if (topIndex > 0) {
       topIndex--;
       const albumElement = getElement();
-      await albumWithThumbnails(
-        monitor.folders[topIndex],
-        $("#name", albumElement).get(),
-        $("#photos", albumElement).get()
-      );
-      albumElement.setAttribute("name", monitor.folders[topIndex].name);
+      const album = monitor.albumAtIndex(bottomIndex);
+      populateElement(albumElement, album);
       albumElement.setAttribute("index", topIndex.toString());
-      $(albumElement).css({ top: `0px`, opacity: 0 });
       container.insertBefore(albumElement, container.firstChild!.nextSibling);
       displayed.unshift(albumElement);
+      console.info(`Adding album ${album.name} at end`);
     }
   }
 
   async function addAtBottom() {
-    if (bottomIndex < monitor.folders.length - 1) {
+    if (bottomIndex < monitor.length() - 1) {
       bottomIndex++;
       const albumElement = getElement();
-      await albumWithThumbnails(
-        monitor.folders[bottomIndex],
-        $("#name", albumElement).get(),
-        $("#photos", albumElement).get()
-      );
-      albumElement.setAttribute("name", monitor.folders[bottomIndex].name);
+      const album = monitor.albumAtIndex(bottomIndex);
+      populateElement(albumElement, album);
       albumElement.setAttribute("index", bottomIndex.toString());
-      $(albumElement).css({ top: `0px`, opacity: 0 });
       container.insertBefore(albumElement, container.lastChild);
       displayed.push(albumElement);
+      console.info(`Adding album ${album.name} at end`);
     }
   }
 
-  async function refresh(index: number) {
+  async function refresh(album: Album) {
+    console.info(`Refresh from ${album.name}`);
     for (const e of displayed) {
       container.removeChild(e);
       pool.push(e);
     }
     displayed.splice(0, displayed.length);
+    const index = monitor.albumIndexFromKey(album.key);
     topIndex = bottomIndex = index;
     // pick from pool
     const albumElement = getElement();
-    $(albumElement).css("top", "100px");
-    await albumWithThumbnails(
-      monitor.folders[index],
-      $("#name", albumElement).get(),
-      $("#photos", albumElement).get()
-    );
-    albumElement.setAttribute("name", monitor.folders[index].name);
+    await populateElement(albumElement, album);
+    $(albumElement).css("top", index === 0 ? "0" : "100px");
     albumElement.setAttribute("index", index.toString());
     container.appendChild(albumElement);
     container.scrollTo({ top: 0 });
     displayed.push(albumElement);
-    index++;
+    updateHighlighted();
   }
+
+  monitor.events.on("updated", (event) => {});
+  events.on("selected", ({ album }) => {
+    refresh(album);
+  });
 }

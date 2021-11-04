@@ -38,10 +38,10 @@ export interface Emitter<Events extends Record<EventType, unknown>> {
   ): void;
   off(type: "*", handler: WildcardHandler<Events>): void;
 
-  emit<Key extends keyof Events>(type: Key, event: Events[Key]): void;
+  emit<Key extends keyof Events>(type: Key, event: Events[Key]): boolean;
   emit<Key extends keyof Events>(
     type: undefined extends Events[Key] ? Key : never
-  ): void;
+  ): boolean;
 }
 
 export function buildEmitter<Events extends Record<EventType, unknown>>(
@@ -83,8 +83,9 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
      * @memberOf mitt
      */
     once<Key extends keyof Events>(type: Key, handler: GenericEventHandler) {
-      const handlers: Array<GenericEventHandler> | undefined =
-        allOnce!.get(type);
+      const handlers: Array<GenericEventHandler> | undefined = allOnce!.get(
+        type
+      );
       if (handlers) {
         handlers.push(handler);
       } else {
@@ -119,12 +120,14 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
      * @param {Any} [evt] Any value (object is recommended and powerful), passed to each handler
      * @memberOf mitt
      */
-    emit<Key extends keyof Events>(type: Key, evt?: Events[Key]) {
+    emit<Key extends keyof Events>(type: Key, evt?: Events[Key]): boolean {
+      let res = false;
       let handlers = all!.get(type);
       if (handlers) {
         (handlers as EventHandlerList<Events[keyof Events]>)
           .slice()
           .map((handler) => {
+            res = true;
             handler(evt!);
           });
       }
@@ -135,6 +138,7 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
           .slice()
           .map((handler) => {
             handler(evt!);
+            res = true;
           });
       }
 
@@ -144,8 +148,10 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
           .slice()
           .map((handler) => {
             handler(type, evt!);
+            res = true;
           });
       }
+      return res;
     },
   };
 }

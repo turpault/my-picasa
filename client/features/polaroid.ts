@@ -25,7 +25,7 @@ export function setupPolaroid(
     buildUI: function (index: number, args: string[]) {
       const e = toolHeader(name, index, imageController);
 
-      e.append(`<div class="tool-control slidecontainer">
+      e.append(`<div><div class="tool-control slidecontainer">
           <label>Angle</label>
           <input type="range" min="-10" max="10" value="0" id="angle" class="slider">
         </div>
@@ -34,6 +34,7 @@ export function setupPolaroid(
           <input type="color" id="colorpicker" value="#ffffff">      
         </div>
       <div>
+    </div>
     </div>`);
       const update = () => {
         const color = $("#colorpicker", e).val();

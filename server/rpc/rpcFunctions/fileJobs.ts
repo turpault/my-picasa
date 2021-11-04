@@ -7,8 +7,10 @@ import {
   writeFile,
 } from "fs/promises";
 import { basename, dirname, extname, join } from "path";
-import { uuid } from "../../../shared/lib/utils";
+import { sleep, uuid } from "../../../shared/lib/utils";
 import ini from "../../../shared/lib/ini";
+import { imagesRoot } from "../../utils/constants";
+import { SocketAdaptorInterface } from "../../../shared/socket/socketAdaptorInterface";
 
 type Job = {
   id: string;
@@ -17,6 +19,7 @@ type Job = {
   status: string;
   progress: { start: number; remaining: number };
   errors: string[];
+  changed: Function;
 };
 const jobs: Job[] = [];
 
@@ -29,7 +32,13 @@ export async function getJob(id: string): Promise<object> {
   throw new Error("Not Found");
 }
 
-export async function createJob(
+function deleteFSJob(this: SocketAdaptorInterface, job: Job) {
+  jobs.splice(jobs.indexOf(job), 1);
+  this.emit("jobDeleted", job);
+}
+
+export async function createFSJob(
+  this: SocketAdaptorInterface,
   jobName: string,
   jobArgs: object
 ): Promise<string> {
@@ -43,42 +52,60 @@ export async function createJob(
       remaining: 0,
     },
     errors: [],
+    changed: () => {
+      this.emit("jobChanged", job);
+    },
   };
   jobs.push(job);
-  executeJob(job);
+  executeJob(job).then(async (updatedFolders: string[]) => {
+    this.emit("jobFinished", job);
+    if (updatedFolders.length) {
+      this.emit("folderChanged", updatedFolders);
+    }
+    await sleep(10);
+    deleteFSJob.bind(this)(job);
+  });
   return job.id;
 }
 
-function executeJob(job: Job) {
+async function executeJob(job: Job): Promise<string[]> {
   switch (job.name) {
     case "move":
-      moveJob(job);
+      return moveJob(job);
       break;
     case "copy":
-      copyJob(job);
+      return copyJob(job);
       break;
     default:
       job.status = "error";
       job.errors.push(`Unknown job name ${job.name}`);
       break;
   }
+  return [];
 }
 
 const PICASA = ".picasa.ini";
 const THUMBS = ".thumbnails.ini";
 
-async function moveJob(job: Job) {
+function folderChanged(folder: string, list: string[]) {
+  if (list.indexOf(folder) === -1) list.push(folder);
+}
+async function moveJob(job: Job): Promise<string[]> {
   job.status = "started";
+  const updatedFolders: string[] = [];
   const source = job.data.source as string[];
   const dest = job.data.destination;
   const steps = source.length;
   job.progress.start = steps;
   job.progress.remaining = steps;
+  job.changed();
   await Promise.allSettled(
     source.map(async (s) => {
       try {
         await copyMetadata(s, dest, true);
-        await rename(s, dest);
+        await rename(join(imagesRoot, s), join(imagesRoot, dest));
+        folderChanged(dirname(s), updatedFolders);
+        folderChanged(dest, updatedFolders);
       } catch (e: any) {
         job.errors.push(e.message as string);
       } finally {
@@ -87,15 +114,36 @@ async function moveJob(job: Job) {
     })
   );
   job.status = "done";
+  job.changed();
+  return updatedFolders;
 }
 
-async function copyJob(job: Job) {
+async function copyJob(job: Job): Promise<string[]> {
   job.status = "started";
-  const source = job.data.source as string;
+  const updatedFolders: string[] = [];
+  const source = job.data.source as string[];
   const dest = job.data.destination;
-  await copyFile(source, dest);
-  await copyMetadata(source, dest, false);
+  const steps = source.length;
+  job.progress.start = steps;
+  job.progress.remaining = steps;
+  job.changed();
+  await Promise.allSettled(
+    source.map(async (s) => {
+      try {
+        await copyFile(join(imagesRoot, s), join(imagesRoot, dest));
+        await copyMetadata(s, dest, false);
+        folderChanged(dest, updatedFolders);
+      } catch (e: any) {
+        job.errors.push(e.message as string);
+      } finally {
+        job.progress.remaining--;
+        job.changed();
+      }
+    })
+  );
   job.status = "done";
+  job.changed();
+  return updatedFolders;
 }
 
 async function copyMetadata(
@@ -107,45 +155,57 @@ async function copyMetadata(
   const file = basename(source);
   let targetIniData: { [key: string]: any } = {};
   let targetThumbData: { [key: string]: any } = {};
-  if (await stat(join(dest, PICASA)).catch((e) => false)) {
+  if (await stat(join(imagesRoot, dest, PICASA)).catch((e) => false)) {
     targetIniData = ini.decode(
-      await readFile(join(dest, PICASA), { encoding: "utf-8" })
+      await readFile(join(imagesRoot, dest, PICASA), { encoding: "utf-8" })
     );
   }
-  if (await stat(join(dest, THUMBS)).catch((e) => false)) {
+  if (await stat(join(imagesRoot, dest, THUMBS)).catch((e) => false)) {
     targetThumbData = ini.decode(
-      await readFile(join(dest, THUMBS), { encoding: "utf-8" })
+      await readFile(join(imagesRoot, dest, THUMBS), { encoding: "utf-8" })
     );
   }
 
-  if (await stat(join(sourceDir, PICASA)).catch((e) => false)) {
+  if (await stat(join(imagesRoot, sourceDir, PICASA)).catch((e) => false)) {
     const iniData = ini.decode(
-      await readFile(join(sourceDir, PICASA), { encoding: "utf-8" })
+      await readFile(join(imagesRoot, sourceDir, PICASA), { encoding: "utf-8" })
     );
     targetIniData[file] = iniData[file];
     if (deleteSource) {
       delete iniData[file];
-      await writeFile(join(sourceDir, PICASA), ini.encode(iniData), {
-        encoding: "utf-8",
-      });
+      await writeFile(
+        join(imagesRoot, sourceDir, PICASA),
+        ini.encode(iniData),
+        {
+          encoding: "utf-8",
+        }
+      );
     }
-    await writeFile(join(dest, PICASA), ini.encode(targetIniData), {
+    await writeFile(join(imagesRoot, dest, PICASA), ini.encode(targetIniData), {
       encoding: "utf-8",
     });
   }
-  if (await stat(join(sourceDir, THUMBS)).catch((e) => false)) {
+  if (await stat(join(imagesRoot, sourceDir, THUMBS)).catch((e) => false)) {
     const iniData = ini.decode(
-      await readFile(join(sourceDir, THUMBS), { encoding: "utf-8" })
+      await readFile(join(imagesRoot, sourceDir, THUMBS), { encoding: "utf-8" })
     );
     targetThumbData[file] = iniData[file];
     if (deleteSource) {
       delete iniData[file];
-      await writeFile(join(sourceDir, THUMBS), ini.encode(iniData), {
-        encoding: "utf-8",
-      });
+      await writeFile(
+        join(imagesRoot, sourceDir, THUMBS),
+        ini.encode(iniData),
+        {
+          encoding: "utf-8",
+        }
+      );
     }
-    await writeFile(join(dest, THUMBS), ini.encode(targetThumbData), {
-      encoding: "utf-8",
-    });
+    await writeFile(
+      join(imagesRoot, dest, THUMBS),
+      ini.encode(targetThumbData),
+      {
+        encoding: "utf-8",
+      }
+    );
   }
 }

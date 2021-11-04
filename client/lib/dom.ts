@@ -15,22 +15,6 @@ function NodeListToArray(
   }
   return [e] as HTMLElement[];
 }
-/*export function $(selector: string): HTMLElement | undefined {
-    return NodeListToFirstElem(
-        document.getElementById(selector) ||
-            document.getElementsByName(selector) ||
-            document.querySelector<HTMLElement>(selector)
-    );
-}
-
-export function $$(selector: string): HTMLElement[] | undefined {
-    return NodeListToArray(
-        document.getElementById(selector) ||
-            document.getElementsByName(selector) ||
-            document.querySelector<HTMLElement>(selector)
-    );
-}
-*/
 
 export function setImageDataToCanvasElement(
   imagedata: ImageData,
@@ -43,18 +27,15 @@ export function setImageDataToCanvasElement(
   ctx.putImageData(imagedata, 0, 0);
 }
 
-class DollarElement {
-  constructor(
-    e: HTMLElement | string | DollarElement,
-    from?: HTMLElement | null | DollarElement
-  ) {
+export class _$ {
+  constructor(e: HTMLElement | string | _$, from?: HTMLElement | null | _$) {
     this._e = this.resolve(e, from || null);
   }
   on<K extends keyof HTMLElementEventMap>(
     type: K,
     listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
     options?: boolean | AddEventListenerOptions
-  ): DollarElement {
+  ): _$ {
     this.get().addEventListener(type, listener, options);
     return this;
   }
@@ -63,6 +44,19 @@ class DollarElement {
       throw new Error("No element");
     }
     return this._e;
+  }
+  alive(): _$ {
+    if (this._e) {
+      return this;
+    }
+    return new Proxy(
+      {},
+      {
+        get: () => {
+          return () => this;
+        },
+      }
+    ) as _$;
   }
   val(value?: any) {
     if (arguments.length === 0) {
@@ -73,7 +67,7 @@ class DollarElement {
 
     return this;
   }
-  css(name: string | object, value?: string): DollarElement {
+  css(name: string | object, value?: string): _$ {
     if (typeof name == "string") {
       (this.get().style as any)[name] = value;
     } else {
@@ -83,11 +77,11 @@ class DollarElement {
     }
     return this;
   }
-  append(e: HTMLElement | DollarElement | string): DollarElement {
-    this.get().appendChild(new DollarElement(e).get());
+  append(e: HTMLElement | _$ | string): _$ {
+    this.get().appendChild(new _$(e).get());
     return this;
   }
-  addClass(className: string): DollarElement {
+  addClass(className: string): _$ {
     var j = 0,
       classes = className ? className.trim().split(/\s+/) : [];
 
@@ -122,7 +116,11 @@ class DollarElement {
     return this;
   }
 
-  removeClass(className: string): DollarElement {
+  remove() {
+    this.get().parentElement!.removeChild(this.get());
+  }
+
+  removeClass(className: string): _$ {
     var j = 0,
       classes = className ? className.trim().split(/\s+/) : [];
 
@@ -132,8 +130,11 @@ class DollarElement {
 
     return this;
   }
-  parent(): DollarElement {
-    return new DollarElement(this.get().parentElement!);
+  parent(): _$ {
+    return new _$(this.get().parentElement!);
+  }
+  visible(): boolean {
+    return this.get().offsetParent !== null;
   }
 
   empty() {
@@ -141,17 +142,17 @@ class DollarElement {
   }
 
   private resolve(
-    e: HTMLElement | string | DollarElement,
-    from: HTMLElement | null | DollarElement
+    e: HTMLElement | string | _$,
+    from: HTMLElement | null | _$
   ): HTMLElement | null {
     if (e instanceof HTMLElement) {
       return e;
     }
-    if (e instanceof DollarElement) {
+    if (e instanceof _$) {
       return e.get();
     }
     let _from: HTMLElement | null;
-    if (from instanceof DollarElement) {
+    if (from instanceof _$) {
       _from = from.get();
     } else {
       _from = from;
@@ -180,7 +181,7 @@ class DollarElement {
 
 export function $(
   e: HTMLElement | string,
-  from: HTMLElement | null | DollarElement = null
-): DollarElement {
-  return new DollarElement(e, from);
+  from: HTMLElement | null | _$ = null
+): _$ {
+  return new _$(e, from);
 }
