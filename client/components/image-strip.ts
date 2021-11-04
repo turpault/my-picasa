@@ -1,13 +1,14 @@
 import { ActiveImageManager } from "../selection/active-manager.js";
-import { FolderInfo } from "../../shared/types/types.js";
+import { Album, FolderInfo } from "../../shared/types/types.js";
 import { thumbnailUrl } from "../imageProcess/client.js";
 import { $ } from "../lib/dom.js";
 
 function nameToId(prefix: string, n: string) {
   return prefix + "_" + n.replace(/[^a-z0-9A-Z_]/g, "");
 }
-export function make(
+export function makeImageStrip(
   e: HTMLElement,
+  album: Album,
   f: FolderInfo,
   selector: ActiveImageManager
 ) {
@@ -19,7 +20,7 @@ export function make(
   });
   const picList = $("#image-strip-thumbs", e);
   Promise.allSettled(
-    f.pictures.map((img) => thumbnailUrl(f.handle.path(), img.name, "th-small"))
+    f.pictures.map((img) => thumbnailUrl({ album, name: img.name }, "th-small"))
   ).then((results) => {
     for (const [idx, p] of f.pictures.entries()) {
       const b = $(

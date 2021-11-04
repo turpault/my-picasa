@@ -1,3 +1,4 @@
+import { buildEmitter, Emitter, Handler } from "../lib/event.js";
 import { uuid } from "../lib/utils.js";
 import { SocketAdaptorInterface } from "./socketAdaptorInterface.js";
 
@@ -11,24 +12,18 @@ function _getTimeoutInSeconds(): number {
  * Wraps a WebSocket, so that we can use it in a similar manner to how we were using socket-io
  */
 export class WsAdaptor implements SocketAdaptorInterface {
-  constructor(ws: WebSocket) {
-    this.ws = ws;
-    this.handlerMap = {};
+  constructor() {
+    this.handlerMap = buildEmitter<any>();
     this.responseCallbacks = {};
     this.middleware = [];
-    this.setMessageListener();
     this.closed = false;
-
-    this.ws.onerror = function (event): void {
-      console.error("WebSocket error observed:", event);
-    };
 
     this.timeoutMillis = _getTimeoutInSeconds() * 1000;
     this.maxRetries = WsAdaptor.MAX_RETRIES;
   }
 
-  private ws: WebSocket;
-  public handlerMap: { [action: string]: Function }; // Map of actions to their handler
+  private ws: WebSocket | undefined;
+  public handlerMap: Emitter<any>;
   private responseCallbacks: { [id: string]: Function }; // Map of ids <=> callbacks to be performed when a response is received
   private middleware: Array<Function>; // All middleware functions to be performed on incoming messages
   private timeoutMillis: number = defaultTimeoutInSeconds;
@@ -45,6 +40,13 @@ export class WsAdaptor implements SocketAdaptorInterface {
   private static TIMEOUT_MULTIPLIER = 1.25;
   private static MAX_RETRIES = 10;
 
+  socket(ws: WebSocket) {
+    this.ws = ws;
+    this.ws.onerror = function (event): void {
+      console.error("WebSocket error observed:", event);
+    };
+    this.setMessageListener();
+  }
   setMaxRetries(_maxRetries: number) {
     this.maxRetries = _maxRetries;
   }
@@ -62,7 +64,7 @@ export class WsAdaptor implements SocketAdaptorInterface {
     action: string,
     callback: (payload: any, callback: Function) => void
   ): void {
-    this.handlerMap[action] = callback;
+    this.handlerMap.on(action, callback as Handler<any>);
   }
 
   /**
@@ -86,16 +88,14 @@ export class WsAdaptor implements SocketAdaptorInterface {
       payload,
     });
     try {
-    return this.emitRetry(
-      requestId,
-      message,
-      this.maxRetries - 1,
-      this.timeoutMillis
-    );
-    } catch(e) {
-      if(this.handlerMap.error) {
-        this.handlerMap.error(e);
-      }
+      return this.emitRetry(
+        requestId,
+        message,
+        this.maxRetries - 1,
+        this.timeoutMillis
+      );
+    } catch (e) {
+      this.handlerMap.emit("error", e);
     }
   }
 
@@ -104,7 +104,7 @@ export class WsAdaptor implements SocketAdaptorInterface {
    * @param callback
    */
   onDisconnect(callback: (event: any) => void): void {
-    this.ws.onclose = (...args) => {
+    this.ws!.onclose = (...args) => {
       this.closed = true;
       callback(...args);
     };
@@ -115,14 +115,14 @@ export class WsAdaptor implements SocketAdaptorInterface {
    */
   disconnect(): void {
     this.closed = true;
-    this.ws.close();
+    this.ws!.close();
   }
 
   /**
    * Disconnects the websocket.
    */
   shutdown(): void {
-    this.ws.close();
+    this.ws!.close();
   }
   /**
    * Sends the message, and then sets a timer to see if a response has been received. If one has not been received, then
@@ -134,7 +134,7 @@ export class WsAdaptor implements SocketAdaptorInterface {
     remainingRetries: number,
     timeout: number
   ): Promise<void> {
-    this.ws.send(message.toString());
+    this.ws!.send(message.toString());
   }
 
   /**
@@ -142,7 +142,7 @@ export class WsAdaptor implements SocketAdaptorInterface {
    * to the appropriate handler that has been registered.
    */
   private setMessageListener(): void {
-    this.ws.onmessage = (message: any) => {
+    this.ws!.onmessage = (message: any) => {
       this.handleMessage(
         message.data
           ? message.data.toString()
@@ -185,23 +185,10 @@ export class WsAdaptor implements SocketAdaptorInterface {
     await this.executeMiddleware(message);
 
     // Find the handler - if one doesn't exist, send error
-    const handler = this.handlerMap[args.action];
-    if (!handler) {
-      console.info(`[WsAdaptor]: Handler ${args.action} not implemented`);
-      const response = JSON.stringify({
-        type: WsAdaptor.RESPONSE_TYPE,
-        requestId: args.requestId,
-        error: WsAdaptor.ERROR_NOT_IMPLEMENTED,
-      });
-      // console.debug(`Sending error response ${response}`);
-      this.ws.send(response);
-      return;
-    }
-
-    // Try executing the handler
-    try {
-      // Grab the arguments out of the array
-      await handler(args.payload, (error: string, payload: object) => {
+    const handled = this.handlerMap.emit(args.action, {
+      payload: args.payload,
+      callback: (error: string, payload: object) => {
+        // Try executing the handler
         const response = JSON.stringify({
           type: WsAdaptor.RESPONSE_TYPE,
           requestId: args.requestId,
@@ -210,20 +197,18 @@ export class WsAdaptor implements SocketAdaptorInterface {
         });
 
         // console.debug(`Sending ${error ? 'error' : 'success'} response ${response}`);
-        this.ws.send(response);
-      });
-    } catch (err) {
+        this.ws!.send(response);
+      },
+    });
+    if (!handled) {
+      console.info(`[WsAdaptor]: Handler ${args.action} not implemented`);
       const response = JSON.stringify({
         type: WsAdaptor.RESPONSE_TYPE,
         requestId: args.requestId,
-        error: (err as Error).message || "Unknown Error",
+        error: WsAdaptor.ERROR_NOT_IMPLEMENTED,
       });
-      console.log(
-        `Unexpected error processing message ${JSON.stringify(
-          args
-        )}. Will send error response ${response}`
-      );
-      this.ws.send(response);
+      // console.debug(`Sending error response ${response}`);
+      this.ws!.send(response);
       return;
     }
   }

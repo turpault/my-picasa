@@ -1,5 +1,29 @@
+import { Album, AlbumEntry } from "../types/types";
+
 export async function sleep(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));
+}
+
+export function albumFromId(id: string): Album {
+  const [key, name] = id.split("|");
+  return { key, name };
+}
+
+export function idFromAlbum(a: Album): string {
+  return `${a.key}|${a.name}`;
+}
+
+export function albumEntryFromId(id: string): AlbumEntry {
+  const [key, name, entry] = id.split("|");
+  return { album: { key, name }, name: entry };
+}
+
+export function idFromAlbumEntry(entry: AlbumEntry): string {
+  return `${entry.album.key}|${entry.album.name}|${entry.name}`;
+}
+
+export function sortByKey<T>(array: T[], key: keyof T) {
+  array.sort((a, b) => (a[key] < b[key] ? -1 : a[key] > b[key] ? 1 : 0));
 }
 
 export function uuid(): string {

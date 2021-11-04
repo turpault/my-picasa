@@ -43,7 +43,9 @@ function serverInit(httpServer: Server): WebSocket.Server {
 
 // Returns a socket that can be used
 function socketAdaptorInit(serverClient: any): SocketAdaptorInterface {
-  return new WsAdaptor(serverClient);
+  const s = new WsAdaptor();
+  s.socket(serverClient);
+  return s;
 }
 
 export function socketInit(httpServer: Server) {

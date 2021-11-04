@@ -1,28 +1,30 @@
-import { AlbumListEventSource, Folder } from "../../shared/types/types.js";
+import { AlbumListEventSource, Album } from "../../shared/types/types.js";
 import {
-  elementByFolder,
+  elementByAlbum,
   folder,
-  folderByElement,
+  albumByElement,
 } from "../element-templates.js";
 import { FolderMonitor } from "../folder-monitor.js";
 import { $ } from "../lib/dom.js";
+import { albumFromId } from "../../shared/lib/utils.js";
 import { getService } from "../rpc/connect.js";
 import { SelectionManager } from "../selection/selection-manager.js";
 
-export function make(
+export function makeAlbumList(
   folders: HTMLElement,
   monitor: FolderMonitor,
   emitter: AlbumListEventSource
 ) {
   let lastHighlight: any;
-  emitter.on("scrolled", ({ folder: f }) => {
+  emitter.on("scrolled", ({ album }) => {
     if (lastHighlight) {
       lastHighlight.removeClass("highlight");
     }
-    lastHighlight = $(elementByFolder(f));
+    lastHighlight = $(elementByAlbum(album));
     lastHighlight.addClass("highlight");
+    lastHighlight.get().scrollIntoViewIfNeeded(false);
   });
-  monitor.events.on("updated", (event: { folders: Folder[] }) => {
+  monitor.events.on("updated", (event: { folders: Album[] }) => {
     const e = $(folders);
     e.empty();
     for (const aFolder of event.folders) {
@@ -32,8 +34,8 @@ export function make(
   });
   const e = $(folders);
   e.on("click", function (ev): any {
-    const clicked = folderByElement(ev.target as HTMLElement, monitor.folders)!;
-    emitter.emit("selected", clicked);
+    const album = albumByElement(ev.target as HTMLElement)!;
+    emitter.emit("selected", { album });
   });
   e.on("dragover", (ev: any) => {
     ev.preventDefault();
@@ -48,14 +50,15 @@ export function make(
   });
   e.on("drop", async (ev: any) => {
     const selection = SelectionManager.get().selected();
-    const targetFolder = folderByElement(
-      ev.target as HTMLElement,
-      monitor.folders
-    )!;
+    const album = albumByElement(ev.target as HTMLElement)!;
     const s = await getService();
-    const jobId = await s.service.createJob("move", {
-      source: selection,
-      destination: targetFolder.folder.key,
+    const sels = selection
+      .map(albumFromId)
+      .map(({ key, name }) => key + "/" + name);
+
+    const jobId = await s.createJob("move", {
+      source: sels,
+      destination: album.key,
     });
     alert("Started " + jobId);
   });

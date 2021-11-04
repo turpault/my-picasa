@@ -1,7 +1,7 @@
 import ini from "../shared/lib/ini.js";
 import {
-  Folder,
-  FolderEntry,
+  Album,
+  AlbumEntry,
   FolderInfo,
   FolderPixels,
   PicasaFolderMeta,
@@ -13,24 +13,26 @@ import { getService } from "./rpc/connect.js";
 import { folderContents } from "./walker.js";
 
 const folderMap: Map<string, Promise<FolderInfo>> = new Map();
-let dirtyPicasaMap: Map<Directory, PicasaFolderMeta> = new Map();
+let dirtyPicasaMap: Map<string, PicasaFolderMeta> = new Map();
 
 setInterval(async () => {
   const d = dirtyPicasaMap;
   dirtyPicasaMap = new Map();
   d.forEach(async (value, key) => {
-    const iniHandleWrite = await key.getFileHandle(".picasa.ini");
+    const iniHandleWrite = await Directory.from(key).getFileHandle(
+      ".picasa.ini"
+    );
     await iniHandleWrite.writeFileContents(ini.encode(value));
   });
 }, 10000);
 
-export async function getFolderInfo(f: Folder): Promise<FolderInfo> {
+export async function getFolderInfo(f: Album): Promise<FolderInfo> {
   if (!folderMap.has(f.key)) {
     folderMap.set(
       f.key,
       (async () => {
         try {
-          const folderInfo = await getFolderInfoFromHandle(f.handle);
+          const folderInfo = await getFolderInfoFromHandle(f);
           return folderInfo;
         } catch (e) {
           console.error("Cannot decode ini file: ", e);
@@ -43,49 +45,38 @@ export async function getFolderInfo(f: Folder): Promise<FolderInfo> {
 }
 
 export async function getFolderInfoFromHandle(
-  fh: Directory,
-  pictures?: FolderEntry[],
-  videos?: FolderEntry[]
+  album: Album,
+  pictures?: AlbumEntry[],
+  videos?: AlbumEntry[]
 ): Promise<FolderInfo> {
-  const [picasa, pixels] = await Promise.all([
-    fh
-      .getFileHandle(".picasa.ini")
-      .then((handle: File) => getFileContents(handle))
-      .then((data) => ini.decode(data as string) as PicasaFolderMeta)
-      .catch(() => ({} as PicasaFolderMeta)),
-  ]);
-  if (!pictures || !videos) {
-    const contents = await folderContents(fh);
-    pictures = contents.pictures;
-    videos = contents.videos;
-  }
+  const d = Directory.from(album.key);
+  const picasa = await getFileContents(d.getFileHandle(".picasa.ini"))
+    .then((data) => ini.decode(data as string) as PicasaFolderMeta)
+    .catch(() => ({} as PicasaFolderMeta));
 
-  const folder: Folder = {
-    key: fh.path(),
-    name: fh.name,
-    handle: fh,
-  };
+  if (!pictures || !videos) {
+    const contents = await folderContents(album);
+    pictures = contents.pictures.map((name) => ({ album, name }));
+    videos = contents.videos.map((name) => ({ album, name }));
+  }
 
   // Add missing pictures to the picasa contents
   for (const p of pictures) {
     if (!picasa[p.name]) {
       picasa[p.name] = {};
-      dirtyPicasaMap.set(fh, picasa);
+      dirtyPicasaMap.set(album.key, picasa);
     }
   }
-  return { ...folder, picasa, pictures, videos };
+  return { picasa, pictures, videos };
 }
 
-export async function updatePicasaData(
-  fh: Directory,
-  picasa: PicasaFolderMeta
-) {
-  const iniHandleWrite = await fh.getFileHandle(".picasa.ini");
+export async function updatePicasaData(fh: string, picasa: PicasaFolderMeta) {
+  const iniHandleWrite = Directory.from(fh).getFileHandle(".picasa.ini");
   return iniHandleWrite.writeFileContents(ini.encode(picasa));
 }
 
-export async function getFileExifData(f: Folder, name: string): Promise<any> {
+export async function getFileExifData(f: Album, name: string): Promise<any> {
   const service = await getService();
-  const exif = (await service.service.exifData(f.key + "/" + name)) as object;
+  const exif = (await service.exifData(f.key + "/" + name)) as object;
   return exif;
 }

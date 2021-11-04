@@ -141,12 +141,8 @@ export function registerServices(
     Object.keys(service.functions).forEach((name) => {
       socket.on(
         service.name + ":" + name,
-        async (payload: any, callback: Function) => {
-          const start = new Date();
-          // Validate arguments
-          if (typeof payload === "string") {
-            payload = JSON.parse(payload);
-          }
+        async (event: { payload: any; callback: Function }) => {
+          const { payload, callback } = event;
 
           const serviceFunc = service.functions[name];
           const commandArgs = payload.args;
@@ -163,8 +159,8 @@ export function registerServices(
               true
             ).slice(0, 200)})`;
             console.time(label);
-            await serviceFunc
-              .handler(...convertedArguments)
+            await serviceFunc.handler
+              .bind(socket)(...convertedArguments)
               .then((response: any) => {
                 callback(null, response);
               });

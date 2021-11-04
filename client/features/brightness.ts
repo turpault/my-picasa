@@ -35,7 +35,7 @@ export function setupBrightness(
     },
     buildUI: function (index: number, args: string[]) {
       const e = toolHeader(name, index, imageController);
-      e.append(`<div class="tool-control slidecontainer">
+      e.append(`<div><div class="tool-control slidecontainer">
           <label>Brightness</label>
           <input type="range" min="0" max="100" value="0" id="brightness" class="slider">
         </div>
@@ -54,7 +54,7 @@ export function setupBrightness(
           <input type="range" min="0" max="100" value="0" id="amount" class="slider">
         </div>
       <div>
-    </div>`);
+    </div></div>`);
       const update = () => {
         const brightness = $("#brightness", e).val() / 100;
         const highlights = $("#highlights", e).val() / 100;

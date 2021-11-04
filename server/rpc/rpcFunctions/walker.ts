@@ -1,22 +1,18 @@
 import { readdir, stat } from "fs/promises";
 import { extname, join, relative } from "path";
+import { sortByKey } from "../../../shared/lib/utils";
+import { Album } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 
-type Album = {
-  name: string;
-  path: string;
-};
 const pictureExtensions = ["jpeg", "jpg", "png", "gif"];
 const videoExtensions = ["mp4", "mov"];
 
 let lastWalk: Album[] | undefined = undefined;
 async function updateLastWalk() {
   const f = await walk("", imagesRoot);
-  const sorted = f.sort((a, b) =>
-    a.name > b.name ? -1 : a.name < b.name ? 1 : 0
-  );
-  sorted.forEach((p) => (p.path = relative(imagesRoot, p.path)));
-  lastWalk = sorted;
+  sortByKey(f, "name");
+  f.forEach((p) => (p.key = relative(imagesRoot, p.key)));
+  lastWalk = f;
 }
 setInterval(() => updateLastWalk(), 120000);
 updateLastWalk();
@@ -26,6 +22,26 @@ export async function folders(): Promise<Album[]> {
     await updateLastWalk();
   }
   return lastWalk!;
+}
+
+export async function mediaInFolder(
+  path: string
+): Promise<{ pictures: string[]; videos: string[] }> {
+  const items = await readdir(join(imagesRoot, path));
+  const pictures: string[] = [];
+  const videos: string[] = [];
+  for (const i of items) {
+    if (!i.startsWith(".")) {
+      const ext = extname(i).toLowerCase().replace(".", "");
+      if (pictureExtensions.includes(ext)) {
+        pictures.push(i);
+      }
+      if (videoExtensions.includes(ext)) {
+        videos.push(i);
+      }
+    }
+  }
+  return { pictures, videos };
 }
 
 export async function walk(name: string, path: string): Promise<Album[]> {
@@ -39,21 +55,21 @@ export async function walk(name: string, path: string): Promise<Album[]> {
   });
   const stats = await Promise.all(items.map((item) => stat(join(path, item))));
 
-  const folders: { name: string; path: string }[] = [];
+  const folders: { name: string; key: string }[] = [];
   let idx = 0;
   for (const item of items) {
     if (stats[idx].isDirectory() && !item.startsWith(".")) {
-      folders.push({ name: items[idx], path: join(path, items[idx]) });
+      folders.push({ name: items[idx], key: join(path, items[idx]) });
     }
     idx++;
   }
   const p = await Promise.all(
-    folders.map((folder) => walk(folder.name, folder.path))
+    folders.map((folder) => walk(folder.name, folder.key))
   );
 
   const all = p.flat();
   if (hasPics) {
-    all.push({ name, path });
+    all.push({ name, key: path });
   }
   return all;
 }

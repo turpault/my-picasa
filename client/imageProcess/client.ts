@@ -1,9 +1,9 @@
 import { getService } from "../rpc/connect.js";
-import { ThumbnailSize } from "../types/types.js";
+import { AlbumEntry, ThumbnailSize } from "../types/types.js";
 
 export async function buildContext(fh: string): Promise<string> {
   const c = await getService();
-  const context = await c.service.buildContext(fh);
+  const context = await c.buildContext(fh);
   return context;
 }
 
@@ -12,13 +12,13 @@ export async function execute(
   operations: any[][]
 ): Promise<string> {
   const c = await getService();
-  await c.service.execute(context, operations as any[][]);
+  await c.execute(context, operations as any[][]);
   return context;
 }
 
 export async function commit(context: string): Promise<string> {
   const c = await getService();
-  await c.service.commit(context);
+  await c.commit(context);
   return context;
 }
 
@@ -27,7 +27,7 @@ export async function setOptions(
   options: any
 ): Promise<string> {
   const c = await getService();
-  await c.service.setOptions(context, options);
+  await c.setOptions(context, options);
   return context;
 }
 
@@ -36,19 +36,19 @@ export async function transform(
   transformation: string
 ): Promise<string> {
   const c = await getService();
-  await c.service.transform(context, transformation);
+  await c.transform(context, transformation);
   return context;
 }
 
 export async function cloneContext(context: string): Promise<string> {
   const c = await getService();
-  const newContext = await c.service.cloneContext(context);
+  const newContext = await c.cloneContext(context);
   return newContext;
 }
 
 export async function destroyContext(context: string): Promise<void> {
   const c = await getService();
-  await c.service.destroyContext(context);
+  await c.destroyContext(context);
 }
 
 export async function encode(
@@ -57,7 +57,7 @@ export async function encode(
   format: string
 ): Promise<string> {
   const c = await getService();
-  return await c.service.encode(context, mime, format);
+  return await c.encode(context, mime, format);
 }
 
 export async function encodeToURL(
@@ -68,11 +68,10 @@ export async function encodeToURL(
 }
 
 export async function thumbnailUrl(
-  f: string,
-  name: string,
+  entry: AlbumEntry,
   size: ThumbnailSize = "th-medium"
 ) {
-  return `/thumbnail/${encodeURIComponent(f)}/${encodeURIComponent(
-    name
-  )}/${encodeURIComponent(size)}`;
+  return `/thumbnail/${encodeURIComponent(
+    entry.album.key
+  )}/${encodeURIComponent(entry.name)}/${encodeURIComponent(size)}`;
 }

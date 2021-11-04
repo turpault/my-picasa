@@ -101,7 +101,12 @@ export async function thumbnail(
     pixels[name][<any>transformRef] !== transform
   ) {
     const image = await makeThumbnail(join(f, name), picasa[name], transform, [
-      ["resize", sizes[size], sizes[size], { fit: "cover" }],
+      [
+        "resize",
+        sizes[size],
+        sizes[size],
+        { fit: "inside", kernel: "nearest" },
+      ],
     ]);
 
     pixels[name][<any>size] = image;

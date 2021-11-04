@@ -1,42 +1,63 @@
 import { buildEmitter, Emitter } from "../shared/lib/event.js";
-import { Directory } from "./lib/handles.js";
-import { Folder, FolderEvent } from "../shared/types/types.js";
+import { sortByKey } from "../shared/lib/utils.js";
+import { Album, FolderEvent } from "../shared/types/types.js";
+import { getService } from "./rpc/connect.js";
 import { walkFromServer } from "./walker.js";
 
-export async function subFolder(
-  key: string
-): Promise<{ folder: Directory; name: string }> {
-  const [folderId, name] = key.split("|");
-  const folder = new Directory("", folderId);
-  return { folder, name };
-}
-
+export type AlbumSortOrder = "ReverseDate" | "ForwardDate";
 export class FolderMonitor {
   constructor() {
-    this.folders = [];
+    this.albums = [];
     this.events = buildEmitter<FolderEvent>();
     this.walk();
+    this.sort = "ReverseDate";
   }
-  folders: Folder[];
+
   events: Emitter<FolderEvent>;
 
   async walk() {
     const lst = await walkFromServer();
-    this.folders = lst.map((e) => ({
-      name: e.name,
-      key: e.path,
-      handle: new Directory(e.name, e.path),
-    }));
-    this.events.emit("updated", { folders: this.folders });
+    this.albums = lst;
+    this.sortFolders();
+    this.events.emit("updated", { folders: this.albums });
+    (await getService()).on(
+      "foldersChanged",
+      (lst: { name: string; path: string }[]) => {
+        this.albums = lst.map((e) => ({
+          name: e.name,
+          key: e.path,
+        }));
+        this.sortFolders();
+        this.events.emit("updated", { folders: this.albums });
+      }
+    );
   }
 
-  idFromFolderAndName(folder: Folder, name: string): string {
-    return folder.key + "|" + name;
+  albumAtIndex(index: number): Album {
+    if (index > this.albums.length) {
+      throw new Error("out of bounds");
+    }
+    return this.albums[index];
   }
-  folderAndNameFromId(id: string): { folder: Folder; name: string } {
-    const [folderKey, name] = id.split("|");
-    const folder = this.folders.find((folder) => folder.key == folderKey)!;
 
-    return { folder, name };
+  albumFromKey(key: string): Album | undefined {
+    return this.albums.find((f) => f.key === key);
   }
+
+  albumIndexFromKey(key: string): number {
+    return this.albums.findIndex((f) => f.key === key);
+  }
+
+  length(): number {
+    return this.albums.length;
+  }
+
+  private sortFolders() {
+    sortByKey(this.albums, "name");
+    if (this.sort === "ReverseDate") {
+      this.albums.reverse();
+    }
+  }
+  private albums: Album[];
+  private sort: AlbumSortOrder;
 }

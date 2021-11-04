@@ -1,10 +1,11 @@
 import { FolderMonitor } from "../folder-monitor.js";
 import { getFileExifData } from "../folder-utils.js";
 import { $ } from "../lib/dom.js";
+import { albumEntryFromId } from "../../shared/lib/utils.js";
 import { SelectionEventSource } from "../selection/selection-manager.js";
 declare var L: any;
 
-export function make(
+export function makeMetadata(
   e: HTMLElement,
   selectionEvent: SelectionEventSource,
   monitor: FolderMonitor
@@ -57,8 +58,8 @@ export function make(
   }
 
   selectionEvent.on("added", (event) => {
-    const { folder, name } = monitor.folderAndNameFromId(event.key);
-    getFileExifData(folder, name).then((data) => {
+    const { album, name } = albumEntryFromId(event.key);
+    getFileExifData(album, name).then((data) => {
       meta.empty();
       const {
         GPSLatitude,

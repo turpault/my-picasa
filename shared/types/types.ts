@@ -11,6 +11,7 @@ export type PicasaFileMeta = {
 };
 
 export type ThumbnailSize = "th-small" | "th-medium" | "th-large";
+
 export type ImageFileMeta = {
   [k in keyof ThumbnailSize]?: string;
 };
@@ -60,28 +61,29 @@ export type ImageControllerEvent = {
 };
 
 export type AlbumListEvent = {
-  selected?: { folder: Folder; index: number };
-  scrolled: { folder: Folder; index: number };
+  selected: { album: Album };
+  scrolled: { album: Album };
+  open: { album: Album; name: string };
 };
 
 export type AlbumListEventSource = Emitter<AlbumListEvent>;
 
-export type FolderEntry = {
-  name: string;
-  handle: any;
-};
-
-export type Folder = {
+export type Album = {
   name: string;
   key: string;
-  handle: any; // underlying object (Directory)
 };
 
-export type FolderInfo = Folder & {
-  picasa: PicasaFolderMeta;
-  videos: FolderEntry[];
-  pictures: FolderEntry[];
+export type AlbumEntry = {
+  name: string;
+  album: Album;
 };
+
+export type FolderInfo = {
+  picasa: PicasaFolderMeta;
+  videos: AlbumEntry[];
+  pictures: AlbumEntry[];
+};
+
 export type FolderEvent = {
-  updated: { folders: Folder[] };
+  updated: { folders: Album[] };
 };

@@ -1,1 +1,1 @@
-export const imagesRoot = "/Volumes/Photos/Photos";
+export const imagesRoot = "/Volumes/1TB USB/Photos";
