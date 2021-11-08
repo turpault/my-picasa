@@ -8,7 +8,7 @@ import {
   PicasaFileMeta,
   PicasaFolderMeta
 } from "../../../shared/types/types";
-import { imagesRoot } from "../../utils/constants";
+import { imagesRoot, PICASA } from "../../utils/constants";
 
 let picasaMap: Map<string, Promise<PicasaFolderMeta>> = new Map();
 let dirtyPicasaMap: Map<string, PicasaFolderMeta> = new Map();
@@ -17,9 +17,9 @@ setInterval(async () => {
   const i = dirtyPicasaMap;
   dirtyPicasaMap = new Map();
   i.forEach(async (value, key) => {
-    console.info(`Writing file ${join(imagesRoot, key, ".picasa.ini")}`);
+    console.info(`Writing file ${join(imagesRoot, key, PICASA)}`);
     picasaMap.delete(key);
-    await writeFile(join(imagesRoot, key, ".picasa.ini"), ini.encode(value));
+    await writeFile(join(imagesRoot, key,PICASA), ini.encode(value));
   });
 }, 10000);
 
@@ -33,7 +33,7 @@ export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
   if (!picasaMap.has(album.key)) {
     picasaMap.set(
       album.key,
-      await readFile(join(imagesRoot, album.key, ".picasa.ini"), {
+      await readFile(join(imagesRoot, album.key, PICASA), {
         encoding: "utf8",
       }).then(ini.parse)
     );

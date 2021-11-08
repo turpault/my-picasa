@@ -76,9 +76,6 @@ async function executeJob(job: Job): Promise<Album[]> {
   return [];
 }
 
-const PICASA = ".picasa.ini";
-const THUMBS = ".thumbnails.ini";
-
 function albumChanged(album: Album, list: Album[]) {
   if (!list.find(a=>a.key === album.key)) list.push(album);
 }
