@@ -26,9 +26,9 @@ export function setupRotate(
       const e = toolHeader(name, index, imageController);
       e.append(`<div class="tool-control">
           <label>Type</label>
-          <a id="rotate-left" class="w3-button">90 ⟲</a>
-          <a id="rotate-right" class="w3-button">90 ⟳</a>
-          <a id="rotate-invert" class="w3-button">180 ⟳</a>
+          <a class="rotate-left w3-button">90 ⟲</a>
+          <a class="rotate-right w3-button">90 ⟳</a>
+          <a class="rotate-invert w3-button">180 ⟳</a>
         </div>`);
       const update = (angle: number) => {
         imageController.updateOperation(index, this.build(angle));
@@ -37,13 +37,13 @@ export function setupRotate(
       if (!Number.isInteger(current)) {
         current = 0;
       }
-      $("#rotate-right", e)
+      $(".rotate-right", e)
         .on("click", () => update(3))
         .css("border", current === 3 ? "solid 1px" : "");
-      $("#rotate-left", e)
+      $(".rotate-left", e)
         .on("click", () => update(1))
         .css("border", current === 1 ? "solid 1px" : "");
-      $("#rotate-invert", e)
+      $(".rotate-invert", e)
         .on("click", () => update(2))
         .css("border", current === 2 ? "solid 1px" : "");
       return e.get()!;

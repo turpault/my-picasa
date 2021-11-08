@@ -32,6 +32,26 @@ export function uuid(): string {
   );
 }
 
+export function range(from: number, to: number): number[] {
+  const dir = from < to ? 1 : -1;
+  const res = [];
+  while (from != to) {
+    res.push(from);
+    from += dir;
+  }
+  return res;
+}
+
+export function rectanglesIntersect(
+  a: { p1: { x: number; y: number }; p2: { x: number; y: number } },
+  b: { p1: { x: number; y: number }; p2: { x: number; y: number } }
+) {
+  if (Math.min(a.p1.x, a.p2.x) > Math.max(b.p1.x, b.p2.x)) return false;
+  if (Math.min(b.p1.x, b.p2.x) > Math.max(a.p1.x, a.p2.x)) return false;
+  if (Math.min(a.p1.y, a.p2.y) > Math.max(b.p1.y, b.p2.y)) return false;
+  if (Math.min(b.p1.y, b.p2.y) > Math.max(a.p1.y, a.p2.y)) return false;
+  return true;
+}
 /*
 # Picasa uses a special string format to store crop boxes of
 # detected faces and from an applied crop filters. The number encased 

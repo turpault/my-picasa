@@ -81,10 +81,10 @@ export class ToolRegistrar {
 }
 
 export function make(e: HTMLElement, ctrl: ImageController): ToolRegistrar {
-  const registrar = new ToolRegistrar($("#actions", e).get());
+  const registrar = new ToolRegistrar($(".actions", e).get());
 
-  const history = $("#history", e);
-  const description = $("#description", e);
+  const history = $(".history", e);
+  const description = $(".description", e);
   description.on("input", () => {
     ctrl.updateCaption(description.val());
   });

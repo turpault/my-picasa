@@ -1,8 +1,19 @@
-import { Album, AlbumListEventSource } from "../../shared/types/types.js";
+import {
+  albumEntryFromId,
+  albumFromId,
+  idFromAlbum,
+  range,
+  rectanglesIntersect,
+} from "../../shared/lib/utils.js";
+import {
+  Album,
+  AlbumEntry,
+  AlbumListEventSource,
+} from "../../shared/types/types.js";
 import { FolderMonitor } from "../folder-monitor.js";
-import { getFolderInfo } from "../folder-utils.js";
+import { getAlbumInfo } from "../folder-utils.js";
 import { $ } from "../lib/dom.js";
-import { albumFromId, idFromAlbum } from "../../shared/lib/utils.js";
+import { toggleStar } from "../lib/handles.js";
 import { getService } from "../rpc/connect.js";
 import { SelectionManager } from "../selection/selection-manager.js";
 import { makeNThumbnails, thumbnailData } from "./thumbnail.js";
@@ -14,38 +25,188 @@ export function makePhotoList(
   monitor: FolderMonitor,
   events: AlbumListEventSource
 ) {
+  let processKeys = false;
   let topIndex: number = -1;
   let bottomIndex: number = -1;
   const pool: HTMLElement[] = [];
   const displayed: HTMLElement[] = [];
 
+  const dragElement = $(".dragregion", container.parentElement);
+  const dragStartPos = { x: 0, y: 0 };
+  var rect = container.getBoundingClientRect();
+  let dragging = false;
   $(container).on("scroll", updateHighlighted);
+  $(container).on("mouseup", (e: MouseEvent) => {
+    if (!dragging) {
+      return;
+    }
+    e.preventDefault();
+    dragging = false;
+    dragElement.css({ display: "none" });
+    const newPos = { x: e.clientX - rect.x, y: e.clientY - rect.y };
+    if (!e.metaKey) {
+      SelectionManager.get().clear();
+    }
+    for (const e of Array.from(container.querySelectorAll(".thumbnail"))) {
+      const r = e.getBoundingClientRect();
+      r.x -= rect.x;
+      r.y -= rect.y;
+      if (
+        rectanglesIntersect(
+          { p1: dragStartPos, p2: newPos },
+          {
+            p1: r,
+            p2: { x: r.x + r.width, y: r.y + r.height },
+          }
+        )
+      ) {
+        SelectionManager.get().select(albumEntryFromId(e.id));
+      }
+    }
+    // Find all the elements intersecting with the area.
+  });
+  events.on("tabChanged", ({ win }) => {
+    processKeys = $(container).isParent(win);
+  });
+  events.on("keyDown", ({ code, tab }) => {
+    if (!processKeys) return;
+    switch (code) {
+      case "Space":
+        toggleStar(SelectionManager.get().selected());
+      default:
+    }
+  });
+  events.on("clicked", (e) => {
+    const selectionManager = SelectionManager.get();
+    let from = selectionManager.last();
+    if (e.modifiers.range && from !== undefined) {
+      // All the elements between this and the last
+      let to = e as AlbumEntry;
+
+      if (from.album.key !== to.album.key) {
+        // Multi album range selection
+        // Which one is the first ?
+        if (
+          monitor.albumIndexFromKey(from.album.key) >
+          monitor.albumIndexFromKey(to.album.key)
+        ) {
+          // swap
+          const _a = from;
+          from = to;
+          to = _a;
+        }
+        const fromAlbumIndex = monitor.albumIndexFromKey(from.album.key);
+        const toAlbumIndex = monitor.albumIndexFromKey(to.album.key);
+
+        for (const idx of range(fromAlbumIndex, toAlbumIndex)) {
+          const album = monitor.albumAtIndex(idx);
+          getAlbumInfo(album).then((data) => {
+            const sels = data.pictures;
+            if (idx === fromAlbumIndex) {
+              sels.splice(
+                0,
+                sels.findIndex((e) => e.name === from!.name)
+              );
+            }
+            if (idx === toAlbumIndex) {
+              sels.splice(
+                sels.findIndex((e) => e.name === to.name) + 1,
+                sels.length
+              );
+            }
+            for (const sel of sels) {
+              selectionManager.select(sel);
+            }
+          });
+        }
+      } else {
+        getAlbumInfo(from.album).then((data) => {
+          const sels = data.pictures;
+          const start = sels.findIndex((e) => e.name === from!.name);
+          const end = sels.findIndex((e) => e.name === to.name);
+          sels.splice(Math.max(start, end) + 1, sels.length);
+          sels.splice(0, Math.min(start, end));
+          for (const sel of sels) {
+            selectionManager.select(sel);
+          }
+        });
+      }
+    } else if (e.modifiers.multi) {
+      selectionManager.select(e as AlbumEntry);
+    } else {
+      selectionManager.clear();
+      selectionManager.select(e as AlbumEntry);
+    }
+  });
+
+  $(container).on("mousedown", (e: MouseEvent) => {
+    // save start position
+    dragStartPos.x = e.clientX - rect.x;
+    dragStartPos.y = e.clientY - rect.y;
+  });
+
+  $(container).on("mousemove", (e: MouseEvent) => {
+    if (!(e.buttons & 1)) {
+      return;
+    }
+    const newPos = { x: e.clientX - rect.x, y: e.clientY - rect.y };
+    if (
+      Math.abs(newPos.x - dragStartPos.x) +
+        Math.abs(newPos.y - dragStartPos.y) <
+      20
+    ) {
+      return;
+    }
+
+    dragging = true;
+    e.preventDefault();
+    dragElement.css({
+      left: `${Math.min(dragStartPos.x, newPos.x)}px`,
+      top: `${Math.min(dragStartPos.y, newPos.y)}px`,
+      display: "",
+      width: `${
+        Math.max(dragStartPos.x, newPos.x) - Math.min(dragStartPos.x, newPos.x)
+      }px`,
+      height: `${
+        Math.max(dragStartPos.y, newPos.y) - Math.min(dragStartPos.y, newPos.y)
+      }px`,
+    });
+  });
 
   $(container).on(
     "dragstart",
     (ev: any) => {
-      SelectionManager.get().select(ev.target.id);
-      ev.dataTransfer.effectAllowed = "move";
+      const entry = albumEntryFromId(ev.target.id);
+      if (entry) {
+        SelectionManager.get().select(entry);
+        ev.dataTransfer.effectAllowed = "move";
+      }
       //ev.preventDefault();
     },
     false
   );
-  let reflow = false;
+  let doReflow = false;
   let running = false;
-  function updateHighlighted() {
+  function updateHighlighted(): HTMLElement | null {
+    if (displayed.length === 0) {
+      return null;
+    }
     // Find the first visible element
     const top = container.scrollTop;
     const bottom = container.scrollTop + container.clientHeight;
-    let found, previous;
+    let found;
+    let previous = displayed[0];
     for (const e of displayed) {
-      if (parseInt(e.style.top) >= top) {
-        if (parseInt(e.style.top) > bottom) {
-          found = previous;
-        } else {
-          found = e;
-        }
+      //if (parseInt(e.style.top) >= top) {
+      if (parseInt(e.style.top) > bottom) {
+        found = previous;
         break;
       }
+      //}
+      previous = e;
+    }
+    if (!found) {
+      found = previous;
     }
 
     if (found) {
@@ -54,72 +215,54 @@ export function makePhotoList(
       events.emit("scrolled", {
         album,
       });
+      return found;
     }
+
+    return null;
   }
+
+  new ResizeObserver(() => {
+    const active = updateHighlighted();
+    if (active) {
+      for (const d of displayed) {
+        if (d !== active) {
+          $(d).css({
+            opacity: 0,
+          });
+        }
+      }
+      reflow();
+    }
+  }).observe(container);
+
+  getService().then((service) => {
+    service.on("folderChanged", (folders: string[]) => {
+      for (const d of displayed) {
+        const album = albumFromId(d.id);
+        if (folders.includes(album.key)) {
+          populateElement(d, album);
+        }
+      }
+    });
+  });
   window.requestAnimationFrame(addNewItemsIfNeeded);
   function addNewItemsIfNeeded() {
     if (running) {
       debugger;
     }
-    if (!$(container).visible()) {
+    if (!$(container).visible() || displayed.length === 0) {
       window.requestAnimationFrame(addNewItemsIfNeeded);
       return;
     }
     running = true;
-    if (reflow) {
+    if (doReflow) {
       // reflow
-      let goneBack = false;
-      reflow = false;
-      const firstItem = displayed[0];
-      const lastItem = displayed[displayed.length - 1];
-
-      for (const [index, d] of Object.entries(displayed)) {
-        if (d.style.opacity != "0" && !goneBack) {
-          // First non hidden. Got backwards
-          let lastElem = d;
-          goneBack = true;
-          for (const elem of displayed.slice(0, parseInt(index)).reverse()) {
-            elem.style.top = `${
-              parseInt(lastElem.style.top) - elem.clientHeight
-            }px`;
-            elem.style.opacity = "1";
-            lastElem = elem;
-            const album = albumFromId(elem.id);
-            console.info(`Flowing album ${album.name} : ${elem.style.top}`);
-          }
-        }
-        if (d.style.opacity == "0" && goneBack) {
-          let lastElem = displayed[parseInt(index) - 1];
-          for (const elem of displayed.slice(parseInt(index))) {
-            elem.style.top = `${
-              parseInt(lastElem.style.top) + lastElem.clientHeight
-            }px`;
-            elem.style.opacity = "1";
-            lastElem = elem;
-            const album = albumFromId(elem.id);
-            console.info(`Flowing album ${album.name} : ${elem.style.top}`);
-          }
-          break;
-        }
-      }
-      const displayedTop = parseInt(firstItem.style.top) - 10;
-      const displayedBottom =
-        parseInt(lastItem.style.top) + lastItem.clientHeight + 10;
-
-      $("#before", container).css("top", `${displayedTop}px`);
-      $("#after", container).css("top", `${displayedBottom}px`);
-
-      // Offset, we are < 0
-      if (displayedTop < 0 || displayedTop > 1000) {
-        for (const c of container.children) {
-          const thisTop = parseInt((c as HTMLElement).style.top);
-          (c as HTMLElement).style.top = `${thisTop - displayedTop}px`;
-        }
-        container.scrollBy({ top: -displayedTop });
-      }
+      doReflow = false;
+      reflow();
 
       running = false;
       window.requestAnimationFrame(addNewItemsIfNeeded);
+      return;
     } else {
       if (displayed.length > 3) {
         const prune = [];
@@ -134,19 +277,25 @@ export function makePhotoList(
             top,
             bottom: top + elem.clientHeight,
           };
+          const album = albumFromId(elem.id);
           if (
             elemPos.bottom < visibleScrollArea.top ||
             elemPos.top > visibleScrollArea.bottom
           ) {
-            const album = albumFromId(elem.id);
-            console.info(`Pruning album ${album.name}`);
+            console.info(
+              `Pruning album ${album.name} : Visible Area = ${visibleScrollArea.top}/${visibleScrollArea.bottom} - Element (${elemPos.top}/${elemPos.bottom}`
+            );
             prune.push(elem);
+          } else {
+            console.info(
+              `- keeping album ${album.name} : Visible Area = ${visibleScrollArea.top}/${visibleScrollArea.bottom} - Element (${elemPos.top}/${elemPos.bottom}`
+            );
           }
         }
         if (prune.length) {
           for (const elem of prune) {
             displayed.splice(displayed.indexOf(elem), 1);
-            elem.parentElement?.removeChild(elem);
+            $(elem).remove();
             pool.push(elem);
           }
           topIndex = parseInt(displayed[0].getAttribute("index")!);
@@ -171,8 +320,8 @@ export function makePhotoList(
       ) {
         promises.push(addAtBottom());
       }
-      if (promises.length) {
-        reflow = true;
+      if (promises.length > 0) {
+        doReflow = true;
         Promise.allSettled(promises).finally(() => {
           running = false;
           window.requestAnimationFrame(addNewItemsIfNeeded);
@@ -182,17 +331,54 @@ export function makePhotoList(
         window.requestAnimationFrame(addNewItemsIfNeeded);
       }
     }
+  }
 
-    getService().then((service) => {
-      service.on("folderChanged", (folders: string[]) => {
-        for (const d of displayed) {
-          const album = albumFromId(d.id);
-          if (folders.includes(album.key)) {
-            populateElement(d, album);
-          }
+  function reflow() {
+    const firstItem = displayed[0];
+    const lastItem = displayed[displayed.length - 1];
+    let goneBack = false;
+
+    for (const [index, d] of Object.entries(displayed)) {
+      if (d.style.opacity != "0" && !goneBack) {
+        // First non hidden. Got backwards
+        let lastElem = d;
+        goneBack = true;
+        for (const elem of displayed.slice(0, parseInt(index)).reverse()) {
+          elem.style.top = `${
+            parseInt(lastElem.style.top) - elem.clientHeight
+          }px`;
+          elem.style.opacity = "1";
+          lastElem = elem;
+          const album = albumFromId(elem.id);
+          console.info(`Flowing album ${album.name} : ${elem.style.top}`);
         }
-      });
-    });
+      }
+      if (d.style.opacity == "0" && goneBack) {
+        let lastElem = displayed[parseInt(index) - 1];
+        for (const elem of displayed.slice(parseInt(index))) {
+          elem.style.top = `${
+            parseInt(lastElem.style.top) + lastElem.clientHeight
+          }px`;
+          elem.style.opacity = "1";
+          lastElem = elem;
+          const album = albumFromId(elem.id);
+          console.info(`Flowing album ${album.name} : ${elem.style.top}`);
+        }
+        break;
+      }
+    }
+    const displayedTop = parseInt(firstItem.style.top) - 10;
+    const displayedBottom =
+      parseInt(lastItem.style.top) + lastItem.clientHeight + 10;
+
+    // Offset, we are < 0
+    if (displayedTop < 0 || displayedTop > 1000) {
+      for (const c of container.children) {
+        const thisTop = parseInt((c as HTMLElement).style.top);
+        (c as HTMLElement).style.top = `${thisTop - displayedTop}px`;
+      }
+      container.scrollBy({ top: -displayedTop });
+    }
   }
 
   function albumWithThumbnails(
@@ -203,13 +389,17 @@ export function makePhotoList(
   ) {
     title.innerText = album.name;
 
-    return getFolderInfo(album).then((info) => {
+    return getAlbumInfo(album).then((info) => {
       makeNThumbnails(element, info.pictures.length, events);
 
       const keys = info.pictures.map((p) => p.name).reverse();
       let idx = keys.length;
       for (const name of keys) {
-        thumbnailData(element.children[--idx] as HTMLElement, { album, name });
+        thumbnailData(
+          element.children[--idx] as HTMLElement,
+          { album, name },
+          info.picasa
+        );
       }
     });
   }
@@ -218,10 +408,10 @@ export function makePhotoList(
     if (pool.length === 0) {
       pool.push(
         $(`<div class="album">
-        <div id="header" class="w3-bar">
-        <a id="name" class="w3-bar-item w3-black"></a>
+        <div class="header w3-bar">
+        <a class="name w3-bar-item"></a>
         </div>
-        <div id="photos" class="album-photos"></div>
+        <div class="photos album-photos"></div>
       </div>
       `).get()
       );
@@ -232,8 +422,8 @@ export function makePhotoList(
   async function populateElement(e: HTMLElement, album: Album) {
     await albumWithThumbnails(
       album,
-      $("#name", e).get(),
-      $("#photos", e).get(),
+      $(".name", e).get(),
+      $(".photos", e).get(),
       events
     );
     e.id = idFromAlbum(album);
@@ -244,8 +434,8 @@ export function makePhotoList(
     if (topIndex > 0) {
       topIndex--;
       const albumElement = getElement();
-      const album = monitor.albumAtIndex(bottomIndex);
-      populateElement(albumElement, album);
+      const album = monitor.albumAtIndex(topIndex);
+      await populateElement(albumElement, album);
       albumElement.setAttribute("index", topIndex.toString());
       container.insertBefore(albumElement, container.firstChild!.nextSibling);
       displayed.unshift(albumElement);
@@ -258,7 +448,7 @@ export function makePhotoList(
       bottomIndex++;
       const albumElement = getElement();
       const album = monitor.albumAtIndex(bottomIndex);
-      populateElement(albumElement, album);
+      await populateElement(albumElement, album);
       albumElement.setAttribute("index", bottomIndex.toString());
       container.insertBefore(albumElement, container.lastChild);
       displayed.push(albumElement);
@@ -280,10 +470,12 @@ export function makePhotoList(
     await populateElement(albumElement, album);
     $(albumElement).css("top", index === 0 ? "0" : "100px");
     albumElement.setAttribute("index", index.toString());
+    albumElement.style.opacity = "1";
     container.appendChild(albumElement);
     container.scrollTo({ top: 0 });
     displayed.push(albumElement);
     updateHighlighted();
+    doReflow = true;
   }
 
   monitor.events.on("updated", (event) => {});

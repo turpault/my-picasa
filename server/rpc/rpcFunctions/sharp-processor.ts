@@ -2,7 +2,7 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import sharp, { Sharp } from "sharp";
 import { decodeOperations, decodeRect, uuid } from "../../../shared/lib/utils";
-import { PicasaFileMeta } from "../../../shared/types/types.js";
+import { AlbumEntry, PicasaFileMeta } from "../../../shared/types/types.js";
 import { imagesRoot } from "../../utils/constants";
 
 const contexts = new Map<string, Sharp>();
@@ -20,8 +20,10 @@ function setContext(context: string, j: Sharp) {
   contexts.set(context, j);
 }
 
-export async function buildContext(file: string): Promise<string> {
-  const fileData = await readFile(join(imagesRoot, file));
+export async function buildContext(entry: AlbumEntry): Promise<string> {
+  const fileData = await readFile(
+    join(imagesRoot, entry.album.key, entry.name)
+  );
   const contextId = uuid();
   let s = sharp(fileData, { limitInputPixels: false }).rotate();
   contexts.set(contextId, s);
@@ -181,8 +183,8 @@ export async function transform(
         const metadata = await c.metadata();
         const w = metadata.width!;
         const h = metadata.height!;
-        const minDim = Math.floor(Math.min(w, h) * 0.9);
-        c = c.resize(minDim, minDim, { fit: "inside" });
+        const maxDim = Math.floor(Math.max(w, h) * 0.9);
+        c = c.resize(maxDim, maxDim, { fit: "cover" });
         let newImage = sharp({
           create: {
             width: w,

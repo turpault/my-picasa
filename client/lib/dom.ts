@@ -120,6 +120,20 @@ export class _$ {
     this.get().parentElement!.removeChild(this.get());
   }
 
+  isParent(e: HTMLElement | _$) {
+    const _e = $(e);
+    let p: _$ | undefined = this;
+    while ((p = p.parentElement())) {
+      if (p.get() === _e.get()) {
+        return true;
+      }
+    }
+    return false;
+  }
+  parentElement(): _$ | undefined {
+    return this.get().parentElement ? $(this.get().parentElement!) : undefined;
+  }
+
   removeClass(className: string): _$ {
     var j = 0,
       classes = className ? className.trim().split(/\s+/) : [];
@@ -151,24 +165,27 @@ export class _$ {
     if (e instanceof _$) {
       return e.get();
     }
-    let _from: HTMLElement | null;
+    let _from: HTMLElement | null | Document;
     if (from instanceof _$) {
       _from = from.get();
     } else {
       _from = from;
     }
-    if (e.startsWith("#")) {
-      if (_from) {
-        return _from.querySelector(e);
-      }
-      return document.getElementById(e.slice(1));
+    if (!_from) {
+      _from = document;
     }
     try {
-      const f = document.querySelector(e);
+      if(e.startsWith('#')) {
+        if(_from !== document) {
+          throw new Error(`Get by id should not pass an element`);
+        }
+        return document.getElementById(e.slice(1));
+      }
+      const f = _from.querySelector(e);
       if (f) {
         return f as HTMLElement;
       }
-    } catch (e) {}
+    } catch (err) {}
     const n = document.createElement("div");
     n.innerHTML = e;
     if (n.children.length === 1) {
@@ -180,7 +197,7 @@ export class _$ {
 }
 
 export function $(
-  e: HTMLElement | string,
+  e: HTMLElement | string | _$,
   from: HTMLElement | null | _$ = null
 ): _$ {
   return new _$(e, from);

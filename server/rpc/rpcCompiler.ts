@@ -61,7 +61,7 @@ export function generateCode(services: ServiceMap): GeneratedCode {
       .map((arg) => {
         const argument = arg.split(":");
         const argName = argument[0];
-        const argTypeTS = argumentMapTs[argument[1]];
+        const argTypeTS = argumentMapTs[argument[1]] || argument[1];
         return argName + ": " + argTypeTS;
       })
       .join(", ");

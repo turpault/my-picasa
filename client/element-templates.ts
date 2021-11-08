@@ -32,15 +32,15 @@ export function toolHeader(
   const e = $(`<div class="tool-box">
   <div class="w3-bar">
     <a class="w3-bar-item inline">${name}</a>
-    <a id="delete" class="inline w3-button w3-bar-item w3-right fa fa-times"></a>
-    <a id="up" class="inline w3-button w3-bar-item w3-right fa fa-arrow-up"></a>
-    <a id="down" class="inline w3-button w3-bar-item w3-right fa fa-arrow-down"></a>
+    <a class="delete-tool inline w3-button w3-bar-item w3-right fa fa-times"></a>
+    <a class="up-tool inline w3-button w3-bar-item w3-right fa fa-arrow-up"></a>
+    <a class="down-tool inline w3-button w3-bar-item w3-right fa fa-arrow-down"></a>
   </div>
   </div>`);
-  $("#delete", e).on("click", () => {
+  $(".delete-tool", e).on("click", () => {
     imageCtrl.deleteOperation(index);
   });
-  $("#up", e)
+  $(".up-tool", e)
     .on("click", () => {
       imageCtrl.moveDown(index);
     })
@@ -50,7 +50,7 @@ export function toolHeader(
         ? ["", ""]
         : ["none", "important"])
     );
-  $("#down", e)
+  $(".down-tool", e)
     .on("click", () => {
       imageCtrl.moveUp(index);
     })
