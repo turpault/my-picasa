@@ -4,7 +4,7 @@ import ini from "../../../shared/lib/ini";
 import {
   Album, FolderPixels
 } from "../../../shared/types/types";
-import { imagesRoot } from "../../utils/constants";
+import { imagesRoot, THUMBS } from "../../utils/constants";
 
 let pixelsMap: Map<string, Promise<FolderPixels>> = new Map();
 let dirtyPixelsMap: Map<string, FolderPixels> = new Map();
@@ -13,10 +13,10 @@ setInterval(async () => {
   const i = dirtyPixelsMap;
   dirtyPixelsMap = new Map();
   i.forEach(async (value, key) => {
-    console.info(`Writing file ${join(imagesRoot, key, ".thumbnails.ini")}`);
+    console.info(`Writing file ${join(imagesRoot, key, THUMBS)}`);
     pixelsMap.delete(key);
     await writeFile(
-      join(imagesRoot, key, ".thumbnails.ini"),
+      join(imagesRoot, key, THUMBS),
       ini.encode(value)
     );
   });
@@ -26,7 +26,7 @@ export async function readThumbnailIni(entry: Album): Promise<FolderPixels> {
   if (!pixelsMap.has(entry.key)) {
     pixelsMap.set(
       entry.key,
-      readFile(join(imagesRoot, entry.key, ".thumbnails.ini"), {
+      readFile(join(imagesRoot, entry.key,THUMBS), {
         encoding: "utf8",
       }).then(ini.parse)
     );
