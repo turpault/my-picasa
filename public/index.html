@@ -17,51 +17,41 @@
       rel="stylesheet"
     />
   </head>
-  <body>
-    <div id="jobs">
-        <div class="w3-container">
+  <body class="w3-theme w3-theme-d5">
+    <div class="jobs">
+        <div class="w3-theme w3-container">
           <h3>Jobs</h3>
-          <div id="joblist"></div>
+          <div class="joblist"></div>
         </div>
       </div>
     </div>
-    <div id="messagebox" class="w3-modal">
+    <div class="messagebox w3-modal">
       <div class="w3-modal-content">
         <div class="w3-container">
-          <p id="message"></p>
-          <a id="confirm" class="w3-button w3-green">Ok</a>
-          <a id="cancel" class="w3-button w3-red">Cancel</a>
+          <p class="message"></p>
+          <a class="confirm w3-button w3-green">Ok</a>
+          <a class="cancel w3-button w3-red">Cancel</a>
         </div>
       </div>
     </div>
-    <div class="w3-sidebar w3-bar-block w3-animate-right" id="metadatasidebar">
+    <div class="metadatasidebar w3-sidebar w3-bar-block w3-animate-right w3-theme">
       <a
-        class="w3-bar-item w3-button fa fa-bars"
+        class="closemetasidebar w3-bar-item w3-button fa fa-bars"
         style="width: auto; position: absolute; right: 0"
-        id="closemetasidebar"
       ></a>
       <div class="w3-bar-item">Map</div>
-      <div id="map"></div>
+      <div class="map"></div>
       <div class="w3-bar-item">Metadata</div>
-      <div id="metadata" class="w3-bar-item"></div>
+      <div class="metadata w3-bar-item"></div>
     </div>
     <div class="fill">
-      <div class="w3-bar w3-black">
-        <div class="w3-dropdown-hover">
-          <!--<button class="w3-button">Load</button>
-          <div class="w3-dropdown-content w3-bar-block w3-card-4">
-            <a href="#" class="w3-bar-item w3-button" id="tree">Last folder</a>
-            <a href="#" class="w3-bar-item w3-button">New folder...</a>
-          </div>-->
-        </div>
-        <!--<a href="#" class="w3-bar-item w3-button">Edit</a>-->
-        <a id="browser-tab" class="w3-button tab-button">Browser</a>
-        <span id="tabs"></span>
+      <div class="w3-bar">
+        <span class="tabs">
+          <a class="browser-tab w3-button tab-button">Browser</a>
+        </span>
         <span>
           <a
-            class="w3-bar-item w3-button w3-right fa fa-bars"
-            id="openmetasidebar"
-            href="#"
+            class="openmetasidebar w3-bar-item w3-button w3-right fa fa-bars"
             style="font-size: 22px"
           ></a>
           <a
@@ -86,18 +76,17 @@
           </div>
         </span>
       </div>
-      <div id="workarea">
-        <div id="main" class="fill">
+      <div class="workarea">
           <div class="browser fill" style="position: relative">
-            <div class="fill" id="folder-pane">
-              <ul id="folders" class="w3-ul w3-hoverable w3-small"></ul>
+            <div class="w3-theme fill folder-pane">
+              <ul class="folders w3-ul w3-hoverable w3-small"></ul>
             </div>
-            <div id="images" class="disable-scrollbar">
-              <div id="before" class="filler"></div>
-              <div id="after" class="filler"></div>
+            <div class="w3-theme images-area">
+                <div class="images fill disable-scrollbar"></div>      
+                <div class="dragregion"></div>
             </div>
           </div>
-          <div class="w3-bar-block" id="buttons">
+          <div class="w3-bar-block buttons">
             <button
               class="w3-bar-item w3-button w3-black w3-round fa fa-star"
             ></button>
@@ -126,7 +115,6 @@
               class="w3-bar-item w3-button w3-red w3-round fa fa-trash"
             ></button>
           </div>
-        </div>
       </div>
     </div>
   </body>

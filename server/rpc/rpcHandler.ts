@@ -49,6 +49,8 @@ const validators: ValidatorMap = {
     typeof value === "boolean"
       ? value
       : new Error(`Expected boolean, got ${typeof value}`),
+  any: (value: any) => value,
+
   object: (value: any) => {
     if (typeof value === "string") {
       try {

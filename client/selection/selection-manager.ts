@@ -1,8 +1,9 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event.js";
+import { AlbumEntry } from "../types/types.js";
 
 export type SelectionEvent = {
-  added: { key: string; selection: string[] };
-  removed: { key: string; selection: string[] };
+  added: { key: AlbumEntry; selection: AlbumEntry[] };
+  removed: { key: AlbumEntry; selection: AlbumEntry[] };
 };
 
 export type SelectionEventSource = Emitter<SelectionEvent>;
@@ -16,38 +17,53 @@ export class SelectionManager {
     return singleton;
   }
   private constructor() {
-    this.selection = new Set<string>();
+    this._selection = [];
     this.events = buildEmitter<SelectionEvent>();
   }
-  isSelected(key: string): boolean {
-    return this.selection.has(key);
+  isSelected(key: AlbumEntry): boolean {
+    return (
+      this._selection.findIndex(
+        (e) => e.album.key === key.album.key && e.name === key.name
+      ) !== -1
+    );
   }
-  selected(): string[] {
-    return Array.from(this.selection);
+  selected(): AlbumEntry[] {
+    return Array.from(this._selection);
   }
-  select(key: string) {
-    if (!this.selection.has(key)) {
-      this.selection.add(key);
-      this.events.emit("added", { key, selection: Array.from(this.selection) });
+  select(key: AlbumEntry) {
+    if (!this.isSelected(key)) {
+      this._selection.push(key);
+      this.events.emit("added", {
+        key,
+        selection: this._selection,
+      });
     }
   }
-  deselect(key: string) {
-    if (this.selection.has(key)) {
-      this.selection.delete(key);
+  deselect(key: AlbumEntry) {
+    if (this.isSelected(key)) {
+      this._selection.splice(
+        this._selection.findIndex(
+          (e) => e.album.key === key.album.key && e.name === key.name
+        ),
+        1
+      );
       this.events.emit("removed", {
         key,
-        selection: Array.from(this.selection),
+        selection: this._selection,
       });
     } else debugger;
   }
 
   clear() {
-    while (this.selection.size > 0) {
-      const first = this.selection.values().next().value;
-      this.deselect(first);
+    let l;
+    while ((l = this.last())) {
+      this.deselect(l);
     }
+  }
+  last(): AlbumEntry | undefined {
+    return this._selection[this._selection.length - 1];
   }
 
   events: Emitter<SelectionEvent>;
-  private selection: Set<string>;
+  private _selection: AlbumEntry[];
 }

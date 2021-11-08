@@ -78,9 +78,13 @@ server.get("/encode/:context/:mime", async (request, reply) => {
   return encode(context, mime);
 });
 
-server.get("/thumbnail/:folder/:file/:resolution", async (request, reply) => {
-  const { folder, file, resolution } = request.params as any;
-  return thumbnail(folder, file, resolution);
+server.get("/thumbnail/:album/:name/:resolution", async (request, reply) => {
+  const { album, name, resolution } = request.params as any;
+  const entry = {
+    album: { key: album, name: "" },
+    name,
+  };
+  return thumbnail(entry, resolution);
 });
 
 const start = async () => {

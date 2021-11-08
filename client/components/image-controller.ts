@@ -1,11 +1,12 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event.js";
+import { Queue } from "../../shared/lib/queue.js";
 import {
   Album,
   AlbumEntry,
   ImageControllerEvent,
   PicasaFileMeta,
 } from "../../shared/types/types.js";
-import { getFolderInfoFromHandle, updatePicasaData } from "../folder-utils.js";
+import { getAlbumInfo, updatePicasaData } from "../folder-utils.js";
 import {
   buildContext,
   cloneContext,
@@ -14,17 +15,14 @@ import {
   setOptions,
   transform,
 } from "../imageProcess/client.js";
-import { ImagePanZoomController } from "../lib/panzoom.js";
-import { Queue } from "../../shared/lib/queue.js";
-import { Directory } from "../lib/handles.js";
 import { $ } from "../lib/dom.js";
+import { ImagePanZoomController } from "../lib/panzoom.js";
 
 export class ImageController {
   constructor(image: HTMLImageElement, panZoomCtrl: ImagePanZoomController) {
     this.image = image;
-    this.album = { key: "", name: "" };
+    this.entry = { album: { key: "", name: "" }, name: "" };
     this.context = "";
-    this.name = "";
     this.liveContext = "";
     this.events = buildEmitter<ImageControllerEvent>();
     this.zoomController = panZoomCtrl;
@@ -67,7 +65,7 @@ export class ImageController {
   }
 
   init(albumEntry: AlbumEntry) {
-    this.album = albumEntry.album;
+    this.entry = albumEntry;
     this.display(albumEntry.name);
   }
 
@@ -77,12 +75,11 @@ export class ImageController {
       this.context = "";
       await destroyContext(context);
     }
-    this.name = name;
+    this.entry.name = name;
 
-    const folderData = await getFolderInfoFromHandle(this.album);
-    this.meta = folderData.picasa[this.name] || {};
-    const file = Directory.from(this.album.key).getFileHandle(this.name);
-    this.context = await buildContext(file.path());
+    const folderData = await getAlbumInfo(this.entry.album);
+    this.meta = folderData.picasa[this.entry.name] || {};
+    this.context = await buildContext(this.entry);
 
     this.update();
   }
@@ -144,9 +141,9 @@ export class ImageController {
   }
 
   async save() {
-    const folderData = await getFolderInfoFromHandle(this.album);
-    folderData.picasa[this.name] = this.meta;
-    await updatePicasaData(this.album.key, folderData.picasa);
+    const folderData = await getAlbumInfo(this.entry.album);
+    folderData.picasa[this.entry.name] = this.meta;
+    await updatePicasaData(this.entry.album, folderData.picasa);
   }
 
   recenter() {
@@ -156,8 +153,7 @@ export class ImageController {
   }
 
   private image: HTMLImageElement;
-  private album: Album;
-  private name: string;
+  private entry: AlbumEntry;
   private context: string;
   private liveContext: string;
   private meta: PicasaFileMeta;

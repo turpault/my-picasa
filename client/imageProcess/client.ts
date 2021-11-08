@@ -1,9 +1,9 @@
 import { getService } from "../rpc/connect.js";
 import { AlbumEntry, ThumbnailSize } from "../types/types.js";
 
-export async function buildContext(fh: string): Promise<string> {
+export async function buildContext(entry: AlbumEntry): Promise<string> {
   const c = await getService();
-  const context = await c.buildContext(fh);
+  const context = await c.buildContext(entry);
   return context;
 }
 

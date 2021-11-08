@@ -9,7 +9,14 @@ import {
   setOptions,
   transform,
 } from "./rpcFunctions/sharp-processor";
-import { folder, readFileContents, writeFileContents } from "./rpcFunctions/fs";
+import {
+  folder,
+  readFileContents,
+  readPicasaIni,
+  updatePicasaEntry,
+  writeFileContents,
+  writePicasaIni,
+} from "./rpcFunctions/fs";
 import { Exceptions } from "../../shared/types/exceptions";
 import { createFSJob } from "./rpcFunctions/fileJobs";
 import { getJob } from "./rpcFunctions/fileJobs";
@@ -28,7 +35,7 @@ export const MyPicasa: ServiceMap = {
   functions: {
     buildContext: {
       handler: buildContext,
-      arguments: ["fileName:string"],
+      arguments: ["entry:object"],
     },
     cloneContext: {
       handler: cloneContext,
@@ -86,9 +93,21 @@ export const MyPicasa: ServiceMap = {
       handler: folder,
       arguments: ["folder:string"],
     },
+    readPicasaIni: {
+      handler: readPicasaIni,
+      arguments: ["album:object"],
+    },
+    writePicasaIni: {
+      handler: writePicasaIni,
+      arguments: ["album:object", "data:object"],
+    },
     exifData: {
       handler: exifData,
-      arguments: ["file:string"],
+      arguments: ["entry:object"],
+    },
+    updatePicasaEntry: {
+      handler: updatePicasaEntry,
+      arguments: ["entry:object", "field:string", "value:any"],
     },
   },
 };

@@ -1,7 +1,6 @@
 import { FolderMonitor } from "../folder-monitor.js";
 import { getFileExifData } from "../folder-utils.js";
 import { $ } from "../lib/dom.js";
-import { albumEntryFromId } from "../../shared/lib/utils.js";
 import { SelectionEventSource } from "../selection/selection-manager.js";
 declare var L: any;
 
@@ -10,16 +9,16 @@ export function makeMetadata(
   selectionEvent: SelectionEventSource,
   monitor: FolderMonitor
 ) {
-  const meta = $("#metadata", e);
+  const meta = $(".metadata", e);
   const metasidebar = $(e);
-  const map = $("#map", e);
+  const map = $(".map", e);
   let mapLeaflet: any;
   let marker: any;
-  const close = $("#closemetasidebar");
+  const close = $(".closemetasidebar");
   close.on("click", () => {
     metasidebar.css("display", "none");
   });
-  const open = $("#openmetasidebar");
+  const open = $(".openmetasidebar");
   open.on("click", () => {
     metasidebar.css("display", "block");
     if (mapLeaflet) {
@@ -58,8 +57,7 @@ export function makeMetadata(
   }
 
   selectionEvent.on("added", (event) => {
-    const { album, name } = albumEntryFromId(event.key);
-    getFileExifData(album, name).then((data) => {
+    getFileExifData(event.key).then((data) => {
       meta.empty();
       const {
         GPSLatitude,

@@ -11,16 +11,8 @@ import { sleep, uuid } from "../../../shared/lib/utils";
 import ini from "../../../shared/lib/ini";
 import { imagesRoot } from "../../utils/constants";
 import { SocketAdaptorInterface } from "../../../shared/socket/socketAdaptorInterface";
+import { Job } from "../../../shared/types/types";
 
-type Job = {
-  id: string;
-  name: string;
-  data: any;
-  status: string;
-  progress: { start: number; remaining: number };
-  errors: string[];
-  changed: Function;
-};
 const jobs: Job[] = [];
 
 export async function getJob(id: string): Promise<object> {
