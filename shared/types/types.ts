@@ -12,8 +12,8 @@ export type PicasaFileMeta = {
 export type Job = {
   id: string;
   name: string;
-  data: any;
-  status: string;
+  data: {source?:AlbumEntry[], destination?:Album};
+  status: "started" | "queued" | "finished";
   progress: { start: number; remaining: number };
   errors: string[];
   changed: Function;

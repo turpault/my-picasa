@@ -1,52 +1,15 @@
-import { readFile, writeFile } from "fs/promises";
-import { join } from "path";
 import {
-  Album,
   AlbumEntry,
   FolderPixels,
   PicasaFolderMeta,
-  ThumbnailSize,
+  ThumbnailSize
 } from "../../../shared/types/types";
-import { imagesRoot } from "../../utils/constants";
-import { readPicasaIni } from "../rpcFunctions/fs";
+import { readPicasaIni } from "../rpcFunctions/picasaIni";
 import {
-  buildContext,
-  encode,
-  transform,
-  execute,
-  setOptions,
-  destroyContext,
-  commit,
+  buildContext, commit, destroyContext, encode, execute,
+  setOptions, transform
 } from "../rpcFunctions/sharp-processor";
-import ini from "../../../shared/lib/ini";
-
-let pixelsMap: Map<string, Promise<FolderPixels>> = new Map();
-let dirtyPixelsMap: Map<string, FolderPixels> = new Map();
-
-setInterval(async () => {
-  const i = dirtyPixelsMap;
-  dirtyPixelsMap = new Map();
-  i.forEach(async (value, key) => {
-    console.info(`Writing file ${join(imagesRoot, key, ".thumbnails.ini")}`);
-    pixelsMap.delete(key);
-    await writeFile(
-      join(imagesRoot, key, ".thumbnails.ini"),
-      ini.encode(value)
-    );
-  });
-}, 10000);
-
-async function getThumbnailIni(entry: Album): Promise<FolderPixels> {
-  if (!pixelsMap.has(entry.key)) {
-    pixelsMap.set(
-      entry.key,
-      readFile(join(imagesRoot, entry.key, ".thumbnails.ini"), {
-        encoding: "utf8",
-      }).then(ini.parse)
-    );
-  }
-  return pixelsMap.get(entry.key)!;
-}
+import { readThumbnailIni, writeThumbnailIni } from "../rpcFunctions/thumbnailInit";
 
 async function makeThumbnail(
   entry: AlbumEntry,
@@ -77,7 +40,7 @@ export async function thumbnail(
   const picasa = await readPicasaIni(entry.album).catch(
     () => ({} as PicasaFolderMeta)
   );
-  const pixels = await getThumbnailIni(entry.album).catch(
+  const pixels = await readThumbnailIni(entry.album).catch(
     () => ({} as FolderPixels)
   );
   const sizes = {
@@ -101,8 +64,7 @@ export async function thumbnail(
     pixels[entry.name][<any>size] = image;
     pixels[entry.name][<any>transformRef] = transform;
 
-    // make dirty
-    dirtyPixelsMap.set(entry.album.key, pixels);
+    writeThumbnailIni(entry.album, pixels);
   }
   return Buffer.from(pixels[entry.name][<any>size] as string, "base64");
 }

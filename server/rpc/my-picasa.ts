@@ -11,11 +11,9 @@ import {
 } from "./rpcFunctions/sharp-processor";
 import {
   folder,
+  makeAlbum,
   readFileContents,
-  readPicasaIni,
-  updatePicasaEntry,
   writeFileContents,
-  writePicasaIni,
 } from "./rpcFunctions/fs";
 import { Exceptions } from "../../shared/types/exceptions";
 import { createFSJob } from "./rpcFunctions/fileJobs";
@@ -23,6 +21,7 @@ import { getJob } from "./rpcFunctions/fileJobs";
 import { folders, mediaInFolder } from "./rpcFunctions/walker";
 import { ServiceMap } from "./rpcHandler";
 import { exifData } from "./rpcFunctions/exif";
+import { readPicasaIni, updatePicasaEntry, writePicasaIni } from "./rpcFunctions/picasaIni";
 
 /**
  * ConcurrencyService IDL
@@ -109,5 +108,9 @@ export const MyPicasa: ServiceMap = {
       handler: updatePicasaEntry,
       arguments: ["entry:object", "field:string", "value:any"],
     },
+    makeAlbum:{
+      handler: makeAlbum,
+      arguments: ['name:string']
+    }
   },
 };

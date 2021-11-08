@@ -1,13 +1,9 @@
-import { readdir, readFile, stat, writeFile } from "fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "fs/promises";
 import { join } from "path";
 import {
-  Album,
-  AlbumEntry,
-  PicasaFileMeta,
-  PicasaFolderMeta,
+  Album
 } from "../../../shared/types/types";
-import { imagesRoot } from "../../utils/constants";
-import ini from "../../../shared/lib/ini";
+import { defaultNewFolderRoot, imagesRoot } from "../../utils/constants";
 
 export async function readFileContents(file: string): Promise<string> {
   const p = join(imagesRoot, file);
@@ -39,57 +35,11 @@ export async function folder(
     .map((p) => (p as any).value);
 }
 
-let picasaMap: Map<string, Promise<PicasaFolderMeta>> = new Map();
-let dirtyPicasaMap: Map<string, PicasaFolderMeta> = new Map();
 
-setInterval(async () => {
-  const i = dirtyPicasaMap;
-  dirtyPicasaMap = new Map();
-  i.forEach(async (value, key) => {
-    console.info(`Writing file ${join(imagesRoot, key, ".picasa.ini")}`);
-    picasaMap.delete(key);
-    await writeFile(join(imagesRoot, key, ".picasa.ini"), ini.encode(value));
-  });
-}, 10000);
-
-export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
-  // In the dirty list
-  if (dirtyPicasaMap.has(album.key)) {
-    return dirtyPicasaMap.get(album.key)!;
-  }
-
-  // In the cache
-  if (!picasaMap.has(album.key)) {
-    picasaMap.set(
-      album.key,
-      await readFile(join(imagesRoot, album.key, ".picasa.ini"), {
-        encoding: "utf8",
-      }).then(ini.parse)
-    );
-  }
-  return picasaMap.get(album.key)!;
+export async function makeAlbum(
+  name: string
+): Promise<Album> {
+  const p = join(imagesRoot, defaultNewFolderRoot, name);
+  return stat(p).catch(e => mkdir(p, {recursive: true})).then(() => ({key: join(defaultNewFolderRoot, name), name}));
 }
 
-export async function writePicasaIni(
-  album: Album,
-  data: PicasaFolderMeta
-): Promise<void> {
-  if (!dirtyPicasaMap.has(album.key)) {
-    dirtyPicasaMap.set(album.key, data);
-  }
-}
-
-export async function updatePicasaEntry(
-  entry: AlbumEntry,
-  field: keyof PicasaFileMeta,
-  value: any
-) {
-  readPicasaIni(entry.album).then((picasa) => {
-    picasa[entry.name] = picasa[entry.name] || ({} as PicasaFileMeta);
-    if (value === "toggle") {
-      value = !picasa[entry.name][field];
-    }
-    picasa[entry.name][field] = value as never;
-    return writePicasaIni(entry.album, picasa);
-  });
-}

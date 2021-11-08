@@ -13,6 +13,7 @@ import {
   destroyContext,
   encodeToURL,
   setOptions,
+  thumbnailUrl,
   transform,
 } from "../imageProcess/client.js";
 import { $ } from "../lib/dom.js";
@@ -79,6 +80,9 @@ export class ImageController {
 
     const folderData = await getAlbumInfo(this.entry.album);
     this.meta = folderData.picasa[this.entry.name] || {};
+    thumbnailUrl(this.entry, 'th-large').then(url => {
+      this.image.src = url;
+    });
     this.context = await buildContext(this.entry);
 
     this.update();
