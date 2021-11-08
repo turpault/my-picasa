@@ -222,27 +222,18 @@ export function makePhotoList(
   }
 
   new ResizeObserver(() => {
-    const active = updateHighlighted();
-    if (active) {
-      for (const d of displayed) {
-        if (d !== active) {
-          $(d).css({
-            opacity: 0,
-          });
-        }
-      }
-      reflow();
-    }
+    reflow(false);
   }).observe(container);
 
   getService().then((service) => {
-    service.on("folderChanged", (folders: string[]) => {
+    service.on("albumChanged", async (albums: Album[]) => {
       for (const d of displayed) {
         const album = albumFromId(d.id);
-        if (folders.includes(album.key)) {
-          populateElement(d, album);
+        if (albums.find(a=>a.key === album.key)) {
+          await populateElement(d, album);
         }
       }
+      reflow(false);
     });
   });
   window.requestAnimationFrame(addNewItemsIfNeeded);
@@ -333,7 +324,21 @@ export function makePhotoList(
     }
   }
 
-  function reflow() {
+  function reflow(incremental: bool = true) {
+
+    if(!incremental) {
+    const active = updateHighlighted();
+    if (active) {
+      for (const d of displayed) {
+        if (d !== active) {
+          $(d).css({
+            opacity: 0,
+          });
+        }
+      }
+    }
+  }
+
     const firstItem = displayed[0];
     const lastItem = displayed[displayed.length - 1];
     let goneBack = false;
