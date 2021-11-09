@@ -1,7 +1,10 @@
-import { $ } from "../lib/dom";
+import { __ } from "../lib/dom";
 
-export async function question(message: string, placeHolder: string):Promise<'ok'|'cancel'> {
-  const q = $(`<div class="messagebox w3-modal">
+export async function question(
+  message: string,
+  placeHolder: string
+): Promise<"ok" | "cancel"> {
+  const q = __(`<div class="messagebox w3-modal">
   <div class="w3-modal-content">
     <div class="w3-container">
       <p class="message"></p>
@@ -11,20 +14,20 @@ export async function question(message: string, placeHolder: string):Promise<'ok
   </div>
   </div>
   `);
-  $(document.body).append(q);
-  $('message', q).get().innerText = message;
+  __(document.body).append(q);
+  __("message", q).get().innerText = message;
   q.css({
-    display:''
+    display: "",
   });
 
-  return new Promise<'ok'|'cancel'>(resolve => {
-  $('.confirm', q).on('click', () =>{
-    q.remove();
-    resolve('ok');
+  return new Promise<"ok" | "cancel">((resolve) => {
+    __(".confirm", q).on("click", () => {
+      q.remove();
+      resolve("ok");
+    });
+    __(".cancel", q).on("click", () => {
+      q.remove();
+      resolve("cancel");
+    });
   });
-  $('.cancel', q).on('click', () =>{
-    q.remove();
-    resolve('cancel');
-  });
-});
 }

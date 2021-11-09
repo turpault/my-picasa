@@ -1,4 +1,4 @@
-import { $, _$ } from "../client/lib/dom.js";
+import { __, _$ } from "../client/lib/dom.js";
 import { buildEmitter } from "../shared/lib/event.js";
 import { makeAlbumList } from "./components/album-list.js";
 import { makeEditorPage } from "./components/editor-page.js";
@@ -13,25 +13,25 @@ function init() {
   const monitor = new FolderMonitor();
   const emitter = buildEmitter<AlbumListEvent>();
 
-  makeJobList($(".jobs").get());
-  makeAlbumList($(".browser").get(), monitor, emitter);
-  makePhotoList($(".images").get(), monitor, emitter);
+  makeJobList(__(".jobs").get());
+  makeAlbumList(__(".browser").get(), monitor, emitter);
+  makePhotoList(__(".images").get(), monitor, emitter);
 
   makeMetadata(
-    $(".metadatasidebar").get()!,
+    __(".metadatasidebar").get()!,
     SelectionManager.get().events,
     monitor
   );
 
   //makeContextMenu();
 
-  const tabs = $(".tabs");
+  const tabs = __(".tabs");
   const tabElements: { tab: _$; win: _$ }[] = [
-    { tab: $(".browser-tab"), win: $(".browser") },
+    { tab: __(".browser-tab"), win: __(".browser") },
   ];
 
-  $(".browser-tab").on("click", () => {
-    selectTab($(".browser-tab").get());
+  __(".browser-tab").on("click", () => {
+    selectTab(__(".browser-tab").get());
   });
 
   function selectTab(_tab: HTMLElement) {
@@ -66,20 +66,20 @@ function init() {
   }
 
   emitter.on("open", async ({ album, name }) => {
-    const win = $(await makeEditorPage(album, name));
+    const win = __(await makeEditorPage(album, name));
 
-    const tab = $(
+    const tab = __(
       `<a class="w3-button tab-button">${name}<span class="remove-tab">&times;</span></a>`
     );
     tabs.append(tab);
     tab.on("click", () => {
       selectTab(tab.get());
     });
-    $(".remove-tab", tab).on("click", () => {
+    __(".remove-tab", tab).on("click", () => {
       deleteTab(tab.get());
     });
 
-    $(".workarea").append(win);
+    __(".workarea").append(win);
     tabElements.push({ tab, win });
     selectTab(tab.get());
   });

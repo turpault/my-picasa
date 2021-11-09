@@ -2,7 +2,7 @@ import { ImageController } from "../components/image-controller.js";
 import { ToolRegistrar } from "../components/tools.js";
 import { toolHeader } from "../element-templates.js";
 import { transform } from "../imageProcess/client.js";
-import { $ } from "../lib/dom.js";
+import { __ } from "../lib/dom.js";
 
 export function setupPolaroid(
   imageController: ImageController,
@@ -37,15 +37,15 @@ export function setupPolaroid(
     </div>
     </div>`);
       const update = () => {
-        const color = $(".colorpicker", e).val();
-        const angle = $(".angle", e).val();
+        const color = __(".colorpicker", e).val();
+        const angle = __(".angle", e).val();
         imageController.updateOperation(index, this.build(angle, color));
       };
-      $(".colorpicker", e).val("#" + args[2]);
-      $(".angle", e).val(parseInt(args[1]));
+      __(".colorpicker", e).val("#" + args[2]);
+      __(".angle", e).val(parseInt(args[1]));
 
-      $(".colorpicker", e).on("change", update);
-      $(".angle", e).on("change", update);
+      __(".colorpicker", e).on("change", update);
+      __(".angle", e).on("change", update);
       return e.get()!;
     },
   });

@@ -1,7 +1,10 @@
-import { $ } from "../lib/dom";
+import { __ } from "../lib/dom";
 
-export async function question(message: string, placeHolder: string):Promise<string | undefined> {
-  const q = $(`<div class="questionbox w3-modal">
+export async function question(
+  message: string,
+  placeHolder: string
+): Promise<string | undefined> {
+  const q = __(`<div class="questionbox w3-modal">
   <div class="w3-modal-content">
     <div class="w3-container">
       <p class="message"></p>
@@ -12,21 +15,21 @@ export async function question(message: string, placeHolder: string):Promise<str
   </div>
 </div>
 `);
-  $(document.body).append(q);
-  $('message', q).get().innerText = message;
-  ($('question', q).get() as HTMLInputElement).placeholder = placeHolder;
+  __(document.body).append(q);
+  __("message", q).get().innerText = message;
+  (__("question", q).get() as HTMLInputElement).placeholder = placeHolder;
   q.css({
-    display:''
+    display: "",
   });
 
-  return new Promise<string|undefined>(resolve => {
-  $('.confirm', q).on('click', () =>{
-    q.remove();
-    resolve($('question', q).val());
+  return new Promise<string | undefined>((resolve) => {
+    __(".confirm", q).on("click", () => {
+      q.remove();
+      resolve(__("question", q).val());
+    });
+    __(".cancel", q).on("click", () => {
+      q.remove();
+      resolve(undefined);
+    });
   });
-  $('.cancel', q).on('click', () =>{
-    q.remove();
-    resolve(undefined);
-  });
-});
 }

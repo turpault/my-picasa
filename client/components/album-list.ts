@@ -5,7 +5,7 @@ import {
   folder,
 } from "../element-templates.js";
 import { FolderMonitor } from "../folder-monitor.js";
-import { $ } from "../lib/dom.js";
+import { __ } from "../lib/dom.js";
 import { getService } from "../rpc/connect.js";
 import { SelectionManager } from "../selection/selection-manager.js";
 
@@ -15,12 +15,12 @@ export function makeAlbumList(
   events: AlbumListEventSource
 ) {
   let lastHighlight: any;
-  const folders = $(".folders", container);
+  const folders = __(".folders", container);
   events.on("scrolled", ({ album }) => {
     if (lastHighlight) {
       lastHighlight.removeClass("highlight-list");
     }
-    lastHighlight = $(elementByAlbum(album));
+    lastHighlight = __(elementByAlbum(album));
     lastHighlight.addClass("highlight-list");
     lastHighlight.get().scrollIntoViewIfNeeded(false);
   });
@@ -39,11 +39,11 @@ export function makeAlbumList(
     ev.preventDefault();
   });
   folders.on("dragenter", (ev: any) => {
-    $(ev.target).addClass("drop-area");
+    __(ev.target).addClass("drop-area");
     ev.preventDefault();
   });
   folders.on("dragleave", (ev: any) => {
-    $(ev.target).removeClass("drop-area");
+    __(ev.target).removeClass("drop-area");
     ev.preventDefault();
   });
   folders.on("drop", async (ev: any) => {

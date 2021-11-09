@@ -16,7 +16,7 @@ import {
   thumbnailUrl,
   transform,
 } from "../imageProcess/client.js";
-import { $ } from "../lib/dom.js";
+import { __ } from "../lib/dom.js";
 import { ImagePanZoomController } from "../lib/panzoom.js";
 
 export class ImageController {
@@ -30,7 +30,7 @@ export class ImageController {
     this.q = new Queue(1);
     this.q.event.on("drain", () => {});
     this.meta = {};
-    const i = $(this.image);
+    const i = __(this.image);
     i.on("load", () => {
       this.image.style.display = "";
       this.recenter();
@@ -80,9 +80,7 @@ export class ImageController {
 
     const folderData = await getAlbumInfo(this.entry.album);
     this.meta = folderData.picasa[this.entry.name] || {};
-    thumbnailUrl(this.entry, 'th-large').then(url => {
-      this.image.src = url;
-    });
+    this.image.src = thumbnailUrl(this.entry, "th-large")!;
     this.context = await buildContext(this.entry);
 
     this.update();

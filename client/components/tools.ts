@@ -8,7 +8,7 @@ import {
   encode,
   execute,
 } from "../imageProcess/client.js";
-import { $ } from "../lib/dom.js";
+import { __ } from "../lib/dom.js";
 import { ImageController } from "./image-controller.js";
 
 async function toolIconForTool(context: string, tool: Tool): Promise<string> {
@@ -29,7 +29,7 @@ export class ToolRegistrar {
   registerTool(toolName: string, tool: Tool) {
     this.tools[toolName] = tool;
 
-    const t = $(
+    const t = __(
       `<div class="w3-button tool-button"><label>${toolName}</label></div>`
     );
     this.toolButtons[toolName] = t;
@@ -81,10 +81,10 @@ export class ToolRegistrar {
 }
 
 export function make(e: HTMLElement, ctrl: ImageController): ToolRegistrar {
-  const registrar = new ToolRegistrar($(".actions", e).get());
+  const registrar = new ToolRegistrar(__(".actions", e).get());
 
-  const history = $(".history", e);
-  const description = $(".description", e);
+  const history = __(".history", e);
+  const description = __(".description", e);
   description.on("input", () => {
     ctrl.updateCaption(description.val());
   });

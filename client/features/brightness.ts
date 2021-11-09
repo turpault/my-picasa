@@ -2,7 +2,7 @@ import { ImageController } from "../components/image-controller.js";
 import { ToolRegistrar } from "../components/tools.js";
 import { toolHeader } from "../element-templates.js";
 import { transform } from "../imageProcess/client.js";
-import { $ } from "../lib/dom.js";
+import { __ } from "../lib/dom.js";
 
 export function setupBrightness(
   imageController: ImageController,
@@ -56,27 +56,27 @@ export function setupBrightness(
       <div>
     </div></div>`);
       const update = () => {
-        const brightness = $(".brightness", e).val() / 100;
-        const highlights = $(".highlights", e).val() / 100;
-        const shadows = $(".shadows", e).val() / 100;
-        const color = $(".colorpicker", e).val();
-        const amount = $(".amount", e).val() / 100;
+        const brightness = __(".brightness", e).val() / 100;
+        const highlights = __(".highlights", e).val() / 100;
+        const shadows = __(".shadows", e).val() / 100;
+        const color = __(".colorpicker", e).val();
+        const amount = __(".amount", e).val() / 100;
         imageController.updateOperation(
           index,
           this.build(brightness, highlights, shadows, color, amount)
         );
       };
-      $(".brightness", e).val(parseFloat(args[1]) * 100);
-      $(".highlights", e).val(parseFloat(args[2]) * 100);
-      $(".shadows", e).val(parseFloat(args[3]) * 100);
-      $(".colorpicker", e).val("#" + args[4]);
-      $(".amount", e).val(parseFloat(args[5]) * 100);
+      __(".brightness", e).val(parseFloat(args[1]) * 100);
+      __(".highlights", e).val(parseFloat(args[2]) * 100);
+      __(".shadows", e).val(parseFloat(args[3]) * 100);
+      __(".colorpicker", e).val("#" + args[4]);
+      __(".amount", e).val(parseFloat(args[5]) * 100);
 
-      $(".brightness", e).on("change", update);
-      $(".highlights", e).on("change", update);
-      $(".shadows", e).on("change", update);
-      $(".colorpicker", e).on("change", update);
-      $(".amount", e).on("change", update);
+      __(".brightness", e).on("change", update);
+      __(".highlights", e).on("change", update);
+      __(".shadows", e).on("change", update);
+      __(".colorpicker", e).on("change", update);
+      __(".amount", e).on("change", update);
       return e.get()!;
     },
   });

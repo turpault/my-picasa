@@ -1,6 +1,6 @@
 import { FolderMonitor } from "../folder-monitor.js";
 import { getFileExifData } from "../folder-utils.js";
-import { $ } from "../lib/dom.js";
+import { __ } from "../lib/dom.js";
 import { SelectionEventSource } from "../selection/selection-manager.js";
 declare var L: any;
 
@@ -9,16 +9,16 @@ export function makeMetadata(
   selectionEvent: SelectionEventSource,
   monitor: FolderMonitor
 ) {
-  const meta = $(".metadata", e);
-  const metasidebar = $(e);
-  const map = $(".map", e);
+  const meta = __(".metadata", e);
+  const metasidebar = __(e);
+  const map = __(".map", e);
   let mapLeaflet: any;
   let marker: any;
-  const close = $(".closemetasidebar");
+  const close = __(".closemetasidebar");
   close.on("click", () => {
     metasidebar.css("display", "none");
   });
-  const open = $(".openmetasidebar");
+  const open = __(".openmetasidebar");
   open.on("click", () => {
     metasidebar.css("display", "block");
     if (mapLeaflet) {

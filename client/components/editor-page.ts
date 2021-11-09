@@ -7,7 +7,7 @@ import { setupPolaroid } from "../features/polaroid.js";
 import { setupRotate } from "../features/rotate.js";
 import { setupSepia } from "../features/sepia.js";
 import { getAlbumInfo } from "../folder-utils.js";
-import { $ } from "../lib/dom.js";
+import { __ } from "../lib/dom.js";
 import { ImagePanZoomController } from "../lib/panzoom.js";
 import { ActiveImageManager } from "../selection/active-manager.js";
 import { Album, AlbumInfo } from "../types/types.js";
@@ -97,16 +97,16 @@ export async function makeEditorPage(
   album: Album,
   name: string
 ): Promise<HTMLElement> {
-  const e = $(editHTML);
+  const e = __(editHTML);
 
-  const image = $(".edited-image", e).get()!;
+  const image = __(".edited-image", e).get()!;
 
   const zoomController = new ImagePanZoomController(image as HTMLImageElement);
   const imageController = new ImageController(
     image as HTMLImageElement,
     zoomController
   );
-  const toolRegistrar = makeTools($(".tools", e).get()!, imageController);
+  const toolRegistrar = makeTools(__(".tools", e).get()!, imageController);
   // Add all the activable features
   setupCrop(e.get(), zoomController, imageController, toolRegistrar);
   setupBrightness(imageController, toolRegistrar);
@@ -118,8 +118,8 @@ export async function makeEditorPage(
   setupMirror(imageController, toolRegistrar);
 
   const f: AlbumInfo = await getAlbumInfo(album);
-  const activeManager = new ActiveImageManager(f.pictures, name);
-  makeImageStrip($(".image-strip", e).get()!, album, f, activeManager);
+  const activeManager = new ActiveImageManager(f.pictures, { album, name });
+  makeImageStrip(__(".image-strip", e).get()!, album, f, activeManager);
 
   imageController.init({ album, name });
 
@@ -127,10 +127,10 @@ export async function makeEditorPage(
     imageController.display(event.name);
   });
   imageController.events.on("idle", () => {
-    $(".busy-spinner", e).css("display", "none");
+    __(".busy-spinner", e).css("display", "none");
   });
   imageController.events.on("busy", () => {
-    $(".busy-spinner", e).css("display", "block");
+    __(".busy-spinner", e).css("display", "block");
   });
   return e.get();
 }

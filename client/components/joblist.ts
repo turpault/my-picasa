@@ -1,9 +1,9 @@
-import { $ } from "../lib/dom.js";
+import { __ } from "../lib/dom.js";
 import { getService } from "../rpc/connect.js";
 import { Job } from "../types/types.js";
 
 export async function makeJobList(e: HTMLElement) {
-  const el = $(e);
+  const el = __(e);
   const service = await getService();
   const jobs: { [id: string]: Job } = {};
   function refreshList() {

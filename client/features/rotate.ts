@@ -2,7 +2,7 @@ import { ImageController } from "../components/image-controller.js";
 import { ToolRegistrar } from "../components/tools.js";
 import { toolHeader } from "../element-templates.js";
 import { transform } from "../imageProcess/client.js";
-import { $ } from "../lib/dom.js";
+import { __ } from "../lib/dom.js";
 
 export function setupRotate(
   imageController: ImageController,
@@ -37,13 +37,13 @@ export function setupRotate(
       if (!Number.isInteger(current)) {
         current = 0;
       }
-      $(".rotate-right", e)
+      __(".rotate-right", e)
         .on("click", () => update(3))
         .css("border", current === 3 ? "solid 1px" : "");
-      $(".rotate-left", e)
+      __(".rotate-left", e)
         .on("click", () => update(1))
         .css("border", current === 1 ? "solid 1px" : "");
-      $(".rotate-invert", e)
+      __(".rotate-invert", e)
         .on("click", () => update(2))
         .css("border", current === 2 ? "solid 1px" : "");
       return e.get()!;

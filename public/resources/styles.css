@@ -2,24 +2,36 @@
   position:relative;
   width: 250px;
   height: 250px;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: contain;
+  /* background-position: center; */
+  /* background-repeat: no-repeat; */
+  /* background-size: contain; */
   margin: 5px;
-  display: inline-flex;
-  align-items: center;
+  display: inline-block;
+  /* justify-content: center; */
+  /* flex-wrap: nowrap; */
+  /* flex-direction: row; */
+  /* align-content: center; */
+  /* align-items: center; */
 }
 
 .images .thumbnail img {
+  position: relative;
   max-width: 100%;
   max-height: 100%;
+  display: inline-flex;
 }
 .images .thumbnail .star{
-  color: #d5d520;
-  position:absolute;
-  bottom:0;
-  right:0;
-  font-size: 30px;
+  /* color: #ffff00; */
+  /* position: revert; */
+  /* left: -35px; */
+  /* bottom: -20px; */
+  /* vertical-align: bottom; */
+  /* right:0; */
+  /* font-size: 30px; */
+  /* display: flex; */
+  border: 2px solid #060606;
+  padding: 5px !important;
+  background: yellow;
 }
 
 .edited-image {
@@ -28,9 +40,17 @@
   /* background-repeat: no-repeat; */
 }
 
-.selected img {
-  background-color: cadetblue;
-  border: solid 3px red;
+.images .thumbnail .selected {
+  /* background-color: cadetblue; */
+  border: solid 3px #5d88ff;
+  padding: 1px;
+  animation: selected-animation 0.3s ease-out;
+  animation-fill-mode: forwards;
+}
+
+@keyframes selected-animation {  
+  0%{ transform: scale(1); }
+  100%{ transform: scale(0.95); }
 }
 
 .highlight {
@@ -327,6 +347,7 @@ body {
 .album {
   position: absolute;
   display: inline;
+  width: 100%;
 }
 
 .album-photos {

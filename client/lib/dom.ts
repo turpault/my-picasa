@@ -121,7 +121,7 @@ export class _$ {
   }
 
   isParent(e: HTMLElement | _$) {
-    const _e = $(e);
+    const _e = __(e);
     let p: _$ | undefined = this;
     while ((p = p.parentElement())) {
       if (p.get() === _e.get()) {
@@ -131,7 +131,7 @@ export class _$ {
     return false;
   }
   parentElement(): _$ | undefined {
-    return this.get().parentElement ? $(this.get().parentElement!) : undefined;
+    return this.get().parentElement ? __(this.get().parentElement!) : undefined;
   }
 
   removeClass(className: string): _$ {
@@ -175,8 +175,8 @@ export class _$ {
       _from = document;
     }
     try {
-      if(e.startsWith('#')) {
-        if(_from !== document) {
+      if (e.startsWith("#")) {
+        if (_from !== document) {
           throw new Error(`Get by id should not pass an element`);
         }
         return document.getElementById(e.slice(1));
@@ -196,7 +196,7 @@ export class _$ {
   private _e: HTMLElement | null;
 }
 
-export function $(
+export function __(
   e: HTMLElement | string | _$,
   from: HTMLElement | null | _$ = null
 ): _$ {

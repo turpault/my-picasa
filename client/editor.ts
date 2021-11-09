@@ -1,5 +1,5 @@
 import { makeEditorPage } from "./components/editor-page.js";
-import { $ } from "./lib/dom.js";
+import { __ } from "./lib/dom.js";
 import { albumEntryFromId } from "./lib/utils.js";
 
 async function init() {
@@ -7,7 +7,7 @@ async function init() {
   const { album, name } = albumEntryFromId(hash);
 
   const editor = await makeEditorPage(album, name);
-  $("body").append(editor);
+  __("body").append(editor);
 }
 
 window.addEventListener("load", () => {

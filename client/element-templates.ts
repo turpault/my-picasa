@@ -1,5 +1,5 @@
 import { ImageController } from "./components/image-controller.js";
-import { $ } from "./lib/dom.js";
+import { __ } from "./lib/dom.js";
 import { albumFromId, idFromAlbum } from "../shared/lib/utils.js";
 import { Album } from "./types/types.js";
 
@@ -11,7 +11,7 @@ export function folder(f: Album): HTMLElement {
 }
 
 export function elementByAlbum(f: Album): HTMLElement {
-  return $(`#${idFromAlbum(f)}`).get();
+  return __(`#${idFromAlbum(f)}`).get();
 }
 
 export function albumByElement(e: HTMLElement): Album | undefined {
@@ -29,7 +29,7 @@ export function toolHeader(
   index: number,
   imageCtrl: ImageController
 ) {
-  const e = $(`<div class="tool-box">
+  const e = __(`<div class="tool-box">
   <div class="w3-bar">
     <a class="w3-bar-item inline">${name}</a>
     <a class="delete-tool inline w3-button w3-bar-item w3-right fa fa-times"></a>
@@ -37,10 +37,10 @@ export function toolHeader(
     <a class="down-tool inline w3-button w3-bar-item w3-right fa fa-arrow-down"></a>
   </div>
   </div>`);
-  $(".delete-tool", e).on("click", () => {
+  __(".delete-tool", e).on("click", () => {
     imageCtrl.deleteOperation(index);
   });
-  $(".up-tool", e)
+  __(".up-tool", e)
     .on("click", () => {
       imageCtrl.moveDown(index);
     })
@@ -50,7 +50,7 @@ export function toolHeader(
         ? ["", ""]
         : ["none", "important"])
     );
-  $(".down-tool", e)
+  __(".down-tool", e)
     .on("click", () => {
       imageCtrl.moveUp(index);
     })
