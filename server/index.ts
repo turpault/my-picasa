@@ -9,7 +9,7 @@ import { RPCInit } from "./rpc/index";
 import { thumbnail } from "./rpc/routes/thumbnail";
 import { encode } from "./rpc/rpcFunctions/sharp-processor";
 const server: FastifyInstance = Fastify({
-  logger: true,
+  //logger: true,
   maxParamLength: 32000,
   bodyLimit: 50 * 1024 * 1024,
 });

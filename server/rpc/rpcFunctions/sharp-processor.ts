@@ -183,7 +183,7 @@ export async function transform(
         const metadata = await c.metadata();
         const w = metadata.width!;
         const h = metadata.height!;
-        const maxDim = Math.floor(Math.max(w, h) * 0.9);
+        const maxDim = Math.floor(Math.min(w, h) * 0.9);
         c = c.resize(maxDim, maxDim, { fit: "cover" });
         let newImage = sharp({
           create: {
