@@ -134,6 +134,9 @@ export class WsAdaptor implements SocketAdaptorInterface {
     remainingRetries: number,
     timeout: number
   ): Promise<void> {
+    if (this.ws!.readyState !== 1) {
+      throw new Error("Websocket closed");
+    }
     this.ws!.send(message.toString());
   }
 
@@ -196,6 +199,9 @@ export class WsAdaptor implements SocketAdaptorInterface {
           payload: payload ? payload : {},
         });
 
+        if (this.ws!.readyState !== 1) {
+          throw new Error("Websocket closed");
+        }
         // console.debug(`Sending ${error ? 'error' : 'success'} response ${response}`);
         this.ws!.send(response);
       },
@@ -208,6 +214,9 @@ export class WsAdaptor implements SocketAdaptorInterface {
         error: WsAdaptor.ERROR_NOT_IMPLEMENTED,
       });
       // console.debug(`Sending error response ${response}`);
+      if (this.ws!.readyState !== 1) {
+        throw new Error("Websocket closed");
+      }
       this.ws!.send(response);
       return;
     }

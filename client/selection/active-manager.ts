@@ -1,42 +1,41 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event.js";
+import { albumEntryIndexInList } from "../../shared/lib/utils.js";
 import { ActiveImageEvent, AlbumEntry } from "../../shared/types/types.js";
 
 export class ActiveImageManager {
-  constructor(lst: AlbumEntry[], current: string) {
-    this.list = lst.map((v) => v.name);
+  constructor(lst: AlbumEntry[], current: AlbumEntry) {
+    this.list = lst;
     this.current = current;
     this.event = buildEmitter<ActiveImageEvent>();
   }
 
-  active(): string {
+  active(): AlbumEntry {
     return this.current;
   }
 
-  select(name: string) {
-    if (this.list.indexOf(name) != -1) {
-      this.current = name;
-      this.event.emit("changed", { name: this.current });
-    }
+  select(entry: AlbumEntry) {
+    this.current = entry;
+    this.event.emit("changed", entry);
   }
 
   selectNext() {
-    const idx = this.list.indexOf(this.current);
+    const idx = albumEntryIndexInList(this.current, this.list);
     if (idx < this.list.length - 1) {
       this.current = this.list[idx + 1];
-      this.event.emit("changed", { name: this.current });
+      this.event.emit("changed", this.current);
     }
   }
 
   selectPrevious() {
-    const idx = this.list.indexOf(this.current);
+    const idx = albumEntryIndexInList(this.current, this.list);
     if (idx > 0) {
       this.current = this.list[idx - 1];
-      this.event.emit("changed", { name: this.current });
+      this.event.emit("changed", this.current);
     }
   }
 
   event: Emitter<ActiveImageEvent>;
 
-  private list: string[];
-  private current: string;
+  private list: AlbumEntry[];
+  private current: AlbumEntry;
 }

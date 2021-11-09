@@ -60,17 +60,17 @@ export async function encode(
   return await c.encode(context, mime, format);
 }
 
-export async function encodeToURL(
-  context: string,
-  mime: string
-): Promise<string> {
+export function encodeToURL(context: string, mime: string): string {
   return `/encode/${context}/${encodeURIComponent(mime)}`;
 }
 
-export async function thumbnailUrl(
+export function thumbnailUrl(
   entry: AlbumEntry,
   size: ThumbnailSize = "th-medium"
-) {
+): string {
+  if (!entry) {
+    return "";
+  }
   return `/thumbnail/${encodeURIComponent(
     entry.album.key
   )}/${encodeURIComponent(entry.name)}/${encodeURIComponent(size)}`;
