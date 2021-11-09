@@ -4,6 +4,13 @@ export async function sleep(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));
 }
 
+export function albumEntryIndexInList(
+  a: AlbumEntry,
+  lst: AlbumEntry[]
+): number {
+  return lst.findIndex((i) => i.album.key === a.album.key && i.name === a.name);
+}
+
 export function albumFromId(id: string): Album {
   const [key, name] = id.split("|");
   return { key, name };

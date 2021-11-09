@@ -12,7 +12,7 @@ export type PicasaFileMeta = {
 export type Job = {
   id: string;
   name: string;
-  data: {source?:AlbumEntry[], destination?:Album};
+  data: { source?: AlbumEntry[]; destination?: Album };
   status: "started" | "queued" | "finished";
   progress: { start: number; remaining: number };
   errors: string[];
@@ -33,7 +33,7 @@ export type FolderPixels = {
 };
 
 export type ActiveImageEvent = {
-  changed: { name: string };
+  changed: AlbumEntry;
 };
 
 export type SliderEvent = {
