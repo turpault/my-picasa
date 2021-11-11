@@ -22,7 +22,10 @@ export type Job = {
 export type ThumbnailSize = "th-small" | "th-medium" | "th-large";
 
 export type ImageFileMeta = {
-  [k in keyof ThumbnailSize]?: string;
+  width: number;
+  height: number;
+  data: string;
+  transform: string;
 };
 
 export type PicasaFolderMeta = {
@@ -59,7 +62,8 @@ export type PanZoomEvent = {
 export type ImageControllerEvent = {
   updated: {
     context: string;
-    meta: PicasaFileMeta;
+    caption: string;
+    filters: string;
   };
   liveViewUpdated: {
     context: string;
@@ -80,7 +84,6 @@ export type AlbumListEvent = {
     };
     album: Album;
     name: string;
-    sourceElementId: string;
   };
   tabChanged: {
     tab: any; // _$

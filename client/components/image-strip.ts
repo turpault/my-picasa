@@ -32,7 +32,7 @@ export function makeImageStrip(
         })"></button>`
       );
       b.on("click", () => {
-        selector.select(p.name);
+        selector.select(p);
       });
       picList.append(b);
     }

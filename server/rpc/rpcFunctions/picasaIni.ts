@@ -1,14 +1,15 @@
-
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import ini from "../../../shared/lib/ini";
+import { SocketAdaptorInterface } from "../../../shared/socket/socketAdaptorInterface";
 import {
   Album,
   AlbumEntry,
   PicasaFileMeta,
-  PicasaFolderMeta
+  PicasaFolderMeta,
 } from "../../../shared/types/types";
 import { imagesRoot, PICASA } from "../../utils/constants";
+import { broadcast } from "../../utils/socketList";
 
 let picasaMap: Map<string, Promise<PicasaFolderMeta>> = new Map();
 let dirtyPicasaMap: Map<string, PicasaFolderMeta> = new Map();
@@ -19,7 +20,7 @@ setInterval(async () => {
   i.forEach(async (value, key) => {
     console.info(`Writing file ${join(imagesRoot, key, PICASA)}`);
     picasaMap.delete(key);
-    await writeFile(join(imagesRoot, key,PICASA), ini.encode(value));
+    await writeFile(join(imagesRoot, key, PICASA), ini.encode(value));
   });
 }, 10000);
 
@@ -51,6 +52,7 @@ export async function writePicasaIni(
 }
 
 export async function updatePicasaEntry(
+  this: SocketAdaptorInterface,
   entry: AlbumEntry,
   field: keyof PicasaFileMeta,
   value: any
@@ -60,7 +62,13 @@ export async function updatePicasaEntry(
     if (value === "toggle") {
       value = !picasa[entry.name][field];
     }
-    picasa[entry.name][field] = value as never;
+    // Special 'star'
+    if ((field as string) === "*") {
+      picasa[entry.name] = value;
+    } else {
+      picasa[entry.name][field] = value as never;
+    }
+    broadcast("picasaFileMetaChanged", { entry, picasa: picasa[entry.name] });
     return writePicasaIni(entry.album, picasa);
   });
 }

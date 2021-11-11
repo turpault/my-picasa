@@ -8,6 +8,7 @@ import { WsAdaptor } from "../shared/socket/wsAdaptor";
 import { RPCInit } from "./rpc/index";
 import { thumbnail } from "./rpc/routes/thumbnail";
 import { encode } from "./rpc/rpcFunctions/sharp-processor";
+import { addSocket, removeSocket } from "./utils/socketList";
 const server: FastifyInstance = Fastify({
   //logger: true,
   maxParamLength: 32000,
@@ -54,6 +55,7 @@ export function socketInit(httpServer: Server) {
   wsServer.on("connection", (client: WebSocket) => {
     console.info("[socket]: Client has connected...");
     const socket = socketAdaptorInit(client);
+    addSocket(socket);
 
     RPCInit(socket, {});
 
@@ -62,6 +64,7 @@ export function socketInit(httpServer: Server) {
         "[socket]: Client has disconnected...",
         args ? args.reason : "no specific reason"
       );
+      removeSocket(socket);
 
       return;
     });
