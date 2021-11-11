@@ -1,3 +1,4 @@
+import { Stats } from "fs";
 import { readdir, stat } from "fs/promises";
 import { extname, join, relative } from "path";
 import { sortByKey } from "../../../shared/lib/utils";
@@ -53,12 +54,18 @@ export async function walk(name: string, path: string): Promise<Album[]> {
       !item.startsWith(".")
     );
   });
-  const stats = await Promise.all(items.map((item) => stat(join(path, item))));
+  const stats = await Promise.allSettled(
+    items.map((item) => stat(join(path, item)))
+  );
 
   const folders: { name: string; key: string }[] = [];
   let idx = 0;
   for (const item of items) {
-    if (stats[idx].isDirectory() && !item.startsWith(".")) {
+    if (
+      stats[idx].status === "fulfilled" &&
+      ((stats[idx] as any).value as Stats).isDirectory() &&
+      !item.startsWith(".")
+    ) {
       folders.push({ name: items[idx], key: join(path, items[idx]) });
     }
     idx++;

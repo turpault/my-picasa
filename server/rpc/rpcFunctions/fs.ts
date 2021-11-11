@@ -1,9 +1,8 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "fs/promises";
 import { join } from "path";
-import {
-  Album
-} from "../../../shared/types/types";
+import { Album } from "../../../shared/types/types";
 import { defaultNewFolderRoot, imagesRoot } from "../../utils/constants";
+import openExplorer from "open-file-explorer";
 
 export async function readFileContents(file: string): Promise<string> {
   const p = join(imagesRoot, file);
@@ -35,11 +34,14 @@ export async function folder(
     .map((p) => (p as any).value);
 }
 
-
-export async function makeAlbum(
-  name: string
-): Promise<Album> {
+export async function makeAlbum(name: string): Promise<Album> {
   const p = join(imagesRoot, defaultNewFolderRoot, name);
-  return stat(p).catch(e => mkdir(p, {recursive: true})).then(() => ({key: join(defaultNewFolderRoot, name), name}));
+  return stat(p)
+    .catch((e) => mkdir(p, { recursive: true }))
+    .then(() => ({ key: join(defaultNewFolderRoot, name), name }));
 }
 
+export async function openAlbumInFinder(album: Album) {
+  const p = join(imagesRoot, album.key);
+  openExplorer(p);
+}

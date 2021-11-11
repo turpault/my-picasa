@@ -1,13 +1,16 @@
 import { Album, AlbumListEventSource } from "../../shared/types/types.js";
-import {
-  albumByElement,
-  elementByAlbum,
-  folder,
-} from "../element-templates.js";
+import { folder } from "../element-templates.js";
 import { FolderMonitor } from "../folder-monitor.js";
 import { $ } from "../lib/dom.js";
+import {
+  albumFromElement,
+  elementFromAlbum,
+  setIdForAlbum,
+} from "../../shared/lib/utils.js";
 import { getService } from "../rpc/connect.js";
 import { SelectionManager } from "../selection/selection-manager.js";
+
+const elementPrefix = "albumlist:";
 
 export function makeAlbumList(
   container: HTMLElement,
@@ -20,7 +23,7 @@ export function makeAlbumList(
     if (lastHighlight) {
       lastHighlight.removeClass("highlight-list");
     }
-    lastHighlight = $(elementByAlbum(album));
+    lastHighlight = $(elementFromAlbum(album, elementPrefix)!);
     lastHighlight.addClass("highlight-list");
     lastHighlight.get().scrollIntoViewIfNeeded(false);
   });
@@ -28,11 +31,12 @@ export function makeAlbumList(
     folders.empty();
     for (const aFolder of event.folders) {
       const node = folder(aFolder);
+      setIdForAlbum(node, aFolder, elementPrefix);
       folders.append(node);
     }
   });
   folders.on("click", function (ev): any {
-    const album = albumByElement(ev.target as HTMLElement)!;
+    const album = albumFromElement(ev.target as HTMLElement, elementPrefix)!;
     events.emit("selected", { album });
   });
   folders.on("dragover", (ev: any) => {
@@ -48,13 +52,12 @@ export function makeAlbumList(
   });
   folders.on("drop", async (ev: any) => {
     const selection = SelectionManager.get().selected();
-    const album = albumByElement(ev.target as HTMLElement)!;
+    const album = albumFromElement(ev.target as HTMLElement, elementPrefix)!;
     const s = await getService();
-    const sels = selection.map(({ album, name }) => album.key + "/" + name);
 
-    const jobId = await s.createJob("move", {
-      source: sels,
-      destination: album.key,
+    s.createJob("move", {
+      source: selection,
+      destination: album,
     });
   });
   let processKeys = false;

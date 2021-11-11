@@ -11,22 +11,56 @@ export function albumEntryIndexInList(
   return lst.findIndex((i) => i.album.key === a.album.key && i.name === a.name);
 }
 
-export function albumFromId(id: string): Album {
-  const [key, name] = id.split("|");
-  return { key, name };
+// Name HTML element from/to Album
+export function elementFromAlbum(album: Album, qualifier: string) {
+  const id = idFromAlbum(album);
+  return document.getElementById(qualifier + id);
+}
+export function albumFromElement(
+  e: HTMLElement,
+  qualifier: string
+): Album | null {
+  return albumFromId(e.id.slice(qualifier.length));
+}
+export function setIdForAlbum(e: HTMLElement, album: Album, qualifier: string) {
+  e.id = qualifier + idFromAlbum(album);
+}
+function albumFromId(id: string): Album | null {
+  const [valid, key, name] = id.split("|");
+  if (valid === "album") return { key, name };
+  return null;
+}
+function idFromAlbum(a: Album): string {
+  return `album|${a.key}|${a.name}`;
 }
 
-export function idFromAlbum(a: Album): string {
-  return `${a.key}|${a.name}`;
+// Name HTML element from/to AlbumEntry
+export function elementFromEntry(entry: AlbumEntry, qualifier: string) {
+  const id = idFromAlbumEntry(entry);
+  return document.getElementById(qualifier + id);
 }
-
-export function albumEntryFromId(id: string): AlbumEntry {
-  const [key, name, entry] = id.split("|");
-  return { album: { key, name }, name: entry };
+export function albumEntryFromElement(
+  e: HTMLElement,
+  qualifier: string
+): AlbumEntry | null {
+  return albumEntryFromId(e.id.slice(qualifier.length));
 }
-
-export function idFromAlbumEntry(entry: AlbumEntry): string {
-  return `${entry.album.key}|${entry.album.name}|${entry.name}`;
+export function setIdForEntry(
+  e: HTMLElement,
+  entry: AlbumEntry,
+  qualifier: string
+) {
+  e.id = qualifier + idFromAlbumEntry(entry);
+}
+function albumEntryFromId(id: string): AlbumEntry | null {
+  const [valid, key, name, entry] = id.split("|");
+  if (valid === "entry") {
+    return { album: { key, name }, name: entry };
+  }
+  return null;
+}
+function idFromAlbumEntry(entry: AlbumEntry): string {
+  return `entry|${entry.album.key}|${entry.album.name}|${entry.name}`;
 }
 
 export function sortByKey<T>(array: T[], key: keyof T) {
@@ -165,4 +199,24 @@ export function flattenObject(ob: any) {
     }
   }
   return toReturn;
+}
+
+const locks: Map<string, { p: Promise<void>; f?: Function }> = new Map();
+export async function lock(label: string) {
+  while (locks.has(label)) {
+    await locks.get(label)!.p;
+  }
+  let f: Function | undefined = undefined;
+  const p = new Promise<void>((resolve) => {
+    f = resolve;
+  });
+  locks.set(label, { p, f });
+}
+export async function release(label: string) {
+  if (!locks.has(label)) {
+    throw new Error("Cannot unlock a lock");
+  }
+  const lock = locks.get(label)!;
+  locks.delete(label);
+  lock.f!();
 }

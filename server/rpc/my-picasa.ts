@@ -12,6 +12,7 @@ import {
 import {
   folder,
   makeAlbum,
+  openAlbumInFinder,
   readFileContents,
   writeFileContents,
 } from "./rpcFunctions/fs";
@@ -21,7 +22,8 @@ import { getJob } from "./rpcFunctions/fileJobs";
 import { folders, mediaInFolder } from "./rpcFunctions/walker";
 import { ServiceMap } from "./rpcHandler";
 import { exifData } from "./rpcFunctions/exif";
-import { readPicasaIni, updatePicasaEntry, writePicasaIni } from "./rpcFunctions/picasaIni";
+import { readPicasaIni, updatePicasaEntry } from "./rpcFunctions/picasaIni";
+import { readOrMakeThumbnail } from "./rpcFunctions/thumbnail";
 
 /**
  * ConcurrencyService IDL
@@ -96,10 +98,6 @@ export const MyPicasa: ServiceMap = {
       handler: readPicasaIni,
       arguments: ["album:object"],
     },
-    writePicasaIni: {
-      handler: writePicasaIni,
-      arguments: ["album:object", "data:object"],
-    },
     exifData: {
       handler: exifData,
       arguments: ["entry:object"],
@@ -108,9 +106,17 @@ export const MyPicasa: ServiceMap = {
       handler: updatePicasaEntry,
       arguments: ["entry:object", "field:string", "value:any"],
     },
-    makeAlbum:{
+    makeAlbum: {
       handler: makeAlbum,
-      arguments: ['name:string']
-    }
+      arguments: ["name:string"],
+    },
+    readOrMakeThumbnail: {
+      handler: readOrMakeThumbnail,
+      arguments: ["entry:object", "size:string"],
+    },
+    openInFinder: {
+      handler: openAlbumInFinder,
+      arguments: ["album:object"],
+    },
   },
 };

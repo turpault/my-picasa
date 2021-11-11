@@ -22,7 +22,7 @@ export function connect(
       try {
         wSocket.close();
       } catch (e) {}
-      sleep(10).then(reopen);
+      sleep(1).then(reopen);
     };
     wSocket.onopen = () => {
       try {

@@ -1,21 +1,11 @@
 import { ImageController } from "./components/image-controller.js";
 import { $ } from "./lib/dom.js";
-import { albumFromId, idFromAlbum } from "../shared/lib/utils.js";
 import { Album } from "./types/types.js";
 
 export function folder(f: Album): HTMLElement {
   const e = document.createElement("li");
   e.innerText = f.name;
-  e.id = idFromAlbum(f);
   return e;
-}
-
-export function elementByAlbum(f: Album): HTMLElement {
-  return $(`#${idFromAlbum(f)}`).get();
-}
-
-export function albumByElement(e: HTMLElement): Album | undefined {
-  return albumFromId(e.id);
 }
 
 export function picture(): HTMLImageElement {

@@ -1,8 +1,9 @@
 import { buildEmitter, Emitter, Handler } from "../lib/event.js";
-import { uuid } from "../lib/utils.js";
+import { sleep, uuid } from "../lib/utils.js";
 import { SocketAdaptorInterface } from "./socketAdaptorInterface.js";
 
 const defaultTimeoutInSeconds = 180;
+const retryDelayInSeconds = 1;
 
 function _getTimeoutInSeconds(): number {
   return defaultTimeoutInSeconds;
@@ -36,15 +37,11 @@ export class WsAdaptor implements SocketAdaptorInterface {
   public static ERROR_TIMEOUT = "Timed out while awaiting response";
   public static ERROR_DISCONNECTED = "Socket was disconnected";
 
-  // much higher timeout due to L8 performance & instability (used to be 1 second).
   private static TIMEOUT_MULTIPLIER = 1.25;
   private static MAX_RETRIES = 10;
 
   socket(ws: WebSocket) {
     this.ws = ws;
-    this.ws.onerror = function (event): void {
-      console.error("WebSocket error observed:", event);
-    };
     this.setMessageListener();
   }
   setMaxRetries(_maxRetries: number) {
@@ -88,12 +85,7 @@ export class WsAdaptor implements SocketAdaptorInterface {
       payload,
     });
     try {
-      return this.emitRetry(
-        requestId,
-        message,
-        this.maxRetries - 1,
-        this.timeoutMillis
-      );
+      return this.emitRetry(message, this.maxRetries - 1, retryDelayInSeconds);
     } catch (e) {
       this.handlerMap.emit("error", e);
     }
@@ -129,13 +121,21 @@ export class WsAdaptor implements SocketAdaptorInterface {
    * the message will be resent. Will fail after the maximum number of retries.
    */
   private async emitRetry(
-    requestId: string | undefined,
     message: string | object,
     remainingRetries: number,
-    timeout: number
+    retryDelay: number
   ): Promise<void> {
     if (this.ws!.readyState !== 1) {
-      throw new Error("Websocket closed");
+      this.ws!.onerror!({} as Event);
+      if (remainingRetries > 0) {
+        await sleep(retryDelay);
+        return this.emitRetry(
+          message,
+          remainingRetries - 1,
+          retryDelay * WsAdaptor.TIMEOUT_MULTIPLIER
+        );
+      }
+      throw new Error("closed");
     }
     this.ws!.send(message.toString());
   }
@@ -200,7 +200,8 @@ export class WsAdaptor implements SocketAdaptorInterface {
         });
 
         if (this.ws!.readyState !== 1) {
-          throw new Error("Websocket closed");
+          this.ws!.onerror!({} as Event);
+          return;
         }
         // console.debug(`Sending ${error ? 'error' : 'success'} response ${response}`);
         this.ws!.send(response);
@@ -215,7 +216,8 @@ export class WsAdaptor implements SocketAdaptorInterface {
       });
       // console.debug(`Sending error response ${response}`);
       if (this.ws!.readyState !== 1) {
-        throw new Error("Websocket closed");
+        this.ws!.onerror!({} as Event);
+        return;
       }
       this.ws!.send(response);
       return;

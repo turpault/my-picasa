@@ -118,7 +118,7 @@ export async function makeEditorPage(
   setupMirror(imageController, toolRegistrar);
 
   const f: AlbumInfo = await getAlbumInfo(album);
-  const activeManager = new ActiveImageManager(f.pictures, name);
+  const activeManager = new ActiveImageManager(f.pictures, { album, name });
   makeImageStrip($(".image-strip", e).get()!, album, f, activeManager);
 
   imageController.init({ album, name });

@@ -138,6 +138,7 @@ export function registerServices(
   dependencies: {}
 ): void {
   const context: SocketContext = Object.assign(socket, { id: uuid() });
+  let idx = 0;
 
   for (const service of services) {
     Object.keys(service.functions).forEach((name) => {
@@ -154,7 +155,9 @@ export function registerServices(
               serviceFunc,
               commandArgs
             );
-            label = `Calling ${name}(${inspect(
+            label = `${(++idx)
+              .toString()
+              .padStart(4, " ")}: Calling ${name}(${inspect(
               convertedArguments,
               false,
               2,

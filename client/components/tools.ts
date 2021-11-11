@@ -93,8 +93,8 @@ export function make(e: HTMLElement, ctrl: ImageController): ToolRegistrar {
     // Refresh the icons
     registrar.refreshToolIcons(context);
   });
-  ctrl.events.on("updated", ({ context, meta }) => {
-    description.val(meta.caption || "");
+  ctrl.events.on("updated", ({ context, caption, filters }) => {
+    description.val(caption || "");
     // Update the operation list
     history.empty();
 

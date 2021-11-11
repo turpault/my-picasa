@@ -1,11 +1,13 @@
-import { copyFile, rename } from "fs/promises";
-import { join } from "path";
+import { copyFile, rename, stat } from "fs/promises";
+import { extname, join } from "path";
+import { basename } from "path/posix";
 import { sleep, uuid } from "../../../shared/lib/utils";
 import { SocketAdaptorInterface } from "../../../shared/socket/socketAdaptorInterface";
 import { Album, AlbumEntry, Job } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
+import { broadcast } from "../../utils/socketList";
 import { readPicasaIni, writePicasaIni } from "./picasaIni";
-import { readThumbnailIni, writeThumbnailIni } from "./thumbnailInit";
+import { readThumbnailIni, writeThumbnailIni } from "./thumbnailIni";
 
 const jobs: Job[] = [];
 
@@ -20,7 +22,7 @@ export async function getJob(id: string): Promise<object> {
 
 function deleteFSJob(this: SocketAdaptorInterface, job: Job) {
   jobs.splice(jobs.indexOf(job), 1);
-  this.emit("jobDeleted", job);
+  broadcast("jobDeleted", job);
 }
 
 export async function createFSJob(
@@ -39,15 +41,15 @@ export async function createFSJob(
     },
     errors: [],
     changed: () => {
-      this.emit("jobChanged", job);
+      broadcast("jobChanged", job);
     },
   };
   jobs.push(job);
   executeJob(job)
     .then(async (updatedAlbums: Album[]) => {
-      this.emit("jobFinished", job);
+      broadcast("jobFinished", job);
       if (updatedAlbums.length) {
-        this.emit("albumChanged", updatedAlbums);
+        broadcast("albumChanged", updatedAlbums);
       }
     })
     .catch((err: Error) => {
@@ -92,10 +94,28 @@ async function moveJob(job: Job): Promise<Album[]> {
   await Promise.allSettled(
     source.map(async (s) => {
       try {
-        await copyMetadata(s, dest, true);
+        let targetName = s.name;
+        let found = false;
+        while (!found) {
+          let destPath = join(imagesRoot, dest.key, targetName);
+          let idx = 1;
+          found = true;
+          await stat(destPath)
+            .then((e) => {
+              // target already exists
+              found = false;
+              const ext = extname(s.name);
+              const base = basename(s.name, ext);
+              targetName = base + ` (${idx++})` + ext;
+              destPath = join(imagesRoot, dest.key);
+            })
+            .catch((e) => {});
+        }
+
+        await copyMetadata(s, { album: dest, name: targetName }, true);
         await rename(
           join(imagesRoot, s.album.key, s.name),
-          join(imagesRoot, dest.key)
+          join(imagesRoot, dest.key, s.name)
         );
         albumChanged(s.album, updatedAlbums);
         albumChanged(dest, updatedAlbums);
@@ -123,11 +143,27 @@ async function copyJob(job: Job): Promise<Album[]> {
   await Promise.allSettled(
     source.map(async (s) => {
       try {
+        let targetName = s.name;
+        let found = false;
+        while (!found) {
+          let destPath = join(imagesRoot, dest.key, targetName);
+          let idx = 1;
+          let found = true;
+          await stat(destPath).catch((e) => {
+            // target already exists
+            found = false;
+            const ext = extname(s.name);
+            const base = basename(s.name, ext);
+            targetName = base + ` (${idx++})` + ext;
+            destPath = join(imagesRoot, dest.key);
+          });
+        }
+
         await copyFile(
           join(imagesRoot, s.album.key, s.name),
-          join(imagesRoot, dest.key)
+          join(imagesRoot, dest.key, targetName)
         );
-        await copyMetadata(s, dest, false);
+        await copyMetadata(s, { album: dest, name: targetName }, false);
         albumChanged(dest, updatedAlbums);
       } catch (e: any) {
         job.errors.push(e.message as string);
@@ -149,23 +185,23 @@ async function duplicateJob(job: Job): Promise<Album[]> {
 
 async function copyMetadata(
   source: AlbumEntry,
-  dest: Album,
+  dest: AlbumEntry,
   deleteSource: boolean = false
 ) {
-  const targetIniData = await readPicasaIni(dest);
+  const targetIniData = await readPicasaIni(dest.album);
   const sourceIniData = await readPicasaIni(source.album);
-  targetIniData[source.name] = sourceIniData[source.name];
-  writePicasaIni(dest, targetIniData);
+  targetIniData[dest.name] = sourceIniData[source.name];
+  writePicasaIni(dest.album, targetIniData);
   if (deleteSource) {
     delete sourceIniData[source.name];
     writePicasaIni(source.album, sourceIniData);
   }
 
-  const targetThumbs = await readThumbnailIni(dest);
+  const targetThumbs = await readThumbnailIni(dest.album);
   const sourceThumbs = await readThumbnailIni(source.album);
 
-  targetThumbs[source.name] = sourceThumbs[source.name];
-  writeThumbnailIni(dest, targetThumbs);
+  targetThumbs[dest.name] = sourceThumbs[source.name];
+  writeThumbnailIni(dest.album, targetThumbs);
   if (deleteSource) {
     delete sourceThumbs[source.name];
     writeThumbnailIni(source.album, sourceThumbs);

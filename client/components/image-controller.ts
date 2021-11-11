@@ -1,12 +1,11 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event.js";
 import { Queue } from "../../shared/lib/queue.js";
 import {
-  Album,
   AlbumEntry,
   ImageControllerEvent,
   PicasaFileMeta,
 } from "../../shared/types/types.js";
-import { getAlbumInfo, updatePicasaData } from "../folder-utils.js";
+import { getAlbumInfo } from "../folder-utils.js";
 import {
   buildContext,
   cloneContext,
@@ -18,6 +17,7 @@ import {
 } from "../imageProcess/client.js";
 import { $ } from "../lib/dom.js";
 import { ImagePanZoomController } from "../lib/panzoom.js";
+import { getService } from "../rpc/connect.js";
 
 export class ImageController {
   constructor(image: HTMLImageElement, panZoomCtrl: ImagePanZoomController) {
@@ -29,7 +29,8 @@ export class ImageController {
     this.zoomController = panZoomCtrl;
     this.q = new Queue(1);
     this.q.event.on("drain", () => {});
-    this.meta = {};
+    this.filters = "";
+    this.caption = "";
     const i = $(this.image);
     i.on("load", () => {
       this.image.style.display = "";
@@ -45,10 +46,10 @@ export class ImageController {
   }
 
   operationList(): string[] {
-    return (this.meta.filters || "").split(";").filter((v) => v);
+    return (this.filters || "").split(";").filter((v) => v);
   }
   operations(): string {
-    return this.meta.filters || "";
+    return this.filters || "";
   }
 
   async rebuildContext(): Promise<boolean> {
@@ -59,7 +60,7 @@ export class ImageController {
         await destroyContext(this.liveContext);
       }
       this.liveContext = await cloneContext(this.context);
-      await setOptions(this.liveContext, this.meta);
+      await setOptions(this.liveContext, { caption: this.caption });
       await transform(this.liveContext, this.operations());
       return true;
     });
@@ -79,10 +80,10 @@ export class ImageController {
     this.entry.name = name;
 
     const folderData = await getAlbumInfo(this.entry.album);
-    this.meta = folderData.picasa[this.entry.name] || {};
-    thumbnailUrl(this.entry, 'th-large').then(url => {
-      this.image.src = url;
-    });
+    const data = folderData.picasa[this.entry.name] || {};
+    this.filters = data.filters || "";
+    this.caption = data.caption || "";
+    this.image.src = thumbnailUrl(this.entry, "th-large");
     this.context = await buildContext(this.entry);
 
     this.update();
@@ -91,7 +92,8 @@ export class ImageController {
   async update() {
     this.events.emit("updated", {
       context: this.liveContext,
-      meta: this.meta,
+      caption: this.caption,
+      filters: this.filters,
     });
     if (await this.rebuildContext()) {
       const data = await encodeToURL(this.liveContext, "image/jpeg");
@@ -103,28 +105,28 @@ export class ImageController {
   async addOperation(expression: string) {
     const lst = this.operationList();
     lst.push(expression);
-    this.meta.filters = lst.join(";");
-    await Promise.all([this.save(), this.update()]);
+    this.filters = lst.join(";");
+    await Promise.all([this.saveFilterInfo(), this.update()]);
   }
 
   async updateCaption(caption: string) {
-    this.meta.caption = caption;
-    await Promise.all([this.save(), this.update()]);
+    this.caption = caption;
+    await Promise.all([this.saveCaption(), this.update()]);
   }
 
   async deleteOperation(idx: number) {
     const lst = this.operationList();
     lst.splice(idx, 1);
-    this.meta.filters = lst.join(";");
-    await Promise.all([this.save(), this.update()]);
+    this.filters = lst.join(";");
+    await Promise.all([this.saveFilterInfo(), this.update()]);
   }
   async moveDown(idx: number) {
     const lst = this.operationList();
     if (idx < lst.length - 1) {
       const op = lst.splice(idx, 1)[0];
       lst.splice(idx + 1, 0, op);
-      this.meta.filters = lst.join(";");
-      await Promise.all([this.save(), this.update()]);
+      this.filters = lst.join(";");
+      await Promise.all([this.saveFilterInfo(), this.update()]);
     }
   }
   async moveUp(idx: number) {
@@ -132,22 +134,26 @@ export class ImageController {
       const lst = this.operationList();
       const op = lst.splice(idx, 1)[0];
       lst.splice(idx - 1, 0, op);
-      this.meta.filters = lst.join(";");
-      await Promise.all([this.save(), this.update()]);
+      this.filters = lst.join(";");
+      await Promise.all([this.saveFilterInfo(), this.update()]);
     }
   }
 
   async updateOperation(idx: number, op: string) {
     const lst = this.operationList();
     lst[idx] = op;
-    this.meta.filters = lst.join(";");
-    await Promise.all([this.save(), this.update()]);
+    this.filters = lst.join(";");
+    await Promise.all([this.saveFilterInfo(), this.update()]);
   }
 
-  async save() {
-    const folderData = await getAlbumInfo(this.entry.album);
-    folderData.picasa[this.entry.name] = this.meta;
-    await updatePicasaData(this.entry.album, folderData.picasa);
+  async saveFilterInfo() {
+    const s = await getService();
+    await s.updatePicasaEntry(this.entry, "filters", this.filters);
+  }
+
+  async saveCaption() {
+    const s = await getService();
+    await s.updatePicasaEntry(this.entry, "caption", this.caption);
   }
 
   recenter() {
@@ -160,7 +166,8 @@ export class ImageController {
   private entry: AlbumEntry;
   private context: string;
   private liveContext: string;
-  private meta: PicasaFileMeta;
+  private filters: string;
+  private caption: string;
   private zoomController?: ImagePanZoomController;
   private q: Queue;
   private parent: HTMLElement;

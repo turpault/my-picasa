@@ -26,12 +26,16 @@ export function makeMetadata(
     }
   });
 
+  function hideMap() {
+    map.css("display", "none");
+  }
   function refreshMap(coordinates: {
     GPSLatitude: any;
     GPSLatitudeRef: any;
     GPSLongitudeRef: any;
     GPSLongitude: any;
   }) {
+    map.css("display", "");
     if (!mapLeaflet) {
       // Create Leaflet map on map element.
       mapLeaflet = L.map(map.get());
@@ -72,6 +76,8 @@ export function makeMetadata(
           GPSLongitudeRef,
           GPSLongitude,
         });
+      } else {
+        hideMap();
       }
       for (const idx in data) {
         meta.append(

@@ -13,10 +13,3 @@ export async function readPicasaIni(entry: Album): Promise<PicasaFolderMeta> {
   const s = await getService();
   return s.readPicasaIni(entry);
 }
-export async function writePicasaIni(
-  entry: Album,
-  data: PicasaFolderMeta
-): Promise<PicasaFolderMeta> {
-  const s = await getService();
-  return s.writePicasaIni(entry, data);
-}

@@ -1,10 +1,5 @@
-import {
-  Album,
-  AlbumEntry,
-  AlbumInfo,
-  PicasaFolderMeta,
-} from "../shared/types/types.js";
-import { readPicasaIni, writePicasaIni } from "./lib/handles.js";
+import { Album, AlbumEntry, AlbumInfo } from "../shared/types/types.js";
+import { readPicasaIni } from "./lib/handles.js";
 import { getService } from "./rpc/connect.js";
 import { folderContents } from "./walker.js";
 
@@ -22,10 +17,6 @@ export async function getAlbumInfo(album: Album): Promise<AlbumInfo> {
     }
   }
   return { picasa, pictures, videos };
-}
-
-export async function updatePicasaData(album: Album, picasa: PicasaFolderMeta) {
-  writePicasaIni(album, picasa);
 }
 
 export async function getFileExifData(entry: AlbumEntry): Promise<any> {

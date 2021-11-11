@@ -2,24 +2,32 @@
   position:relative;
   width: 250px;
   height: 250px;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: contain;
+  /* background-position: center; */
+  /* background-repeat: no-repeat; */
+  /* background-size: contain; */
   margin: 5px;
-  display: inline-flex;
+  display: inline-block;
   align-items: center;
 }
 
 .images .thumbnail img {
+  position: absolute;
   max-width: 100%;
   max-height: 100%;
+  /* display: block; */
+  /* margin: auto; */
 }
 .images .thumbnail .star{
-  color: #d5d520;
-  position:absolute;
-  bottom:0;
-  right:0;
+  color: #ffff00;
+  position: absolute;
+  bottom: 47px;
+  right: 39px;
   font-size: 30px;
+}
+.images .selected img {
+  padding: 2px;
+  border: 2px solid blue;
+  background: grey;
 }
 
 .edited-image {
@@ -29,8 +37,8 @@
 }
 
 .selected img {
-  background-color: cadetblue;
-  border: solid 3px red;
+  /* background-color: cadetblue; */
+  /* border: solid 3px red; */
 }
 
 .highlight {
@@ -222,6 +230,11 @@ body {
 }
 .buttons > button {
   margin: 2px;
+  width: 50px;
+  height: 50px;
+  display: block;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 .w3-tag {
   font-size: smaller;
@@ -246,6 +259,7 @@ body {
 
 .disabled {
   pointer-events: none !important;
+  filter: opacity(0.5);
 }
 
 .override-pointer-active {
@@ -327,10 +341,11 @@ body {
 .album {
   position: absolute;
   display: inline;
+  width: 100%;
 }
 
 .album-photos {
-  
+  user-select: none;
 }
 
 .filler {
@@ -339,7 +354,7 @@ body {
   width: 100%;
 }
 
-.album > .header{padding-top: 10px;padding-bottom: 10px;user-select: none;background-color: lightgray;}
+.album > .header{padding-top: 10px;padding-bottom: 10px;user-select: none;background-color: lightgray;width: 100%;}
 .album > .header > .name {
   font-size: x-large;
   font-weight: bold;
@@ -398,4 +413,45 @@ body {
   top: 0;
   bottom: 0;
   right: 0;
+}
+
+.okcancel {
+  right: 0;
+  width: 100%;
+  /* float: right; */
+  text-align: right;
+  padding: 20px;
+}
+.question {
+  width: 100%;
+}
+
+.questionbox {
+  padding-top: 40%;
+  filter: drop-shadow(2px 4px 6px black);
+  background-color: rgba(0,0,0,0.1);
+  user-select: none;
+}
+
+[data-tooltip]:before {
+  position : absolute;
+  content : attr(data-tooltip);
+  right: 0;
+  margin-right: 42px;
+  opacity : 0;
+    /* customizable */
+  transition: all 0.15s ease;
+  padding: 10px;
+  color: #333;
+  border-radius: 10px;
+  box-shadow: 2px 2px 1px silver;
+}
+
+[data-tooltip]:hover:before {
+  opacity : 1;
+  /* customizable */
+  background: yellow;
+  margin-top: -55px;
+  /* margin-right: 42px; */
+  /* right: 0px; */
 }
