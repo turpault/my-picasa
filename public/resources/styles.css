@@ -280,6 +280,7 @@ body {
   white-space: nowrap;
   list-style-type: none;
   cursor: pointer;
+  font-size: 13px;
 }
 
 
@@ -392,11 +393,21 @@ body {
   position: fixed;
   display: none;
   bottom: 10px;
+  font-weight: lighter;
+  background-color: rgba(72, 172, 72, 1);
+  width: 200px;
+  /* z-index: -9999; */
+  color: black;
   right: 10px;
 }
 
 .job {
-  font-weight: lighter;
+  font-weight: bold;
+  /* background-color: rgba(72, 172, 72, 1); */
+  /* width: 200px; */
+  /* z-index: -9999; */
+  color: black;
+  padding: 5px;
 }
 
 .dragregion {
@@ -436,10 +447,13 @@ body {
 [data-tooltip]:before {
   position : absolute;
   content : attr(data-tooltip);
+  pointer-events: none;
   right: 0;
-  margin-right: 42px;
+  margin-right: 60px;
+  margin-top: -20px;
   opacity : 0;
     /* customizable */
+  background: yellow;
   transition: all 0.15s ease;
   padding: 10px;
   color: #333;
@@ -450,8 +464,8 @@ body {
 [data-tooltip]:hover:before {
   opacity : 1;
   /* customizable */
-  background: yellow;
-  margin-top: -55px;
+  /* background: yellow; */
+  /* margin-top: -55px; */
   /* margin-right: 42px; */
   /* right: 0px; */
 }

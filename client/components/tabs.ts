@@ -1,5 +1,12 @@
 import { $, _$ } from "../lib/dom.js";
 import { Emitter } from "../lib/event.js";
+import {
+  getSettings,
+  getSettingsEmitter,
+  updateFilterByStar,
+  updateFilterByVideos,
+  updateSort,
+} from "../lib/settings.js";
 import { AlbumListEvent } from "../types/types.js";
 
 let tabs: _$;
@@ -15,6 +22,24 @@ export function makeTabs(_emitter: Emitter<AlbumListEvent>) {
     selectTab(browser.get());
   });
   selectTab(browser.get());
+
+  const fStar = $("#FilterStar").on("click", () =>
+    updateFilterByStar(!getSettings().filters.star)
+  );
+  const fFilterVideo = $("#FilterVideo").on("click", () =>
+    updateFilterByVideos(!getSettings().filters.video)
+  );
+  const fSortByDate = $("#SortByDate").on("click", () => updateSort("date"));
+  const fSortByName = $("#SortByName").on("click", () => updateSort("name"));
+  function updateSettings() {
+    const settings = getSettings();
+    fStar.addRemoveClass("highlight", settings.filters.star);
+    fFilterVideo.addRemoveClass("highlight", settings.filters.video);
+    fSortByDate.addRemoveClass("highlight", settings.sort === "date");
+    fSortByName.addRemoveClass("highlight", settings.sort === "name");
+  }
+  updateSettings();
+  getSettingsEmitter().on("changed", updateSettings);
 }
 
 export function selectTab(_tab: HTMLElement) {

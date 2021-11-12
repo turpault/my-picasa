@@ -1,6 +1,7 @@
 import { Emitter } from "../lib/event.js";
 
 export type PicasaFileMeta = {
+  dateTaken?: string; // ISO date
   star?: boolean;
   caption?: string;
   text?: string;
@@ -19,13 +20,18 @@ export type Job = {
   changed: Function;
 };
 
-export type ThumbnailSize = "th-small" | "th-medium" | "th-large";
+export const ThumbnailSizeVals = ["th-small", "th-medium", "th-large"] as const;
+export type ThumbnailSize = typeof ThumbnailSizeVals[number];
 
 export type ImageFileMeta = {
   width: number;
   height: number;
   data: string;
   transform: string;
+};
+
+export type ImageFileMetas = {
+  [key in ThumbnailSize]: ImageFileMeta;
 };
 
 export type PicasaFolderMeta = {

@@ -91,7 +91,7 @@ export class _$ {
 
     return this;
   }
-  toggleClass(name: string, condition: boolean) {
+  addRemoveClass(name: string, condition: boolean) {
     if (condition) {
       this.addClass(name);
     } else {
@@ -175,8 +175,8 @@ export class _$ {
       _from = document;
     }
     try {
-      if(e.startsWith('#')) {
-        if(_from !== document) {
+      if (e.startsWith("#")) {
+        if (_from !== document) {
           throw new Error(`Get by id should not pass an element`);
         }
         return document.getElementById(e.slice(1));

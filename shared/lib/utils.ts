@@ -80,6 +80,7 @@ export function range(from: number, to: number): number[] {
     res.push(from);
     from += dir;
   }
+  res.push(from);
   return res;
 }
 
@@ -201,22 +202,29 @@ export function flattenObject(ob: any) {
   return toReturn;
 }
 
-const locks: Map<string, { p: Promise<void>; f?: Function }> = new Map();
-export async function lock(label: string) {
-  while (locks.has(label)) {
-    await locks.get(label)!.p;
+class Mutex {
+  constructor() {
+    this.current = Promise.resolve();
   }
-  let f: Function | undefined = undefined;
-  const p = new Promise<void>((resolve) => {
-    f = resolve;
-  });
-  locks.set(label, { p, f });
+  private current: Promise<void>;
+  lock() {
+    let _resolve: Function;
+    const p = new Promise<void>((resolve) => {
+      _resolve = () => resolve();
+    });
+    // Caller gets a promise that resolves when the current outstanding
+    // lock resolves
+    const rv = this.current.then(() => _resolve);
+    // Don't allow the next request until the new promise is done
+    this.current = p;
+    // Return the new promise
+    return rv;
+  }
 }
-export async function release(label: string) {
+const locks: Map<string, Mutex> = new Map();
+export async function lock(label: string): Promise<Function> {
   if (!locks.has(label)) {
-    throw new Error("Cannot unlock a lock");
+    locks.set(label, new Mutex());
   }
-  const lock = locks.get(label)!;
-  locks.delete(label);
-  lock.f!();
+  return locks.get(label)!.lock();
 }

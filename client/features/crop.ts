@@ -28,8 +28,8 @@ export function setupCrop(
     const bottomRight = panZoomCtrl.screenToCanvasCoords(w - r, h - b);
     const inBounds =
       panZoomCtrl.inBounds(topLeft) && panZoomCtrl.inBounds(bottomRight);
-    ok.toggleClass("disabled", !inBounds);
-    ok.toggleClass("w3-red", !inBounds);
+    ok.addRemoveClass("disabled", !inBounds);
+    ok.addRemoveClass("w3-red", !inBounds);
   }
 
   function resize() {

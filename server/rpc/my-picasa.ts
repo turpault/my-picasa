@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/camelcase */
+import { Exceptions } from "../../shared/types/exceptions";
 import {
   buildContext,
   cloneContext,
@@ -8,7 +9,9 @@ import {
   execute,
   setOptions,
   transform,
-} from "./rpcFunctions/sharp-processor";
+} from "./imageOperations/sharp-processor";
+import { exifData } from "./rpcFunctions/exif";
+import { createFSJob, getJob } from "./rpcFunctions/fileJobs";
 import {
   folder,
   makeAlbum,
@@ -16,14 +19,14 @@ import {
   readFileContents,
   writeFileContents,
 } from "./rpcFunctions/fs";
-import { Exceptions } from "../../shared/types/exceptions";
-import { createFSJob } from "./rpcFunctions/fileJobs";
-import { getJob } from "./rpcFunctions/fileJobs";
-import { folders, mediaInFolder } from "./rpcFunctions/walker";
-import { ServiceMap } from "./rpcHandler";
-import { exifData } from "./rpcFunctions/exif";
-import { readPicasaIni, updatePicasaEntry } from "./rpcFunctions/picasaIni";
+import {
+  readPicasaEntry,
+  readPicasaIni,
+  updatePicasaEntry,
+} from "./rpcFunctions/picasaIni";
 import { readOrMakeThumbnail } from "./rpcFunctions/thumbnail";
+import { folders, mediaInAlbum } from "./rpcFunctions/walker";
+import { ServiceMap } from "./rpcHandler";
 
 /**
  * ConcurrencyService IDL
@@ -79,8 +82,8 @@ export const MyPicasa: ServiceMap = {
       arguments: [],
     },
     media: {
-      handler: mediaInFolder,
-      arguments: ["folder:string"],
+      handler: mediaInAlbum,
+      arguments: ["album:object"],
     },
     readFileContents: {
       handler: readFileContents,
@@ -100,6 +103,10 @@ export const MyPicasa: ServiceMap = {
     },
     exifData: {
       handler: exifData,
+      arguments: ["entry:object"],
+    },
+    readPicasaEntry: {
+      handler: readPicasaEntry,
       arguments: ["entry:object"],
     },
     updatePicasaEntry: {
