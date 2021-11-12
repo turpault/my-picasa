@@ -9,6 +9,7 @@ import { RPCInit } from "./rpc/index";
 import { thumbnail } from "./rpc/routes/thumbnail";
 import { encode } from "./rpc/imageOperations/sharp-processor";
 import { addSocket, removeSocket } from "./utils/socketList";
+import { history } from "./utils/stats";
 const server: FastifyInstance = Fastify({
   //logger: true,
   maxParamLength: 32000,
@@ -83,6 +84,10 @@ server.get("/ping", pingOpts, async (request, reply) => {
 server.get("/encode/:context/:mime", async (request, reply) => {
   const { context, mime } = request.params as any;
   return encode(context, mime);
+});
+
+server.get("/stats", async (request, reply) => {
+  return history();
 });
 
 server.get("/thumbnail/:album/:name/:resolution", async (request, reply) => {
