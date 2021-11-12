@@ -1,13 +1,16 @@
-import * as ExifReader from "exifreader";
-import { readFile } from "fs/promises";
+const exif = require("fast-exif");
+import { stat } from "fs/promises";
 import { join } from "path";
-import { flattenObject } from "../../../shared/lib/utils";
 import { AlbumEntry } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 
-export async function exifData(entry: AlbumEntry): Promise<object> {
-  const buf = await readFile(join(imagesRoot, entry.album.key, entry.name));
-  const tags = ExifReader.load(buf);
-  // decode raw exif data from a buffer
-  return tags;
+export async function exifData(entry: AlbumEntry): Promise<any> {
+  const path = join(imagesRoot, entry.album.key, entry.name);
+  const [s, t] = await Promise.all([
+    stat(path).catch((e) => {}),
+    exif.read(join(imagesRoot, entry.album.key, entry.name)),
+  ]);
+  const tags = t || {};
+
+  return { stats: s, ...tags.image, ...tags.gps, ...tags.exif };
 }

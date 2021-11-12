@@ -1,7 +1,6 @@
 import { buildEmitter, Emitter } from "../shared/lib/event.js";
 import { sortByKey } from "../shared/lib/utils.js";
 import { Album, FolderEvent } from "../shared/types/types.js";
-import { getService } from "./rpc/connect.js";
 import { walkFromServer } from "./walker.js";
 
 export type AlbumSortOrder = "ReverseDate" | "ForwardDate";
@@ -20,17 +19,6 @@ export class FolderMonitor {
     this.albums = lst;
     this.sortFolders();
     this.events.emit("updated", { folders: this.albums });
-    (await getService()).on(
-      "foldersChanged",
-      (lst: { name: string; path: string }[]) => {
-        this.albums = lst.map((e) => ({
-          name: e.name,
-          key: e.path,
-        }));
-        this.sortFolders();
-        this.events.emit("updated", { folders: this.albums });
-      }
-    );
   }
 
   albumAtIndex(index: number): Album {
@@ -38,10 +26,6 @@ export class FolderMonitor {
       throw new Error("out of bounds");
     }
     return this.albums[index];
-  }
-
-  albumFromKey(key: string): Album | undefined {
-    return this.albums.find((f) => f.key === key);
   }
 
   albumIndexFromKey(key: string): number {
@@ -58,6 +42,7 @@ export class FolderMonitor {
       this.albums.reverse();
     }
   }
+
   private albums: Album[];
   private sort: AlbumSortOrder;
 }

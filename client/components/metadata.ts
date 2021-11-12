@@ -1,7 +1,10 @@
 import { FolderMonitor } from "../folder-monitor.js";
 import { getFileExifData } from "../folder-utils.js";
 import { $ } from "../lib/dom.js";
-import { SelectionEventSource } from "../selection/selection-manager.js";
+import {
+  SelectionEventSource,
+  SelectionManager,
+} from "../selection/selection-manager.js";
 declare var L: any;
 
 export function makeMetadata(
@@ -47,43 +50,49 @@ export function makeMetadata(
       marker = L.marker([0, 0]);
       marker.addTo(mapLeaflet);
     }
-
+    function tripletToDecimal(gps: number[]): number {
+      return gps[0] + gps[1] / 60 + gps[2] / 3600;
+    }
     const lat =
-      coordinates.GPSLatitudeRef.value[0] === "N"
-        ? coordinates.GPSLatitude.description
-        : -coordinates.GPSLatitude.description;
+      coordinates.GPSLatitudeRef === "N"
+        ? tripletToDecimal(coordinates.GPSLatitude)
+        : -tripletToDecimal(coordinates.GPSLatitude);
     const long =
-      coordinates.GPSLongitudeRef.value[0] === "W"
-        ? -coordinates.GPSLongitude.description
-        : -coordinates.GPSLongitude.description;
+      coordinates.GPSLongitudeRef === "W"
+        ? -tripletToDecimal(coordinates.GPSLongitude)
+        : -tripletToDecimal(coordinates.GPSLongitude);
     mapLeaflet.setView([lat, long], 16);
     marker.setLatLng([lat, long]);
   }
 
   selectionEvent.on("added", (event) => {
-    getFileExifData(event.key).then((data) => {
-      meta.empty();
-      const {
-        GPSLatitude,
-        GPSLatitudeRef,
-        GPSLongitudeRef,
-        GPSLongitude,
-      } = data;
-      if (GPSLatitude && GPSLongitude) {
-        refreshMap({
+    if (event.selection.length === 1) {
+      getFileExifData(event.key).then((data) => {
+        meta.empty();
+        const {
           GPSLatitude,
           GPSLatitudeRef,
           GPSLongitudeRef,
           GPSLongitude,
-        });
-      } else {
-        hideMap();
-      }
-      for (const idx in data) {
-        meta.append(
-          `<div><div class="w3-tag">${idx}</div><div>${data[idx].description}</div></div>`
-        );
-      }
-    });
+        } = data;
+        if (GPSLatitude && GPSLongitude) {
+          refreshMap({
+            GPSLatitude,
+            GPSLatitudeRef,
+            GPSLongitudeRef,
+            GPSLongitude,
+          });
+        } else {
+          hideMap();
+        }
+        for (const idx in data) {
+          if (Number.isNaN(parseInt(idx)))
+            // exclude unknown tags
+            meta.append(
+              `<div><div class="w3-tag">${idx}</div><div>${data[idx]}</div></div>`
+            );
+        }
+      });
+    }
   });
 }

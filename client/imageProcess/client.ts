@@ -61,7 +61,7 @@ export async function encode(
 }
 
 export function encodeToURL(context: string, mime: string): string {
-  return `/encode/${context}/${encodeURIComponent(mime)}`;
+  return `http://127.0.0.1:5500/encode/${context}/${encodeURIComponent(mime)}`;
 }
 
 export function thumbnailUrl(
@@ -71,7 +71,7 @@ export function thumbnailUrl(
   if (!entry) {
     return "";
   }
-  return `/thumbnail/${encodeURIComponent(
+  return `http://127.0.0.1:5500/thumbnail/${encodeURIComponent(
     entry.album.key
   )}/${encodeURIComponent(entry.name)}/${encodeURIComponent(size)}`;
 }

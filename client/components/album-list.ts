@@ -12,7 +12,7 @@ import { SelectionManager } from "../selection/selection-manager.js";
 
 const elementPrefix = "albumlist:";
 
-export function makeAlbumList(
+export async function makeAlbumList(
   container: HTMLElement,
   monitor: FolderMonitor,
   events: AlbumListEventSource
@@ -59,6 +59,7 @@ export function makeAlbumList(
       source: selection,
       destination: album,
     });
+    SelectionManager.get().clear();
   });
   let processKeys = false;
   events.on("tabChanged", ({ win }) => {
@@ -68,6 +69,20 @@ export function makeAlbumList(
     switch (code) {
       case "Space":
       default:
+    }
+  });
+  // Status change events
+  const s = await getService();
+
+  s.on("albumChanged", async (e: { payload: Album[] }) => {
+    let refresh = false;
+    for (const album of e.payload) {
+      if (!elementFromAlbum(album, elementPrefix)) {
+        refresh = true;
+      }
+    }
+    if (refresh) {
+      monitor.walk();
     }
   });
 }

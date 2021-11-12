@@ -2,7 +2,15 @@ import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import ini from "../../../shared/lib/ini";
 import { sleep } from "../../../shared/lib/utils";
-import { Album, FolderPixels } from "../../../shared/types/types";
+import {
+  Album,
+  AlbumEntry,
+  FolderPixels,
+  ImageFileMeta,
+  ImageFileMetas,
+  ThumbnailSize,
+  ThumbnailSizeVals,
+} from "../../../shared/types/types";
 import { imagesRoot, THUMBS } from "../../utils/constants";
 
 let pixelsMap: Map<string, Promise<FolderPixels>> = new Map();
@@ -50,4 +58,75 @@ export async function writeThumbnailIni(
   data: FolderPixels
 ): Promise<void> {
   dirtyPixelsMap.set(album.key, data);
+}
+
+function iniFieldName(name: string, size: string) {
+  return name + ":" + size;
+}
+
+export async function readImageFileMetas(
+  entry: AlbumEntry
+): Promise<ImageFileMetas> {
+  const metas: ImageFileMetas = {} as any;
+  for (const k of ThumbnailSizeVals) {
+    const val = await readThumbnailFromIni(entry, k);
+    if (val) {
+      metas[k] = val;
+    }
+  }
+  return metas;
+}
+
+export async function writeImageFileMetas(
+  entry: AlbumEntry,
+  metas: ImageFileMetas
+): Promise<ImageFileMetas> {
+  for (const k of ThumbnailSizeVals) {
+    if (metas[k]) {
+      await writeThumbnailInIni(entry, k, metas[k]);
+    }
+  }
+  return metas;
+}
+
+export async function deleteImageFileMetas(entry: AlbumEntry): Promise<void> {
+  for (const k of ThumbnailSizeVals) {
+    await deleteThumbnailInIni(entry, k);
+  }
+}
+
+export async function readThumbnailFromIni(
+  entry: AlbumEntry,
+  size: ThumbnailSize
+): Promise<ImageFileMeta | undefined> {
+  const pixels = await readThumbnailIni(entry.album).catch((e) => {
+    console.warn(e);
+    debugger;
+    return {} as FolderPixels;
+  });
+  return pixels[iniFieldName(entry.name, size)] as ImageFileMeta;
+}
+
+export async function writeThumbnailInIni(
+  entry: AlbumEntry,
+  size: ThumbnailSize,
+  data: ImageFileMeta
+): Promise<void> {
+  const pixels = await readThumbnailIni(entry.album).catch((e) => {
+    console.warn(e);
+    return {} as FolderPixels;
+  });
+  pixels[iniFieldName(entry.name, size)] = data;
+  return writeThumbnailIni(entry.album, pixels);
+}
+
+export async function deleteThumbnailInIni(
+  entry: AlbumEntry,
+  size: ThumbnailSize
+): Promise<void> {
+  const pixels = await readThumbnailIni(entry.album).catch((e) => {
+    console.warn(e);
+    return {} as FolderPixels;
+  });
+  delete pixels[iniFieldName(entry.name, size)];
 }

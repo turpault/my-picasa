@@ -13,12 +13,15 @@ export async function makeJobList(e: HTMLElement) {
     });
     for (const job of Object.values(jobs)) {
       el.append(
-        `<div class="job">${job.name}: ${Math.floor(
-          (100 * job.progress.start) / job.progress.remaining
-        )}%<br>${job.errors.join("<br>")}</div>`
+        `<div class="job"><span>${
+          job.name
+        }:</span><span style="float:right">${Math.floor(
+          (100 * (job.progress.start - job.progress.remaining)) /
+            job.progress.start
+        )}%</span><br>${job.errors.join("<br>")}</div>`
       );
       el.css({
-        display: "",
+        display: "block",
       });
     }
   }

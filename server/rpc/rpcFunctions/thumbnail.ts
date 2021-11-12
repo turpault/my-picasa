@@ -1,8 +1,6 @@
-import { lock, release } from "../../../shared/lib/utils";
+import { lock } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
-  FolderPixels,
-  ImageFileMeta,
   PicasaFolderMeta,
   ThumbnailSize,
 } from "../../../shared/types/types";
@@ -14,30 +12,22 @@ import {
   execute,
   setOptions,
   transform,
-} from "../rpcFunctions/sharp-processor";
+} from "../imageOperations/sharp-processor";
 import { readPicasaIni } from "./picasaIni";
-import { readThumbnailIni, writeThumbnailIni } from "./thumbnailIni";
-
-function n(name: string, size: string) {
-  return name + ":" + size;
-}
+import { readThumbnailFromIni, writeThumbnailInIni } from "./thumbnailIni";
 
 export async function readOrMakeThumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize = "th-medium"
 ): Promise<{ width: number; height: number; data: string }> {
   const lockLabel = `thumbnail:${entry.album.key}-${entry.name}-${size}`;
-  await lock(lockLabel);
+  const release = await lock(lockLabel);
   let exception: Error | undefined = undefined;
   try {
     const picasa = await readPicasaIni(entry.album).catch(
       () => ({} as PicasaFolderMeta)
     );
-    const pixels = await readThumbnailIni(entry.album).catch((e) => {
-      console.warn(e);
-      debugger;
-      return {} as FolderPixels;
-    });
+    let pix = await readThumbnailFromIni(entry, size);
     const sizes = {
       "th-small": 100,
       "th-medium": 250,
@@ -46,8 +36,6 @@ export async function readOrMakeThumbnail(
 
     picasa[entry.name] = picasa[entry.name] || {};
     const transform = picasa[entry.name].filters || "";
-    const e = n(entry.name, size);
-    const pix = pixels[e] as ImageFileMeta;
     if (!pix || pix.transform !== transform) {
       const res = await makeThumbnail(entry, picasa[entry.name], transform, [
         [
@@ -58,15 +46,15 @@ export async function readOrMakeThumbnail(
         ],
       ]);
 
-      pixels[e] = { ...res, transform };
+      pix = { ...res, transform };
 
-      writeThumbnailIni(entry.album, pixels);
+      writeThumbnailInIni(entry, size, pix);
     }
-    return pixels[e]!;
+    return pix!;
   } catch (e: any) {
     exception = e;
   } finally {
-    await release(lockLabel);
+    release();
     if (exception) {
       throw exception;
     }

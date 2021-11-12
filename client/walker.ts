@@ -8,13 +8,13 @@ export async function walkFromServer(): Promise<
   return s.folders();
 }
 
-export async function folderContents(
+export async function albumContents(
   fh: Album
 ): Promise<{
-  pictures: string[];
-  videos: string[];
+  pictures: AlbumEntry[];
+  videos: AlbumEntry[];
 }> {
   const service = await getService();
-  const { pictures, videos } = await service.media(fh.key);
+  const { pictures, videos } = await service.media(fh);
   return { pictures, videos };
 }

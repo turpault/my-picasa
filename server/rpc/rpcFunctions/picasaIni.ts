@@ -36,7 +36,12 @@ export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
       album.key,
       await readFile(join(imagesRoot, album.key, PICASA), {
         encoding: "utf8",
-      }).then(ini.parse)
+      })
+        .then(ini.parse)
+        .catch((e) => {
+          console.warn(e);
+          return {};
+        })
     );
   }
   return picasaMap.get(album.key)!;
@@ -51,8 +56,16 @@ export async function writePicasaIni(
   }
 }
 
+export async function readPicasaEntry(
+  entry: AlbumEntry
+): Promise<PicasaFileMeta> {
+  return readPicasaIni(entry.album).then((picasa) => {
+    picasa[entry.name] = picasa[entry.name] || ({} as PicasaFileMeta);
+    return picasa[entry.name];
+  });
+}
+
 export async function updatePicasaEntry(
-  this: SocketAdaptorInterface,
   entry: AlbumEntry,
   field: keyof PicasaFileMeta,
   value: any

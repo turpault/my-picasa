@@ -7,7 +7,7 @@ import { SocketAdaptorInterface } from "../shared/socket/socketAdaptorInterface"
 import { WsAdaptor } from "../shared/socket/wsAdaptor";
 import { RPCInit } from "./rpc/index";
 import { thumbnail } from "./rpc/routes/thumbnail";
-import { encode } from "./rpc/rpcFunctions/sharp-processor";
+import { encode } from "./rpc/imageOperations/sharp-processor";
 import { addSocket, removeSocket } from "./utils/socketList";
 const server: FastifyInstance = Fastify({
   //logger: true,
@@ -59,6 +59,10 @@ export function socketInit(httpServer: Server) {
 
     RPCInit(socket, {});
 
+    client.onerror = () => {
+      console.debug("[socket]: Socket had an error...");
+      removeSocket(socket);
+    };
     socket.onDisconnect((args: CloseEvent) => {
       console.debug(
         "[socket]: Client has disconnected...",

@@ -10,18 +10,19 @@ import { makePhotoList } from "./components/photo-list.js";
 import { makeTab, makeTabs, selectTab } from "./components/tabs.js";
 import { makeThumbnailManager } from "./components/thumbnail.js";
 import { FolderMonitor } from "./folder-monitor.js";
+import { makeSettings } from "./lib/settings.js";
 import { SelectionManager } from "./selection/selection-manager.js";
 import { AlbumListEvent } from "./types/types.js";
 
-function init() {
+async function init() {
   const monitor = new FolderMonitor();
   const emitter = buildEmitter<AlbumListEvent>();
 
+  makeSettings();
   makeJobList($(".jobs").get());
   makeAlbumList($(".browser").get(), monitor, emitter);
   makePhotoList($(".images").get(), monitor, emitter);
   makeThumbnailManager();
-  makeButtons($(".buttons").get());
 
   makeMetadata(
     $(".metadatasidebar").get()!,
@@ -32,6 +33,7 @@ function init() {
   makeTabs(emitter);
   makeHotkeys(emitter);
   //makeContextMenu();
+  makeButtons($(".buttons").get());
 
   emitter.on("open", async ({ album, name }) => {
     const win = $(await makeEditorPage(album, name));

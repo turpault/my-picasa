@@ -20,10 +20,11 @@
     "typescript",
     "tdd"
   ],
-  "main": "dist/index.js",
+  "main": "dist/server/main.js",
   "browser": "dist/src/index.js",
   "scripts": {
-    "build": "tsc -d",
+    "build": "run-p build:*",
+    "build:client": "tsc -d",
     "build:server": "tsc -d -p tsconfig-server.json",
     "build:rpc": "node dist/server/rpc/generate client/rpc/generated-rpc",
     "clean": "rimraf dist",
@@ -31,7 +32,8 @@
     "start": "run-p start:*",
     "start:tsc": "tsc-watch",
     "start:tsc-server": "tsc-watch -p tsconfig-server.json",
-    "start:httpd": "nodemon --watch ./dist/server --watch ./dist/shared dist/server/index.js"
+    "start:httpd": "nodemon --watch ./dist/server --watch ./dist/shared dist/server/index.js",
+    "electron": "electron ."
   },
   "devDependencies": {
     "@types/ini": "^1.3.31",
@@ -39,6 +41,7 @@
     "@types/web": "^0",
     "@types/ws": "^7.4.1",
     "cross-var": "^1",
+    "electron": "^15.3.1",
     "glob": "^7",
     "http-server": "^13.0.2",
     "nodemon": "^2.0.14",
@@ -59,11 +62,11 @@
   "dependencies": {
     "@types/node": "^16",
     "exifreader": "^4.0.0",
+    "fast-exif": "^1.0.1",
     "fastify": "^3.22.1",
     "fastify-static": "^4.4.2",
     "infinite-list": "^1.1.0",
     "ini": "^2.0.0",
-    "open-file-explorer": "^1.0.2",
     "sharp": "^0.29.2",
     "wasm-vips": "^0.0.1",
     "ws": "^8.2.3",

@@ -16,6 +16,7 @@ import { FolderMonitor } from "../folder-monitor.js";
 import { getAlbumInfo } from "../folder-utils.js";
 import { $ } from "../lib/dom.js";
 import { toggleStar } from "../lib/handles.js";
+import { getSettings, getSettingsEmitter } from "../lib/settings.js";
 import { getService } from "../rpc/connect.js";
 import { SelectionManager } from "../selection/selection-manager.js";
 import {
@@ -186,7 +187,7 @@ export async function makePhotoList(
     reflow(false);
   });
 
-  function updateHighlighted(): HTMLElement | null {
+  function visibleElement(): HTMLElement | null {
     if (displayed.length === 0) {
       return null;
     }
@@ -207,6 +208,10 @@ export async function makePhotoList(
     if (!found) {
       found = previous;
     }
+    return found;
+  }
+  function updateHighlighted(): HTMLElement | null {
+    const found = visibleElement();
 
     if (found) {
       const album = albumFromElement(found, elementPrefix);
@@ -223,20 +228,37 @@ export async function makePhotoList(
   }
 
   new ResizeObserver(() => {
-    reflow(false);
+    if (tabIsActive) {
+      reflow(false);
+    }
   }).observe(container);
 
-  window.requestAnimationFrame(addNewItemsIfNeeded);
-  function addNewItemsIfNeeded() {
+  getSettingsEmitter().on("changed", () => {
+    const found = visibleElement();
+    if (found) {
+      const album = albumFromElement(found, elementPrefix);
+      if (album) {
+        refresh(album);
+      }
+    }
+  });
+
+  window.requestAnimationFrame(addNewItemsIfNeededAndReschedule);
+  function addNewItemsIfNeededAndReschedule() {
+    if (running) debugger;
+    running = true;
+    addNewItemsIfNeeded()
+      .catch(() => console.error)
+      .finally(() => {
+        running = false;
+        window.requestAnimationFrame(addNewItemsIfNeededAndReschedule);
+      });
+  }
+  async function addNewItemsIfNeeded() {
     if (!tabIsActive) {
-      window.requestAnimationFrame(addNewItemsIfNeeded);
       return;
     }
-    if (running) {
-      debugger;
-    }
     if (displayed.length === 0) {
-      window.requestAnimationFrame(addNewItemsIfNeeded);
       return;
     }
     running = true;
@@ -244,9 +266,6 @@ export async function makePhotoList(
       // reflow
       doReflow = false;
       reflow();
-
-      running = false;
-      window.requestAnimationFrame(addNewItemsIfNeeded);
       return;
     } else {
       if (displayed.length > 3) {
@@ -309,13 +328,7 @@ export async function makePhotoList(
       }
       if (promises.length > 0) {
         doReflow = true;
-        Promise.allSettled(promises).finally(() => {
-          running = false;
-          window.requestAnimationFrame(addNewItemsIfNeeded);
-        });
-      } else {
-        running = false;
-        window.requestAnimationFrame(addNewItemsIfNeeded);
+        await Promise.allSettled(promises);
       }
     }
   }
@@ -394,7 +407,7 @@ export async function makePhotoList(
   ) {
     title.innerText = album.name;
 
-    const info = await getAlbumInfo(album);
+    const info = await getAlbumInfo(album, true /* use settings */);
     makeNThumbnails(element, info.pictures.length, events);
 
     const keys = info.pictures.map((p) => p.name).reverse();
@@ -433,6 +446,7 @@ export async function makePhotoList(
             source: selection,
             destination: album,
           });
+          SelectionManager.get().clear();
         }
       });
       e.on("dragenter", (ev) => {

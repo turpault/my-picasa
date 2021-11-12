@@ -1,8 +1,9 @@
 import { $, _$ } from "../lib/dom.js";
 import { getService } from "../rpc/connect.js";
 import { SelectionManager } from "../selection/selection-manager.js";
-import { Album } from "../types/types.js";
+import { Album, PicasaFileMeta } from "../types/types.js";
 import { question } from "./question.js";
+import { ToolRegistrar } from "./tools.js";
 
 export async function makeButtons(e: HTMLElement) {
   const s = await getService();
@@ -27,7 +28,7 @@ export async function makeButtons(e: HTMLElement) {
       icon: "resources/images/icons/actions/export-50.png",
       needSelection: true,
       click: (ev: MouseEvent) => {
-        alert("todo");
+        s.createJob("export", { source: SelectionManager.get().selected() });
       },
     },
     {
@@ -35,7 +36,7 @@ export async function makeButtons(e: HTMLElement) {
       icon: "resources/images/icons/actions/duplicate-50.png",
       needSelection: true,
       click: (ev: MouseEvent) => {
-        alert("todo");
+        s.createJob("duplicate", { source: SelectionManager.get().selected() });
       },
     },
     {
@@ -49,7 +50,7 @@ export async function makeButtons(e: HTMLElement) {
               s.makeAlbum(newAlbum).then((a: Album) => {
                 s.createJob("move", {
                   source: SelectionManager.get().selected(),
-                  destination: a.key,
+                  destination: a,
                 });
                 SelectionManager.get().clear();
               });
@@ -70,8 +71,18 @@ export async function makeButtons(e: HTMLElement) {
       name: "Rotate",
       icon: "resources/images/icons/actions/rotate-50.png",
       needSelection: true,
-      click: (ev: MouseEvent) => {
-        alert("todo");
+      click: async (ev: MouseEvent) => {
+        for (const e of SelectionManager.get().selected()) {
+          const p = (await s.readPicasaEntry(e)) as PicasaFileMeta;
+          if (p.filters) {
+            p.filters += ";";
+          } else {
+            p.filters = "";
+          }
+          // TODO: Ugly
+          p.filters += "rotate=1,1";
+          await s.updatePicasaEntry(e, "filters", p.filters);
+        }
       },
     },
     {
@@ -79,7 +90,8 @@ export async function makeButtons(e: HTMLElement) {
       icon: "resources/images/icons/actions/trash-50.png",
       needSelection: true,
       click: (ev: MouseEvent) => {
-        alert("todo");
+        s.createJob("delete", { source: SelectionManager.get().selected() });
+        SelectionManager.get().clear();
       },
     },
   ];
