@@ -1,5 +1,5 @@
 import { writeFile, stat } from "fs/promises";
-import { join } from "path/posix";
+import { join } from "path";
 import { AlbumEntry } from "../../../shared/types/types";
 import { readPicasaIni } from "../rpcFunctions/picasaIni";
 import {

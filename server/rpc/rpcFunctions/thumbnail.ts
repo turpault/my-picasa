@@ -4,6 +4,7 @@ import {
   PicasaFolderMeta,
   ThumbnailSize,
 } from "../../../shared/types/types";
+import { dec, inc } from "../../utils/stats";
 import {
   buildContext,
   commit,
@@ -22,6 +23,7 @@ export async function readOrMakeThumbnail(
 ): Promise<{ width: number; height: number; data: string }> {
   const lockLabel = `thumbnail:${entry.album.key}-${entry.name}-${size}`;
   const release = await lock(lockLabel);
+  inc('thumbnail');
   let exception: Error | undefined = undefined;
   try {
     const picasa = await readPicasaIni(entry.album).catch(
@@ -54,6 +56,7 @@ export async function readOrMakeThumbnail(
   } catch (e: any) {
     exception = e;
   } finally {
+    dec('thumbnail');
     release();
     if (exception) {
       throw exception;
