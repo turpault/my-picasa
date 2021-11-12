@@ -1,6 +1,7 @@
 import { inspect } from "util";
 import { uuid } from "../../shared/lib/utils";
 import { SocketAdaptorInterface } from "../../shared/socket/socketAdaptorInterface";
+import { inc, rate } from "../utils/stats";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Describles a client-specific set of options.
@@ -155,6 +156,9 @@ export function registerServices(
               serviceFunc,
               commandArgs
             );
+            rate(name);
+            rate('RPC');
+
             label = `${(++idx)
               .toString()
               .padStart(4, " ")}: Calling ${name}(${inspect(

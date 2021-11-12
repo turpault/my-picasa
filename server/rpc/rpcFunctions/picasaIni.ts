@@ -10,6 +10,7 @@ import {
 } from "../../../shared/types/types";
 import { imagesRoot, PICASA } from "../../utils/constants";
 import { broadcast } from "../../utils/socketList";
+import { inc, rate } from "../../utils/stats";
 
 let picasaMap: Map<string, Promise<PicasaFolderMeta>> = new Map();
 let dirtyPicasaMap: Map<string, PicasaFolderMeta> = new Map();
@@ -18,6 +19,7 @@ setInterval(async () => {
   const i = dirtyPicasaMap;
   dirtyPicasaMap = new Map();
   i.forEach(async (value, key) => {
+    rate('writePicasa');
     console.info(`Writing file ${join(imagesRoot, key, PICASA)}`);
     picasaMap.delete(key);
     await writeFile(join(imagesRoot, key, PICASA), ini.encode(value));
@@ -32,6 +34,7 @@ export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
 
   // In the cache
   if (!picasaMap.has(album.key)) {
+    rate('readPicasa');
     picasaMap.set(
       album.key,
       await readFile(join(imagesRoot, album.key, PICASA), {
