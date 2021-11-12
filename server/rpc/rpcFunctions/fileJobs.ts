@@ -1,6 +1,6 @@
 import { copyFile, mkdir, rename, stat } from "fs/promises";
 import { extname, join } from "path";
-import { basename } from "path/posix";
+import { basename } from "path";
 import { sleep, uuid } from "../../../shared/lib/utils";
 import { SocketAdaptorInterface } from "../../../shared/socket/socketAdaptorInterface";
 import { Album, AlbumEntry, Job } from "../../../shared/types/types";
