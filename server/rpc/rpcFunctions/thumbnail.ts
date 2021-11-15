@@ -14,8 +14,11 @@ import {
   setOptions,
   transform,
 } from "../imageOperations/sharp-processor";
-import { readPicasaIni } from "./picasaIni";
-import { readThumbnailFromIni, writeThumbnailInIni } from "./thumbnailIni";
+import { readPicasaIni, updatePicasaEntry } from "./picasaIni";
+import {
+  readThumbnailFromIni as readThumbnailFromCache,
+  writeThumbnailInIni as writeThumbnailToCache,
+} from "./thumbnailCache";
 
 export async function readOrMakeThumbnail(
   entry: AlbumEntry,
@@ -23,22 +26,24 @@ export async function readOrMakeThumbnail(
 ): Promise<{ width: number; height: number; data: string }> {
   const lockLabel = `thumbnail:${entry.album.key}-${entry.name}-${size}`;
   const release = await lock(lockLabel);
-  inc('thumbnail');
+  inc("thumbnail");
   let exception: Error | undefined = undefined;
   try {
     const picasa = await readPicasaIni(entry.album).catch(
       () => ({} as PicasaFolderMeta)
     );
-    let pix = await readThumbnailFromIni(entry, size);
     const sizes = {
       "th-small": 100,
       "th-medium": 250,
       "th-large": 500,
     };
+    const picasaLabel = "cached:filters:" + size;
 
     picasa[entry.name] = picasa[entry.name] || {};
     const transform = picasa[entry.name].filters || "";
-    if (!pix || pix.transform !== transform) {
+    const cachedTransform = picasa[entry.name][picasaLabel];
+    let jpegBuffer = await readThumbnailFromCache(entry, size);
+    if (!jpegBuffer || transform !== cachedTransform.transform) {
       const res = await makeThumbnail(entry, picasa[entry.name], transform, [
         [
           "resize",
@@ -48,15 +53,16 @@ export async function readOrMakeThumbnail(
         ],
       ]);
 
-      pix = { ...res, transform };
+      picasa[entry.name][picasaLabel] = transform;
+      updatePicasaEntry(entry, picasaLabel, transform);
 
-      writeThumbnailInIni(entry, size, pix);
+      writeThumbnailToCache(entry, size, pix);
     }
     return pix!;
   } catch (e: any) {
     exception = e;
   } finally {
-    dec('thumbnail');
+    dec("thumbnail");
     release();
     if (exception) {
       throw exception;
@@ -70,7 +76,7 @@ async function makeThumbnail(
   options: any | undefined,
   transformations: string | undefined,
   extraOperations: any[] | undefined
-): Promise<{ width: number; height: number; data: string }> {
+): Promise<{ width: number; height: number; data: Buffer }> {
   const context = await buildContext(entry);
   if (options) {
     await setOptions(context, options);
@@ -82,10 +88,10 @@ async function makeThumbnail(
   if (transformations) {
     await transform(context, transformations);
   }
-  const res = (await encode(context, "image/jpeg", "base64urlInfo")) as {
+  const res = (await encode(context, "image/jpeg", "Buffer")) as {
     width: number;
     height: number;
-    data: string;
+    data: Buffer;
   };
   await destroyContext(context);
   return res;

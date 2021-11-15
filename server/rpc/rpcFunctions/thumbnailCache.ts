@@ -22,7 +22,7 @@ let dirtyPixelsMap: Map<string, FolderPixels> = new Map();
     const i = dirtyPixelsMap;
     dirtyPixelsMap = new Map();
     for (const [key, value] of i.entries()) {
-      rate('writeThumbnailIni');
+      rate("writeThumbnailIni");
       console.info(
         `Writing file ${join(imagesRoot, key, THUMBS)}: file has ${
           Object.keys(value).length
@@ -31,16 +31,16 @@ let dirtyPixelsMap: Map<string, FolderPixels> = new Map();
       pixelsMap.delete(key);
       await writeFile(join(imagesRoot, key, THUMBS), ini.encode(value));
     }
-    await sleep(1);
+    await sleep(10);
   }
 })();
 
-export async function readThumbnailIni(entry: Album): Promise<FolderPixels> {
+async function readThumbnailIni(entry: Album): Promise<FolderPixels> {
   if (dirtyPixelsMap.has(entry.key)) {
     return dirtyPixelsMap.get(entry.key)!;
   }
   if (!pixelsMap.has(entry.key)) {
-    rate('readThumbnailIni');
+    rate("readThumbnailIni");
     pixelsMap.set(
       entry.key,
       readFile(join(imagesRoot, entry.key, THUMBS), {
@@ -61,6 +61,7 @@ export async function writeThumbnailIni(
   data: FolderPixels
 ): Promise<void> {
   dirtyPixelsMap.set(album.key, data);
+  pixelsMap.set(album.key, Promise.resolve(data));
 }
 
 function iniFieldName(name: string, size: string) {

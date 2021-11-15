@@ -197,9 +197,11 @@ export async function makePhotoList(
     let found;
     let previous = displayed[0];
     for (const e of displayed) {
-      //if (parseInt(e.style.top) >= top) {
-      if (parseInt(e.style.top) > bottom) {
-        found = previous;
+      if (parseInt(e.style.top) >= top) {
+        found = e;
+        if (parseInt(e.style.top) > bottom) {
+          found = previous;
+        }
         break;
       }
       //}
@@ -292,9 +294,9 @@ export async function makePhotoList(
               );
               prune.push(elem);
             } else {
-              console.info(
-                `- keeping album ${album.name} : Visible Area = ${visibleScrollArea.top}/${visibleScrollArea.bottom} - Element (${elemPos.top}/${elemPos.bottom}`
-              );
+              //console.info(
+              //  `- keeping album ${album.name} : Visible Area = ${visibleScrollArea.top}/${visibleScrollArea.bottom} - Element (${elemPos.top}/${elemPos.bottom}`
+              //);
             }
           }
         }
@@ -316,7 +318,10 @@ export async function makePhotoList(
       const firstItem = displayed[0];
       const lastItem = displayed[displayed.length - 1];
       // Pick the topmost and the bottommost, compare with the scroll position
-      if (firstItem && parseInt(firstItem.style.top) > container.scrollTop) {
+      if (
+        firstItem &&
+        parseInt(firstItem.style.top) > container.scrollTop - 100
+      ) {
         promises.push(addAtTop());
       }
       if (
@@ -385,12 +390,13 @@ export async function makePhotoList(
         break;
       }
     }
-    const displayedTop = parseInt(firstItem.style.top) - 10;
+    const displayedTop = parseInt(firstItem.style.top);
     const displayedBottom =
-      parseInt(lastItem.style.top) + lastItem.clientHeight + 10;
+      parseInt(lastItem.style.top) + lastItem.clientHeight;
 
     // Offset, we are < 0
     if (displayedTop < 0 || displayedTop > 1000) {
+      console.info(`top is ${displayedTop} - shifting contents`);
       for (const c of container.children) {
         const thisTop = parseInt((c as HTMLElement).style.top);
         (c as HTMLElement).style.top = `${thisTop - displayedTop}px`;
@@ -515,7 +521,7 @@ export async function makePhotoList(
     // pick from pool
     const albumElement = getElement();
     await populateElement(albumElement, album);
-    $(albumElement).css("top", index === 0 ? "0" : "100px");
+    $(albumElement).css("top", "0"); //index === 0 ? "0" : "100px");
     albumElement.setAttribute("index", index.toString());
     albumElement.style.opacity = "1";
     container.appendChild(albumElement);

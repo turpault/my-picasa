@@ -13,7 +13,7 @@ import {
   deleteImageFileMetas,
   readImageFileMetas,
   writeImageFileMetas,
-} from "./thumbnailIni";
+} from "./thumbnailCache";
 import { invalidateCachedFolderList } from "./walker";
 
 const jobs: Job[] = [];

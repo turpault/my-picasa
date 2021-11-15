@@ -161,10 +161,13 @@ export async function transform(
                   channels: 4,
                   background:
                     "#" +
-                    temp +
+                    temp.padStart(
+                      6,
+                      "0"
+                    ) /*+
                     Math.floor(what * 255)
                       .toString(16)
-                      .padStart(2, "0"),
+                      .padStart(2, "0"),*/,
                 },
               },
               tile: true,
@@ -303,7 +306,12 @@ export async function encode(
       break;
     case "Buffer":
     default:
-      return j.toBuffer();
+      const { data, info } = await j.toBuffer({ resolveWithObject: true });
+      return {
+        data,
+        width: info.width,
+        height: info.height,
+      };
   }
 }
 

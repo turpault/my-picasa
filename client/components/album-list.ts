@@ -20,12 +20,14 @@ export async function makeAlbumList(
   let lastHighlight: any;
   const folders = $(".folders", container);
   events.on("scrolled", ({ album }) => {
-    if (lastHighlight) {
+    if (lastHighlight && lastHighlight.alive()) {
       lastHighlight.removeClass("highlight-list");
     }
     lastHighlight = $(elementFromAlbum(album, elementPrefix)!);
-    lastHighlight.addClass("highlight-list");
-    lastHighlight.get().scrollIntoViewIfNeeded(false);
+    if(lastHighlight.alive()) {
+      lastHighlight.addClass("highlight-list");
+      lastHighlight.get().scrollIntoViewIfNeeded(false);
+    }
   });
   monitor.events.on("updated", (event: { folders: Album[] }) => {
     folders.empty();
