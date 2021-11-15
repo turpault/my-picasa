@@ -10,6 +10,7 @@ import {
   ImageFileMeta,
   PicasaFileMeta,
 } from "../../shared/types/types.js";
+import { thumbnailUrl } from "../imageProcess/client.js";
 import { $ } from "../lib/dom.js";
 import { getService } from "../rpc/connect.js";
 import { SelectionManager } from "../selection/selection-manager.js";
@@ -95,17 +96,17 @@ export async function thumbnailData(
   }
   thumb.attr("src", "resources/images/loading250.gif");
   // Async get the thumbnail
-  getService()
-    .then((s) => s.readOrMakeThumbnail(entry, "th-medium"))
-    .then((data: ImageFileMeta) => {
+  const i = new Image();
+  i.src = thumbnailUrl(entry, "th-medium");
+  i.onload = () => {
       const entryFromImg = albumEntryFromElement(thumb.get(), imagePrefix);
       if (
         entryFromImg &&
         entryFromImg.album.key === entry.album.key &&
         entryFromImg.name === entry.name
       ) {
-        thumb.attr("src", data.data);
-        const ratio = data.width / data.height;
+        thumb.attr("src", i.src);
+        const ratio = i.width / i.height;
         // position the image
         thumb.css({
           left: `${ratio > 1 ? 0 : (250 * (1 - ratio)) / 2}px`,
@@ -116,14 +117,15 @@ export async function thumbnailData(
           right: `${ratio > 1 ? 0 : (250 * (1 - ratio)) / 2}px`,
           bottom: `${ratio < 1 ? 0 : (250 * (1 - 1 / ratio)) / 2}px`,
         });
-      }
-    });
   if (picasaData && picasaData.star) {
     $(".star", e).css("display", "");
   } else {
     $(".star", e).css("display", "none");
   }
 }
+};
+};
+
 export function selectThumbnailsInRect(
   container: HTMLElement,
   p1: { x: number; y: number },
