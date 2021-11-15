@@ -10,9 +10,8 @@ import { broadcast } from "../../utils/socketList";
 import { exportToFolder } from "../imageOperations/export";
 import { readPicasaIni, writePicasaIni } from "./picasaIni";
 import {
-  deleteImageFileMetas,
-  readImageFileMetas,
-  writeImageFileMetas,
+  copyThumbnails,
+  deleteImageFileMetas
 } from "./thumbnailCache";
 import { invalidateCachedFolderList } from "./walker";
 
@@ -271,10 +270,5 @@ async function copyMetadata(
     }
   }
 
-  const sourceThumbs = await readImageFileMetas(source);
-  await writeImageFileMetas(dest, sourceThumbs);
-
-  if (deleteSource) {
-    deleteImageFileMetas(source);
-  }
+   await copyThumbnails(source,dest, deleteSource);
 }

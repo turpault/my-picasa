@@ -6,6 +6,5 @@ export async function thumbnail(
   size: ThumbnailSize = "th-medium"
 ): Promise<Buffer> {
   const d = await readOrMakeThumbnail(entry, size);
-  const rawBase64 = d.data.split("base64,").pop()!;
-  return Buffer.from(rawBase64, "base64");
+  return d.data;
 }
