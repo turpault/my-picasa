@@ -355,7 +355,13 @@ body {
   width: 100%;
 }
 
-.album > .header{padding-top: 10px;padding-bottom: 10px;user-select: none;background-color: lightgray;width: 100%;}
+.album > .header{
+  /* padding-top: 10px;*/
+  /*padding-bottom: 10px;*/
+  user-select: none;
+  background-color: lightgray;
+  width: 100%;
+}
 .album > .header > .name {
   font-size: x-large;
   font-weight: bold;

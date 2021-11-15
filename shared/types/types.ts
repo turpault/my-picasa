@@ -27,7 +27,7 @@ export type ImageFileMeta = {
   width: number;
   height: number;
   data: string;
-  transform: string;
+  transform: string | undefined;
 };
 
 export type ImageFileMetas = {

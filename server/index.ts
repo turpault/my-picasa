@@ -10,6 +10,7 @@ import { thumbnail } from "./rpc/routes/thumbnail";
 import { encode } from "./rpc/imageOperations/sharp-processor";
 import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
+import { buildThumbs } from "./rpc/background/bg-thumbgen";
 const server: FastifyInstance = Fastify({
   //logger: true,
   maxParamLength: 32000,
@@ -109,3 +110,4 @@ const start = async () => {
   }
 };
 start();
+buildThumbs();

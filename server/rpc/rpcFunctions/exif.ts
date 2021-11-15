@@ -8,7 +8,10 @@ export async function exifData(entry: AlbumEntry): Promise<any> {
   const path = join(imagesRoot, entry.album.key, entry.name);
   const [s, t] = await Promise.all([
     stat(path).catch((e) => {}),
-    exif.read(join(imagesRoot, entry.album.key, entry.name)),
+    exif.read(join(imagesRoot, entry.album.key, entry.name)).catch((e: any) => {
+      console.error(`Exception while reading exif for ${path}: ${e}`);
+      return {};
+    }),
   ]);
   const tags = t || {};
 
