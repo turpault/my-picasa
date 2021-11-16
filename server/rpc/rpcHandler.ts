@@ -9,6 +9,8 @@ import { inc, rate } from "../utils/stats";
  */
 export type InitializeOptions = {};
 
+let lastActivity: number = 0;
+
 export type Service = {
   handler: Function; // The function handler
   arguments: string[]; // The argument list
@@ -157,7 +159,7 @@ export function registerServices(
               commandArgs
             );
             rate(name);
-            rate('RPC');
+            rate("RPC");
 
             label = `${(++idx)
               .toString()
@@ -179,10 +181,15 @@ export function registerServices(
             console.info(errMessage, exception.stack);
             callback(errMessage);
           } finally {
+            lastActivity = new Date().getTime();
             console.timeEnd(label);
           }
         }
       );
     });
   }
+}
+
+export function isIdle() {
+  return new Date().getTime() - lastActivity > 10000;
 }

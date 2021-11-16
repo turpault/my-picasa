@@ -55,7 +55,7 @@ export async function encode(
   context: string,
   mime: string,
   format: string
-): Promise<string> {
+): Promise<{ width: number; height: number; data: string | Buffer }> {
   const c = await getService();
   return await c.encode(context, mime, format);
 }

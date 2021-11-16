@@ -19,10 +19,11 @@ setInterval(async () => {
   const i = dirtyPicasaMap;
   dirtyPicasaMap = new Map();
   i.forEach(async (value, key) => {
-    rate('writePicasa');
+    rate("writePicasa");
     console.info(`Writing file ${join(imagesRoot, key, PICASA)}`);
     picasaMap.delete(key);
-    await writeFile(join(imagesRoot, key, PICASA), ini.encode(value));
+    const out = ini.encode(value);
+    await writeFile(join(imagesRoot, key, PICASA), out);
   });
 }, 10000);
 
@@ -34,7 +35,7 @@ export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
 
   // In the cache
   if (!picasaMap.has(album.key)) {
-    rate('readPicasa');
+    rate("readPicasa");
     picasaMap.set(
       album.key,
       await readFile(join(imagesRoot, album.key, PICASA), {

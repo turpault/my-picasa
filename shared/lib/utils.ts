@@ -205,12 +205,17 @@ export function flattenObject(ob: any) {
 class Mutex {
   constructor() {
     this.current = Promise.resolve();
+    this.nest = 0;
   }
   private current: Promise<void>;
+  private nest: number;
   lock() {
     let _resolve: Function;
     const p = new Promise<void>((resolve) => {
-      _resolve = () => resolve();
+      _resolve = () => {
+        this.nest--;
+        return resolve();
+      };
     });
     // Caller gets a promise that resolves when the current outstanding
     // lock resolves
@@ -218,10 +223,22 @@ class Mutex {
     // Don't allow the next request until the new promise is done
     this.current = p;
     // Return the new promise
+    this.nest++;
     return rv;
+  }
+  locked() {
+    return this.nest > 0;
   }
 }
 const locks: Map<string, Mutex> = new Map();
+setInterval(() => {
+  // Prune unused mutexes
+  for (const l in locks) {
+    if (!locks.get(l)!.locked()) {
+      locks.delete(l);
+    }
+  }
+}, 60000);
 export async function lock(label: string): Promise<Function> {
   if (!locks.has(label)) {
     locks.set(label, new Mutex());

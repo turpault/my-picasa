@@ -40,12 +40,12 @@ export async function readOrMakeThumbnail(
       "th-medium": 250,
       "th-large": 500,
     };
-    const cachedFilterKey:Record<ThumbnailSize,extraFields> =  {
+    const cachedFilterKey: Record<ThumbnailSize, extraFields> = {
       "th-small": "cached:filters:th-small",
       "th-medium": "cached:filters:th-medium",
       "th-large": "cached:filters:th-large",
     };
-    const dimensionsFilterKey:Record<ThumbnailSize,extraFields> =  {
+    const dimensionsFilterKey: Record<ThumbnailSize, extraFields> = {
       "th-small": "cached:dimensions:th-small",
       "th-medium": "cached:dimensions:th-medium",
       "th-large": "cached:dimensions:th-large",
@@ -59,7 +59,7 @@ export async function readOrMakeThumbnail(
     const cachedTransform = picasa[entry.name][picasaLabel];
     let cachedSize = picasa[entry.name][picasaSizeLabel];
     let jpegBuffer = await readThumbnailFromCache(entry, size);
-    if (!jpegBuffer || !cachedTransform || !cachedSize || transform !== cachedTransform ) {
+    if (!jpegBuffer || !cachedSize || transform !== cachedTransform) {
       const res = await makeThumbnail(entry, picasa[entry.name], transform, [
         [
           "resize",
@@ -70,15 +70,21 @@ export async function readOrMakeThumbnail(
       ]);
 
       picasa[entry.name][picasaLabel] = transform;
-      cachedSize = picasa[entry.name][picasaSizeLabel] = `${res.width}x${res.height}`;
+      cachedSize = picasa[entry.name][
+        picasaSizeLabel
+      ] = `${res.width}x${res.height}`;
       updatePicasaEntry(entry, picasaLabel, picasa[entry.name][picasaLabel]);
-      updatePicasaEntry(entry, picasaSizeLabel, picasa[entry.name][picasaSizeLabel]);
+      updatePicasaEntry(
+        entry,
+        picasaSizeLabel,
+        picasa[entry.name][picasaSizeLabel]
+      );
 
       writeThumbnailToCache(entry, size, res.data);
       jpegBuffer = res.data;
     }
-    const [width, height] = cachedSize.split('x').map(parseInt);
-    return {data: jpegBuffer, width, height};
+    const [width, height] = cachedSize.split("x").map(parseInt);
+    return { data: jpegBuffer, width, height };
   } catch (e: any) {
     exception = e;
   } finally {

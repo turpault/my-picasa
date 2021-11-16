@@ -84,7 +84,8 @@ server.get("/ping", pingOpts, async (request, reply) => {
 
 server.get("/encode/:context/:mime", async (request, reply) => {
   const { context, mime } = request.params as any;
-  return encode(context, mime);
+  reply.type(mime);
+  return encode(context, mime).then((r) => r.data);
 });
 
 server.get("/stats", async (request, reply) => {
@@ -97,6 +98,7 @@ server.get("/thumbnail/:album/:name/:resolution", async (request, reply) => {
     album: { key: album, name: "" },
     name,
   };
+  reply.type("image/jpeg");
   return thumbnail(entry, resolution);
 });
 

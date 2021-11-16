@@ -20,7 +20,7 @@ export async function exportToFolder(entry: AlbumEntry, targetFolder: string) {
   if (options.filters) {
     await transform(context, options.filters!);
   }
-  const res = (await encode(context)) as Buffer;
+  const res = (await encode(context)).data as Buffer;
   await destroyContext(context);
   let targetFile = join(targetFolder, entry.name);
   let idx = 0;

@@ -3,14 +3,14 @@ import { join } from "path";
 import { lock } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
-  FolderPixels, ThumbnailSize,
-  ThumbnailSizeVals
+  FolderPixels,
+  ThumbnailSize,
+  ThumbnailSizeVals,
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 
 let pixelsMap: Map<string, Promise<FolderPixels>> = new Map();
 let dirtyPixelsMap: Map<string, FolderPixels> = new Map();
-
 
 export async function deleteImageFileMetas(entry: AlbumEntry): Promise<void> {
   for (const k of ThumbnailSizeVals) {
@@ -18,7 +18,7 @@ export async function deleteImageFileMetas(entry: AlbumEntry): Promise<void> {
   }
 }
 
-export function fileFromEntryAndSize(  entry: AlbumEntry,  size: ThumbnailSize) {
+export function fileFromEntryAndSize(entry: AlbumEntry, size: ThumbnailSize) {
   return join(imagesRoot, entry.album.key, `.${size}-${entry.name}`);
 }
 
@@ -30,8 +30,8 @@ export async function readThumbnailFromCache(
   const unlock = await lock(path);
   let d: Buffer | undefined;
   try {
-    const d = await readFile(path);
-  } catch(e:any) {
+    d = await readFile(path);
+  } catch (e: any) {
     d = undefined;
   }
   unlock();
@@ -48,7 +48,7 @@ export async function writeThumbnailToCache(
   let d: Buffer | undefined;
   try {
     const d = await writeFile(path, data);
-  } catch(e:any) {
+  } catch (e: any) {
     d = undefined;
   }
   unlock();
@@ -62,12 +62,9 @@ export async function deleteThumbnailFromCache(
   const unlock = await lock(path);
   try {
     await unlink(path);
-  } catch(e) {
-
-  }
+  } catch (e) {}
   unlock();
 }
-
 
 export async function copyThumbnails(
   entry: AlbumEntry,
@@ -77,10 +74,9 @@ export async function copyThumbnails(
   for (const size of ThumbnailSizeVals) {
     const source = fileFromEntryAndSize(entry, size);
     const dest = fileFromEntryAndSize(target, size);
-    if(move) {
+    if (move) {
       await rename(source, dest);
-    } else
-    {
+    } else {
       await copyFile(source, dest);
     }
   }

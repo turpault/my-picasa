@@ -262,7 +262,7 @@ export async function encode(
   context: string,
   mime: string = "image/jpeg",
   format: string = "Buffer"
-): Promise<Buffer | string | object> {
+): Promise<{ width: number; height: number; data: Buffer | string }> {
   let j = getContext(context);
   switch (mime) {
     case "image/jpeg":
@@ -285,13 +285,21 @@ export async function encode(
     case "base64":
       {
         const { data, info } = await j.toBuffer({ resolveWithObject: true });
-        return data.toString(format);
+        return {
+          data: data.toString(format),
+          width: info.width,
+          height: info.height,
+        };
       }
       break;
     case "base64url":
       {
         const { data, info } = await j.toBuffer({ resolveWithObject: true });
-        return "data:" + mime + ";base64," + data.toString("base64");
+        return {
+          data: "data:" + mime + ";base64," + data.toString("base64"),
+          width: info.width,
+          height: info.height,
+        };
       }
       break;
     case "base64urlInfo":
