@@ -14,9 +14,9 @@ import { ImageController } from "./image-controller.js";
 async function toolIconForTool(context: string, tool: Tool): Promise<string> {
   const copy = await cloneContext(context);
   await tool.icon(copy);
-  const data = await encode(copy, "image/jpeg", "base64url");
+  const res = await encode(copy, "image/jpeg", "base64url");
   await destroyContext(copy);
-  return data;
+  return res.data as string;
 }
 
 export class ToolRegistrar {

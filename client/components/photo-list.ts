@@ -42,7 +42,11 @@ export async function makePhotoList(
   const dragElement = $(".dragregion", container.parentElement);
   const dragStartPos = { x: 0, y: 0 };
   let dragging = false;
-  let doReflow = false;
+  let doReflow = 0; // bit field
+  let doRepopulate = false;
+  const REFLOW_FULL = 2;
+  const REFLOW_TRIGGER = 1;
+
   let running = false;
 
   // UI State events
@@ -123,6 +127,7 @@ export async function makePhotoList(
   // UI events
   $(container).on("scroll", () => {
     updateHighlighted();
+    doRepopulate = true;
   });
   $(container).on("mouseup", (e: MouseEvent) => {
     if (!dragging) {
@@ -184,8 +189,16 @@ export async function makePhotoList(
         await populateElement(d, album);
       }
     }
-    reflow(false);
+    doReflow |= REFLOW_TRIGGER;
+    doRepopulate = true;
   });
+
+  function visibleIndex(): number {
+    const e = visibleElement();
+    if (!e) return -1;
+    const album = albumFromElement(e, elementPrefix)!;
+    return monitor.albumIndexFromKey(album.key);
+  }
 
   function visibleElement(): HTMLElement | null {
     if (displayed.length === 0) {
@@ -195,17 +208,19 @@ export async function makePhotoList(
     const top = container.scrollTop;
     const bottom = container.scrollTop + container.clientHeight;
     let found;
-    let previous = displayed[0];
+    let previous: HTMLElement | null = null;
     for (const e of displayed) {
-      if (parseInt(e.style.top) >= top) {
-        found = e;
-        if (parseInt(e.style.top) > bottom) {
-          found = previous;
+      if (e.style.opacity !== "0") {
+        if (parseInt(e.style.top) >= top) {
+          found = e;
+          if (parseInt(e.style.top) > bottom) {
+            found = previous;
+          }
+          break;
         }
-        break;
+        //}
+        previous = e;
       }
-      //}
-      previous = e;
     }
     if (!found) {
       found = previous;
@@ -231,7 +246,7 @@ export async function makePhotoList(
 
   new ResizeObserver(() => {
     if (tabIsActive) {
-      reflow(false);
+      doReflow |= REFLOW_FULL;
     }
   }).observe(container);
 
@@ -263,21 +278,31 @@ export async function makePhotoList(
     if (displayed.length === 0) {
       return;
     }
+
     running = true;
     if (doReflow) {
       // reflow
-      doReflow = false;
       reflow();
       return;
-    } else {
-      if (displayed.length > 3) {
+    } else if (doRepopulate) {
+      const albumsAboveBelowFold = 2;
+      const visible = visibleIndex();
+
+      if (displayed.length > 7) {
         const prune = [];
         // prune elements out of bounds
         const visibleScrollArea = {
           top: container.scrollTop - 1000,
           bottom: container.scrollTop + container.clientHeight + 1000,
         };
+        let index = topIndex;
         for (const elem of displayed) {
+          if (
+            index >= visible - albumsAboveBelowFold ||
+            index <= visible + albumsAboveBelowFold
+          ) {
+            continue;
+          }
           const top = parseInt(elem.style.top);
           const elemPos = {
             top,
@@ -318,9 +343,11 @@ export async function makePhotoList(
       const firstItem = displayed[0];
       const lastItem = displayed[displayed.length - 1];
       // Pick the topmost and the bottommost, compare with the scroll position
+      // and make sure we have at least albumsAboveBelowFold albums above and below the fold
       if (
-        firstItem &&
-        parseInt(firstItem.style.top) > container.scrollTop - 100
+        (firstItem &&
+          parseInt(firstItem.style.top) > container.scrollTop - 100) ||
+        topIndex < visible - albumsAboveBelowFold
       ) {
         promises.push(addAtTop());
       }
@@ -332,14 +359,22 @@ export async function makePhotoList(
         promises.push(addAtBottom());
       }
       if (promises.length > 0) {
-        doReflow = true;
+        console.info("Added items, will reflow");
+        doReflow |= REFLOW_TRIGGER;
         await Promise.allSettled(promises);
+      } else {
+        // Nothing happened, we will repopulate when scrolling only
+        doRepopulate = false;
       }
     }
   }
 
-  function reflow(incremental: boolean = true) {
-    if (!incremental) {
+  function reflow() {
+    if (doReflow === 0) {
+      return;
+    }
+    if (displayed.length === 0) return;
+    if (doReflow & REFLOW_FULL) {
       const active = updateHighlighted();
       if (active) {
         for (const d of displayed) {
@@ -351,7 +386,7 @@ export async function makePhotoList(
         }
       }
     }
-    if (displayed.length === 0) return;
+    doReflow = 0;
 
     const firstItem = displayed[0];
     const lastItem = displayed[displayed.length - 1];
@@ -396,12 +431,18 @@ export async function makePhotoList(
 
     // Offset, we are < 0
     if (displayedTop < 0 || displayedTop > 1000) {
+      const currentPos = container.scrollTop;
       console.info(`top is ${displayedTop} - shifting contents`);
       for (const c of container.children) {
         const thisTop = parseInt((c as HTMLElement).style.top);
+        console.info(
+          `New top for ${
+            albumFromElement(c as HTMLElement, elementPrefix)!.name
+          } is ${thisTop - displayedTop}`
+        );
         (c as HTMLElement).style.top = `${thisTop - displayedTop}px`;
       }
-      container.scrollBy({ top: -displayedTop });
+      container.scrollTo({ top: currentPos - displayedTop });
     }
   }
 
@@ -528,7 +569,9 @@ export async function makePhotoList(
     container.scrollTo({ top: 0 });
     displayed.push(albumElement);
     updateHighlighted();
-    doReflow = true;
+    console.info("Refreshed album, will reflow");
+    doReflow |= REFLOW_FULL;
+    doRepopulate = true;
   }
 
   monitor.events.on("updated", (event) => {});

@@ -46,7 +46,11 @@ export async function mediaInAlbum(
         if (!picasa[i] || !picasa[i].dateTaken) {
           const exif = await exifData(entry);
           if (exif.DateTimeOriginal)
-            updatePicasaEntry(entry, "dateTaken", exif.DateTimeOriginal);
+            updatePicasaEntry(
+              entry,
+              "dateTaken",
+              exif.DateTimeOriginal.toISOString()
+            );
           else {
             // Default to file creation time
             updatePicasaEntry(

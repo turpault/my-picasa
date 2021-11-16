@@ -20,7 +20,7 @@ const imagePrefix = "thumbimg:";
 
 export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
   const e = $(
-    '<div class="thumbnail"> <img> <span class="fas fa-star star"></span></div>'
+    '<div class="thumbnail"> <img loading="lazy"> <span class="fas fa-star star"></span></div>'
   );
   e.on("click", (ev: any) => {
     const entry = albumEntryFromElement(ev.target!, imagePrefix);
@@ -55,6 +55,21 @@ export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
     if (entry) {
       events.emit("open", entry);
     }
+  });
+  $("img", e).on("load", (ev) => {
+    const thumb = ev.target as HTMLImageElement;
+    const ratio = thumb.width / thumb.height;
+    // position the image
+    $(thumb).css({
+      opacity: "1",
+      left: `${ratio > 1 ? 0 : (250 * (1 - ratio)) / 2}px`,
+      top: `${ratio < 1 ? 0 : (250 * (1 - 1 / ratio)) / 2}px`,
+    });
+    // position the star at the bottom right
+    $(".star", e).css({
+      right: `${ratio > 1 ? 0 : (250 * (1 - ratio)) / 2}px`,
+      bottom: `${ratio < 1 ? 0 : (250 * (1 - 1 / ratio)) / 2}px`,
+    });
   });
   return e.get();
 }
@@ -94,37 +109,15 @@ export async function thumbnailData(
   } else {
     $(e).removeClass("selected");
   }
-  thumb.attr("src", "resources/images/loading250.gif");
+  thumb.attr("src", thumbnailUrl(entry, "th-medium"));
+  thumb.css("opacity", "0");
   // Async get the thumbnail
-  const i = new Image();
-  i.src = thumbnailUrl(entry, "th-medium");
-  i.onload = () => {
-      const entryFromImg = albumEntryFromElement(thumb.get(), imagePrefix);
-      if (
-        entryFromImg &&
-        entryFromImg.album.key === entry.album.key &&
-        entryFromImg.name === entry.name
-      ) {
-        thumb.attr("src", i.src);
-        const ratio = i.width / i.height;
-        // position the image
-        thumb.css({
-          left: `${ratio > 1 ? 0 : (250 * (1 - ratio)) / 2}px`,
-          top: `${ratio < 1 ? 0 : (250 * (1 - 1 / ratio)) / 2}px`,
-        });
-        // position the star at the bottom right
-        $(".star", e).css({
-          right: `${ratio > 1 ? 0 : (250 * (1 - ratio)) / 2}px`,
-          bottom: `${ratio < 1 ? 0 : (250 * (1 - 1 / ratio)) / 2}px`,
-        });
   if (picasaData && picasaData.star) {
     $(".star", e).css("display", "");
   } else {
     $(".star", e).css("display", "none");
   }
 }
-};
-};
 
 export function selectThumbnailsInRect(
   container: HTMLElement,
