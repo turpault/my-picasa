@@ -1,18 +1,14 @@
 import { copyFile, mkdir, rename, stat } from "fs/promises";
-import { extname, join } from "path";
-import { basename } from "path";
-import { sleep, uuid } from "../../../shared/lib/utils";
-import { SocketAdaptorInterface } from "../../../shared/socket/socketAdaptorInterface";
+import { basename, extname, join } from "path";
+import { range, sleep, uuid } from "../../../shared/lib/utils";
 import { Album, AlbumEntry, Job } from "../../../shared/types/types";
 import { openExplorer } from "../../open";
 import { exportsRoot, imagesRoot } from "../../utils/constants";
 import { broadcast } from "../../utils/socketList";
+import { addToUndo, registerUndoProvider } from "../../utils/undo";
 import { exportToFolder } from "../imageOperations/export";
 import { readPicasaIni, writePicasaIni } from "./picasaIni";
-import {
-  copyThumbnails,
-  deleteImageFileMetas
-} from "./thumbnailCache";
+import { copyThumbnails } from "./thumbnailCache";
 import { invalidateCachedFolderList } from "./walker";
 
 const jobs: Job[] = [];
@@ -26,13 +22,12 @@ export async function getJob(id: string): Promise<object> {
   throw new Error("Not Found");
 }
 
-function deleteFSJob(this: SocketAdaptorInterface, job: Job) {
+function deleteFSJob(job: Job) {
   jobs.splice(jobs.indexOf(job), 1);
   broadcast("jobDeleted", job);
 }
 
 export async function createFSJob(
-  this: SocketAdaptorInterface,
   jobName: string,
   jobArgs: object
 ): Promise<string> {
@@ -65,7 +60,7 @@ export async function createFSJob(
     })
     .finally(async () => {
       await sleep(10);
-      deleteFSJob.bind(this)(job);
+      deleteFSJob(job);
     });
   return job.id;
 }
@@ -74,6 +69,8 @@ async function executeJob(job: Job): Promise<Album[]> {
   switch (job.name) {
     case "move":
       return moveJob(job);
+    case "multiMove":
+      return multiMoveJob(job);
     case "copy":
       return copyJob(job);
     case "duplicate":
@@ -90,56 +87,20 @@ async function executeJob(job: Job): Promise<Album[]> {
   return [];
 }
 
+registerUndoProvider("multiMove", (operation, payload) => {
+  createFSJob(operation, payload);
+});
+
 function albumChanged(album: Album, list: Album[]) {
   if (!list.find((a) => a.key === album.key)) list.push(album);
 }
 async function moveJob(job: Job): Promise<Album[]> {
-  job.status = "started";
-  const updatedAlbums: Album[] = [];
-  const source = job.data.source as AlbumEntry[];
-  const dest = job.data.destination as Album;
-  const steps = source.length;
-  job.progress.start = steps;
-  job.progress.remaining = steps;
-  job.changed();
-  await Promise.allSettled(
-    source.map(async (s) => {
-      try {
-        let targetName = s.name;
-        let found = false;
-        while (!found) {
-          let destPath = join(imagesRoot, dest.key, targetName);
-          let idx = 1;
-          found = true;
-          await stat(destPath)
-            .then((e) => {
-              // target already exists
-              found = false;
-              const ext = extname(s.name);
-              const base = basename(s.name, ext);
-              targetName = base + ` (${idx++})` + ext;
-              destPath = join(imagesRoot, dest.key);
-            })
-            .catch((e) => {});
-        }
-
-        await copyMetadata(s, { album: dest, name: targetName }, true);
-        await rename(
-          join(imagesRoot, s.album.key, s.name),
-          join(imagesRoot, dest.key, s.name)
-        );
-        albumChanged(s.album, updatedAlbums);
-        albumChanged(dest, updatedAlbums);
-      } catch (e: any) {
-        job.errors.push(e.message as string);
-      } finally {
-        job.progress.remaining--;
-      }
-    })
+  // convert to a multi-move
+  job.data.destination = range(0, job.data.source!.length).map(
+    () => job.data.destination as Album
   );
-  job.status = "finished";
-  job.changed();
-  return updatedAlbums;
+
+  return multiMoveJob(job);
 }
 
 async function copyJob(job: Job): Promise<Album[]> {
@@ -223,6 +184,71 @@ async function deleteJob(job: Job): Promise<Album[]> {
   return updatedAlbums;
 }
 
+async function multiMoveJob(job: Job): Promise<Album[]> {
+  const undoMultiMovePayload = {
+    operation: "multiMove",
+    source: [] as AlbumEntry[],
+    destination: [] as Album[],
+  };
+
+  job.status = "started";
+  const updatedAlbums: Album[] = [];
+  const source = job.data.source as AlbumEntry[];
+  const dest = job.data.destination as Album[];
+  const steps = source.length;
+  job.progress.start = steps;
+  job.progress.remaining = steps;
+  job.changed();
+  await Promise.allSettled(
+    source.map(async (s, index) => {
+      try {
+        let targetName = s.name;
+        let found = false;
+        while (!found) {
+          let destPath = join(imagesRoot, dest[index].key, targetName);
+          let idx = 1;
+          found = true;
+          await stat(destPath)
+            .then((e) => {
+              // target already exists
+              found = false;
+              const ext = extname(s.name);
+              const base = basename(s.name, ext);
+              targetName = base + ` (${idx++})` + ext;
+              destPath = join(imagesRoot, dest[index].key);
+            })
+            .catch((e) => {});
+        }
+
+        await copyMetadata(s, { album: dest[index], name: targetName }, true);
+        await rename(
+          join(imagesRoot, s.album.key, s.name),
+          join(imagesRoot, dest[index].key, s.name)
+        );
+        albumChanged(s.album, updatedAlbums);
+        albumChanged(dest[index], updatedAlbums);
+        undoMultiMovePayload.source.push({
+          album: dest[index],
+          name: targetName,
+        });
+        undoMultiMovePayload.destination.push(s.album);
+      } catch (e: any) {
+        job.errors.push(e.message as string);
+      } finally {
+        job.progress.remaining--;
+        addToUndo(
+          "multiMove",
+          `Move ${source.length} to ${dest[0].name}...`,
+          undoMultiMovePayload
+        );
+      }
+    })
+  );
+  job.status = "finished";
+  job.changed();
+  return updatedAlbums;
+}
+
 async function exportJob(job: Job): Promise<Album[]> {
   // Deleting a set of images means renaming them
   job.status = "started";
@@ -270,5 +296,5 @@ async function copyMetadata(
     }
   }
 
-   await copyThumbnails(source,dest, deleteSource);
+  await copyThumbnails(source, dest, deleteSource);
 }

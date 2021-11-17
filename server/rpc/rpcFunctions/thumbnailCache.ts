@@ -9,9 +9,6 @@ import {
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 
-let pixelsMap: Map<string, Promise<FolderPixels>> = new Map();
-let dirtyPixelsMap: Map<string, FolderPixels> = new Map();
-
 export async function deleteImageFileMetas(entry: AlbumEntry): Promise<void> {
   for (const k of ThumbnailSizeVals) {
     await deleteThumbnailFromCache(entry, k);
