@@ -285,24 +285,16 @@ export async function makePhotoList(
       reflow();
       return;
     } else if (doRepopulate) {
-      const albumsAboveBelowFold = 2;
-      const visible = visibleIndex();
+      const minDistancesAboveBelowFold = 10000;
 
       if (displayed.length > 7) {
         const prune = [];
         // prune elements out of bounds
         const visibleScrollArea = {
-          top: container.scrollTop - 1000,
-          bottom: container.scrollTop + container.clientHeight + 1000,
+          top: container.scrollTop,
+          bottom: container.scrollTop + container.clientHeight,
         };
-        let index = topIndex;
         for (const elem of displayed) {
-          if (
-            index >= visible - albumsAboveBelowFold ||
-            index <= visible + albumsAboveBelowFold
-          ) {
-            continue;
-          }
           const top = parseInt(elem.style.top);
           const elemPos = {
             top,
@@ -311,8 +303,10 @@ export async function makePhotoList(
           const album = albumFromElement(elem, elementPrefix);
           if (album) {
             if (
-              elemPos.bottom < visibleScrollArea.top ||
-              elemPos.top > visibleScrollArea.bottom
+              elemPos.bottom <
+                visibleScrollArea.top - minDistancesAboveBelowFold * 1.5 ||
+              elemPos.top >
+                visibleScrollArea.bottom + minDistancesAboveBelowFold * 1.5
             ) {
               console.info(
                 `Pruning album ${album.name} : Visible Area = ${visibleScrollArea.top}/${visibleScrollArea.bottom} - Element (${elemPos.top}/${elemPos.bottom}`
@@ -345,16 +339,18 @@ export async function makePhotoList(
       // Pick the topmost and the bottommost, compare with the scroll position
       // and make sure we have at least albumsAboveBelowFold albums above and below the fold
       if (
-        (firstItem &&
-          parseInt(firstItem.style.top) > container.scrollTop - 100) ||
-        topIndex < visible - albumsAboveBelowFold
+        firstItem &&
+        parseInt(firstItem.style.top) >
+          container.scrollTop - minDistancesAboveBelowFold
       ) {
         promises.push(addAtTop());
       }
       if (
         lastItem &&
         parseInt(lastItem.style.top) + lastItem.clientHeight <=
-          container.scrollTop + container.clientHeight + 300
+          container.scrollTop +
+            container.clientHeight +
+            minDistancesAboveBelowFold
       ) {
         promises.push(addAtBottom());
       }
