@@ -1,6 +1,6 @@
-import { WsAdaptor } from "../../shared/socket/wsAdaptor.js";
 import { buildEmitter, Emitter } from "../../shared/lib/event.js";
 import { sleep } from "../../shared/lib/utils.js";
+import { WsAdaptor } from "../../shared/socket/wsAdaptor.js";
 import { MyPicasa } from "./generated-rpc/MyPicasa.js";
 export type ConnectionEvent = {
   connected: { service: MyPicasa };
@@ -43,9 +43,18 @@ export function connect(
 let ev: Emitter<ConnectionEvent>;
 let _connected = false;
 let _service: MyPicasa;
+
+let _servicePort = 5500;
+export function setServicePort(port: number) {
+  _servicePort = port;
+}
+export function getServicePort() {
+  return _servicePort;
+}
+
 export async function getService(): Promise<MyPicasa> {
   if (!ev) {
-    ev = connect(5500, "127.0.0.1", false);
+    ev = connect(getServicePort(), "127.0.0.1", false);
     ev.on("connected", ({ service }) => {
       _service = service;
       _connected = true;

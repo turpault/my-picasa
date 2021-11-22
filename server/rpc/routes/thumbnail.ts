@@ -1,10 +1,10 @@
-import { AlbumEntry, ThumbnailSize } from "../../../shared/types/types";
-import { readOrMakeThumbnail } from "../rpcFunctions/thumbnail";
+import { AlbumEntry, ThumbnailSize } from "../../../shared/types/types.js";
+import { readOrMakeThumbnail } from "../rpcFunctions/thumbnail.js";
 
 export async function thumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize = "th-medium"
-): Promise<Buffer> {
+): Promise<{ data: Buffer; mime: string }> {
   const d = await readOrMakeThumbnail(entry, size);
-  return d.data;
+  return d;
 }

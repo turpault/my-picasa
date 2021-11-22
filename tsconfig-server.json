@@ -10,18 +10,16 @@
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "importHelpers": true,
+    "importHelpers": false,
     "noImplicitReturns": true,
     "strictNullChecks": true,
     "allowJs": true,
     "rootDirs": ["./server", "./shared"],
-    "typeRoots": [
-      "./node_modules/@types"
-    ]
   },
   "include": [
     "./server/**/*.ts",
     "./shared/**/*.ts",
+    "./custom-typings"
   ],
   "exclude": [
     "dist",

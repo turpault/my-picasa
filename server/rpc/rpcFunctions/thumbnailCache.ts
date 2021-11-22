@@ -1,13 +1,20 @@
-import { copyFile, readFile, rename, unlink, writeFile } from "fs/promises";
+import {
+  copyFile,
+  readFile,
+  rename,
+  stat,
+  unlink,
+  writeFile,
+} from "fs/promises";
 import { join } from "path";
-import { lock } from "../../../shared/lib/utils";
+import { isVideo, lock } from "../../../shared/lib/utils.js";
 import {
   AlbumEntry,
-  FolderPixels,
   ThumbnailSize,
   ThumbnailSizeVals,
-} from "../../../shared/types/types";
-import { imagesRoot } from "../../utils/constants";
+} from "../../../shared/types/types.js";
+import { imagesRoot } from "../../utils/constants.js";
+import { fileExists } from "../../utils/serverUtils.js";
 
 export async function deleteImageFileMetas(entry: AlbumEntry): Promise<void> {
   for (const k of ThumbnailSizeVals) {
@@ -15,15 +22,20 @@ export async function deleteImageFileMetas(entry: AlbumEntry): Promise<void> {
   }
 }
 
-export function fileFromEntryAndSize(entry: AlbumEntry, size: ThumbnailSize) {
-  return join(imagesRoot, entry.album.key, `.${size}-${entry.name}`);
+export function thumbnailPathFromEntryAndSize(
+  entry: AlbumEntry,
+  size: ThumbnailSize
+) {
+  if (isVideo(entry))
+    return join(imagesRoot, entry.album.key, `.${size}-${entry.name}.gif`);
+  else return join(imagesRoot, entry.album.key, `.${size}-${entry.name}`);
 }
 
 export async function readThumbnailFromCache(
   entry: AlbumEntry,
   size: ThumbnailSize
 ): Promise<Buffer | undefined> {
-  const path = fileFromEntryAndSize(entry, size);
+  const path = thumbnailPathFromEntryAndSize(entry, size);
   const unlock = await lock(path);
   let d: Buffer | undefined;
   try {
@@ -40,7 +52,7 @@ export async function writeThumbnailToCache(
   size: ThumbnailSize,
   data: Buffer
 ): Promise<void> {
-  const path = fileFromEntryAndSize(entry, size);
+  const path = thumbnailPathFromEntryAndSize(entry, size);
   const unlock = await lock(path);
   let d: Buffer | undefined;
   try {
@@ -55,7 +67,7 @@ export async function deleteThumbnailFromCache(
   entry: AlbumEntry,
   size: ThumbnailSize
 ): Promise<void> {
-  const path = fileFromEntryAndSize(entry, size);
+  const path = thumbnailPathFromEntryAndSize(entry, size);
   const unlock = await lock(path);
   try {
     await unlink(path);
@@ -69,12 +81,14 @@ export async function copyThumbnails(
   move: boolean
 ): Promise<void> {
   for (const size of ThumbnailSizeVals) {
-    const source = fileFromEntryAndSize(entry, size);
-    const dest = fileFromEntryAndSize(target, size);
-    if (move) {
-      await rename(source, dest);
-    } else {
-      await copyFile(source, dest);
+    const source = thumbnailPathFromEntryAndSize(entry, size);
+    const dest = thumbnailPathFromEntryAndSize(target, size);
+    if (await fileExists(source)) {
+      if (move) {
+        await rename(source, dest);
+      } else {
+        await copyFile(source, dest);
+      }
     }
   }
 }

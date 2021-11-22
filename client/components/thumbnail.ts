@@ -1,19 +1,20 @@
 import {
   albumEntryFromElement,
   elementFromEntry,
+  isVideo,
   rectanglesIntersect,
   setIdForEntry,
 } from "../../shared/lib/utils.js";
 import {
   AlbumEntry,
   AlbumListEventSource,
-  ImageFileMeta,
   PicasaFileMeta,
 } from "../../shared/types/types.js";
 import { thumbnailUrl } from "../imageProcess/client.js";
 import { $ } from "../lib/dom.js";
 import { getService } from "../rpc/connect.js";
 import { SelectionManager } from "../selection/selection-manager.js";
+import { message } from "./message.js";
 
 const elementPrefix = "thumb:";
 const imagePrefix = "thumbimg:";
@@ -52,6 +53,13 @@ export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
   );
   e.on("dblclick", (ev: any) => {
     const entry = albumEntryFromElement(ev.target, imagePrefix);
+    if (!entry) {
+      return;
+    }
+    if (isVideo(entry)) {
+      message("Can't edit videos yet");
+      return;
+    }
     if (entry) {
       events.emit("open", entry);
     }
@@ -59,16 +67,20 @@ export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
   $("img", e).on("load", (ev) => {
     const thumb = ev.target as HTMLImageElement;
     const ratio = thumb.width / thumb.height;
+    const parentSize = {
+      width: thumb.parentElement!.clientWidth,
+      height: thumb.parentElement!.clientHeight,
+    };
     // position the image
     $(thumb).css({
       opacity: "1",
-      left: `${ratio > 1 ? 0 : (250 * (1 - ratio)) / 2}px`,
-      top: `${ratio < 1 ? 0 : (250 * (1 - 1 / ratio)) / 2}px`,
+      left: `${ratio > 1 ? 0 : (parentSize.width * (1 - ratio)) / 2}px`,
+      top: `${ratio < 1 ? 0 : (parentSize.height * (1 - 1 / ratio)) / 2}px`,
     });
     // position the star at the bottom right
     $(".star", e).css({
-      right: `${ratio > 1 ? 0 : (250 * (1 - ratio)) / 2}px`,
-      bottom: `${ratio < 1 ? 0 : (250 * (1 - 1 / ratio)) / 2}px`,
+      right: `${ratio > 1 ? 0 : (parentSize.width * (1 - ratio)) / 2}px`,
+      bottom: `${ratio < 1 ? 0 : (parentSize.height * (1 - 1 / ratio)) / 2}px`,
     });
   });
   return e.get();

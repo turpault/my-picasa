@@ -1,4 +1,9 @@
-import { Album, AlbumEntry, AlbumInfo } from "../shared/types/types.js";
+import {
+  Album,
+  AlbumEntry,
+  AlbumInfo,
+  videoExtensions,
+} from "../shared/types/types.js";
 import { readPicasaIni } from "./lib/handles.js";
 import { getSettings, Settings } from "./lib/settings.js";
 import { getService } from "./rpc/connect.js";
@@ -15,32 +20,34 @@ export async function getAlbumInfo(
       video: false,
     },
     inverseSort: false,
+    filter: "",
   };
 
   if (useSettings) {
     settings = getSettings();
   }
   // Gettings contents might change the picasa data
-  const contents = await albumContents(album);
+  const contents = await albumContents(album, settings.filter);
   const picasa = await readPicasaIni(album);
-  let pictures = contents.pictures;
-  const videos = contents.videos;
+  let assets = contents.assets;
 
-  // Add missing pictures to the picasa contents
-  for (const p of pictures) {
+  // Add missing assets to the picasa contents
+  for (const p of assets) {
     if (!picasa[p.name]) {
       picasa[p.name] = {};
     }
   }
   if (settings.filters.star) {
-    pictures = pictures.filter((v) => {
-      if (!settings.filters.star || picasa[v.name].star) {
-        return true;
-      }
-      return false;
+    assets = assets.filter((v) => {
+      return !!picasa[v.name].star;
     });
   }
-  pictures.sort((a, b) => {
+  if (settings.filters.video) {
+    assets = assets.filter((v) =>
+      videoExtensions.find((e) => v.name.toLowerCase().endsWith(e))
+    );
+  }
+  assets.sort((a, b) => {
     if (settings.sort === "date") {
       const dateA = picasa[a.name].dateTaken;
       const dateB = picasa[b.name].dateTaken;
@@ -57,9 +64,9 @@ export async function getAlbumInfo(
     return 0;
   });
   if (settings.inverseSort) {
-    pictures.reverse();
+    assets.reverse();
   }
-  return { picasa, pictures, videos };
+  return { picasa, assets };
 }
 
 export async function getFileExifData(entry: AlbumEntry): Promise<any> {

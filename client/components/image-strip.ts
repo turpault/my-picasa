@@ -20,9 +20,9 @@ export function makeImageStrip(
   });
   const picList = $(".image-strip-thumbs", e);
   Promise.allSettled(
-    f.pictures.map((img) => thumbnailUrl({ album, name: img.name }, "th-small"))
+    f.assets.map((img) => thumbnailUrl({ album, name: img.name }, "th-small"))
   ).then((results) => {
-    for (const [idx, p] of f.pictures.entries()) {
+    for (const [idx, p] of f.assets.entries()) {
       const b = $(
         `<button id="${nameToId(
           "th",

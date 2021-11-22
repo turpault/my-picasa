@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/camelcase */
-import { Exceptions } from "../../shared/types/exceptions";
+import { Exceptions } from "../../shared/types/exceptions.js";
+import { undo, undoList } from "../utils/undo.js";
 import {
   buildContext,
   cloneContext,
@@ -9,24 +10,23 @@ import {
   execute,
   setOptions,
   transform,
-} from "./imageOperations/sharp-processor";
-import { exifData } from "./rpcFunctions/exif";
-import { createFSJob, getJob } from "./rpcFunctions/fileJobs";
+} from "./imageOperations/sharp-processor.js";
+import { exifData } from "./rpcFunctions/exif.js";
+import { createFSJob, getJob } from "./rpcFunctions/fileJobs.js";
 import {
   folder,
   makeAlbum,
   openAlbumInFinder,
   readFileContents,
   writeFileContents,
-} from "./rpcFunctions/fs";
+} from "./rpcFunctions/fs.js";
 import {
   readPicasaEntry,
   readPicasaIni,
   updatePicasaEntry,
-} from "./rpcFunctions/picasaIni";
-import { readOrMakeThumbnail } from "./rpcFunctions/thumbnail";
-import { folders, mediaInAlbum } from "./rpcFunctions/walker";
-import { ServiceMap } from "./rpcHandler";
+} from "./rpcFunctions/picasaIni.js";
+import { folders, media } from "./rpcFunctions/walker.js";
+import { ServiceMap } from "./rpcHandler.js";
 
 /**
  * ConcurrencyService IDL
@@ -79,11 +79,11 @@ export const MyPicasa: ServiceMap = {
     },
     folders: {
       handler: folders,
-      arguments: [],
+      arguments: ["filter:string"],
     },
     media: {
-      handler: mediaInAlbum,
-      arguments: ["album:object"],
+      handler: media,
+      arguments: ["album:object", "filter:string"],
     },
     readFileContents: {
       handler: readFileContents,
@@ -117,13 +117,17 @@ export const MyPicasa: ServiceMap = {
       handler: makeAlbum,
       arguments: ["name:string"],
     },
-    readOrMakeThumbnail: {
-      handler: readOrMakeThumbnail,
-      arguments: ["entry:object", "size:string"],
-    },
     openInFinder: {
       handler: openAlbumInFinder,
       arguments: ["album:object"],
+    },
+    undoList: {
+      handler: undoList,
+      arguments: [],
+    },
+    undo: {
+      handler: undo,
+      arguments: ["id:string"],
     },
   },
 };

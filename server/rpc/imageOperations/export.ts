@@ -1,14 +1,14 @@
 import { writeFile, stat } from "fs/promises";
 import { join } from "path";
-import { AlbumEntry } from "../../../shared/types/types";
-import { readPicasaIni } from "../rpcFunctions/picasaIni";
+import { AlbumEntry } from "../../../shared/types/types.js";
+import { readPicasaIni } from "../rpcFunctions/picasaIni.js";
 import {
   encode,
   buildContext,
   setOptions,
   transform,
   destroyContext,
-} from "./sharp-processor";
+} from "./sharp-processor.js";
 
 export async function exportToFolder(entry: AlbumEntry, targetFolder: string) {
   const picasa = await readPicasaIni(entry.album);

@@ -45,6 +45,9 @@ export class _$ {
     }
     return this._e;
   }
+  is(): boolean {
+    return !!this._e;
+  }
   alive(): _$ {
     if (this._e) {
       return this;
@@ -151,8 +154,41 @@ export class _$ {
     return this.get().offsetParent !== null;
   }
 
-  empty() {
+  empty(): _$ {
     this.get().innerHTML = "";
+    return this;
+  }
+
+  centerOnLoad(): _$ {
+    this.on("load", (e) => {
+      const target = e.target as HTMLImageElement;
+      const parentSize = {
+        width: target.parentElement!.clientWidth,
+        height: target.parentElement!.clientHeight,
+      };
+      const ratio = target.naturalWidth / target.naturalHeight;
+      const parentRatio = parentSize.width / parentSize.height;
+      let css;
+      if (ratio > parentRatio) {
+        css = {
+          left: "0",
+          height: `${parentSize.width / ratio}px`,
+          top: `${(parentSize.height - parentSize.width / ratio) / 2}px`,
+          width: `${parentSize.width}px`,
+        };
+      } else {
+        css = {
+          width: `${parentSize.height * ratio}px`,
+          height: `${parentSize.height}px`,
+          top: "0",
+          left: `${(parentSize.width - parentSize.height * ratio) / 2}px`,
+        };
+      }
+
+      // position the image
+      $(target).css(css);
+    });
+    return this;
   }
 
   private resolve(

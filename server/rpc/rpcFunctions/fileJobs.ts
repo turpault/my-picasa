@@ -1,15 +1,16 @@
 import { copyFile, mkdir, rename, stat } from "fs/promises";
-import { basename, extname, join } from "path";
-import { range, sleep, uuid } from "../../../shared/lib/utils";
-import { Album, AlbumEntry, Job } from "../../../shared/types/types";
-import { openExplorer } from "../../open";
-import { exportsRoot, imagesRoot } from "../../utils/constants";
-import { broadcast } from "../../utils/socketList";
-import { addToUndo, registerUndoProvider } from "../../utils/undo";
-import { exportToFolder } from "../imageOperations/export";
-import { readPicasaIni, writePicasaIni } from "./picasaIni";
-import { copyThumbnails } from "./thumbnailCache";
-import { invalidateCachedFolderList } from "./walker";
+import { basename, dirname, extname, join, relative } from "path";
+import { range, sleep, uuid } from "../../../shared/lib/utils.js";
+import { Album, AlbumEntry, Job } from "../../../shared/types/types.js";
+import { openExplorer } from "../../open.js";
+import { exportsRoot, imagesRoot } from "../../utils/constants.js";
+import { fileExists } from "../../utils/serverUtils.js";
+import { broadcast } from "../../utils/socketList.js";
+import { addToUndo, registerUndoProvider } from "../../utils/undo.js";
+import { exportToFolder } from "../imageOperations/export.js";
+import { readPicasaIni, writePicasaIni } from "./picasaIni.js";
+import { copyThumbnails } from "./thumbnailCache.js";
+import { invalidateCachedFolderList } from "./walker.js";
 
 const jobs: Job[] = [];
 
@@ -79,6 +80,12 @@ async function executeJob(job: Job): Promise<Album[]> {
       return exportJob(job);
     case "delete":
       return deleteJob(job);
+    case "restore":
+      return restoreJob(job);
+    case "deleteAlbum":
+      return deleteAlbumJob(job);
+    case "restoreAlbum":
+      return restoreAlbumJob(job);
     default:
       job.status = "finished";
       job.errors.push(`Unknown job name ${job.name}`);
@@ -94,9 +101,11 @@ registerUndoProvider("multiMove", (operation, payload) => {
 function albumChanged(album: Album, list: Album[]) {
   if (!list.find((a) => a.key === album.key)) list.push(album);
 }
+
 async function moveJob(job: Job): Promise<Album[]> {
   // convert to a multi-move
-  job.data.destination = range(0, job.data.source!.length).map(
+  const source = job.data.source as AlbumEntry[];
+  job.data.destination = range(0, source.length).map(
     () => job.data.destination as Album
   );
 
@@ -121,14 +130,14 @@ async function copyJob(job: Job): Promise<Album[]> {
         while (!found) {
           let destPath = join(imagesRoot, dest.key, targetName);
           found = true;
-          await stat(destPath).catch((e) => {
+          if (await fileExists(destPath)) {
             // target already exists
             found = false;
             const ext = extname(s.name);
             const base = basename(s.name, ext);
             targetName = base + ` (${idx++})` + ext;
             destPath = join(imagesRoot, dest.key);
-          });
+          }
         }
 
         await copyFile(
@@ -151,12 +160,49 @@ async function copyJob(job: Job): Promise<Album[]> {
 }
 
 async function duplicateJob(job: Job): Promise<Album[]> {
-  job.data.destination = job.data.source![0].album;
+  const source = job.data.source as AlbumEntry[];
+  job.data.destination = source[0].album;
   return copyJob(job);
 }
 
-async function deleteJob(job: Job): Promise<Album[]> {
+async function deleteAlbumJob(job: Job): Promise<Album[]> {
+  const undoDeleteAlbumPayload = {
+    source: [] as Album[],
+  };
+
   // Deleting a set of images means renaming them
+  job.status = "started";
+  const updatedAlbums: Album[] = [];
+  const source = job.data.source as Album;
+  job.progress.start = 1;
+  job.progress.remaining = 1;
+  job.changed();
+
+  const from = join(imagesRoot, source.key);
+  const to = join(dirname(from), "." + basename(from));
+  const altKey = relative(imagesRoot, to);
+  try {
+    await rename(from, to);
+    undoDeleteAlbumPayload.source.push({ name: source.name, key: altKey });
+    albumChanged(source, updatedAlbums);
+  } catch (e: any) {
+    job.errors.push(e.message as string);
+  } finally {
+    job.progress.remaining--;
+    job.changed();
+  }
+  addToUndo(
+    "restoreFolder",
+    `Delete album ${source.name}`,
+    undoDeleteAlbumPayload
+  );
+  job.status = "finished";
+  job.changed();
+  return updatedAlbums;
+}
+
+async function restoreJob(job: Job): Promise<Album[]> {
+  // Restoring a set of images means renaming them
   job.status = "started";
   const updatedAlbums: Album[] = [];
   const source = job.data.source as AlbumEntry[];
@@ -167,8 +213,11 @@ async function deleteJob(job: Job): Promise<Album[]> {
   await Promise.allSettled(
     source.map(async (s) => {
       try {
+        if (!s.name.startsWith(".")) {
+          throw new Error(`${s.name} is not a deleted file`);
+        }
         const from = join(imagesRoot, s.album.key, s.name);
-        const to = join(imagesRoot, s.album.key, "." + s.name);
+        const to = join(imagesRoot, s.album.key, s.name.substr(1));
         await rename(from, to);
         albumChanged(s.album, updatedAlbums);
       } catch (e: any) {
@@ -184,9 +233,72 @@ async function deleteJob(job: Job): Promise<Album[]> {
   return updatedAlbums;
 }
 
+async function restoreAlbumJob(job: Job): Promise<Album[]> {
+  // Restoring a set of images means renaming them
+  job.status = "started";
+  const updatedAlbums: Album[] = [];
+  const source = job.data.source as Album;
+  const steps = 1;
+  job.progress.start = steps;
+  job.progress.remaining = steps;
+  job.changed();
+  try {
+    const from = join(imagesRoot, source.key);
+    if (!basename(source.key).startsWith(".")) {
+      throw new Error(`${source.name} is not a deleted file`);
+    }
+    const newKey = join(dirname(source.key), basename(source.key).substr(1));
+    const to = join(imagesRoot, newKey);
+    await rename(from, to);
+    albumChanged({ name: source.name, key: newKey }, updatedAlbums);
+  } catch (e: any) {
+    job.errors.push(e.message as string);
+  } finally {
+    job.progress.remaining--;
+    job.changed();
+  }
+  job.status = "finished";
+  job.changed();
+  return updatedAlbums;
+}
+
+async function deleteJob(job: Job): Promise<Album[]> {
+  const undoDeletePayload = {
+    source: [] as AlbumEntry[],
+  };
+
+  // Deleting a set of images means renaming them
+  job.status = "started";
+  const updatedAlbums: Album[] = [];
+  const source = job.data.source as AlbumEntry[];
+  const steps = source.length;
+  job.progress.start = steps;
+  job.progress.remaining = steps;
+  job.changed();
+  await Promise.allSettled(
+    source.map(async (s) => {
+      try {
+        const from = join(imagesRoot, s.album.key, s.name);
+        const to = join(imagesRoot, s.album.key, "." + s.name);
+        await rename(from, to);
+        undoDeletePayload.source.push({ album: s.album, name: "." + s.name });
+        albumChanged(s.album, updatedAlbums);
+      } catch (e: any) {
+        job.errors.push(e.message as string);
+      } finally {
+        job.progress.remaining--;
+        job.changed();
+      }
+    })
+  );
+  addToUndo("restore", `Delete ${source.length} files...`, undoDeletePayload);
+  job.status = "finished";
+  job.changed();
+  return updatedAlbums;
+}
+
 async function multiMoveJob(job: Job): Promise<Album[]> {
   const undoMultiMovePayload = {
-    operation: "multiMove",
     source: [] as AlbumEntry[],
     destination: [] as Album[],
   };
@@ -236,13 +348,13 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
         job.errors.push(e.message as string);
       } finally {
         job.progress.remaining--;
-        addToUndo(
-          "multiMove",
-          `Move ${source.length} to ${dest[0].name}...`,
-          undoMultiMovePayload
-        );
       }
     })
+  );
+  addToUndo(
+    "multiMove",
+    `Move ${source.length} files to ${dest[0].name}...`,
+    undoMultiMovePayload
   );
   job.status = "finished";
   job.changed();

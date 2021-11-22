@@ -1,7 +1,7 @@
 {
-  "name": "my-picasa",
-  "version": "0.0.1",
-  "description": "My picasa replacement in pure JS",
+  "name": "picisa",
+  "version": "1.0.0",
+  "description": "Picasa replacement in pure JS",
   "author": "Jocelyn Turapult (turpault@gmail.com)",
   "license": "MIT",
   "bugs": {
@@ -18,6 +18,10 @@
   "homepage": "https://github.com/turpault/my-picasa#readme",
   "keywords": [
     "typescript",
+    "picasa",
+    "album",
+    "photoshop",
+    "gallery",
     "tdd"
   ],
   "main": "dist/server/main.js",
@@ -26,8 +30,10 @@
     "build": "run-p build:*",
     "build:client": "tsc -d",
     "build:server": "tsc -d -p tsconfig-server.json",
-    "build:rpc": "node dist/server/rpc/generate client/rpc/generated-rpc",
-    "package": "electron-packager . --overwrite --ignore='\\.d\\.ts|\\.map'",
+    "build:icons": "png2icons resources/picisa.png resources/picisa -icns",
+    "build:ico": "png2icons resources/picisa.png public/favicon -ico",
+    "build:rpc": "node dist/server/rpc/generate.js client/rpc/generated-rpc",
+    "package": "electron-packager . --icon resources/picisa.icns --app-version 1.0.0 --appname Picisa --no-deref-symlinks --overwrite --ignore='\\.d\\.ts|\\.map'",
     "clean": "rimraf dist",
     "reset": "rimraf node_modules dist",
     "start": "run-p start:*",
@@ -38,6 +44,7 @@
   },
   "devDependencies": {
     "@types/ini": "^1.3.31",
+    "@types/node": "^16",
     "@types/sharp": "^0.29.2",
     "@types/web": "^0",
     "@types/ws": "^7.4.1",
@@ -48,6 +55,7 @@
     "http-server": "^13.0.2",
     "nodemon": "^2.0.14",
     "npm-run-all": "^4.1.5",
+    "png2icons": "^2.0.1",
     "prettier": "2.2.1",
     "rimraf": "^3",
     "source-map-support": "^0",
@@ -62,16 +70,12 @@
     "tslib": "^2"
   },
   "dependencies": {
-    "@types/node": "^16",
-    "exifreader": "^4.0.0",
     "fast-exif": "^1.0.1",
     "fastify": "^3.22.1",
     "fastify-static": "^4.4.2",
-    "infinite-list": "^1.1.0",
-    "ini": "^2.0.0",
+    "image-size": "^1.0.0",
     "sharp": "^0.29.2",
-    "wasm-vips": "^0.0.1",
-    "ws": "^8.2.3",
-    "xml2js": "^0.4.23"
+    "spinnies": "^0.5.1",
+    "ws": "^8.2.3"
   }
 }

@@ -1,4 +1,4 @@
-import { ServiceMap } from "./rpcHandler";
+import { ServiceMap } from "./rpcHandler.js";
 import { TSCodeTemplate } from "./templates";
 
 export type GeneratedCode = {
@@ -30,10 +30,6 @@ export function generateCode(services: ServiceMap): GeneratedCode {
   let headerIncludes = "";
   headerIncludes += `#include <Server/Concurrency/RPC/IRPCClient.h>`;
 
-  let codeIncludes = "";
-
-  let functionHeaders = "";
-  let functionBodies = "";
   let tsfunctionBodies = "";
   let constantsCpp = "";
   let tsconstants = "";

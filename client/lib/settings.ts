@@ -1,5 +1,5 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event.js";
-import { get } from "./idb-keyval.js";
+import { get, set } from "./idb-keyval.js";
 
 export type Settings = {
   filters: {
@@ -8,6 +8,7 @@ export type Settings = {
   };
   inverseSort: boolean;
   sort: "date" | "name";
+  filter: string;
 };
 
 export type SettingsChangeEvent = {
@@ -18,6 +19,7 @@ const settings: Settings = {
   filters: { star: false, video: false },
   sort: "date",
   inverseSort: false,
+  filter: "",
 };
 
 export async function makeSettings() {
@@ -25,11 +27,21 @@ export async function makeSettings() {
   settings.filters.video = (await get("filterByVideos")) || false;
   settings.sort = (await get("sort")) || "date";
   settings.inverseSort = (await get("inverseSort")) || false;
+  settings.filter = (await get("filter")) || "";
   return e;
 }
 
 export function getSettings() {
   return settings;
+}
+
+async function changed() {
+  e.emit("changed", settings);
+  await set("filterByStar", settings.filters.star);
+  await set("filterByVideos", settings.filters.video);
+  await set("sort", settings.sort);
+  await set("inverseSort", settings.inverseSort);
+  await set("filter", settings.filter);
 }
 
 export function getSettingsEmitter(): Emitter<SettingsChangeEvent> {
@@ -38,18 +50,21 @@ export function getSettingsEmitter(): Emitter<SettingsChangeEvent> {
 
 export function updateFilterByStar(newValue: boolean) {
   settings.filters.star = newValue;
-  e.emit("changed", settings);
+  changed();
 }
-
 export function updateFilterByVideos(newValue: boolean) {
   settings.filters.video = newValue;
-  e.emit("changed", settings);
+  changed();
 }
 export function updateSort(newValue: "date" | "name") {
   settings.sort = newValue;
-  e.emit("changed", settings);
+  changed();
 }
 export function updateInverseSort(newValue: boolean) {
   settings.inverseSort = newValue;
-  e.emit("changed", settings);
+  changed();
+}
+export function updateFilter(newValue: string) {
+  settings.filter = newValue;
+  changed();
 }
