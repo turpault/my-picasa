@@ -6,16 +6,17 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0"
     />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <title>PIC-ISA</title>
     <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css" />
     <link href="resources/styles.css" rel="stylesheet" />
     <link href="resources/fontawesome/all.min.css" rel="stylesheet" />
     <script type="module" src="dist/client/app.js"></script>
     <script src="https://unpkg.com/panzoom@9.4.0/dist/panzoom.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lightgallery/2.3.0/lightgallery.umd.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/lightgallery/2.3.0/css/lightgallery-bundle.min.css" rel="stylesheet"/>
     <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
-    <link
-      href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
-      rel="stylesheet"
-    />
+    <link href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" rel="stylesheet"/>
   </head>
   <body class="w3-theme w3-theme-d5">
     <div class="metadatasidebar w3-sidebar w3-bar-block w3-animate-right w3-theme">
@@ -31,7 +32,7 @@
     <div class="fill">
       <div class="w3-bar">
         <span class="tabs">
-          <a class="browser-tab w3-button tab-button">Browser</a>
+          <input type="text" id="filterAlbum" class="browser-tab w3-button tab-button" placeholder="Browser">
         </span>
         <span>
           <a
@@ -58,6 +59,15 @@
               <a id="SortByName" class="w3-bar-item w3-button">By name</a>
             </div>
           </div>
+          <input type="text" id="filter" class="w3-right w3-bar-item w3-input" placeholder="Filter..">
+          <div class="w3-dropdown-hover w3-right">
+            <button
+              style="font-size: 22px"
+              class="w3-button fa fa-undo"
+            ></button>
+            <div id="undo" class="w3-dropdown-content w3-bar-block w3-card-4">
+            </div>
+          </div>
         </span>
       </div>
       <div class="workarea">
@@ -68,9 +78,9 @@
             <div class="w3-theme images-area">
                 <div class="images fill disable-scrollbar"></div>
                 <div class="dragregion"></div>
-            </div>
-          </div>
-          <div class="w3-bar-block buttons">
+                <div class="w3-bar-block buttons">
+                </div>
+             </div>
           </div>
       </div>
     </div>

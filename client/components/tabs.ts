@@ -3,16 +3,18 @@ import { Emitter } from "../lib/event.js";
 import {
   getSettings,
   getSettingsEmitter,
+  updateFilter,
   updateFilterByStar,
   updateFilterByVideos,
   updateSort,
 } from "../lib/settings.js";
-import { AlbumListEvent } from "../types/types.js";
+import { getService } from "../rpc/connect.js";
+import { AlbumListEvent, undoStep } from "../types/types.js";
 
 let tabs: _$;
 let tabElements: { tab: _$; win: _$ }[] = [];
 let emitter: Emitter<AlbumListEvent>;
-export function makeTabs(_emitter: Emitter<AlbumListEvent>) {
+export async function makeTabs(_emitter: Emitter<AlbumListEvent>) {
   emitter = _emitter;
   tabs = $(".tabs");
   const browser = $(".browser-tab");
@@ -31,15 +33,38 @@ export function makeTabs(_emitter: Emitter<AlbumListEvent>) {
   );
   const fSortByDate = $("#SortByDate").on("click", () => updateSort("date"));
   const fSortByName = $("#SortByName").on("click", () => updateSort("name"));
+  const fFilter = $("#filter");
+  fFilter.on("input", () => updateFilter(fFilter.val()));
   function updateSettings() {
     const settings = getSettings();
     fStar.addRemoveClass("highlight", settings.filters.star);
     fFilterVideo.addRemoveClass("highlight", settings.filters.video);
     fSortByDate.addRemoveClass("highlight", settings.sort === "date");
     fSortByName.addRemoveClass("highlight", settings.sort === "name");
+    fFilter.addRemoveClass("highlight", settings.filter !== "");
+    fFilter.val(settings.filter);
   }
   updateSettings();
   getSettingsEmitter().on("changed", updateSettings);
+
+  const s = await getService();
+  async function updateUndoList() {
+    const list = (await s.undoList()) as undoStep[];
+    const e = $("#undo");
+    e.empty();
+    for (const u of list.reverse()) {
+      e.append(
+        $(`<a class="w3-bar-item w3-button">${u.description}</a>`).on(
+          "click",
+          () => {
+            s.undo(u.uuid);
+          }
+        )
+      );
+    }
+  }
+  s.on("undoChanged", updateUndoList);
+  await updateUndoList();
 }
 
 export function selectTab(_tab: HTMLElement) {
@@ -72,6 +97,20 @@ export function deleteTab(_tab: HTMLElement) {
   const last = tabElements[tabElements.length - 1];
   selectTab(last.tab.get());
 }
+
+export function deleteTabWin(_win: HTMLElement) {
+  for (const e of tabElements) {
+    if (e.win.get() === _win) {
+      emitter.emit("tabDeleted", e);
+      e.tab.remove();
+      e.win.remove();
+      tabElements.splice(tabElements.indexOf(e), 1);
+    }
+  }
+  const last = tabElements[tabElements.length - 1];
+  selectTab(last.tab.get());
+}
+
 export function makeTab(win: _$, tab: _$) {
   tabs.append(tab);
   tab.on("click", () => {

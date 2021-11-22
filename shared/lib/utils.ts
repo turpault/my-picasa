@@ -1,4 +1,4 @@
-import { Album, AlbumEntry } from "../types/types";
+import { Album, AlbumEntry, videoExtensions } from "../types/types.js";
 
 export async function sleep(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));
@@ -16,6 +16,7 @@ export function elementFromAlbum(album: Album, qualifier: string) {
   const id = idFromAlbum(album);
   return document.getElementById(qualifier + id);
 }
+
 export function albumFromElement(
   e: HTMLElement,
   qualifier: string
@@ -71,6 +72,14 @@ export function uuid(): string {
   return (
     new Date().getTime().toString(36) + Math.random().toString(36).slice(2)
   );
+}
+
+export function isVideo(entry: AlbumEntry) {
+  return videoExtensions.find((e) => entry.name.toLowerCase().endsWith(e));
+}
+
+export function isVideoUrl(url: string) {
+  return videoExtensions.find((e) => url.toLowerCase().endsWith(e));
 }
 
 export function range(from: number, to: number): number[] {
@@ -231,17 +240,26 @@ class Mutex {
   }
 }
 const locks: Map<string, Mutex> = new Map();
-setInterval(() => {
+
+function pruneLocks() {
   // Prune unused mutexes
   for (const l in locks) {
     if (!locks.get(l)!.locked()) {
       locks.delete(l);
     }
   }
-}, 60000);
+}
+
 export async function lock(label: string): Promise<Function> {
+  pruneLocks();
   if (!locks.has(label)) {
     locks.set(label, new Mutex());
   }
   return locks.get(label)!.lock();
+}
+
+export function lockedLocks(): string[] {
+  return Array.from(locks)
+    .filter((l) => l[1].locked())
+    .map((l) => l[0]);
 }

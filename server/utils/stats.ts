@@ -1,16 +1,30 @@
 import { createWriteStream } from "fs";
 import { readFile } from "fs/promises";
 import { join } from "path";
-import { imagesRoot } from "./constants";
+import { uuid } from "../../shared/lib/utils.js";
+import { imagesRoot } from "./constants.js";
 
 const sep = "§";
 function line(bucket: string, type: string, data: string) {
   return `${new Date().toISOString()}${sep}${bucket}${sep}${type}${sep}${data}\n`;
 }
-const stream = createWriteStream(join(imagesRoot, ".mypicasa.stats"), {
+const statsFile = join(imagesRoot, ".mypicasa.stats");
+const stream = createWriteStream(statsFile, {
   flags: "a",
   encoding: "utf-8",
 });
+
+const delays: { [id: string]: { name: string; start: number } } = {};
+export function delayStart(name: string): string {
+  const id = uuid();
+  delays[id] = { name, start: new Date().getTime() };
+  return id;
+}
+
+export function delayEnd(id: string) {
+  const e = delays[id];
+  stream.write(line(e.name, "set", `${new Date().getTime() - e.start}`));
+}
 
 export function rate(counter: string, divider: number = 1) {
   stream.write(line(counter, "rate", `${divider}`));
@@ -27,7 +41,7 @@ export function set(counter: string, value: string | number) {
 rate("reboot", 60); // one cumulated mesure per minute
 
 export async function history(): Promise<object> {
-  let data = (await readFile("/tmp/mypicasa.stats", { encoding: "utf-8" }))
+  let data = (await readFile(statsFile, { encoding: "utf-8" }))
     .split("\n")
     .filter((v) => v);
   const res = new Map<

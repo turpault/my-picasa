@@ -10,9 +10,10 @@ import { getAlbumInfo } from "../folder-utils.js";
 import { $ } from "../lib/dom.js";
 import { ImagePanZoomController } from "../lib/panzoom.js";
 import { ActiveImageManager } from "../selection/active-manager.js";
-import { Album, AlbumInfo } from "../types/types.js";
+import { Album, AlbumInfo, AlbumListEventSource } from "../types/types.js";
 import { ImageController } from "./image-controller.js";
 import { makeImageStrip } from "./image-strip.js";
+import { deleteTabWin } from "./tabs.js";
 import { make as makeTools } from "./tools.js";
 
 const editHTML = `<div class="fill">
@@ -95,7 +96,8 @@ const editHTML = `<div class="fill">
 
 export async function makeEditorPage(
   album: Album,
-  name: string
+  name: string,
+  events: AlbumListEventSource
 ): Promise<HTMLElement> {
   const e = $(editHTML);
 
@@ -118,7 +120,7 @@ export async function makeEditorPage(
   setupMirror(imageController, toolRegistrar);
 
   const f: AlbumInfo = await getAlbumInfo(album);
-  const activeManager = new ActiveImageManager(f.pictures, { album, name });
+  const activeManager = new ActiveImageManager(f.assets, { album, name });
   makeImageStrip($(".image-strip", e).get()!, album, f, activeManager);
 
   imageController.init({ album, name });
@@ -132,5 +134,15 @@ export async function makeEditorPage(
   imageController.events.on("busy", () => {
     $(".busy-spinner", e).css("display", "block");
   });
+  events.on("keyDown", ({ code, win }) => {
+    if (code === "Escape") {
+      deleteTabWin(win);
+    }
+  });
+  events.on("tabDeleted", ({ win }) => {
+    if (win.get() === e.get()) {
+    }
+  });
+
   return e.get();
 }

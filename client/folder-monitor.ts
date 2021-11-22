@@ -1,6 +1,7 @@
 import { buildEmitter, Emitter } from "../shared/lib/event.js";
 import { sortByKey } from "../shared/lib/utils.js";
 import { Album, FolderEvent } from "../shared/types/types.js";
+import { getSettings, getSettingsEmitter } from "./lib/settings.js";
 import { walkFromServer } from "./walker.js";
 
 export type AlbumSortOrder = "ReverseDate" | "ForwardDate";
@@ -8,14 +9,17 @@ export class FolderMonitor {
   constructor() {
     this.albums = [];
     this.events = buildEmitter<FolderEvent>();
-    this.walk();
     this.sort = "ReverseDate";
   }
 
   events: Emitter<FolderEvent>;
 
+  async ready() {
+    return this.walk();
+  }
+
   async walk() {
-    const lst = await walkFromServer();
+    const lst = await walkFromServer("");
     this.albums = lst;
     this.sortFolders();
     this.events.emit("updated", { folders: this.albums });

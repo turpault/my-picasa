@@ -1,10 +1,11 @@
 import { createReadStream, createWriteStream } from "fs";
-import { createInterface } from "readline";
-import { join } from "path";
-import { uuid } from "../../shared/lib/utils";
-import { imagesRoot } from "./constants";
 import { readFile } from "fs/promises";
-import { broadcast } from "./socketList";
+import { join } from "path";
+import { createInterface } from "readline";
+import { uuid } from "../../shared/lib/utils.js";
+import { undoStep } from "../../shared/types/types.js";
+import { imagesRoot } from "./constants.js";
+import { broadcast } from "./socketList.js";
 
 const undoFile = join(imagesRoot, ".mypicasa.undo");
 const undoneFile = join(imagesRoot, ".mypicasa.undone");
@@ -40,7 +41,6 @@ export function registerUndoProvider(type: string, undoFct: doFunction) {
 export async function undo(id: string) {
   // Scan file
   const read = createReadStream(undoFile, { encoding: "utf-8" });
-
   const res = new Promise<void>((resolve) => {
     const reader = createInterface(read);
     reader.on("line", (line) => {
@@ -64,20 +64,20 @@ export async function undo(id: string) {
   return res;
 }
 
-export async function undoList(): Promise<
-  { description: string; uuid: string }[]
-> {
+export async function undoList(): Promise<undoStep[]> {
   return new Promise<{ description: string; uuid: string }[]>(
     async (resolve) => {
       const readUndo = createReadStream(undoFile, { encoding: "utf-8" });
       const undoneOperations = (
-        await readFile(undoneFile, { encoding: "utf-8" })
+        await readFile(undoneFile, { encoding: "utf-8" }).catch((e) => "")
       ).split("\n");
       const res: { description: string; uuid: string }[] = [];
       const reader = createInterface(readUndo);
       reader.on("line", (line) => {
         const op = JSON.parse(line);
-        if (undoneOperations.includes(op.uuid)) return;
+        if (undoneOperations.includes(op.uuid)) {
+          return;
+        }
         res.push({
           description: op.description as string,
           uuid: op.uuid as string,

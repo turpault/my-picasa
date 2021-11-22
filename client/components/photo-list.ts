@@ -1,22 +1,19 @@
 import {
-  albumEntryFromElement,
   albumFromElement,
-  elementFromEntry,
   range,
-  rectanglesIntersect,
   setIdForAlbum,
 } from "../../shared/lib/utils.js";
 import {
   Album,
   AlbumEntry,
   AlbumListEventSource,
-  PicasaFileMeta,
 } from "../../shared/types/types.js";
 import { FolderMonitor } from "../folder-monitor.js";
 import { getAlbumInfo } from "../folder-utils.js";
+import { assetUrl, thumbnailUrl } from "../imageProcess/client.js";
 import { $ } from "../lib/dom.js";
 import { toggleStar } from "../lib/handles.js";
-import { getSettings, getSettingsEmitter } from "../lib/settings.js";
+import { getSettingsEmitter } from "../lib/settings.js";
 import { getService } from "../rpc/connect.js";
 import { SelectionManager } from "../selection/selection-manager.js";
 import {
@@ -53,11 +50,13 @@ export async function makePhotoList(
   events.on("tabChanged", ({ win }) => {
     tabIsActive = $(container).isParent(win);
   });
-  events.on("keyDown", ({ code, tab }) => {
+  events.on("keyDown", ({ code, win }) => {
     if (!tabIsActive) return;
     switch (code) {
       case "Space":
         toggleStar(SelectionManager.get().selected());
+      case "Enter":
+        startGallery();
       default:
     }
   });
@@ -86,7 +85,7 @@ export async function makePhotoList(
         for (const idx of range(fromAlbumIndex, toAlbumIndex)) {
           const album = monitor.albumAtIndex(idx);
           getAlbumInfo(album).then((data) => {
-            const sels = data.pictures;
+            const sels = data.assets;
             if (idx === fromAlbumIndex) {
               sels.splice(
                 0,
@@ -106,7 +105,7 @@ export async function makePhotoList(
         }
       } else {
         getAlbumInfo(from.album).then((data) => {
-          const sels = data.pictures;
+          const sels = data.assets;
           const start = sels.findIndex((e) => e.name === from!.name);
           const end = sels.findIndex((e) => e.name === to.name);
           sels.splice(Math.max(start, end) + 1, sels.length);
@@ -189,7 +188,7 @@ export async function makePhotoList(
         await populateElement(d, album);
       }
     }
-    doReflow |= REFLOW_TRIGGER;
+    doReflow |= REFLOW_FULL;
     doRepopulate = true;
   });
 
@@ -341,7 +340,8 @@ export async function makePhotoList(
       if (
         firstItem &&
         parseInt(firstItem.style.top) >
-          container.scrollTop - minDistancesAboveBelowFold
+          container.scrollTop - minDistancesAboveBelowFold &&
+        topIndex > 0
       ) {
         promises.push(addAtTop());
       }
@@ -451,9 +451,9 @@ export async function makePhotoList(
     title.innerText = album.name;
 
     const info = await getAlbumInfo(album, true /* use settings */);
-    makeNThumbnails(element, info.pictures.length, events);
+    makeNThumbnails(element, info.assets.length, events);
 
-    const keys = info.pictures.map((p) => p.name).reverse();
+    const keys = info.assets.map((p) => p.name).reverse();
     let idx = keys.length;
     const p: Promise<void>[] = [];
     for (const name of keys) {
@@ -574,4 +574,15 @@ export async function makePhotoList(
   events.on("selected", ({ album }) => {
     refresh(album);
   });
+
+  async function startGallery(start?: AlbumEntry) {
+    if (!start) {
+      start = SelectionManager.get().selected()[0];
+    }
+    if (!start) {
+      const v = visibleElement();
+      start = { album: albumFromElement(v!, elementPrefix)!, name: "" };
+    }
+    events.emit("show", { start });
+  }
 }

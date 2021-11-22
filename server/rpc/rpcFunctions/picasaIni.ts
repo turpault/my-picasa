@@ -1,31 +1,34 @@
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
-import ini from "../../../shared/lib/ini";
-import { SocketAdaptorInterface } from "../../../shared/socket/socketAdaptorInterface";
+import ini from "../../../shared/lib/ini.js";
+import { sleep } from "../../../shared/lib/utils.js";
 import {
   Album,
   AlbumEntry,
   PicasaFileMeta,
   PicasaFolderMeta,
-} from "../../../shared/types/types";
-import { imagesRoot, PICASA } from "../../utils/constants";
-import { broadcast } from "../../utils/socketList";
-import { inc, rate } from "../../utils/stats";
+} from "../../../shared/types/types.js";
+import { imagesRoot, PICASA } from "../../utils/constants.js";
+import { broadcast } from "../../utils/socketList.js";
+import { rate } from "../../utils/stats.js";
 
 let picasaMap: Map<string, Promise<PicasaFolderMeta>> = new Map();
 let dirtyPicasaMap: Map<string, PicasaFolderMeta> = new Map();
 
-setInterval(async () => {
-  const i = dirtyPicasaMap;
-  dirtyPicasaMap = new Map();
-  i.forEach(async (value, key) => {
-    rate("writePicasa");
-    console.info(`Writing file ${join(imagesRoot, key, PICASA)}`);
-    picasaMap.delete(key);
-    const out = ini.encode(value);
-    await writeFile(join(imagesRoot, key, PICASA), out);
-  });
-}, 10000);
+export async function picasaInitCleaner() {
+  while (true) {
+    const i = dirtyPicasaMap;
+    dirtyPicasaMap = new Map();
+    i.forEach(async (value, key) => {
+      rate("writePicasa");
+      console.info(`Writing file ${join(imagesRoot, key, PICASA)}`);
+      picasaMap.delete(key);
+      const out = ini.encode(value);
+      await writeFile(join(imagesRoot, key, PICASA), out);
+    });
+    await sleep(10);
+  }
+}
 
 export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
   // In the dirty list

@@ -1,4 +1,4 @@
-import { getService } from "../rpc/connect.js";
+import { getService, getServicePort } from "../rpc/connect.js";
 import { AlbumEntry, ThumbnailSize } from "../types/types.js";
 
 export async function buildContext(entry: AlbumEntry): Promise<string> {
@@ -61,7 +61,9 @@ export async function encode(
 }
 
 export function encodeToURL(context: string, mime: string): string {
-  return `http://127.0.0.1:5500/encode/${context}/${encodeURIComponent(mime)}`;
+  return `http://127.0.0.1:${getServicePort()}/encode/${context}/${encodeURIComponent(
+    mime
+  )}`;
 }
 
 export function thumbnailUrl(
@@ -71,7 +73,16 @@ export function thumbnailUrl(
   if (!entry) {
     return "";
   }
-  return `http://127.0.0.1:5500/thumbnail/${encodeURIComponent(
+  return `http://127.0.0.1:${getServicePort()}/thumbnail/${encodeURIComponent(
     entry.album.key
   )}/${encodeURIComponent(entry.name)}/${encodeURIComponent(size)}`;
+}
+
+export function assetUrl(entry: AlbumEntry): string {
+  if (!entry) {
+    return "";
+  }
+  return `http://127.0.0.1:${getServicePort()}/asset/${encodeURIComponent(
+    entry.album.key
+  )}/${encodeURIComponent(entry.name)}`;
 }

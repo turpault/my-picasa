@@ -8,11 +8,15 @@ export function makeHotkeys(emitter: Emitter<AlbumListEvent>) {
     if (questionIsDisplayed()) {
       return;
     }
+
+    if (document.activeElement && document.activeElement.tagName === "INPUT") {
+      return;
+    }
     const _activeTab = activeTab();
     ev.preventDefault();
     emitter.emit("keyDown", {
       code: ev.code,
-      tab: _activeTab.win.get(),
+      win: _activeTab.win.get(),
     });
   });
 }

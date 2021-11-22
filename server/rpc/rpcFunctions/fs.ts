@@ -1,8 +1,8 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "fs/promises";
 import { join } from "path";
-import { Album } from "../../../shared/types/types";
-import { openExplorer } from "../../open";
-import { defaultNewFolderRoot, imagesRoot } from "../../utils/constants";
+import { Album } from "../../../shared/types/types.js";
+import { openExplorer } from "../../open.js";
+import { defaultNewFolderRoot, imagesRoot } from "../../utils/constants.js";
 
 export async function readFileContents(file: string): Promise<string> {
   const p = join(imagesRoot, file);

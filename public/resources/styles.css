@@ -78,6 +78,7 @@ body {
   height: 100%;
   width: 100%;
   position: relative;
+  /* display: none; */
 }
 
 .fill-with-aspect {
@@ -304,40 +305,34 @@ body {
   width: 100%; /* Width of the outside container */
   /* padding: 0 !important; */
 }
-
-/* The slider itself */
 .slider {
-  -webkit-appearance: none;  /* Override default CSS styles */
-  appearance: none;
-  width: 100%; /* Full-width */
-  height: 25px; /* Specified height */
-  background: #d3d3d3; /* Grey background */
-  outline: none; /* Remove outline */
-  opacity: 0.7; /* Set transparency (for mouse-over effects on hover) */
-  -webkit-transition: .2s; /* 0.2 seconds transition on hover */
+  -webkit-appearance: none;
+  width: 100%;
+  height: 15px;
+  border-radius: 5px;   
+  background: #d3d3d3;
+  outline: none;
+  opacity: 0.7;
+  -webkit-transition: .2s;
   transition: opacity .2s;
 }
 
-/* Mouse-over effects */
-.slider:hover {
-  opacity: 1; /* Fully shown on mouse-over */
-}
-
-/* The slider handle (use -webkit- (Chrome, Opera, Safari, Edge) and -moz- (Firefox) to override default look) */
 .slider::-webkit-slider-thumb {
-  -webkit-appearance: none; /* Override default look */
+  -webkit-appearance: none;
   appearance: none;
-  width: 25px; /* Set a specific slider handle width */
-  height: 25px; /* Slider handle height */
-  background: #04AA6D; /* Green background */
-  cursor: pointer; /* Cursor on hover */
+  width: 25px;
+  height: 25px;
+  border-radius: 50%; 
+  background: #04AA6D;
+  cursor: pointer;
 }
 
 .slider::-moz-range-thumb {
-  width: 25px; /* Set a specific slider handle width */
-  height: 25px; /* Slider handle height */
-  background: #04AA6D; /* Green background */
-  cursor: pointer; /* Cursor on hover */
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: #04AA6D;
+  cursor: pointer;
 }
 
 .album {
@@ -348,6 +343,11 @@ body {
 
 .album-photos {
   user-select: none;
+  background-color: #ebebeb;
+  padding-left: 20px;
+  padding-top: 20px;
+  padding-right: 20px;
+  padding-bottom: 20px;
 }
 
 .filler {
@@ -360,7 +360,7 @@ body {
   /* padding-top: 10px;*/
   /*padding-bottom: 10px;*/
   user-select: none;
-  background-color: lightgray;
+  background-color: #f5f3f3;
   width: 100%;
 }
 .album > .header > .name {
@@ -382,6 +382,11 @@ body {
 
 .tab-button {height: 38px;/* color: black; *//* border-bottom: 2px solid black; */border-top: 3px solid #ffffff;}
 
+.remove-tab {
+  /* padding: 10px; */
+  padding-left: 10px;
+  /* padding-right: 10px; */
+}
 .tab-button .remove {
   padding-left: 10px;
   /* float: right; */
@@ -449,6 +454,19 @@ body {
   filter: drop-shadow(2px 4px 6px black);
   background-color: rgba(0,0,0,0.1);
   user-select: none;
+  display: block;
+}
+
+.message {
+  width: 100%;
+  font-size: large;
+}
+.messagebox {
+  padding-top: 40%;
+  filter: drop-shadow(2px 4px 6px black);
+  background-color: rgba(0,0,0,0.1);
+  user-select: none;
+  display: block;
 }
 
 [data-tooltip]:before {
@@ -475,4 +493,122 @@ body {
   /* margin-top: -55px; */
   /* margin-right: 42px; */
   /* right: 0px; */
+}
+
+/* ==== Gallery ==== */
+
+/* Position the image container (needed to position the left and right arrows) */
+.gallery-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Hide the images by default */
+.gallery-mySlides {
+  /* display: none; */
+  width: 100%;
+  /* height: 100%; */
+  bottom: 200px;
+  position: absolute;
+  top: 0;
+}
+
+.gallery-mySlides > img {
+    max-width: 100%;
+    max-height: 100%;
+    position: absolute;
+    display: block;
+}
+
+.gallery-mySlides > video {
+  max-width: 100%;
+  max-height: 100%;
+  position: absolute;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Add a pointer when hovering over the thumbnail images */
+.gallery-cursor {
+  cursor: pointer;
+}
+
+/* Next & previous buttons */
+.gallery-prev,
+.gallery-next {
+  cursor: pointer;
+  position: absolute;
+  top: 40%;
+  width: auto;
+  padding: 16px;
+  margin-top: -50px;
+  color: white;
+  font-weight: bold;
+  font-size: 20px;
+  border-radius: 0 3px 3px 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Position the "next button" to the right */
+.gallery-next {
+  right: 0;
+  border-radius: 3px 0 0 3px;
+}
+
+/* On hover, add a black background color with a little bit see-through */
+.gallery-prev:hover,
+.gallery-next:hover {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+/* Number text (1/3 etc) */
+.gallery-numbertext {
+  color: #f2f2f2;
+  font-size: 12px;
+  padding: 8px 12px;
+  position: absolute;
+  top: 0;
+}
+
+/* Container for image text */
+.gallery-caption-container {
+  text-align: center;
+  background-color: #222;
+  padding: 2px 16px;
+  color: white;
+}
+
+.gallery-row {
+  overflow-x: scroll;
+  position: absolute;
+  height: 200px;
+  bottom: 0;
+  width: 100%;
+  white-space: nowrap;
+}
+.gallery-row:after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+/* Six columns side by side */
+.gallery-column {
+  /* float: left; */
+  /* width: 16.66%; */
+}
+
+/* Add a transparency effect for thumnbail images */
+.gallery-demo {
+  opacity: 0.6;
+  max-height: 100%;
+  display: inline-block;
+}
+
+.gallery-active,
+.gallery-demo:hover {
+  opacity: 1;
 }

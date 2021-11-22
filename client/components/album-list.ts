@@ -20,21 +20,26 @@ export async function makeAlbumList(
   let lastHighlight: any;
   const folders = $(".folders", container);
   events.on("scrolled", ({ album }) => {
-    if (lastHighlight && lastHighlight.alive()) {
+    if (lastHighlight && lastHighlight.is()) {
       lastHighlight.removeClass("highlight-list");
     }
     lastHighlight = $(elementFromAlbum(album, elementPrefix)!);
-    if(lastHighlight.alive()) {
+    if (lastHighlight.is()) {
       lastHighlight.addClass("highlight-list");
       lastHighlight.get().scrollIntoViewIfNeeded(false);
     }
   });
+  let firstInit = true;
   monitor.events.on("updated", (event: { folders: Album[] }) => {
     folders.empty();
     for (const aFolder of event.folders) {
       const node = folder(aFolder);
       setIdForAlbum(node, aFolder, elementPrefix);
       folders.append(node);
+    }
+    if (firstInit) {
+      firstInit = false;
+      events.emit("selected", { album: event.folders[0] });
     }
   });
   folders.on("click", function (ev): any {
@@ -67,15 +72,30 @@ export async function makeAlbumList(
   events.on("tabChanged", ({ win }) => {
     processKeys = win.get() === container;
   });
-  events.on("keyDown", ({ code, tab }) => {
+  events.on("keyDown", ({ code, win }) => {
     switch (code) {
       case "Space":
       default:
     }
   });
   // Status change events
-  const s = await getService();
+  const filter = $("#filterAlbum").on("input", () => {
+    // Hide albums not matching the filter
+    const expr = filter.val();
+    for (const elem of folders.get().children) {
+      $(elem as HTMLElement).css(
+        "display",
+        expr === "" ||
+          albumFromElement(elem as HTMLElement, elementPrefix)!.name.includes(
+            expr
+          )
+          ? "block"
+          : "none"
+      );
+    }
+  });
 
+  const s = await getService();
   s.on("albumChanged", async (e: { payload: Album[] }) => {
     let refresh = false;
     for (const album of e.payload) {

@@ -1,15 +1,14 @@
 import { inspect } from "util";
-import { uuid } from "../../shared/lib/utils";
+import { uuid } from "../../shared/lib/utils.js";
 import { SocketAdaptorInterface } from "../../shared/socket/socketAdaptorInterface";
-import { inc, rate } from "../utils/stats";
+import { busy } from "../utils/busy.js";
+import { inc, rate } from "../utils/stats.js";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Describles a client-specific set of options.
  * These options can mutate over time, but always reflect a realtime state of the system.
  */
 export type InitializeOptions = {};
-
-let lastActivity: number = 0;
 
 export type Service = {
   handler: Function; // The function handler
@@ -181,15 +180,11 @@ export function registerServices(
             console.info(errMessage, exception.stack);
             callback(errMessage);
           } finally {
-            lastActivity = new Date().getTime();
+            busy();
             console.timeEnd(label);
           }
         }
       );
     });
   }
-}
-
-export function isIdle() {
-  return new Date().getTime() - lastActivity > 10000;
 }

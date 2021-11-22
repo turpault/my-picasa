@@ -1,14 +1,20 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, contentTracing } from "electron";
 import { join } from "path";
+import { getPort, start } from "./start";
 function createWindow() {
   const win = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 1200,
+    height: 900,
   });
 
-  win.loadFile(join(__dirname, "..", "..", "public", "index.html"));
+  win.loadFile(
+    join(__dirname, "..", "..", "public", `index.html#${getPort()}`)
+  );
 }
 
-app.whenReady().then(() => {
-  createWindow();
-});
+app
+  .whenReady()
+  .then(() => start())
+  .then(() => {
+    createWindow();
+  });

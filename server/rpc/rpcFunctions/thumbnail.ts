@@ -1,32 +1,48 @@
-import { lock } from "../../../shared/lib/utils";
+import { readFile, stat, writeFile } from "fs/promises";
+import { extname } from "path";
+import { Queue } from "../../../shared/lib/queue.js";
+import { lock } from "../../../shared/lib/utils.js";
 import {
   AlbumEntry,
   extraFields,
-  PartialRecord,
   PicasaFolderMeta,
   ThumbnailSize,
-  ThumbnailSizeVals,
-} from "../../../shared/types/types";
-import { dec, inc } from "../../utils/stats";
+  videoExtensions,
+} from "../../../shared/types/types.js";
+import { dec, inc } from "../../utils/stats.js";
 import {
   buildContext,
   commit,
   destroyContext,
+  dimensionsFromFile,
   encode,
   execute,
   setOptions,
   transform,
-} from "../imageOperations/sharp-processor";
-import { readPicasaIni, updatePicasaEntry } from "./picasaIni";
+} from "../imageOperations/sharp-processor.js";
+import { createGif } from "../videoOperations/gif.js";
+import { readPicasaIni, updatePicasaEntry } from "./picasaIni.js";
 import {
   readThumbnailFromCache,
+  thumbnailPathFromEntryAndSize,
   writeThumbnailToCache,
-} from "./thumbnailCache";
+} from "./thumbnailCache.js";
 
 export async function readOrMakeThumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize = "th-medium"
-): Promise<{ width: number; height: number; data: Buffer }> {
+): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
+  if (videoExtensions.includes(extname(entry.name).substr(1).toLowerCase())) {
+    return readOrMakeVideoThumbnail(entry, size);
+  } else {
+    return readOrMakeImageThumbnail(entry, size);
+  }
+}
+
+async function readOrMakeImageThumbnail(
+  entry: AlbumEntry,
+  size: ThumbnailSize = "th-medium"
+): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
   const lockLabel = `thumbnail:${entry.album.key}-${entry.name}-${size}`;
   const release = await lock(lockLabel);
   inc("thumbnail");
@@ -60,14 +76,19 @@ export async function readOrMakeThumbnail(
     let cachedSize = picasa[entry.name][picasaSizeLabel];
     let jpegBuffer = await readThumbnailFromCache(entry, size);
     if (!jpegBuffer || !cachedSize || transform !== cachedTransform) {
-      const res = await makeThumbnail(entry, picasa[entry.name], transform, [
+      const res = await makeImageThumbnail(
+        entry,
+        picasa[entry.name],
+        transform,
         [
-          "resize",
-          sizes[size],
-          undefined,
-          { fit: "inside", kernel: "nearest" },
-        ],
-      ]);
+          [
+            "resize",
+            sizes[size],
+            undefined,
+            { fit: "inside", kernel: "nearest" },
+          ],
+        ]
+      );
 
       picasa[entry.name][picasaLabel] = transform;
       cachedSize = picasa[entry.name][
@@ -84,7 +105,7 @@ export async function readOrMakeThumbnail(
       jpegBuffer = res.data;
     }
     const [width, height] = cachedSize.split("x").map(parseInt);
-    return { data: jpegBuffer, width, height };
+    return { data: jpegBuffer, width, height, mime: "image/jpeg" };
   } catch (e: any) {
     exception = e;
   } finally {
@@ -97,28 +118,81 @@ export async function readOrMakeThumbnail(
   throw new Error("bad locking");
 }
 
-async function makeThumbnail(
+// Queue last-in first out
+const thumbnailQueue = new Queue(4, { fifo: false });
+async function makeImageThumbnail(
   entry: AlbumEntry,
   options: any | undefined,
   transformations: string | undefined,
   extraOperations: any[] | undefined
-): Promise<{ width: number; height: number; data: Buffer }> {
-  const context = await buildContext(entry);
-  if (options) {
-    await setOptions(context, options);
+): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
+  return thumbnailQueue.add(async () => {
+    const label = `Thumbnail for image ${entry.album.name} / ${
+      entry.name
+    } / ${transformations} / ${extraOperations ? extraOperations[0] : "no op"}`;
+    console.time(label);
+    try {
+      const context = await buildContext(entry);
+      if (options) {
+        await setOptions(context, options);
+      }
+      if (extraOperations) {
+        await execute(context, extraOperations);
+        await commit(context);
+      }
+      if (transformations) {
+        await transform(context, transformations);
+      }
+      const res = (await encode(context, "image/jpeg", "Buffer")) as {
+        width: number;
+        height: number;
+        data: Buffer;
+      };
+      await destroyContext(context);
+      console.timeEnd(label);
+      return { ...res, mime: "image/jpeg" };
+    } catch (e) {
+      console.timeEnd(label);
+      throw e;
+    }
+  });
+}
+
+export async function readOrMakeVideoThumbnail(
+  entry: AlbumEntry,
+  size: ThumbnailSize = "th-medium"
+): Promise<{ data: Buffer; width: number; height: number; mime: string }> {
+  let res: { data: Buffer; width: number; height: number } | undefined;
+  const gif = thumbnailPathFromEntryAndSize(entry, size);
+  if (!(await stat(gif).catch((e) => false))) {
+    const unlock = await lock(entry.album.key + entry.name);
+    let _exception;
+    try {
+      const sizes = {
+        "th-small": 100,
+        "th-medium": 250,
+        "th-large": 500,
+      };
+      const data = await createGif(entry, sizes[size]);
+      await writeFile(gif, data);
+      const d = await dimensionsFromFile(gif);
+      res = { data, ...d };
+    } catch (e) {
+      _exception = e;
+    } finally {
+      unlock();
+      if (_exception) {
+        throw _exception;
+      }
+    }
+  } else {
+    const data = await readFile(gif);
+    const d = await dimensionsFromFile(gif);
+    res = { data, ...d };
   }
-  if (extraOperations) {
-    await execute(context, extraOperations);
-    await commit(context);
+  if (!res) {
+    throw new Error("No result");
+  } else {
+    return { ...res, mime: "image/gif" };
   }
-  if (transformations) {
-    await transform(context, transformations);
-  }
-  const res = (await encode(context, "image/jpeg", "Buffer")) as {
-    width: number;
-    height: number;
-    data: Buffer;
-  };
-  await destroyContext(context);
-  return res;
 }

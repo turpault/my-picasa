@@ -1,27 +1,42 @@
-import { sleep } from "../../../shared/lib/utils";
-import { ThumbnailSizeVals } from "../../../shared/types/types";
-import { readOrMakeThumbnail } from "../rpcFunctions/thumbnail";
-import { folders, mediaInAlbum, walk } from "../rpcFunctions/walker";
-import { isIdle } from "../rpcHandler";
+import { stat } from "fs/promises";
+import Spinnies from "spinnies";
+import { sleep } from "../../../shared/lib/utils.js";
+import { ThumbnailSizeVals } from "../../../shared/types/types.js";
+import { isIdle } from "../../utils/busy.js";
+import { readOrMakeThumbnail } from "../rpcFunctions/thumbnail.js";
+import { thumbnailPathFromEntryAndSize } from "../rpcFunctions/thumbnailCache.js";
+import { folders, media } from "../rpcFunctions/walker.js";
 
 export async function buildThumbs() {
-  await sleep(6000);
+  const spinner = new Spinnies();
+  spinner.add("s", { text: "Building thumbs" });
+  await sleep(10);
+
   while (true) {
-    const albums = await folders();
+    const albums = await folders("");
     for (const album of albums) {
-      const media = await mediaInAlbum(album);
-      for (const picture of media.pictures) {
+      const m = await media(album, "");
+      for (const picture of m.assets) {
         while (!isIdle()) {
+          spinner.update("s", {
+            text: `Thumbnail generation paused: system busy`,
+          });
           await sleep(1);
         }
+        spinner.update("s", {
+          text: `Building thumbnails for album ${album.name}`,
+        });
         await Promise.all(
-          ThumbnailSizeVals.map((size) =>
-            readOrMakeThumbnail(picture, size).catch((e) => {
-              console.error(
-                `An error occured while resizing image ${picture.album.key}/${picture.name} : ${e}`
-              );
-              return;
-            })
+          // All size except large ones
+          ThumbnailSizeVals.filter((f) => !f.includes("large")).map((size) =>
+            stat(thumbnailPathFromEntryAndSize(picture, size))
+              .catch((e) => readOrMakeThumbnail(picture, size))
+              .catch((e) => {
+                console.error(
+                  `An error occured while creating a thumbnail for ${picture.album.key}/${picture.name} : ${e}`
+                );
+                return;
+              })
           )
         );
       }

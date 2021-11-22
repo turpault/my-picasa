@@ -1,9 +1,17 @@
 import { readFile } from "fs/promises";
 import { join } from "path";
 import sharp, { Sharp } from "sharp";
-import { decodeOperations, decodeRect, uuid } from "../../../shared/lib/utils";
+import {
+  decodeOperations,
+  decodeRect,
+  uuid,
+} from "../../../shared/lib/utils.js";
 import { AlbumEntry, PicasaFileMeta } from "../../../shared/types/types.js";
-import { imagesRoot } from "../../utils/constants";
+import { imagesRoot } from "../../utils/constants.js";
+import { promisify } from "util";
+import sizeOf from "image-size";
+
+const s = promisify(sizeOf);
 
 const contexts = new Map<string, Sharp>();
 const options = new Map<string, PicasaFileMeta>();
@@ -20,12 +28,30 @@ function setContext(context: string, j: Sharp) {
   contexts.set(context, j);
 }
 
+export async function dimensionsFromFile(
+  file: string
+): Promise<{ width: number; height: number }> {
+  const d = await s(file);
+  return { width: d!.width!, height: d!.height! };
+}
+
+export async function dimensions(
+  data: Buffer
+): Promise<{ width: number; height: number }> {
+  let s = sharp(data, { limitInputPixels: false, failOnError: false }).rotate();
+  const metadata = await s.metadata();
+  return { width: metadata.width!, height: metadata.height! };
+}
+
 export async function buildContext(entry: AlbumEntry): Promise<string> {
   const fileData = await readFile(
     join(imagesRoot, entry.album.key, entry.name)
   );
   const contextId = uuid();
-  let s = sharp(fileData, { limitInputPixels: false }).rotate();
+  let s = sharp(fileData, {
+    limitInputPixels: false,
+    failOnError: false,
+  }).rotate();
   contexts.set(contextId, s);
   return contextId;
 }
@@ -161,13 +187,10 @@ export async function transform(
                   channels: 4,
                   background:
                     "#" +
-                    temp.padStart(
-                      6,
-                      "0"
-                    ) /*+
+                    temp.padStart(6, "0") +
                     Math.floor(what * 255)
                       .toString(16)
-                      .padStart(2, "0"),*/,
+                      .padStart(2, "0"),
                 },
               },
               tile: true,
@@ -199,6 +222,7 @@ export async function transform(
             background: "#ffffff",
           },
           limitInputPixels: false,
+          failOnError: false,
         });
         const { data, info } = await c
           .raw()
@@ -234,7 +258,11 @@ export async function transform(
         const updated = await newImage
           .raw()
           .toBuffer({ resolveWithObject: true });
-        j = sharp(updated.data, { limitInputPixels: false, raw: updated.info });
+        j = sharp(updated.data, {
+          limitInputPixels: false,
+          raw: updated.info,
+          failOnError: false,
+        });
         j = j.rotate(-angle, { background: col });
         break;
       }
@@ -337,7 +365,11 @@ export async function execute(
 export async function commit(context: string): Promise<void> {
   let j = getContext(context);
   const updated = await j.raw().toBuffer({ resolveWithObject: true });
-  j = sharp(updated.data, { limitInputPixels: false, raw: updated.info });
+  j = sharp(updated.data, {
+    limitInputPixels: false,
+    raw: updated.info,
+    failOnError: false,
+  });
 
   setContext(context, j);
 }

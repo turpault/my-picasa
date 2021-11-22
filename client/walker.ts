@@ -1,20 +1,20 @@
 import { Album, AlbumEntry } from "../shared/types/types.js";
 import { getService } from "./rpc/connect.js";
 
-export async function walkFromServer(): Promise<
-  { name: string; key: string }[]
-> {
+export async function walkFromServer(
+  filter: string
+): Promise<{ name: string; key: string }[]> {
   const s = await getService();
-  return s.folders();
+  return s.folders(filter);
 }
 
 export async function albumContents(
-  fh: Album
+  fh: Album,
+  filter: string
 ): Promise<{
-  pictures: AlbumEntry[];
-  videos: AlbumEntry[];
+  assets: AlbumEntry[];
 }> {
   const service = await getService();
-  const { pictures, videos } = await service.media(fh);
-  return { pictures, videos };
+  const { assets } = await service.media(fh, filter);
+  return { assets };
 }
