@@ -13,7 +13,7 @@ import { asset } from "./rpc/routes/asset.js";
 import { thumbnail } from "./rpc/routes/thumbnail.js";
 import { picasaInitCleaner } from "./rpc/rpcFunctions/picasaIni.js";
 import { updateLastWalkLoop } from "./rpc/rpcFunctions/walker.js";
-import { busy } from "./utils/busy.js";
+import { busy, measureCPULoad } from "./utils/busy.js";
 import { addSocket, removeSocket } from "./utils/socketList.js";
 import { history } from "./utils/stats.js";
 const server: FastifyInstance = Fastify({
@@ -136,6 +136,7 @@ export async function start(p?: number) {
     }
     buildThumbs();
     updateLastWalkLoop();
+    measureCPULoad();
     picasaInitCleaner();
     await server.listen(p);
     await socketInit(server.server);

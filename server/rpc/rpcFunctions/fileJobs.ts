@@ -8,9 +8,9 @@ import { fileExists } from "../../utils/serverUtils.js";
 import { broadcast } from "../../utils/socketList.js";
 import { addToUndo, registerUndoProvider } from "../../utils/undo.js";
 import { exportToFolder } from "../imageOperations/export.js";
-import { readPicasaIni, writePicasaIni } from "./picasaIni.js";
+import { readPicasaIni, updatePicasaEntry } from "./picasaIni.js";
 import { copyThumbnails } from "./thumbnailCache.js";
-import { invalidateCachedFolderList } from "./walker.js";
+import { refreshAlbums } from "./walker.js";
 
 const jobs: Job[] = [];
 
@@ -51,7 +51,7 @@ export async function createFSJob(
     .then(async (updatedAlbums: Album[]) => {
       broadcast("jobFinished", job);
       if (updatedAlbums.length) {
-        invalidateCachedFolderList();
+        refreshAlbums(updatedAlbums);
         broadcast("albumChanged", updatedAlbums);
       }
     })
@@ -397,14 +397,13 @@ async function copyMetadata(
   dest: AlbumEntry,
   deleteSource: boolean = false
 ) {
-  const sourceIniData = await readPicasaIni(source.album);
+  const sourceIniData = readPicasaIni(source.album);
   if (sourceIniData[source.name]) {
-    const targetIniData = await readPicasaIni(dest.album);
-    targetIniData[dest.name] = sourceIniData[source.name];
-    writePicasaIni(dest.album, targetIniData);
+    updatePicasaEntry(dest, "*", sourceIniData[source.name]);
+
     if (deleteSource) {
       delete sourceIniData[source.name];
-      writePicasaIni(source.album, sourceIniData);
+      updatePicasaEntry(source, "*", undefined);
     }
   }
 

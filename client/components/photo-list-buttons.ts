@@ -81,7 +81,7 @@ export async function makeButtons(e: HTMLElement) {
           }
           // TODO: Ugly
           p.filters += "rotate=1,1";
-          await s.updatePicasaEntry(e, "filters", p.filters);
+          s.updatePicasaEntry(e, "filters", p.filters);
         }
       },
     },

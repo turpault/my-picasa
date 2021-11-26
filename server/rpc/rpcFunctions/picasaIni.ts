@@ -1,3 +1,4 @@
+import { readFileSync } from "fs";
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import ini from "../../../shared/lib/ini.js";
@@ -12,83 +13,73 @@ import { imagesRoot, PICASA } from "../../utils/constants.js";
 import { broadcast } from "../../utils/socketList.js";
 import { rate } from "../../utils/stats.js";
 
-let picasaMap: Map<string, Promise<PicasaFolderMeta>> = new Map();
-let dirtyPicasaMap: Map<string, PicasaFolderMeta> = new Map();
+let picasaMap: Map<string, PicasaFolderMeta> = new Map();
+let dirtyPicasaSet: Set<string> = new Set();
 
 export async function picasaInitCleaner() {
   while (true) {
-    const i = dirtyPicasaMap;
-    dirtyPicasaMap = new Map();
-    i.forEach(async (value, key) => {
+    const i = dirtyPicasaSet;
+    dirtyPicasaSet = new Set();
+    i.forEach(async (key) => {
       rate("writePicasa");
       console.info(`Writing file ${join(imagesRoot, key, PICASA)}`);
+      const out = ini.encode(picasaMap.get(key));
       picasaMap.delete(key);
-      const out = ini.encode(value);
       await writeFile(join(imagesRoot, key, PICASA), out);
     });
     await sleep(10);
   }
 }
 
-export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
-  // In the dirty list
-  if (dirtyPicasaMap.has(album.key)) {
-    return dirtyPicasaMap.get(album.key)!;
-  }
-
+export function readPicasaIni(album: Album): PicasaFolderMeta {
   // In the cache
   if (!picasaMap.has(album.key)) {
     rate("readPicasa");
-    picasaMap.set(
-      album.key,
-      await readFile(join(imagesRoot, album.key, PICASA), {
+    try {
+      const iniData = readFileSync(join(imagesRoot, album.key, PICASA), {
         encoding: "utf8",
-      })
-        .then(ini.parse)
-        .catch((e) => {
-          console.warn(e);
-          return {};
-        })
-    );
+      });
+      const i = ini.parse(iniData);
+      picasaMap.set(album.key, i);
+    } catch (e: any) {
+      console.warn(e);
+      picasaMap.set(album.key, {});
+    }
   }
   return picasaMap.get(album.key)!;
 }
 
-export async function writePicasaIni(
-  album: Album,
-  data: PicasaFolderMeta
-): Promise<void> {
-  if (!dirtyPicasaMap.has(album.key)) {
-    dirtyPicasaMap.set(album.key, data);
-  }
+function writePicasaIni(album: Album, data: PicasaFolderMeta): void {
+  dirtyPicasaSet.add(album.key);
+  picasaMap.set(album.key, data);
 }
 
-export async function readPicasaEntry(
-  entry: AlbumEntry
-): Promise<PicasaFileMeta> {
-  return readPicasaIni(entry.album).then((picasa) => {
-    picasa[entry.name] = picasa[entry.name] || ({} as PicasaFileMeta);
-    return picasa[entry.name];
-  });
+export function readPicasaEntry(entry: AlbumEntry): PicasaFileMeta {
+  const picasa = readPicasaIni(entry.album);
+  picasa[entry.name] = picasa[entry.name] || ({} as PicasaFileMeta);
+  return picasa[entry.name];
 }
 
-export async function updatePicasaEntry(
+export function updatePicasaEntry(
   entry: AlbumEntry,
-  field: keyof PicasaFileMeta,
+  field: keyof PicasaFileMeta | "*",
   value: any
 ) {
-  readPicasaIni(entry.album).then((picasa) => {
-    picasa[entry.name] = picasa[entry.name] || ({} as PicasaFileMeta);
-    if (value === "toggle") {
-      value = !picasa[entry.name][field];
-    }
-    // Special 'star'
-    if ((field as string) === "*") {
+  const picasa = readPicasaIni(entry.album);
+  picasa[entry.name] = picasa[entry.name] || ({} as PicasaFileMeta);
+  if (value === "toggle") {
+    value = !picasa[entry.name][field as keyof PicasaFileMeta];
+  }
+  // Special 'star'
+  if (field === "*") {
+    if (value) {
       picasa[entry.name] = value;
     } else {
-      picasa[entry.name][field] = value as never;
+      delete picasa[entry.name];
     }
-    broadcast("picasaFileMetaChanged", { entry, picasa: picasa[entry.name] });
-    return writePicasaIni(entry.album, picasa);
-  });
+  } else {
+    picasa[entry.name][field as keyof PicasaFileMeta] = value as never;
+  }
+  broadcast("picasaFileMetaChanged", { entry, picasa: picasa[entry.name] });
+  return writePicasaIni(entry.album, picasa);
 }

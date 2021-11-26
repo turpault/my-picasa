@@ -1,16 +1,22 @@
 import { setupAutocolor } from "../features/autocolor.js";
+import { setupContrast } from "../features/contrast.js";
+import { setupBlur } from "../features/blur.js";
 import { setupBrightness } from "../features/brightness.js";
 import { setupCrop } from "../features/crop.js";
 import { setupFlip } from "../features/flip.js";
+import { setupGamma } from "../features/gamma.js";
 import { setupMirror } from "../features/mirror.js";
 import { setupPolaroid } from "../features/polaroid.js";
 import { setupRotate } from "../features/rotate.js";
 import { setupSepia } from "../features/sepia.js";
+import { setupSharpen } from "../features/sharpen.js";
 import { getAlbumInfo } from "../folder-utils.js";
 import { $ } from "../lib/dom.js";
+import { toggleStar } from "../lib/handles.js";
 import { ImagePanZoomController } from "../lib/panzoom.js";
 import { ActiveImageManager } from "../selection/active-manager.js";
 import { Album, AlbumInfo, AlbumListEventSource } from "../types/types.js";
+import { animateStar } from "./animations.js";
 import { ImageController } from "./image-controller.js";
 import { makeImageStrip } from "./image-strip.js";
 import { deleteTabWin } from "./tabs.js";
@@ -20,7 +26,6 @@ const editHTML = `<div class="fill">
 <div class="fill w3-bar-block tools">
   <div class="w3-bar-item w3-white">Description</div>
   <div>
-    <label>Label</label>
     <input
       class="description w3-input"
       style="background: none"
@@ -111,13 +116,17 @@ export async function makeEditorPage(
   const toolRegistrar = makeTools($(".tools", e).get()!, imageController);
   // Add all the activable features
   setupCrop(e.get(), zoomController, imageController, toolRegistrar);
+  setupAutocolor(imageController, toolRegistrar);
+  setupContrast(imageController, toolRegistrar);
+  setupGamma(imageController, toolRegistrar);
   setupBrightness(imageController, toolRegistrar);
   setupSepia(imageController, toolRegistrar);
-  setupAutocolor(imageController, toolRegistrar);
   setupPolaroid(imageController, toolRegistrar);
   setupRotate(imageController, toolRegistrar);
   setupFlip(imageController, toolRegistrar);
   setupMirror(imageController, toolRegistrar);
+  setupBlur(imageController, toolRegistrar);
+  setupSharpen(imageController, toolRegistrar);
 
   const f: AlbumInfo = await getAlbumInfo(album);
   const activeManager = new ActiveImageManager(f.assets, { album, name });
@@ -134,11 +143,25 @@ export async function makeEditorPage(
   imageController.events.on("busy", () => {
     $(".busy-spinner", e).css("display", "block");
   });
-  events.on("keyDown", ({ code, win }) => {
-    if (code === "Escape") {
-      deleteTabWin(win);
+  events.on("keyDown", async ({ code, win }) => {
+    switch (code) {
+      case "Space":
+        const target = await toggleStar([{ album, name }]);
+        animateStar(target);
+        break;
+      case "Escape":
+        deleteTabWin(win);
     }
   });
+
+  events.on("keyDown", ({ code, win }) => {
+    switch (code) {
+      case "Space":
+        animateStar(true);
+      default:
+    }
+  });
+
   events.on("tabDeleted", ({ win }) => {
     if (win.get() === e.get()) {
     }

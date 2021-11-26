@@ -2,8 +2,11 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import sharp, { Sharp } from "sharp";
 import {
+  clipColor,
   decodeOperations,
   decodeRect,
+  fromHex,
+  toHex2,
   uuid,
 } from "../../../shared/lib/utils.js";
 import { AlbumEntry, PicasaFileMeta } from "../../../shared/types/types.js";
@@ -71,11 +74,12 @@ export async function cloneContext(context: string): Promise<string> {
 #| tilt        | !TILT_ANGLE,!SCALE                  |  tilts and scales image        | tilt=1,0.280632,0.000000      | X
 #| redeye      |                                     |  redeye removal                | redeye=1                      |
 #| enhance     |                                     | "I'm feeling lucky" enhancement| enhance=1                     |
-#| autolight   |                                     | automatic contrast correction  | autolight=1                   |
+#| autolight   |                                     | automatic contrast correction  | autolight=1                   | X
+#| fill        |                                     | gamma correction               | fill=1,0.43222                | X
 #| autocolor   |                                     | automatic color correction     | autocolor=1                   | X
 #| retouch     |                                     | retouch                        | retouch=1                     | ?
-#| finetune2   | (unidentified params)               | finetuning (brightness,        | finetune2=1,0.000000,0.000000,|
-#|             |                                     |highlights, shadows,color temp) | 0.000000,fff7f5f3,0.000000;   |
+#| finetune2   | (unidentified params)               | finetuning (brightness,        | finetune2=1,0.000000,0.000000,| X
+#|             |                                     |highlights, shadows,grey point,color temp) | 0.000000,fff7f5f3,0.000000;   |
 #| unsharp2    | !AMOUNT                             | unsharp mask filter            | unsharp2=1,0.600000;          |
 #| sepia       |                                     | sepia filter (no params)       | sepia=1                       |
 #| bw          |                                     | black/white filter (no params) | bw=1                          |
@@ -94,6 +98,9 @@ export async function cloneContext(context: string): Promise<string> {
 #| rotate      | angle (increments of 90)            | rotation (clockwise)           | 1,3                           |  New
 #| mirror      |                                     | mirror                         | 1                             |  New
 #| flip        |                                     | flip                           | 1                             |  New
+#| blur        |                                     | blur                           | 1                             |  New
+#| sharpen     |                                     | sharpen                        | 1                             |  New
+
 # LEGEND:
 # ! = float between 0 and 1, precision:6
 # !! = float with arbitrary range, precision:6
@@ -118,11 +125,13 @@ export async function transform(
         ]);
         break;
       case "rotate":
-        await commit(context);
-        j = getContext(context);
-        let r: number;
-        if (args[1] && (r = parseInt(args[1])) != 0) {
-          j = j.rotate(-r * 90);
+        {
+          await commit(context);
+          j = getContext(context);
+          let r: number;
+          if (args[1] && (r = parseInt(args[1])) != 0) {
+            j = j.rotate(-r * 90);
+          }
         }
         break;
       case "flip":
@@ -146,8 +155,27 @@ export async function transform(
         }
         break;
       case "bw":
-        j.greyscale();
+        j = j.greyscale();
         break;
+      case "fill":
+        {
+          await commit(context);
+          j = getContext(context);
+          const amount = parseFloat(args[1]);
+          j = j.modulate({ brightness: amount });
+        }
+        break;
+      case "blur":
+        {
+          const amount = parseFloat(args[1]);
+          j = j.blur(amount);
+        }
+        break;
+      case "sharpen":
+        const amount = parseFloat(args[1]);
+        j = j.sharpen(amount);
+        break;
+
       case "tilt":
         const angle = parseInt(args[1]);
         const scale = parseInt(args[2]);
@@ -160,50 +188,89 @@ export async function transform(
         j = j.rotate((10 * angle) / Math.PI);
         break;
       case "finetune2":
-        const brightness = parseFloat(args[1] || "0");
-        const highlights = parseFloat(args[2] || "0");
-        const shadows = parseFloat(args[3] || "0");
-        const temp = args[4];
-        const what = parseFloat(args[5] || "0");
-        const modulate: {
-          brightness?: number | undefined;
-          saturation?: number | undefined;
-          hue?: number | undefined;
-          lightness?: number | undefined;
-        } = {};
-        let doModulate = false;
-        modulate.brightness = 1 + brightness - shadows;
-        modulate.lightness = highlights;
-        if (modulate.brightness || modulate.lightness) {
-          j = j.modulate(modulate);
+        // Really neeps mapLut from vips - kind of a best approach for now.
+        const brightness = parseFloat(args[1] || "0"); // 0->1
+        if (brightness > 0) {
+          j = j.modulate({ brightness: brightness + 1 });
         }
-        if (what) {
-          j = j.composite([
-            {
-              input: {
-                create: {
-                  width: 10,
-                  height: 10,
-                  channels: 4,
-                  background:
-                    "#" +
-                    temp.padStart(6, "0") +
-                    Math.floor(what * 255)
-                      .toString(16)
-                      .padStart(2, "0"),
-                },
-              },
-              tile: true,
-              blend: "multiply",
+
+        const highlights = parseFloat(args[2] || "0"); // 0->0.5
+        const shadows = parseFloat(args[3] || "0"); // 0->0.5
+        let whitepoint = args[4];
+        if (whitepoint.length == 6) {
+          whitepoint = "00" + whitepoint;
+        }
+
+        const layers: sharp.OverlayOptions[] = [];
+
+        let [a, r, g, b] = fromHex(whitepoint);
+        if (r + g + b === 0 || r + g + b === 255 * 3) {
+          // no whitepoint set
+          r = g = b = 127;
+        }
+        const gr = (r + g + b) / 3; // average value, used to calculate the gray distance
+        [a, r, g, b] = [a, r, g, b].map((v) => 127 + v - gr);
+        const temperature = parseFloat(args[5] || "0"); // can be negative
+        r = r * (1 + temperature);
+        b = b * (1 - temperature);
+        a = 0x80;
+        const rgba = [r, g, b, a].map(clipColor).map(toHex2).join("");
+        layers.push({
+          input: {
+            create: {
+              width: 10,
+              height: 10,
+              channels: 4,
+              background: "#" + rgba,
             },
-          ]);
+          },
+          tile: true,
+          blend: "colour-dodge",
+        });
+        if (highlights > 0) {
+          layers.push({
+            input: {
+              create: {
+                width: 10,
+                height: 10,
+                channels: 4,
+                background: "#ffffff" + toHex2(highlights * 255),
+              },
+            },
+            tile: true,
+            blend: "hard-light",
+          });
         }
+        if (shadows > 0) {
+          layers.push({
+            input: {
+              create: {
+                width: 10,
+                height: 10,
+                channels: 4,
+                background: "#000000" + toHex2(shadows * 255),
+              },
+            },
+            tile: true,
+            blend: "colour-burn",
+          });
+        }
+
+        j = j.composite(layers);
 
         break;
       case "autocolor":
         j = j.normalize();
         break;
+      case "contrast":
+        let contrast = parseFloat(args[1] || "0") / 100;
+        j = j.linear(contrast, -(128 * contrast) + 128);
+        break;
+
       case "Polaroid": {
+        await commit(context);
+        j = getContext(context);
+
         const angle = parseFloat(args[1]);
         let c = j.clone();
         const metadata = await c.metadata();
@@ -228,32 +295,26 @@ export async function transform(
           .raw()
           .toBuffer({ resolveWithObject: true });
 
-        newImage = newImage.composite([
+        const layers: sharp.OverlayOptions[] = [
           {
             input: data,
             left: Math.floor(h / 20),
             top: Math.floor(w / 20),
             raw: info,
           },
-        ]);
-        const col =
-          "#" +
-          (args[2].length > 6
-            ? args[2].slice(2) + args[2].slice(0, 2)
-            : args[2]);
-        /*
-
-        const imgOptions = options.get(context);
-        if (imgOptions && imgOptions.caption) {
-          const font = await getFont("verdana_regular", newImage.bitmap.width);
-          newImage.print(
-            font,
-            newImage.bitmap.width * 0.1,
-            newImage.bitmap.height * 0.8,
-            imgOptions.caption,
-            newImage.bitmap.width * 0.8
-          );
-        }*/
+        ];
+        const o = options.get(context);
+        if (o && o.caption) {
+          const txtSvg = `<svg height="${Math.floor(
+            h / 3
+          )}" width="${Math.floor(w * 0.8)}"> <text x="0" y="${Math.floor(
+            h / 5
+          )}" font-size="${Math.floor(w / 20)}" fill="#000000">${
+            options.get(context)!.caption
+          }</text> </svg>`;
+          layers.push({ input: Buffer.from(txtSvg), gravity: "south" });
+        }
+        newImage = newImage.composite(layers);
         // ARGB to RGBA
         const updated = await newImage
           .raw()
@@ -263,6 +324,11 @@ export async function transform(
           raw: updated.info,
           failOnError: false,
         });
+        const col =
+          "#" +
+          (args[2].length > 6
+            ? args[2].slice(2) + args[2].slice(0, 2)
+            : args[2]);
         j = j.rotate(-angle, { background: col });
         break;
       }

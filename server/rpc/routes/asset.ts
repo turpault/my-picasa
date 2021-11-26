@@ -20,9 +20,7 @@ export async function asset(entry: AlbumEntry): Promise<string> {
     return path;
   }
 
-  const picasa = await readPicasaIni(entry.album).catch(
-    () => ({} as PicasaFolderMeta)
-  );
+  const picasa = readPicasaIni(entry.album);
   const options = picasa[entry.name] || {};
 
   const context = await buildContext(entry);

@@ -1,7 +1,12 @@
 import { Stats } from "fs";
 import { readdir, stat } from "fs/promises";
 import { extname, join, relative } from "path";
-import { lock, sleep, sortByKey } from "../../../shared/lib/utils.js";
+import {
+  isMediaUrl,
+  lock,
+  sleep,
+  sortByKey,
+} from "../../../shared/lib/utils.js";
 import {
   Album,
   AlbumEntry,
@@ -33,8 +38,17 @@ export async function updateLastWalkLoop() {
   }
 }
 
-export function invalidateCachedFolderList() {
-  lastWalk = undefined;
+export function refreshAlbums(albums: Album[]) {
+  for (const a of albums) {
+    addOrRefreshAlbum(a);
+  }
+}
+
+export function addOrRefreshAlbum(album: Album) {
+  if (lastWalk && !lastWalk.find((f) => f.key == album.key)) {
+    lastWalk.push(album);
+    sortByKey(lastWalk, "name");
+  }
 }
 
 export async function folders(filter: string): Promise<Album[]> {
@@ -54,7 +68,7 @@ export async function media(
   filter: string
 ): Promise<{ assets: AlbumEntry[] }> {
   const items = await readdir(join(imagesRoot, album.key));
-  const picasa = await readPicasaIni(album);
+  const picasa = readPicasaIni(album);
   const assets: AlbumEntry[] = [];
   for (const i of items) {
     if (!i.startsWith(".")) {
@@ -98,10 +112,7 @@ export async function walk(
 ): Promise<Album[]> {
   const items = (await readdir(path)).filter((n) => !n.startsWith("."));
 
-  const hasAssets = items.find((item) => {
-    const ext = extname(item).toLowerCase().replace(".", "");
-    return pictureExtensions.includes(ext) || videoExtensions.includes(ext);
-  });
+  const hasAssets = items.find((i) => isMediaUrl(i));
   const stats = await Promise.allSettled(
     items.map((item) => stat(join(path, item)))
   );

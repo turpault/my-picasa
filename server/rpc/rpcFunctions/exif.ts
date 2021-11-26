@@ -1,4 +1,4 @@
-const exif = require("fast-exif");
+import exifr from "exifr";
 import { Stats } from "fs";
 import { stat } from "fs/promises";
 import { join } from "path";
@@ -20,8 +20,8 @@ export async function exifDataAndStats(
 
 export async function exifData(entry: AlbumEntry): Promise<any> {
   const path = join(imagesRoot, entry.album.key, entry.name);
-  const tags = await exif
-    .read(join(imagesRoot, entry.album.key, entry.name))
+  const tags = await exifr
+    .parse(join(imagesRoot, entry.album.key, entry.name))
     .catch((e: any) => {
       console.error(`Exception while reading exif for ${path}: ${e}`);
       return {};
@@ -30,5 +30,5 @@ export async function exifData(entry: AlbumEntry): Promise<any> {
     return {};
   }
 
-  return { ...tags.image, ...tags.gps, ...tags.exif };
+  return tags;
 }

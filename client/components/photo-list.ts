@@ -10,12 +10,12 @@ import {
 } from "../../shared/types/types.js";
 import { FolderMonitor } from "../folder-monitor.js";
 import { getAlbumInfo } from "../folder-utils.js";
-import { assetUrl, thumbnailUrl } from "../imageProcess/client.js";
 import { $ } from "../lib/dom.js";
 import { toggleStar } from "../lib/handles.js";
 import { getSettingsEmitter } from "../lib/settings.js";
 import { getService } from "../rpc/connect.js";
 import { SelectionManager } from "../selection/selection-manager.js";
+import { animateStar } from "./animations.js";
 import {
   makeNThumbnails,
   selectThumbnailsInRect,
@@ -50,13 +50,16 @@ export async function makePhotoList(
   events.on("tabChanged", ({ win }) => {
     tabIsActive = $(container).isParent(win);
   });
-  events.on("keyDown", ({ code, win }) => {
+  events.on("keyDown", async ({ code, win }) => {
     if (!tabIsActive) return;
     switch (code) {
       case "Space":
-        toggleStar(SelectionManager.get().selected());
+        const target = await toggleStar(SelectionManager.get().selected());
+        animateStar(target);
+        break;
       case "Enter":
         startGallery();
+        break;
       default:
     }
   });
@@ -133,7 +136,7 @@ export async function makePhotoList(
       return;
     }
     var rect = container.getBoundingClientRect();
-    e.preventDefault();
+    e.stopPropagation();
     dragging = false;
     dragElement.css({ display: "none" });
     const newPos = { x: e.clientX - rect.x, y: e.clientY - rect.y };
@@ -479,6 +482,7 @@ export async function makePhotoList(
       </div>
       `
       );
+      const title = $(".header", e);
       e.on("drop", async (ev) => {
         const selection = SelectionManager.get().selected();
         const album = albumFromElement(e.get(), elementPrefix)!;
@@ -502,6 +506,35 @@ export async function makePhotoList(
       });
       e.on("dragover", (ev: any) => {
         ev.preventDefault();
+      });
+      e.on("click", async (ev: any) => {
+        const album = albumFromElement(e.get(), elementPrefix)!;
+        if (album) {
+          ev.stopPropagation();
+          const multi = ev.metaKey;
+          if (!multi) {
+            SelectionManager.get().clear();
+          }
+        }
+      });
+      title.on("click", async (ev: any) => {
+        const album = albumFromElement(e.get(), elementPrefix)!;
+        if (album) {
+          ev.preventDefault();
+          const info = await getAlbumInfo(album, true /* use settings */);
+          const selection = SelectionManager.get();
+          const multi = ev.metaKey;
+          if (!multi) selection.clear();
+          for (const e of info.assets) selection.select(e);
+        }
+      });
+      title.on("dblclick", async (ev: any) => {
+        const album = albumFromElement(e.get(), elementPrefix)!;
+        if (album) {
+          ev.preventDefault();
+          const s = await getService();
+          s.openInFinder(album);
+        }
       });
       pool.push(e.get());
     }

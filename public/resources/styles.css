@@ -24,8 +24,10 @@
   bottom: 47px;
   right: 39px;
   font-size: 30px;
+  width: 40px;
+  height: 40px;
 }
-.images .selected img {
+.images .selected .th {
   padding: 2px;
   border: 2px solid blue;
   background: grey;
@@ -145,6 +147,12 @@ body {
   overflow-y: scroll;
   background-color: lightgray;
 }
+
+.tools label{
+  /* cursor: grab; */
+  margin-left: 9px;
+}
+
 .tool-box {
   background-color: #939393;
   padding: 4px;
@@ -247,6 +255,7 @@ body {
   right:0;
   display:none;
   overflow-y: scroll;
+  background-color: lightgrey;
 }
 
 .crop {
@@ -611,4 +620,61 @@ body {
 .gallery-active,
 .gallery-demo:hover {
   opacity: 1;
+}
+
+.star-animation {
+  position: fixed;
+  margin:100px;
+  left:50%;
+  top:100%;
+  opacity: 0;
+  /* display:none; */
+}
+
+.star-animation img {
+  width: 200px;
+  height: 200px;
+}
+
+.star-animation-activate {
+  animation: spin 1s linear infinite, 1s transition-in ease-in-out;
+}
+
+.star-animation-deactivate {
+  animation: spin 1s linear infinite, 1s transition-out ease-in-out;
+}
+
+
+@keyframes spin { 
+  100% { 
+      transform:rotate(360deg); 
+  } 
+}
+
+@keyframes transition-in { 
+  0% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% { 
+      top: 50%;
+      opacity: 0;
+  } 
+}
+
+
+@keyframes transition-out { 
+  0% {
+    top: 50%;
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% { 
+      top: 100%;
+      opacity: 0;
+  } 
 }
