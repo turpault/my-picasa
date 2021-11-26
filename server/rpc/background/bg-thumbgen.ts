@@ -1,29 +1,38 @@
+import { watch } from "fs";
 import { stat } from "fs/promises";
 import Spinnies from "spinnies";
-import { sleep } from "../../../shared/lib/utils.js";
+import { isMediaUrl, isVideo, sleep } from "../../../shared/lib/utils.js";
 import { ThumbnailSizeVals } from "../../../shared/types/types.js";
 import { isIdle } from "../../utils/busy.js";
+import { imagesRoot } from "../../utils/constants.js";
 import { readOrMakeThumbnail } from "../rpcFunctions/thumbnail.js";
 import { thumbnailPathFromEntryAndSize } from "../rpcFunctions/thumbnailCache.js";
 import { folders, media } from "../rpcFunctions/walker.js";
+import { bouncingBall } from "cli-spinners";
 
 export async function buildThumbs() {
-  const spinner = new Spinnies();
-  spinner.add("s", { text: "Building thumbs" });
+  let spinnerName = Date.now().toString();
+  const spinner = new Spinnies({ spinner: bouncingBall });
+  spinner.add(spinnerName, { text: "Building thumbs" });
+  let lastFSChange = new Date().getTime();
+  watch(imagesRoot, { recursive: true }, (eventType, filename) => {
+    if (isMediaUrl(filename)) {
+      lastFSChange = new Date().getTime();
+    }
+  });
   await sleep(10);
-
   while (true) {
     const albums = await folders("");
-    for (const album of albums) {
+    for (const album of albums.reverse()) {
       const m = await media(album, "");
       for (const picture of m.assets) {
         while (!isIdle()) {
-          spinner.update("s", {
+          spinner.update(spinnerName, {
             text: `Thumbnail generation paused: system busy`,
           });
           await sleep(1);
         }
-        spinner.update("s", {
+        spinner.update(spinnerName, {
           text: `Building thumbnails for album ${album.name}`,
         });
         await Promise.all(
@@ -41,7 +50,16 @@ export async function buildThumbs() {
         );
       }
     }
-    await sleep(10);
-    console.info("Recannning for thumbs");
+    spinner.succeed(spinnerName, {
+      text: `Scan done - will wait for updates`,
+    });
+    await sleep(20);
+    const now = new Date().getTime();
+    while (true) {
+      await sleep(1);
+      if (lastFSChange > now) break;
+    }
+    spinnerName = Date.now().toString();
+    spinner.add(spinnerName, { text: "Changes detected, rescanning" });
   }
 }

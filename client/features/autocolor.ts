@@ -14,7 +14,6 @@ export function setupAutocolor(
       return `${this.filterName}=1`;
     },
     icon: async function (context) {
-      // Crop at 50%
       await transform(context, this.build());
       return true;
     },

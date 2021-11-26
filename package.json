@@ -1,6 +1,6 @@
 {
   "name": "picisa",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Picasa replacement in pure JS",
   "author": "Jocelyn Turapult (turpault@gmail.com)",
   "license": "MIT",
@@ -70,6 +70,8 @@
     "tslib": "^2"
   },
   "dependencies": {
+    "cli-spinners": "^2.6.1",
+    "exifr": "^7.1.3",
     "fast-exif": "^1.0.1",
     "fastify": "^3.22.1",
     "fastify-static": "^4.4.2",

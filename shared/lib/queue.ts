@@ -7,47 +7,54 @@ export type QueueEvent = {
 };
 export class Queue {
   constructor(concurrency: number = 1, options?: { fifo?: boolean }) {
-    this.q = [];
-    this.p = [];
-    this.r = [];
+    this.promises = [];
+    this.resolveFct = [];
+    this.rejectFct = [];
     this.concurrency = concurrency;
     this.active = 0;
     this.options = options || {};
     this.event = buildEmitter<QueueEvent>();
   }
   add<T>(r: Task): Promise<T> {
-    this.q.push(r);
+    this.promises.push(r);
     return new Promise<T>((resolve, reject) => {
-      this.p.push(resolve);
-      this.r.push(reject);
+      this.resolveFct.push(resolve);
+      this.rejectFct.push(reject);
       this.startIfNeeded();
     });
   }
   clear() {
-    this.q = [];
-    const copy = this.p;
+    this.promises = [];
+    const copy = this.resolveFct;
     copy.forEach((p) => p(false));
   }
   async startIfNeeded() {
     while (this.active < this.concurrency) {
-      if (this.q.length > 0) {
-        let p: Function;
-        let r: Function;
-        let t: Task;
+      if (this.promises.length > 0) {
+        let resolver: Function;
+        let rejecter: Function;
+        let promiseFunctor: Task;
         if (this.options.fifo) {
-          t = this.q.shift()!;
-          p = this.p.shift()!;
-          r = this.r.shift()!;
+          promiseFunctor = this.promises.shift()!;
+          resolver = this.resolveFct.shift()!;
+          rejecter = this.rejectFct.shift()!;
         } else {
-          t = this.q.pop()!;
-          p = this.p.pop()!;
-          r = this.r.pop()!;
+          promiseFunctor = this.promises.pop()!;
+          resolver = this.resolveFct.pop()!;
+          rejecter = this.rejectFct.pop()!;
         }
         this.active++;
 
-        t()
-          .then((v: any) => p(v).catch(() => {}))
-          .catch((e: any) => r(e))
+        promiseFunctor()
+          .then((v: any) => {
+            try {
+              resolver(v);
+              // Ignore errors occuring while resolving
+            } catch {
+              debugger;
+            }
+          })
+          .catch((e: any) => rejecter(e))
           .finally(() => {
             this.active--;
             this.startIfNeeded();
@@ -60,9 +67,9 @@ export class Queue {
     }
   }
   event: Emitter<QueueEvent>;
-  private q: Task[];
-  private p: ((v: any) => void)[];
-  private r: ((v: any) => void)[];
+  private promises: Task[];
+  private resolveFct: ((v: any) => void)[];
+  private rejectFct: ((v: any) => void)[];
   private concurrency: number;
   private active: number;
   private options: { fifo?: boolean };

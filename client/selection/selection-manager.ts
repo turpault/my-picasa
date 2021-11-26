@@ -18,6 +18,7 @@ export class SelectionManager {
   }
   private constructor() {
     this._selection = [];
+    this._debounce = 0;
     this.events = buildEmitter<SelectionEvent>();
   }
   isSelected(key: AlbumEntry): boolean {
@@ -31,6 +32,7 @@ export class SelectionManager {
     return Array.from(this._selection);
   }
   select(key: AlbumEntry) {
+    this._debounce = new Date().getTime();
     if (!this.isSelected(key)) {
       this._selection.push(key);
       this.events.emit("added", {
@@ -40,6 +42,7 @@ export class SelectionManager {
     }
   }
   deselect(key: AlbumEntry) {
+    this._debounce = new Date().getTime();
     if (this.isSelected(key)) {
       this._selection.splice(
         this._selection.findIndex(
@@ -55,6 +58,7 @@ export class SelectionManager {
   }
 
   clear() {
+    if (this._debounce + 500 > new Date().getTime()) return;
     let l;
     while ((l = this.last())) {
       this.deselect(l);
@@ -66,4 +70,5 @@ export class SelectionManager {
 
   events: Emitter<SelectionEvent>;
   private _selection: AlbumEntry[];
+  private _debounce: number;
 }

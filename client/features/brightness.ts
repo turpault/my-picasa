@@ -48,7 +48,7 @@ export function setupBrightness(
           <input type="range" min="0" max="100" value="0" class="shadows slider">
         </div>
         <div class="tool-control">
-          <label>Tint</label>
+          <label>Neutral Point</label>
           <input type="color" class="colorpicker" value="#ffffff">      
           <label>Amount</label>
           <input type="range" min="0" max="100" value="0" class="amount slider">

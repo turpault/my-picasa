@@ -169,11 +169,11 @@ export function registerServices(
               true
             ).slice(0, 200)})`;
             console.time(label);
-            await serviceFunc.handler
-              .bind(socket)(...convertedArguments)
-              .then((response: any) => {
-                callback(null, response);
-              });
+            const response = await serviceFunc.handler.bind(socket)(
+              ...convertedArguments
+            );
+
+            callback(null, response);
           } catch (er) {
             const exception = er as Error;
             const errMessage = exception.message;

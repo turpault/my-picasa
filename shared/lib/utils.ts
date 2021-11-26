@@ -1,4 +1,9 @@
-import { Album, AlbumEntry, videoExtensions } from "../types/types.js";
+import {
+  Album,
+  AlbumEntry,
+  pictureExtensions,
+  videoExtensions,
+} from "../types/types.js";
 
 export async function sleep(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));
@@ -74,6 +79,11 @@ export function uuid(): string {
   );
 }
 
+export function isMediaUrl(url: string) {
+  const ext = url.toLowerCase().split(".").pop()!;
+  return pictureExtensions.includes(ext) || videoExtensions.includes(ext);
+}
+
 export function isVideo(entry: AlbumEntry) {
   return videoExtensions.find((e) => entry.name.toLowerCase().endsWith(e));
 }
@@ -145,6 +155,17 @@ export function decodeRect(
     };
   }
   return undefined;
+}
+
+export function fromHex(hex: string): number[] {
+  return hex.match(/.{1,2}/g)!.map((v) => parseInt(v, 16));
+}
+export function toHex2(v: number): string {
+  return Math.ceil(v).toString(16).padStart(2, "0");
+}
+
+export function clipColor(c: number): number {
+  return c < 0 ? 0 : c > 255 ? 255 : c;
 }
 
 export function encodeRect(rect: {

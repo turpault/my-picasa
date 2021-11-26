@@ -4,6 +4,7 @@ import {
   isVideo,
   rectanglesIntersect,
   setIdForEntry,
+  uuid,
 } from "../../shared/lib/utils.js";
 import {
   AlbumEntry,
@@ -21,11 +22,12 @@ const imagePrefix = "thumbimg:";
 
 export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
   const e = $(
-    '<div class="thumbnail"> <img loading="lazy"> <span class="fas fa-star star"></span></div>'
+    '<div class="thumbnail"> <img class="th" loading="lazy"> <img class="star" src="resources/images/star.svg"></div>'
   );
   e.on("click", (ev: any) => {
     const entry = albumEntryFromElement(ev.target!, imagePrefix);
     if (entry) {
+      ev.stopPropagation();
       const { album, name } = entry;
 
       if (!album.key) return;
@@ -64,7 +66,7 @@ export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
       events.emit("open", entry);
     }
   });
-  $("img", e).on("load", (ev) => {
+  $(".th", e).on("load", (ev) => {
     const thumb = ev.target as HTMLImageElement;
     const ratio = thumb.width / thumb.height;
     const parentSize = {
@@ -121,7 +123,7 @@ export async function thumbnailData(
   } else {
     $(e).removeClass("selected");
   }
-  thumb.attr("src", thumbnailUrl(entry, "th-medium"));
+  thumb.attr("src", thumbnailUrl(entry, "th-medium") + "?bust=" + uuid());
   thumb.css("opacity", "0");
   // Async get the thumbnail
   if (picasaData && picasaData.star) {
