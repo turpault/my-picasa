@@ -140,12 +140,13 @@ export function setupCrop(
         console.info("Bounding rect: ", current);
         ev.stopPropagation();
         if (ev.buttons === 1) {
+          const opposite =  new Point(current.left, current.top + current.height);
           const line1 = new Line(
-            new Point(current.left, current.top + current.height),
+            opposite,
             new Vector(1, -ratios[mode])
           );
           const line2 = new Line(
-            new Point(current.left, current.top + current.height),
+            opposite,
             new Vector(1, -1 / ratios[mode])
           );
 
@@ -165,7 +166,9 @@ export function setupCrop(
           });
           const current2 = elem.get().getBoundingClientRect();
           draw.empty();
-          draw.append(`<line x1="0" x2="0" y1="110" y2="150"/>`);
+          draw.append(`<line x1="${opposite.x}" y1="${opposite.y}" x2="${projected.x}"  y2="${projected.y}"/>`);
+          draw.append(`<line x1="${opposite.x}" y1="${opposite.y}" x2="${current.x}"  y2="${current.y}"/>`);
+          draw.append(`<line x1="${projected.x}" y1="${projected.y}" x2="${current.x}"  y2="${current.y}"/>`);
           console.info(
             "Ratio",
             current2.width / current2.height,
