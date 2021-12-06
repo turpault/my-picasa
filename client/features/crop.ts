@@ -1,10 +1,12 @@
-import { ImageController } from "../components/image-controller.js";
-import { ToolRegistrar } from "../components/tools.js";
-import { toolHeader } from "../element-templates.js";
-import { transform } from "../imageProcess/client.js";
-import { ImagePanZoomController } from "../lib/panzoom.js";
-import { encodeRect, isPicture } from "../../shared/lib/utils.js";
-import { $ } from "../lib/dom.js";
+import { ImageController } from "../components/image-controller";
+import { ToolRegistrar } from "../components/tools";
+import { toolHeader } from "../element-templates";
+import { transform } from "../imageProcess/client";
+import { ImagePanZoomController } from "../lib/panzoom";
+import { encodeRect, isPicture } from "../../shared/lib/utils";
+
+import { $ } from "../lib/dom";
+import { Line, Point, Vector } from "ts-2d-geometry";
 
 function projectedPoint(
   p: { x: number; y: number },
@@ -31,6 +33,7 @@ export function setupCrop(
 ) {
   const name = "Crop";
   const elem = $(`<div class="crop">
+  <svg style="position: fixed; top:0; left:0; width:100%; height:100%" id="draw"></svg>
   <div draggable class="crop-top-left crop-corner"></div>
   <div draggable class="crop-top-right crop-corner"></div>
   <div draggable class="crop-bottom-left crop-corner"></div>
@@ -74,6 +77,7 @@ export function setupCrop(
   </span>
 </div>`);
   $(container).append(elem);
+  const draw = $("#draw", elem);
 
   const tl = $(".crop-top-left", elem);
   const tr = $(".crop-top-right", elem);
@@ -132,37 +136,43 @@ export function setupCrop(
       "pointermove",
       (ev) => {
         ev.preventDefault();
+        const current = elem.get().getBoundingClientRect();
+        console.info("Bounding rect: ", current);
         ev.stopPropagation();
         if (ev.buttons === 1) {
-          const mouseInContainerCoordinates = {
-            x: ev.clientX - container.offsetLeft,
-            y: ev.clientY - container.offsetTop,
-          };
-          // Coordinates are based on the tr corner
-          const mouseCoordinates = {
-            x: container.clientWidth - mouseInContainerCoordinates.x,
-            y: mouseInContainerCoordinates.y,
-          };
-          const p1 = projectedPoint(mouseCoordinates, {
-            origin: { x: r, y: t },
-            m: ratios[mode],
-          });
-          const p2 = projectedPoint(mouseCoordinates, {
-            origin: { x: r, y: t },
-            m: 1 / ratios[mode],
-          });
-          console.info("Move", mouseCoordinates);
-          console.info("Projected", p1);
-          const d1 = sqDistanceBetween(p1, mouseCoordinates);
-          const d2 = sqDistanceBetween(p2, mouseCoordinates);
-          let selectedPoint = p1;
-          if (d1 > d2) {
-            selectedPoint = p2;
-          }
+          const line1 = new Line(
+            new Point(current.left, current.top + current.height),
+            new Vector(1, -ratios[mode])
+          );
+          const line2 = new Line(
+            new Point(current.left, current.top + current.height),
+            new Vector(1, -1 / ratios[mode])
+          );
+
+          const mouseInContainerCoordinates = new Point(
+            ev.clientX - container.offsetLeft,
+            ev.clientY - container.offsetTop
+          );
+          let projected =
+            line1.projectDistanceSquare(mouseInContainerCoordinates) <
+            line2.projectDistanceSquare(mouseInContainerCoordinates)
+              ? line1.project(mouseInContainerCoordinates)
+              : line2.project(mouseInContainerCoordinates);
+
           elem.css({
-            right: `${selectedPoint.x}px`,
-            top: `${selectedPoint.y}px`,
+            right: `${container.clientWidth - projected.x}px`,
+            top: `${projected.y}px`,
           });
+          const current2 = elem.get().getBoundingClientRect();
+          draw.empty();
+          draw.append(`<line x1="0" x2="0" y1="110" y2="150"/>`);
+          console.info(
+            "Ratio",
+            current2.width / current2.height,
+            ratios[mode],
+            current2,
+            projected
+          );
         }
       },
       false

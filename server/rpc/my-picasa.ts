@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/camelcase */
-import { Exceptions } from "../../shared/types/exceptions.js";
-import { undo, undoList } from "../utils/undo.js";
+import { Exceptions } from "../../shared/types/exceptions";
+import { undo, undoList } from "../utils/undo";
 import {
   buildContext,
   cloneContext,
@@ -10,23 +10,23 @@ import {
   execute,
   setOptions,
   transform,
-} from "./imageOperations/sharp-processor.js";
-import { exifData } from "./rpcFunctions/exif.js";
-import { createFSJob, getJob } from "./rpcFunctions/fileJobs.js";
+} from "./imageOperations/sharp-processor";
+import { exifData } from "./rpcFunctions/exif";
+import { createFSJob, getJob } from "./rpcFunctions/fileJobs";
 import {
   folder,
   makeAlbum,
   openAlbumInFinder,
   readFileContents,
   writeFileContents,
-} from "./rpcFunctions/fs.js";
+} from "./rpcFunctions/fs";
 import {
   readPicasaEntry,
   readPicasaIni,
   updatePicasaEntry,
-} from "./rpcFunctions/picasaIni.js";
-import { folders, media } from "./rpcFunctions/walker.js";
-import { ServiceMap } from "./rpcHandler.js";
+} from "./rpcFunctions/picasaIni";
+import { folders, media } from "./rpcFunctions/walker";
+import { ServiceMap } from "./rpcHandler";
 
 /**
  * ConcurrencyService IDL

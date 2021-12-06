@@ -1,5 +1,5 @@
-import { AlbumEntry, ThumbnailSize } from "../../../shared/types/types.js";
-import { readOrMakeThumbnail } from "../rpcFunctions/thumbnail.js";
+import { AlbumEntry, ThumbnailSize } from "../../../shared/types/types";
+import { readOrMakeThumbnail } from "../rpcFunctions/thumbnail";
 
 export async function thumbnail(
   entry: AlbumEntry,

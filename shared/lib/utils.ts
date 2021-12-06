@@ -3,7 +3,7 @@ import {
   AlbumEntry,
   pictureExtensions,
   videoExtensions,
-} from "../types/types.js";
+} from "../types/types";
 
 export async function sleep(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));

@@ -1,4 +1,4 @@
-import { $ } from "../lib/dom.js";
+import { $ } from "../lib/dom";
 
 let displayed = false;
 export function questionIsDisplayed() {

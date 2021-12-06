@@ -1,5 +1,5 @@
-import { buildEmitter, Emitter } from "../../shared/lib/event.js";
-import { get, set } from "./idb-keyval.js";
+import { buildEmitter, Emitter } from "../../shared/lib/event";
+import { get, set } from "./idb-keyval";
 
 export type Settings = {
   filters: {

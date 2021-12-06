@@ -1,6 +1,6 @@
-import { $ } from "../lib/dom.js";
-import { getService } from "../rpc/connect.js";
-import { Job } from "../types/types.js";
+import { $ } from "../lib/dom";
+import { getService } from "../rpc/connect";
+import { Job } from "../types/types";
 
 export async function makeJobList(e: HTMLElement) {
   const el = $(e);

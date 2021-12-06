@@ -1,6 +1,6 @@
-import { buildEmitter, Emitter } from "../../shared/lib/event.js";
-import { albumEntryIndexInList } from "../../shared/lib/utils.js";
-import { ActiveImageEvent, AlbumEntry } from "../../shared/types/types.js";
+import { buildEmitter, Emitter } from "../../shared/lib/event";
+import { albumEntryIndexInList } from "../../shared/lib/utils";
+import { ActiveImageEvent, AlbumEntry } from "../../shared/types/types";
 
 export class ActiveImageManager {
   constructor(lst: AlbumEntry[], current: AlbumEntry) {

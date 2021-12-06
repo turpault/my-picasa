@@ -1,26 +1,22 @@
-import {
-  albumFromElement,
-  range,
-  setIdForAlbum,
-} from "../../shared/lib/utils.js";
+import { albumFromElement, range, setIdForAlbum } from "../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
   AlbumListEventSource,
-} from "../../shared/types/types.js";
-import { FolderMonitor } from "../folder-monitor.js";
-import { getAlbumInfo } from "../folder-utils.js";
-import { $ } from "../lib/dom.js";
-import { toggleStar } from "../lib/handles.js";
-import { getSettingsEmitter } from "../lib/settings.js";
-import { getService } from "../rpc/connect.js";
-import { SelectionManager } from "../selection/selection-manager.js";
-import { animateStar } from "./animations.js";
+} from "../../shared/types/types";
+import { FolderMonitor } from "../folder-monitor";
+import { getAlbumInfo } from "../folder-utils";
+import { $ } from "../lib/dom";
+import { toggleStar } from "../lib/handles";
+import { getSettingsEmitter } from "../lib/settings";
+import { getService } from "../rpc/connect";
+import { SelectionManager } from "../selection/selection-manager";
+import { animateStar } from "./animations";
 import {
   makeNThumbnails,
   selectThumbnailsInRect,
   thumbnailData,
-} from "./thumbnail.js";
+} from "./thumbnail";
 
 // Create two elements, allergic to visibility
 const elementPrefix = "photolist:";

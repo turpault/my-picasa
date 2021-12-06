@@ -1,5 +1,5 @@
-import { buildEmitter, Emitter } from "../../shared/lib/event.js";
-import { AlbumEntry } from "../types/types.js";
+import { buildEmitter, Emitter } from "../../shared/lib/event";
+import { AlbumEntry } from "../types/types";
 
 export type SelectionEvent = {
   added: { key: AlbumEntry; selection: AlbumEntry[] };

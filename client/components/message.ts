@@ -1,4 +1,4 @@
-import { $ } from "../lib/dom.js";
+import { $ } from "../lib/dom";
 
 export async function message(message: string): Promise<void> {
   const q = $(`<div class="messagebox w3-modal">

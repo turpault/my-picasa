@@ -1,15 +1,15 @@
 import { readFile, stat, writeFile } from "fs/promises";
 import { extname } from "path";
-import { Queue } from "../../../shared/lib/queue.js";
-import { lock } from "../../../shared/lib/utils.js";
+import { Queue } from "../../../shared/lib/queue";
+import { lock } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
   extraFields,
   PicasaFolderMeta,
   ThumbnailSize,
   videoExtensions,
-} from "../../../shared/types/types.js";
-import { dec, inc } from "../../utils/stats.js";
+} from "../../../shared/types/types";
+import { dec, inc } from "../../utils/stats";
 import {
   buildContext,
   commit,
@@ -19,14 +19,14 @@ import {
   execute,
   setOptions,
   transform,
-} from "../imageOperations/sharp-processor.js";
-import { createGif } from "../videoOperations/gif.js";
-import { readPicasaIni, updatePicasaEntry } from "./picasaIni.js";
+} from "../imageOperations/sharp-processor";
+import { createGif } from "../videoOperations/gif";
+import { readPicasaIni, updatePicasaEntry } from "./picasaIni";
 import {
   readThumbnailFromCache,
   thumbnailPathFromEntryAndSize,
   writeThumbnailToCache,
-} from "./thumbnailCache.js";
+} from "./thumbnailCache";
 
 export async function readOrMakeThumbnail(
   entry: AlbumEntry,

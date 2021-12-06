@@ -1,2 +1,2 @@
-import { start } from "./start.js";
+import { start } from "./start";
 start(5500);

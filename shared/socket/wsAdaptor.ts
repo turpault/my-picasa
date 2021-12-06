@@ -1,6 +1,6 @@
-import { buildEmitter, Emitter, Handler } from "../lib/event.js";
-import { sleep, uuid } from "../../shared/lib/utils.js";
-import { SocketAdaptorInterface } from "./socketAdaptorInterface.js";
+import { buildEmitter, Emitter, Handler } from "../lib/event";
+import { sleep, uuid } from "../../shared/lib/utils";
+import { SocketAdaptorInterface } from "./socketAdaptorInterface";
 
 const defaultTimeoutInSeconds = 180;
 const retryDelayInSeconds = 1;

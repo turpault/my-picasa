@@ -2,6 +2,7 @@ const path = require('path');
 
 module.exports = {
   entry: './client/app.ts',
+  mode: "development",
   module: {
     rules: [
       {
@@ -11,7 +12,6 @@ module.exports = {
       },
     ],
   },
-  watch: true,
   resolve: {
     extensions: ['.tsx', '.ts', '.js'],
   },

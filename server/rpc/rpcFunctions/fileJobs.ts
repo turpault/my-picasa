@@ -1,16 +1,16 @@
 import { copyFile, mkdir, rename, stat } from "fs/promises";
 import { basename, dirname, extname, join, relative } from "path";
-import { range, sleep, uuid } from "../../../shared/lib/utils.js";
-import { Album, AlbumEntry, Job } from "../../../shared/types/types.js";
-import { openExplorer } from "../../open.js";
-import { exportsRoot, imagesRoot } from "../../utils/constants.js";
-import { fileExists } from "../../utils/serverUtils.js";
-import { broadcast } from "../../utils/socketList.js";
-import { addToUndo, registerUndoProvider } from "../../utils/undo.js";
-import { exportToFolder } from "../imageOperations/export.js";
-import { readPicasaIni, updatePicasaEntry } from "./picasaIni.js";
-import { copyThumbnails } from "./thumbnailCache.js";
-import { refreshAlbums } from "./walker.js";
+import { range, sleep, uuid } from "../../../shared/lib/utils";
+import { Album, AlbumEntry, Job } from "../../../shared/types/types";
+import { openExplorer } from "../../open";
+import { exportsRoot, imagesRoot } from "../../utils/constants";
+import { fileExists } from "../../utils/serverUtils";
+import { broadcast } from "../../utils/socketList";
+import { addToUndo, registerUndoProvider } from "../../utils/undo";
+import { exportToFolder } from "../imageOperations/export";
+import { readPicasaIni, updatePicasaEntry } from "./picasaIni";
+import { copyThumbnails } from "./thumbnailCache";
+import { refreshAlbums } from "./walker";
 
 const jobs: Job[] = [];
 

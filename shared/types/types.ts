@@ -1,4 +1,4 @@
-import { Emitter } from "../lib/event.js";
+import { Emitter } from "../lib/event";
 
 export type PartialRecord<K extends keyof any, T> = {
   [P in K]?: T;

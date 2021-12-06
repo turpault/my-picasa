@@ -1,17 +1,17 @@
 import { readFileSync } from "fs";
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
-import ini from "../../../shared/lib/ini.js";
-import { sleep } from "../../../shared/lib/utils.js";
+import ini from "../../../shared/lib/ini";
+import { sleep } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
   PicasaFileMeta,
   PicasaFolderMeta,
-} from "../../../shared/types/types.js";
-import { imagesRoot, PICASA } from "../../utils/constants.js";
-import { broadcast } from "../../utils/socketList.js";
-import { rate } from "../../utils/stats.js";
+} from "../../../shared/types/types";
+import { imagesRoot, PICASA } from "../../utils/constants";
+import { broadcast } from "../../utils/socketList";
+import { rate } from "../../utils/stats";
 
 let picasaMap: Map<string, PicasaFolderMeta> = new Map();
 let dirtyPicasaSet: Set<string> = new Set();

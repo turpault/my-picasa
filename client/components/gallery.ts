@@ -1,9 +1,9 @@
-import { albumEntryIndexInList, isVideoUrl } from "../../shared/lib/utils.js";
-import { getAlbumInfo } from "../folder-utils.js";
-import { assetUrl, thumbnailUrl } from "../imageProcess/client.js";
-import { $ } from "../lib/dom.js";
-import { Album, AlbumEntry, AlbumListEventSource } from "../types/types.js";
-import { deleteTabWin } from "./tabs.js";
+import { albumEntryIndexInList, isVideoUrl } from "../../shared/lib/utils";
+import { getAlbumInfo } from "../folder-utils";
+import { assetUrl, thumbnailUrl } from "../imageProcess/client";
+import { $ } from "../lib/dom";
+import { Album, AlbumEntry, AlbumListEventSource } from "../types/types";
+import { deleteTabWin } from "./tabs";
 
 export async function makeGallery(
   start: AlbumEntry,

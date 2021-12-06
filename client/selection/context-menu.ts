@@ -1,7 +1,7 @@
 import { question } from "../components/question";
 import { $ } from "../lib/dom";
 import { getService } from "../rpc/connect";
-import { Album } from "../types/types.js";
+import { Album } from "../types/types";
 import { SelectionManager } from "./selection-manager";
 
 export function makeDropDown() {

@@ -1,9 +1,9 @@
 import { spawn } from "child_process";
 import { join } from "path";
-import { lock } from "../../../shared/lib/utils.js";
-import { AlbumEntry } from "../../../shared/types/types.js";
-import { imagesRoot } from "../../utils/constants.js";
-import { delayEnd, delayStart, inc, rate } from "../../utils/stats.js";
+import { lock } from "../../../shared/lib/utils";
+import { AlbumEntry } from "../../../shared/types/types";
+import { imagesRoot } from "../../utils/constants";
+import { delayEnd, delayStart, inc, rate } from "../../utils/stats";
 
 export async function createGif(
   asset: AlbumEntry,

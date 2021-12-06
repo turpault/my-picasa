@@ -1,5 +1,5 @@
-import { PanZoomEvent } from "../../shared/types/types.js";
-import { buildEmitter, Emitter } from "../../shared/lib/event.js";
+import { PanZoomEvent } from "../../shared/types/types";
+import { buildEmitter, Emitter } from "../../shared/lib/event";
 
 declare var panzoom: Function;
 

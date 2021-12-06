@@ -1,8 +1,8 @@
 import { inspect } from "util";
-import { uuid } from "../../shared/lib/utils.js";
+import { uuid } from "../../shared/lib/utils";
 import { SocketAdaptorInterface } from "../../shared/socket/socketAdaptorInterface";
-import { busy } from "../utils/busy.js";
-import { inc, rate } from "../utils/stats.js";
+import { busy } from "../utils/busy";
+import { inc, rate } from "../utils/stats";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Describles a client-specific set of options.

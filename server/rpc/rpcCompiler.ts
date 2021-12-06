@@ -1,4 +1,4 @@
-import { ServiceMap } from "./rpcHandler.js";
+import { ServiceMap } from "./rpcHandler";
 import { TSCodeTemplate } from "./templates";
 
 export type GeneratedCode = {

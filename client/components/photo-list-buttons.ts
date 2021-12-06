@@ -1,10 +1,10 @@
-import { $, _$ } from "../lib/dom.js";
-import { getService } from "../rpc/connect.js";
-import { SelectionManager } from "../selection/selection-manager.js";
-import { Album, AlbumListEventSource, PicasaFileMeta } from "../types/types.js";
-import { makeCompositorPage } from "./compositor.js";
-import { question } from "./question.js";
-import { ToolRegistrar } from "./tools.js";
+import { $, _$ } from "../lib/dom";
+import { getService } from "../rpc/connect";
+import { SelectionManager } from "../selection/selection-manager";
+import { Album, AlbumListEventSource, PicasaFileMeta } from "../types/types";
+import { makeCompositorPage } from "./compositor";
+import { question } from "./question";
+import { ToolRegistrar } from "./tools";
 
 export async function makeButtons(
   e: HTMLElement,

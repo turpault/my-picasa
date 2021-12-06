@@ -1,21 +1,16 @@
 import { Stats } from "fs";
 import { readdir, stat } from "fs/promises";
 import { extname, join, relative } from "path";
-import {
-  isMediaUrl,
-  lock,
-  sleep,
-  sortByKey,
-} from "../../../shared/lib/utils.js";
+import { isMediaUrl, lock, sleep, sortByKey } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
   pictureExtensions,
   videoExtensions,
-} from "../../../shared/types/types.js";
-import { imagesRoot } from "../../utils/constants.js";
-import { exifDataAndStats } from "./exif.js";
-import { readPicasaIni, updatePicasaEntry } from "./picasaIni.js";
+} from "../../../shared/types/types";
+import { imagesRoot } from "../../utils/constants";
+import { exifDataAndStats } from "./exif";
+import { readPicasaIni, updatePicasaEntry } from "./picasaIni";
 
 let lastWalk: Album[] | undefined = undefined;
 async function updateLastWalk() {

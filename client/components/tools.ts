@@ -1,15 +1,15 @@
-import { decodeOperation } from "../../shared/lib/utils.js";
-import { AlbumEntry, Tool } from "../../shared/types/types.js";
-import { toolHeader } from "../element-templates.js";
+import { decodeOperation } from "../../shared/lib/utils";
+import { AlbumEntry, Tool } from "../../shared/types/types";
+import { toolHeader } from "../element-templates";
 import {
   cloneContext,
   commit,
   destroyContext,
   encode,
   execute,
-} from "../imageProcess/client.js";
-import { $ } from "../lib/dom.js";
-import { ImageController } from "./image-controller.js";
+} from "../imageProcess/client";
+import { $ } from "../lib/dom";
+import { ImageController } from "./image-controller";
 
 async function toolIconForTool(context: string, tool: Tool): Promise<string> {
   const copy = await cloneContext(context);
