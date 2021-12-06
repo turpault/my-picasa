@@ -2,8 +2,8 @@ import exifr from "exifr";
 import { Stats } from "fs";
 import { stat } from "fs/promises";
 import { join } from "path";
-import { AlbumEntry } from "../../../shared/types/types.js";
-import { imagesRoot } from "../../utils/constants.js";
+import { AlbumEntry } from "../../../shared/types/types";
+import { imagesRoot } from "../../utils/constants";
 
 export async function exifDataAndStats(
   entry: AlbumEntry

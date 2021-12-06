@@ -1,8 +1,8 @@
 import { createWriteStream } from "fs";
 import { readFile } from "fs/promises";
 import { join } from "path";
-import { uuid } from "../../shared/lib/utils.js";
-import { imagesRoot } from "./constants.js";
+import { uuid } from "../../shared/lib/utils";
+import { imagesRoot } from "./constants";
 
 const sep = "§";
 function line(bucket: string, type: string, data: string) {

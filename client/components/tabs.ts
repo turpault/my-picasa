@@ -1,5 +1,5 @@
-import { $, _$ } from "../lib/dom.js";
-import { Emitter } from "../lib/event.js";
+import { $, _$ } from "../lib/dom";
+import { Emitter } from "../lib/event";
 import {
   getSettings,
   getSettingsEmitter,
@@ -7,9 +7,9 @@ import {
   updateFilterByStar,
   updateFilterByVideos,
   updateSort,
-} from "../lib/settings.js";
-import { getService } from "../rpc/connect.js";
-import { AlbumListEvent, undoStep } from "../types/types.js";
+} from "../lib/settings";
+import { getService } from "../rpc/connect";
+import { AlbumListEvent, undoStep } from "../types/types";
 
 let tabs: _$;
 let tabElements: { tab: _$; win: _$ }[] = [];

@@ -4,16 +4,16 @@ import {
   rectanglesIntersect,
   setIdForEntry,
   uuid,
-} from "../../shared/lib/utils.js";
+} from "../../shared/lib/utils";
 import {
   AlbumEntry,
   AlbumListEventSource,
   PicasaFileMeta,
-} from "../../shared/types/types.js";
-import { thumbnailUrl } from "../imageProcess/client.js";
-import { $ } from "../lib/dom.js";
-import { getService } from "../rpc/connect.js";
-import { SelectionManager } from "../selection/selection-manager.js";
+} from "../../shared/types/types";
+import { thumbnailUrl } from "../imageProcess/client";
+import { $ } from "../lib/dom";
+import { getService } from "../rpc/connect";
+import { SelectionManager } from "../selection/selection-manager";
 
 const elementPrefix = "thumb:";
 const imagePrefix = "thumbimg:";

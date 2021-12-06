@@ -1,9 +1,9 @@
-import { ImageController } from "../components/image-controller.js";
-import { ToolRegistrar } from "../components/tools.js";
-import { toolHeader } from "../element-templates.js";
-import { transform } from "../imageProcess/client.js";
-import { $ } from "../lib/dom.js";
-import { isPicture } from "../../shared/lib/utils.js";
+import { ImageController } from "../components/image-controller";
+import { ToolRegistrar } from "../components/tools";
+import { toolHeader } from "../element-templates";
+import { transform } from "../imageProcess/client";
+import { $ } from "../lib/dom";
+import { isPicture } from "../../shared/lib/utils";
 
 export function setupContrast(
   imageController: ImageController,

@@ -2,10 +2,10 @@ import { createReadStream, createWriteStream } from "fs";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { createInterface } from "readline";
-import { uuid } from "../../shared/lib/utils.js";
-import { undoStep } from "../../shared/types/types.js";
-import { imagesRoot } from "./constants.js";
-import { broadcast } from "./socketList.js";
+import { uuid } from "../../shared/lib/utils";
+import { undoStep } from "../../shared/types/types";
+import { imagesRoot } from "./constants";
+import { broadcast } from "./socketList";
 
 const undoFile = join(imagesRoot, ".mypicasa.undo");
 const undoneFile = join(imagesRoot, ".mypicasa.undone");

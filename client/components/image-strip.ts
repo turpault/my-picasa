@@ -1,7 +1,7 @@
-import { ActiveImageManager } from "../selection/active-manager.js";
-import { Album, AlbumInfo } from "../../shared/types/types.js";
-import { thumbnailUrl } from "../imageProcess/client.js";
-import { $ } from "../lib/dom.js";
+import { ActiveImageManager } from "../selection/active-manager";
+import { Album, AlbumInfo } from "../../shared/types/types";
+import { thumbnailUrl } from "../imageProcess/client";
+import { $ } from "../lib/dom";
 
 function nameToId(prefix: string, n: string) {
   return prefix + "_" + n.replace(/[^a-z0-9A-Z_]/g, "");

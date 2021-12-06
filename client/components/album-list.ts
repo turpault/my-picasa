@@ -1,14 +1,14 @@
-import { Album, AlbumListEventSource } from "../../shared/types/types.js";
-import { folder } from "../element-templates.js";
-import { FolderMonitor } from "../folder-monitor.js";
-import { $ } from "../lib/dom.js";
+import { Album, AlbumListEventSource } from "../../shared/types/types";
+import { folder } from "../element-templates";
+import { FolderMonitor } from "../folder-monitor";
+import { $ } from "../lib/dom";
 import {
   albumFromElement,
   elementFromAlbum,
   setIdForAlbum,
-} from "../../shared/lib/utils.js";
-import { getService } from "../rpc/connect.js";
-import { SelectionManager } from "../selection/selection-manager.js";
+} from "../../shared/lib/utils";
+import { getService } from "../rpc/connect";
+import { SelectionManager } from "../selection/selection-manager";
 
 const elementPrefix = "albumlist:";
 

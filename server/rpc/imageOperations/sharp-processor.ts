@@ -8,9 +8,9 @@ import {
   fromHex,
   toHex2,
   uuid,
-} from "../../../shared/lib/utils.js";
-import { AlbumEntry, PicasaFileMeta } from "../../../shared/types/types.js";
-import { imagesRoot } from "../../utils/constants.js";
+} from "../../../shared/lib/utils";
+import { AlbumEntry, PicasaFileMeta } from "../../../shared/types/types";
+import { imagesRoot } from "../../utils/constants";
 import { promisify } from "util";
 import sizeOf from "image-size";
 

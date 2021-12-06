@@ -37,9 +37,9 @@
     "clean": "rimraf dist",
     "reset": "rimraf node_modules dist",
     "start": "run-p start:*",
-    "start:tsc": "tsc-watch",
+    "start:webpack": "webpack --watch --progress",
     "start:tsc-server": "tsc-watch -p tsconfig-server.json",
-    "start:httpd": "nodemon --watch ./dist/server --watch ./dist/shared dist/server/index.js",
+    "start:server": "nodemon --watch ./dist/server --watch ./dist/shared dist/server/index.js",
     "electron": "electron ."
   },
   "devDependencies": {
@@ -81,6 +81,7 @@
     "image-size": "^1.0.0",
     "sharp": "^0.29.2",
     "spinnies": "^0.5.1",
+    "ts-2d-geometry": "^6.3.2",
     "ws": "^8.2.3"
   }
 }

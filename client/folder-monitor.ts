@@ -1,8 +1,8 @@
-import { buildEmitter, Emitter } from "../shared/lib/event.js";
-import { sortByKey } from "../shared/lib/utils.js";
-import { Album, FolderEvent } from "../shared/types/types.js";
-import { getSettings, getSettingsEmitter } from "./lib/settings.js";
-import { walkFromServer } from "./walker.js";
+import { buildEmitter, Emitter } from "../shared/lib/event";
+import { sortByKey } from "../shared/lib/utils";
+import { Album, FolderEvent } from "../shared/types/types";
+import { getSettings, getSettingsEmitter } from "./lib/settings";
+import { walkFromServer } from "./walker";
 
 export type AlbumSortOrder = "ReverseDate" | "ForwardDate";
 export class FolderMonitor {

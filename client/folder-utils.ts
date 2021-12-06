@@ -3,11 +3,11 @@ import {
   AlbumEntry,
   AlbumInfo,
   videoExtensions,
-} from "../shared/types/types.js";
-import { readPicasaIni } from "./lib/handles.js";
-import { getSettings, Settings } from "./lib/settings.js";
-import { getService } from "./rpc/connect.js";
-import { albumContents } from "./walker.js";
+} from "../shared/types/types";
+import { readPicasaIni } from "./lib/handles";
+import { getSettings, Settings } from "./lib/settings";
+import { getService } from "./rpc/connect";
+import { albumContents } from "./walker";
 
 export async function getAlbumInfo(
   album: Album,

@@ -1,5 +1,5 @@
-import { Album, AlbumEntry } from "../shared/types/types.js";
-import { getService } from "./rpc/connect.js";
+import { Album, AlbumEntry } from "../shared/types/types";
+import { getService } from "./rpc/connect";
 
 export async function walkFromServer(
   filter: string

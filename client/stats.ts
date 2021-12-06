@@ -1,4 +1,4 @@
-import { $ } from "./lib/dom.js";
+import { $ } from "./lib/dom";
 
 declare const Plotly: any;
 async function init() {

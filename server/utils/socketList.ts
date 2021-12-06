@@ -1,5 +1,5 @@
 import { SocketAdaptorInterface } from "../../shared/socket/socketAdaptorInterface";
-import { dec, inc, rate } from "./stats.js";
+import { dec, inc, rate } from "./stats";
 
 const socketList: SocketAdaptorInterface[] = [];
 export function addSocket(socket: SocketAdaptorInterface) {

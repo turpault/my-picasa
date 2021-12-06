@@ -1,7 +1,7 @@
-import { buildEmitter, Emitter } from "../../shared/lib/event.js";
-import { sleep } from "../../shared/lib/utils.js";
-import { WsAdaptor } from "../../shared/socket/wsAdaptor.js";
-import { MyPicasa } from "./generated-rpc/MyPicasa.js";
+import { buildEmitter, Emitter } from "../../shared/lib/event";
+import { sleep } from "../../shared/lib/utils";
+import { WsAdaptor } from "../../shared/socket/wsAdaptor";
+import { MyPicasa } from "./generated-rpc/MyPicasa";
 export type ConnectionEvent = {
   connected: { service: MyPicasa };
   disconnected: { event: Event };

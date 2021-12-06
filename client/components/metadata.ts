@@ -1,10 +1,10 @@
-import { FolderMonitor } from "../folder-monitor.js";
-import { getFileExifData } from "../folder-utils.js";
-import { $ } from "../lib/dom.js";
+import { FolderMonitor } from "../folder-monitor";
+import { getFileExifData } from "../folder-utils";
+import { $ } from "../lib/dom";
 import {
   SelectionEventSource,
   SelectionManager,
-} from "../selection/selection-manager.js";
+} from "../selection/selection-manager";
 declare var L: any;
 
 export function makeMetadata(

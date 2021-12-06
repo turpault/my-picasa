@@ -1,4 +1,4 @@
-import { buildEmitter, Emitter } from "./event.js";
+import { buildEmitter, Emitter } from "./event";
 
 export type Task = (() => PromiseLike<any>) | (() => any);
 

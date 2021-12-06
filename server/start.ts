@@ -3,19 +3,19 @@ import fastifystatic from "fastify-static";
 import { Server } from "http";
 import { basename, join } from "path";
 import WebSocket from "ws";
-import { lockedLocks } from "../shared/lib/utils.js";
-import { SocketAdaptorInterface } from "../shared/socket/socketAdaptorInterface.js";
-import { WsAdaptor } from "../shared/socket/wsAdaptor.js";
-import { buildThumbs } from "./rpc/background/bg-thumbgen.js";
-import { encode } from "./rpc/imageOperations/sharp-processor.js";
-import { RPCInit } from "./rpc/index.js";
-import { asset } from "./rpc/routes/asset.js";
-import { thumbnail } from "./rpc/routes/thumbnail.js";
-import { picasaInitCleaner } from "./rpc/rpcFunctions/picasaIni.js";
-import { updateLastWalkLoop } from "./rpc/rpcFunctions/walker.js";
-import { busy, measureCPULoad } from "./utils/busy.js";
-import { addSocket, removeSocket } from "./utils/socketList.js";
-import { history } from "./utils/stats.js";
+import { lockedLocks } from "../shared/lib/utils";
+import { SocketAdaptorInterface } from "../shared/socket/socketAdaptorInterface";
+import { WsAdaptor } from "../shared/socket/wsAdaptor";
+import { buildThumbs } from "./rpc/background/bg-thumbgen";
+import { encode } from "./rpc/imageOperations/sharp-processor";
+import { RPCInit } from "./rpc/index";
+import { asset } from "./rpc/routes/asset";
+import { thumbnail } from "./rpc/routes/thumbnail";
+import { picasaInitCleaner } from "./rpc/rpcFunctions/picasaIni";
+import { updateLastWalkLoop } from "./rpc/rpcFunctions/walker";
+import { busy, measureCPULoad } from "./utils/busy";
+import { addSocket, removeSocket } from "./utils/socketList";
+import { history } from "./utils/stats";
 const server: FastifyInstance = Fastify({
   //logger: true,
   maxParamLength: 32000,

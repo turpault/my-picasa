@@ -1,7 +1,7 @@
-import { buildEmitter, Emitter } from "../../shared/lib/event.js";
-import { Queue } from "../../shared/lib/queue.js";
-import { AlbumEntry, ImageControllerEvent } from "../../shared/types/types.js";
-import { getAlbumInfo } from "../folder-utils.js";
+import { buildEmitter, Emitter } from "../../shared/lib/event";
+import { Queue } from "../../shared/lib/queue";
+import { AlbumEntry, ImageControllerEvent } from "../../shared/types/types";
+import { getAlbumInfo } from "../folder-utils";
 import {
   assetUrl,
   buildContext,
@@ -11,11 +11,11 @@ import {
   setOptions,
   thumbnailUrl,
   transform,
-} from "../imageProcess/client.js";
-import { $ } from "../lib/dom.js";
-import { ImagePanZoomController } from "../lib/panzoom.js";
-import { isPicture, isVideo } from "../../shared/lib/utils.js";
-import { getService } from "../rpc/connect.js";
+} from "../imageProcess/client";
+import { $ } from "../lib/dom";
+import { ImagePanZoomController } from "../lib/panzoom";
+import { isPicture, isVideo } from "../../shared/lib/utils";
+import { getService } from "../rpc/connect";
 
 export class ImageController {
   constructor(

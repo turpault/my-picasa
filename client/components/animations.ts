@@ -1,5 +1,5 @@
-import { $ } from "../lib/dom.js";
-import { sleep } from "../../shared/lib/utils.js";
+import { $ } from "../lib/dom";
+import { sleep } from "../../shared/lib/utils";
 
 export async function animateStar(activate: boolean) {
   const star = $(".star-animation");

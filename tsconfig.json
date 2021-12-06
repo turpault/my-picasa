@@ -1,10 +1,11 @@
 {
   "compilerOptions": {
-    "lib": [
-      "ESNext"
-    ],
+    "module": "es6",
     "target": "ESNext",
-    "module": "ESNext",
+
+    "lib": [
+      "ESNext", "dom"
+    ],
     "moduleResolution": "node",
     "strict": true,
     "importHelpers": true,

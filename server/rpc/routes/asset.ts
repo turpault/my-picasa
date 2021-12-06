@@ -1,17 +1,17 @@
 import { writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-import { isVideo } from "../../../shared/lib/utils.js";
-import { AlbumEntry, PicasaFolderMeta } from "../../../shared/types/types.js";
-import { imagesRoot } from "../../utils/constants.js";
+import { isVideo } from "../../../shared/lib/utils";
+import { AlbumEntry, PicasaFolderMeta } from "../../../shared/types/types";
+import { imagesRoot } from "../../utils/constants";
 import {
   buildContext,
   destroyContext,
   encode,
   setOptions,
   transform,
-} from "../imageOperations/sharp-processor.js";
-import { readPicasaIni } from "../rpcFunctions/picasaIni.js";
+} from "../imageOperations/sharp-processor";
+import { readPicasaIni } from "../rpcFunctions/picasaIni";
 
 export async function asset(entry: AlbumEntry): Promise<string> {
   if (isVideo(entry)) {

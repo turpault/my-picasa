@@ -1,6 +1,6 @@
-import { ImageController } from "./components/image-controller.js";
-import { $ } from "./lib/dom.js";
-import { Album } from "./types/types.js";
+import { ImageController } from "./components/image-controller";
+import { $ } from "./lib/dom";
+import { Album } from "./types/types";
 
 export function folder(f: Album): HTMLElement {
   const e = document.createElement("li");

@@ -7,14 +7,14 @@ import {
   writeFile,
 } from "fs/promises";
 import { join } from "path";
-import { isVideo, lock } from "../../../shared/lib/utils.js";
+import { isVideo, lock } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
   ThumbnailSize,
   ThumbnailSizeVals,
-} from "../../../shared/types/types.js";
-import { imagesRoot } from "../../utils/constants.js";
-import { fileExists } from "../../utils/serverUtils.js";
+} from "../../../shared/types/types";
+import { imagesRoot } from "../../utils/constants";
+import { fileExists } from "../../utils/serverUtils";
 
 export async function deleteImageFileMetas(entry: AlbumEntry): Promise<void> {
   for (const k of ThumbnailSizeVals) {

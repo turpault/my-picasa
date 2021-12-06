@@ -1,13 +1,13 @@
 import { watch } from "fs";
 import { stat } from "fs/promises";
 import Spinnies from "spinnies";
-import { isMediaUrl, isVideo, sleep } from "../../../shared/lib/utils.js";
-import { ThumbnailSizeVals } from "../../../shared/types/types.js";
-import { isIdle } from "../../utils/busy.js";
-import { imagesRoot } from "../../utils/constants.js";
-import { readOrMakeThumbnail } from "../rpcFunctions/thumbnail.js";
-import { thumbnailPathFromEntryAndSize } from "../rpcFunctions/thumbnailCache.js";
-import { folders, media } from "../rpcFunctions/walker.js";
+import { isMediaUrl, isVideo, sleep } from "../../../shared/lib/utils";
+import { ThumbnailSizeVals } from "../../../shared/types/types";
+import { isIdle } from "../../utils/busy";
+import { imagesRoot } from "../../utils/constants";
+import { readOrMakeThumbnail } from "../rpcFunctions/thumbnail";
+import { thumbnailPathFromEntryAndSize } from "../rpcFunctions/thumbnailCache";
+import { folders, media } from "../rpcFunctions/walker";
 import { bouncingBall } from "cli-spinners";
 
 export async function buildThumbs() {
