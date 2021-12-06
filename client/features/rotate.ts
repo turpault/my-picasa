@@ -3,6 +3,7 @@ import { ToolRegistrar } from "../components/tools.js";
 import { toolHeader } from "../element-templates.js";
 import { transform } from "../imageProcess/client.js";
 import { $ } from "../lib/dom.js";
+import { isPicture } from "../../shared/lib/utils.js";
 
 export function setupRotate(
   imageController: ImageController,
@@ -11,6 +12,7 @@ export function setupRotate(
   const name = "Rotate";
   toolRegistrar.registerTool(name, {
     filterName: "rotate",
+    enable: (e) => isPicture(e),
     build: function (angle: number) {
       return `${this.filterName}=1,${angle}`;
     },

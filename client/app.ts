@@ -1,6 +1,7 @@
 import { $ } from "../client/lib/dom.js";
 import { buildEmitter } from "../shared/lib/event.js";
 import { makeAlbumList } from "./components/album-list.js";
+import { makeCompositorPage } from "./components/compositor.js";
 import { makeEditorPage } from "./components/editor-page.js";
 import { makeGallery } from "./components/gallery.js";
 import { makeHotkeys } from "./components/hotkey.js";
@@ -36,7 +37,7 @@ async function init(port: number) {
   makeTabs(emitter);
   makeHotkeys(emitter);
   //makeContextMenu();
-  await makeButtons($(".buttons").get());
+  await makeButtons($(".buttons").get(), emitter);
 
   emitter.on("show", async ({ start }) => {
     const win = $(await makeGallery(start, emitter));
@@ -51,6 +52,14 @@ async function init(port: number) {
     const tab = $(
       `<a class="w3-button tab-button">${name}<span class="remove-tab">&times;</span></a>`
     );
+    makeTab(win, tab);
+  });
+
+  emitter.on("composite", async () => {
+    const tab = $(
+      `<a class="w3-button tab-button">Composition<span class="remove-tab">&times;</span></a>`
+    );
+    const win = $(await makeCompositorPage(emitter));
     makeTab(win, tab);
   });
 

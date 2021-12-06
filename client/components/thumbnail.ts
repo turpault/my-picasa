@@ -1,7 +1,6 @@
 import {
   albumEntryFromElement,
   elementFromEntry,
-  isVideo,
   rectanglesIntersect,
   setIdForEntry,
   uuid,
@@ -15,7 +14,6 @@ import { thumbnailUrl } from "../imageProcess/client.js";
 import { $ } from "../lib/dom.js";
 import { getService } from "../rpc/connect.js";
 import { SelectionManager } from "../selection/selection-manager.js";
-import { message } from "./message.js";
 
 const elementPrefix = "thumb:";
 const imagePrefix = "thumbimg:";
@@ -56,10 +54,6 @@ export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
   e.on("dblclick", (ev: any) => {
     const entry = albumEntryFromElement(ev.target, imagePrefix);
     if (!entry) {
-      return;
-    }
-    if (isVideo(entry)) {
-      message("Can't edit videos yet");
       return;
     }
     if (entry) {

@@ -79,17 +79,21 @@ export function uuid(): string {
   );
 }
 
-export function isMediaUrl(url: string) {
+export function isMediaUrl(url: string): boolean {
   const ext = url.toLowerCase().split(".").pop()!;
   return pictureExtensions.includes(ext) || videoExtensions.includes(ext);
 }
 
-export function isVideo(entry: AlbumEntry) {
-  return videoExtensions.find((e) => entry.name.toLowerCase().endsWith(e));
+export function isPicture(entry: AlbumEntry): boolean {
+  return !!pictureExtensions.find((e) => entry.name.toLowerCase().endsWith(e));
 }
 
-export function isVideoUrl(url: string) {
-  return videoExtensions.find((e) => url.toLowerCase().endsWith(e));
+export function isVideo(entry: AlbumEntry): boolean {
+  return !!videoExtensions.find((e) => entry.name.toLowerCase().endsWith(e));
+}
+
+export function isVideoUrl(url: string): boolean {
+  return !!videoExtensions.find((e) => url.toLowerCase().endsWith(e));
 }
 
 export function range(from: number, to: number): number[] {

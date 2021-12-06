@@ -1,5 +1,5 @@
 import { decodeOperation } from "../../shared/lib/utils.js";
-import { Tool } from "../../shared/types/types.js";
+import { AlbumEntry, Tool } from "../../shared/types/types.js";
 import { toolHeader } from "../element-templates.js";
 import {
   cloneContext,
@@ -37,7 +37,7 @@ export class ToolRegistrar {
     this.toolListElement.appendChild(t.get());
   }
 
-  async refreshToolIcons(context: string) {
+  async refreshToolIcons(context: string, entry: AlbumEntry) {
     // Initial copy, resized
     const copy = await cloneContext(context);
     await execute(copy, [
@@ -49,6 +49,7 @@ export class ToolRegistrar {
       const target = this.toolButtons[toolName];
       target.css({
         "background-image": `url(${data})`,
+        display: tool.enable(entry) ? "" : "none",
       });
     }
     destroyContext(copy);
@@ -89,9 +90,9 @@ export function make(e: HTMLElement, ctrl: ImageController): ToolRegistrar {
     ctrl.updateCaption(description.val());
   });
 
-  ctrl.events.on("liveViewUpdated", ({ context }) => {
+  ctrl.events.on("liveViewUpdated", ({ context, entry }) => {
     // Refresh the icons
-    registrar.refreshToolIcons(context);
+    registrar.refreshToolIcons(context, entry);
   });
   ctrl.events.on("updated", ({ context, caption, filters }) => {
     description.val(caption || "");

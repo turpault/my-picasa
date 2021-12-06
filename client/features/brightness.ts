@@ -3,6 +3,7 @@ import { ToolRegistrar } from "../components/tools.js";
 import { toolHeader } from "../element-templates.js";
 import { transform } from "../imageProcess/client.js";
 import { $ } from "../lib/dom.js";
+import { isPicture } from "../../shared/lib/utils.js";
 
 export function setupBrightness(
   imageController: ImageController,
@@ -11,6 +12,7 @@ export function setupBrightness(
   const name = "Brightness";
   toolRegistrar.registerTool(name, {
     filterName: "finetune2",
+    enable: (e) => isPicture(e),
     build: function (
       brightness: number,
       highlights: number,

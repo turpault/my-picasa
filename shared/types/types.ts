@@ -60,9 +60,11 @@ export type SliderEvent = {
 
 type iconFct = (context: string) => Promise<boolean>;
 type activateFct = () => Promise<boolean>;
+type entryFct = (e: AlbumEntry) => boolean;
 
 export type Tool = {
   filterName: string;
+  enable: entryFct;
   icon: iconFct;
   build: Function;
   buildUI: (index: number, args: string[]) => HTMLElement;
@@ -71,7 +73,7 @@ export type Tool = {
 
 export type PanZoomEvent = {
   pan: {};
-  zoom: {};
+  zoom: { x: number; y: number; scale: number };
 };
 
 export type ImageControllerEvent = {
@@ -82,6 +84,7 @@ export type ImageControllerEvent = {
   };
   liveViewUpdated: {
     context: string;
+    entry: AlbumEntry;
   };
   idle: {};
   busy: {};
@@ -122,6 +125,7 @@ export type AlbumListEvent = {
   pictureRemoved: {
     entry: AlbumEntry;
   };
+  composite: {};
 };
 
 export type AlbumListEventSource = Emitter<AlbumListEvent>;

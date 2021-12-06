@@ -28,7 +28,7 @@
   "browser": "dist/src/index.js",
   "scripts": {
     "build": "run-p build:*",
-    "build:client": "tsc -d",
+    "build:client": "webpack",
     "build:server": "tsc -d -p tsconfig-server.json",
     "build:icons": "png2icons resources/picisa.png resources/picisa -icns",
     "build:ico": "png2icons resources/picisa.png public/favicon -ico",
@@ -59,12 +59,15 @@
     "prettier": "2.2.1",
     "rimraf": "^3",
     "source-map-support": "^0",
+    "ts-loader": "^9.2.6",
     "ts-node": "^10",
     "tsc-watch-2": "^0",
     "tslib": "^2.3.1",
-    "typescript": "^4",
+    "typescript": "^4.5.2",
     "util": "^0.12.4",
-    "wait-on": "^6"
+    "wait-on": "^6",
+    "webpack": "^5.64.4",
+    "webpack-cli": "^4.9.1"
   },
   "peerDependencies": {
     "tslib": "^2"
