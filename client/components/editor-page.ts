@@ -39,53 +39,22 @@ const editHTML = `<div class="fill">
 </div>
 
 <div class="image-container">
-  <div class="crop">
-    <span class="crop-buttons w3-bar w3-blue">
-      <button
-        class="btn-orientation w3-button w3-bar-item override-pointer-active"
-      >
-        <i class="fa fa-redo"></i>
-      </button>
-      <button
-        class="btn-5x5 w3-button override-pointer-active w3-bar-item"
-      >
-        5x5
-      </button>
-      <button
-        class="btn-6x4 w3-button override-pointer-active w3-bar-item"
-      >
-        6x4
-      </button>
-      <button
-        class="btn-4x3 w3-button override-pointer-active w3-bar-item"
-      >
-        4x3
-      </button>
-      <button
-        class="btn-16x9 w3-button override-pointer-active w3-bar-item"
-      >
-        16x9
-      </button>
-      <button
-        class="btn-ok-crop w3-button w3-bar-item override-pointer-active"
-      >
-        <i class="fa fa-check-circle"></i>
-      </button>
-      <button
-        class="btn-cancel-crop w3-button w3-bar-item override-pointer-active"
-      >
-        <i class="fa fa-times"></i>
-      </button>
-    </span>
-  </div>
   <div    
     style="display: none"
     class="busy-spinner w3-display-container fill"
   >
     <img src="resources/images/thinking.gif" class="w3-display-middle" />
   </div>
+  <video autoplay muted loop controls class="edited-video">
+  </video>
   <img class="fill-with-aspect edited-image"></img>
-  <div class="image-strip">
+</div>
+<div class="editor-bottom-tools">
+<div class="zoom-strip">  
+  <label>Zoom</label>
+  <input type="range" min="100" max="1000" value="100" class="zoom-ctrl slider">
+</div>
+<div class="image-strip">
     <button
       class="previous-image w3-circle fa fa-arrow-left w3-green"
       style="position: absolute; left: 0; top: 0"
@@ -107,10 +76,12 @@ export async function makeEditorPage(
   const e = $(editHTML);
 
   const image = $(".edited-image", e).get()!;
+  const video = $(".edited-video", e).get()!;
 
   const zoomController = new ImagePanZoomController(image as HTMLImageElement);
   const imageController = new ImageController(
     image as HTMLImageElement,
+    video as HTMLVideoElement,
     zoomController
   );
   const toolRegistrar = makeTools($(".tools", e).get()!, imageController);
@@ -128,7 +99,7 @@ export async function makeEditorPage(
   setupBlur(imageController, toolRegistrar);
   setupSharpen(imageController, toolRegistrar);
 
-  const f: AlbumInfo = await getAlbumInfo(album);
+  const f: AlbumInfo = await getAlbumInfo(album, true);
   const activeManager = new ActiveImageManager(f.assets, { album, name });
   makeImageStrip($(".image-strip", e).get()!, album, f, activeManager);
 
@@ -149,17 +120,22 @@ export async function makeEditorPage(
         const target = await toggleStar([{ album, name }]);
         animateStar(target);
         break;
+      case "ArrowLeft":
+        activeManager.selectPrevious();
+        break;
+      case "ArrowRight":
+        activeManager.selectNext();
+        break;
       case "Escape":
         deleteTabWin(win);
     }
   });
-
-  events.on("keyDown", ({ code, win }) => {
-    switch (code) {
-      case "Space":
-        animateStar(true);
-      default:
-    }
+  const z = $(".zoom-ctrl", e);
+  z.on("input", () => {
+    zoomController.zoom(z.val() / 100);
+  });
+  zoomController.events.on("zoom", (zoom) => {
+    z.val(zoom.scale * 100);
   });
 
   events.on("tabDeleted", ({ win }) => {

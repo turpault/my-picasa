@@ -7,9 +7,9 @@ function createWindow() {
     height: 900,
   });
 
-  win.loadFile(
-    join(__dirname, "..", "..", "public", `index.html#${getPort()}`)
-  );
+  win.loadFile(join(__dirname, "..", "..", "public", `index.html`), {
+    hash: getPort().toString(),
+  });
 }
 
 app

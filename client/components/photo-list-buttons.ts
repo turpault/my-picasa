@@ -1,11 +1,15 @@
 import { $, _$ } from "../lib/dom.js";
 import { getService } from "../rpc/connect.js";
 import { SelectionManager } from "../selection/selection-manager.js";
-import { Album, PicasaFileMeta } from "../types/types.js";
+import { Album, AlbumListEventSource, PicasaFileMeta } from "../types/types.js";
+import { makeCompositorPage } from "./compositor.js";
 import { question } from "./question.js";
 import { ToolRegistrar } from "./tools.js";
 
-export async function makeButtons(e: HTMLElement) {
+export async function makeButtons(
+  e: HTMLElement,
+  events: AlbumListEventSource
+) {
   const s = await getService();
   const actions: {
     name: string;
@@ -83,6 +87,14 @@ export async function makeButtons(e: HTMLElement) {
           p.filters += "rotate=1,1";
           s.updatePicasaEntry(e, "filters", p.filters);
         }
+      },
+    },
+    {
+      name: "Composition",
+      icon: "resources/images/icons/actions/composition-50.png",
+      needSelection: true,
+      click: (ev: MouseEvent) => {
+        events.emit("composite", {});
       },
     },
     {

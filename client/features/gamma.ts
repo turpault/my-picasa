@@ -3,6 +3,7 @@ import { ToolRegistrar } from "../components/tools.js";
 import { toolHeader } from "../element-templates.js";
 import { transform } from "../imageProcess/client.js";
 import { $ } from "../lib/dom.js";
+import { isPicture } from "../../shared/lib/utils.js";
 
 export function setupGamma(
   imageController: ImageController,
@@ -11,6 +12,7 @@ export function setupGamma(
   const name = "Gamma";
   toolRegistrar.registerTool(name, {
     filterName: "fill",
+    enable: (e) => isPicture(e),
     build: function (amount: number) {
       return `${this.filterName}=1,${amount}`;
     },

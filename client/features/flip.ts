@@ -2,6 +2,7 @@ import { ImageController } from "../components/image-controller.js";
 import { ToolRegistrar } from "../components/tools.js";
 import { toolHeader } from "../element-templates.js";
 import { transform } from "../imageProcess/client.js";
+import { isPicture } from "../../shared/lib/utils.js";
 
 export function setupFlip(
   imageController: ImageController,
@@ -10,6 +11,7 @@ export function setupFlip(
   const name = "Flip";
   toolRegistrar.registerTool(name, {
     filterName: "flip",
+    enable: (e) => isPicture(e),
     build: function () {
       return `${this.filterName}=1`;
     },

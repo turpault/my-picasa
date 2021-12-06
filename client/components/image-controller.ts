@@ -1,12 +1,9 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event.js";
 import { Queue } from "../../shared/lib/queue.js";
-import {
-  AlbumEntry,
-  ImageControllerEvent,
-  PicasaFileMeta,
-} from "../../shared/types/types.js";
+import { AlbumEntry, ImageControllerEvent } from "../../shared/types/types.js";
 import { getAlbumInfo } from "../folder-utils.js";
 import {
+  assetUrl,
   buildContext,
   cloneContext,
   destroyContext,
@@ -17,11 +14,17 @@ import {
 } from "../imageProcess/client.js";
 import { $ } from "../lib/dom.js";
 import { ImagePanZoomController } from "../lib/panzoom.js";
+import { isPicture, isVideo } from "../../shared/lib/utils.js";
 import { getService } from "../rpc/connect.js";
 
 export class ImageController {
-  constructor(image: HTMLImageElement, panZoomCtrl: ImagePanZoomController) {
+  constructor(
+    image: HTMLImageElement,
+    video: HTMLVideoElement,
+    panZoomCtrl: ImagePanZoomController
+  ) {
     this.image = image;
+    this.video = video;
     this.entry = { album: { key: "", name: "" }, name: "" };
     this.context = "";
     this.liveContext = "";
@@ -38,6 +41,7 @@ export class ImageController {
       this.events.emit("idle", {});
       this.events.emit("liveViewUpdated", {
         context: this.liveContext,
+        entry: this.entry,
       });
     });
     const parent = i.parent();
@@ -79,26 +83,44 @@ export class ImageController {
     }
     this.entry.name = name;
 
-    const folderData = await getAlbumInfo(this.entry.album);
+    const folderData = await getAlbumInfo(this.entry.album, true);
     const data = folderData.picasa[this.entry.name] || {};
     this.filters = data.filters || "";
     this.caption = data.caption || "";
-    this.image.src = thumbnailUrl(this.entry, "th-large");
-    this.context = await buildContext(this.entry);
+    if (isPicture(this.entry)) {
+      this.image.src = thumbnailUrl(this.entry, "th-large");
+      this.image.style.display = "";
+      this.video.style.display = "none";
+      this.context = await buildContext(this.entry);
+    }
+    if (isVideo(this.entry)) {
+      this.image.style.display = "none";
+      this.video.style.display = "";
+    }
 
     this.update();
   }
 
   async update() {
-    this.events.emit("updated", {
-      context: this.liveContext,
-      caption: this.caption,
-      filters: this.filters,
-    });
-    if (await this.rebuildContext()) {
-      const data = await encodeToURL(this.liveContext, "image/jpeg");
-      this.image.src = data;
-      this.image.style.display = "none";
+    if (isPicture(this.entry)) {
+      if (await this.rebuildContext()) {
+        this.events.emit("updated", {
+          context: this.liveContext,
+          caption: this.caption,
+          filters: this.filters,
+        });
+
+        const data = await encodeToURL(this.liveContext, "image/jpeg");
+        this.image.src = data;
+        this.image.style.display = "none";
+      }
+    }
+    if (isVideo(this.entry)) {
+      $(this.video)
+        .empty()
+        .append(`<source src="${assetUrl(this.entry)}" type="video/mp4">`);
+      this.video.load();
+      this.video.play();
     }
   }
 
@@ -163,6 +185,7 @@ export class ImageController {
   }
 
   private image: HTMLImageElement;
+  private video: HTMLVideoElement;
   private entry: AlbumEntry;
   private context: string;
   private liveContext: string;

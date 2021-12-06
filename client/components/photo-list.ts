@@ -87,7 +87,7 @@ export async function makePhotoList(
 
         for (const idx of range(fromAlbumIndex, toAlbumIndex)) {
           const album = monitor.albumAtIndex(idx);
-          getAlbumInfo(album).then((data) => {
+          getAlbumInfo(album, true).then((data) => {
             const sels = data.assets;
             if (idx === fromAlbumIndex) {
               sels.splice(
@@ -107,7 +107,7 @@ export async function makePhotoList(
           });
         }
       } else {
-        getAlbumInfo(from.album).then((data) => {
+        getAlbumInfo(from.album, true).then((data) => {
           const sels = data.assets;
           const start = sels.findIndex((e) => e.name === from!.name);
           const end = sels.findIndex((e) => e.name === to.name);
