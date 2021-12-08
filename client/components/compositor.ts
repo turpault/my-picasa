@@ -1,26 +1,6 @@
-import { setupAutocolor } from "../features/autocolor";
-import { setupContrast } from "../features/contrast";
-import { setupBlur } from "../features/blur";
-import { setupBrightness } from "../features/brightness";
-import { setupCrop } from "../features/crop";
-import { setupFlip } from "../features/flip";
-import { setupGamma } from "../features/gamma";
-import { setupMirror } from "../features/mirror";
-import { setupPolaroid } from "../features/polaroid";
-import { setupRotate } from "../features/rotate";
-import { setupSepia } from "../features/sepia";
-import { setupSharpen } from "../features/sharpen";
-import { getAlbumInfo } from "../folder-utils";
 import { $ } from "../lib/dom";
-import { toggleStar } from "../lib/handles";
-import { ImagePanZoomController } from "../lib/panzoom";
-import { ActiveImageManager } from "../selection/active-manager";
-import { Album, AlbumInfo, AlbumListEventSource } from "../types/types";
+import { AlbumListEventSource } from "../types/types";
 import { animateStar } from "./animations";
-import { ImageController } from "./image-controller";
-import { makeImageStrip } from "./image-strip";
-import { deleteTabWin } from "./tabs";
-import { make as makeTools } from "./tools";
 
 const editHTML = `<div class="fill">
 <div class="fill w3-bar-block composition-parameters">

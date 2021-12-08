@@ -1,5 +1,6 @@
 import { PanZoomEvent } from "../../shared/types/types";
 import { buildEmitter, Emitter } from "../../shared/lib/event";
+import { Point, Rectangle } from "ts-2d-geometry/dist";
 
 declare var panzoom: Function;
 
@@ -32,6 +33,17 @@ export class ImagePanZoomController {
     const targetX = (canvasRatio * (x - transform.x)) / transform.scale;
     const targetY = (canvasRatio * (y - transform.y)) / transform.scale;
     return { x: targetX, y: targetY };
+  }
+
+  canvasBoundsOnScreen(): Rectangle {
+    const transform = this.panner.getTransform();
+    return new Rectangle(
+      new Point(transform.x, transform.y),
+      new Point(
+        transform.x + transform.scale * this.element.width,
+        transform.y + transform.scale * this.element.height
+      )
+    );
   }
 
   screenToCanvasRatio(x: number, y: number): { x: number; y: number } {

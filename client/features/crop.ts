@@ -5,26 +5,17 @@ import { transform } from "../imageProcess/client";
 import { ImagePanZoomController } from "../lib/panzoom";
 import { encodeRect, isPicture } from "../../shared/lib/utils";
 
-import { $ } from "../lib/dom";
-import { Line, Point, Vector } from "ts-2d-geometry";
+import { $, _$ } from "../lib/dom";
+import {
+  Line,
+  LineSegment,
+  lineSegment,
+  lineSegmentsIntersectThemselves,
+  Point,
+  Rectangle,
+  Vector,
+} from "ts-2d-geometry";
 
-function projectedPoint(
-  p: { x: number; y: number },
-  line: { origin: { x: number; y: number }; m: number }
-): { x: number; y: number } {
-  const poff = { x: p.x - line.origin.x, y: p.y - line.origin.y };
-  const y =
-    (line.m * line.m * poff.y + line.m * poff.x) / (1 + line.m * line.m);
-  const x = y / line.m;
-  return { x: x + line.origin.x, y: y + line.origin.y };
-}
-
-function sqDistanceBetween(
-  p1: { x: number; y: number },
-  p2: { x: number; y: number }
-) {
-  return Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2);
-}
 export function setupCrop(
   container: HTMLElement,
   panZoomCtrl: ImagePanZoomController,
@@ -33,7 +24,6 @@ export function setupCrop(
 ) {
   const name = "Crop";
   const elem = $(`<div class="crop">
-  <svg style="position: fixed; top:0; left:0; width:100%; height:100%" id="draw"></svg>
   <div draggable class="crop-top-left crop-corner"></div>
   <div draggable class="crop-top-right crop-corner"></div>
   <div draggable class="crop-bottom-left crop-corner"></div>
@@ -76,8 +66,9 @@ export function setupCrop(
     </button>
   </span>
 </div>`);
+  const draw = $('<div class="draw"></div>');
   $(container).append(elem);
-  const draw = $("#draw", elem);
+  $(container).append(draw);
 
   const tl = $(".crop-top-left", elem);
   const tr = $(".crop-top-right", elem);
@@ -97,99 +88,201 @@ export function setupCrop(
   };
   let mode: modes = "4x3";
   let orientation: "paysage" | "portrait" = "paysage";
-  let l: number, r: number, t: number, b: number;
-  let w: number, h: number;
   e.style.display = "none";
 
-  /*tl.on("mousemove", (ev) => {
-    if (ev.buttons === 1) {
-      const mouseCoordinates = { x: ev.clientX, y: ev.clientY };
-      const p1 = projectedPoint(mouseCoordinates, {
-        origin: { x: l, y: t },
-        m: ratios[mode],
-      });
-      const p2 = projectedPoint(mouseCoordinates, {
-        origin: { x: l, y: t },
-        m: 1 / ratios[mode],
-      });
-      const d1 = sqDistanceBetween(p1, mouseCoordinates);
-      const d2 = sqDistanceBetween(p1, mouseCoordinates);
-      let selectedPoint = p1;
-      if (d1 > d2) {
-        selectedPoint = p2;
-      }
-      tl.css({
-        left: `${selectedPoint.x}px`,
-        top: `${selectedPoint.y}px`,
-      });
-    }
-  });*/
-  tr.on("pointerdown", (ev) => {
-    console.info("Down");
-    tr.get().setPointerCapture(ev.pointerId);
-  })
-    .on("pointerup", (ev) => {
-      console.info("Up");
-      tr.get().releasePointerCapture(ev.pointerId);
-    })
-    .on(
-      "pointermove",
-      (ev) => {
-        ev.preventDefault();
-        const current = elem.get().getBoundingClientRect();
-        console.info("Bounding rect: ", current);
-        ev.stopPropagation();
-        if (ev.buttons === 1) {
-          const opposite =  new Point(current.left, current.top + current.height);
-          const line1 = new Line(
-            opposite,
-            new Vector(1, -ratios[mode])
-          );
-          const line2 = new Line(
-            opposite,
-            new Vector(1, -1 / ratios[mode])
-          );
-
-          const mouseInContainerCoordinates = new Point(
-            ev.clientX - container.offsetLeft,
-            ev.clientY - container.offsetTop
-          );
-          let projected =
-            line1.projectDistanceSquare(mouseInContainerCoordinates) <
-            line2.projectDistanceSquare(mouseInContainerCoordinates)
-              ? line1.project(mouseInContainerCoordinates)
-              : line2.project(mouseInContainerCoordinates);
-
-          elem.css({
-            right: `${container.clientWidth - projected.x}px`,
-            top: `${projected.y}px`,
-          });
-          const current2 = elem.get().getBoundingClientRect();
-          draw.empty();
-          draw.append(`<line x1="${opposite.x}" y1="${opposite.y}" x2="${projected.x}"  y2="${projected.y}"/>`);
-          draw.append(`<line x1="${opposite.x}" y1="${opposite.y}" x2="${current.x}"  y2="${current.y}"/>`);
-          draw.append(`<line x1="${projected.x}" y1="${projected.y}" x2="${current.x}"  y2="${current.y}"/>`);
-          console.info(
-            "Ratio",
-            current2.width / current2.height,
-            ratios[mode],
-            current2,
-            projected
-          );
-        }
+  const corners: {
+    handle: _$;
+    opposite: (c: Rectangle) => Point;
+    dir: Vector;
+    limits: (c: Rectangle) => Line[];
+    css: (p: Point) => any;
+  }[] = [
+    {
+      handle: tr,
+      opposite: (current: Rectangle) => {
+        return new Point(current.topLeft.x, current.bottomRight.y);
       },
-      false
+      limits: (current: Rectangle) => {
+        return [
+          new Line(current.topLeft, new Vector(1, 0)),
+          new Line(current.bottomRight, new Vector(0, 1)),
+        ];
+      },
+      dir: new Vector(1, -1),
+      css: (projected: Point) => {
+        return {
+          right: `${container.clientWidth - projected.x}px`,
+          top: `${projected.y}px`,
+        };
+      },
+    },
+    {
+      handle: br,
+      opposite: (current: Rectangle): Point => {
+        return current.topLeft;
+      },
+      limits: (current: Rectangle): Line[] => {
+        return [
+          new Line(current.bottomRight, new Vector(1, 0)),
+          new Line(current.bottomRight, new Vector(0, 1)),
+        ];
+      },
+      dir: new Vector(-1, -1),
+      css: (projected: Point) => {
+        return {
+          right: `${container.clientWidth - projected.x}px`,
+          bottom: `${container.clientHeight - projected.y}px`,
+        };
+      },
+    },
+    {
+      handle: tl,
+      opposite: (current: Rectangle): Point => {
+        return current.bottomRight;
+      },
+      limits: (current: Rectangle): Line[] => {
+        return [
+          new Line(current.topLeft, new Vector(1, 0)),
+          new Line(current.topLeft, new Vector(0, 1)),
+        ];
+      },
+      dir: new Vector(1, 1),
+      css: (projected: Point) => {
+        return {
+          left: `${projected.x}px`,
+          top: `${projected.y}px`,
+        };
+      },
+    },
+    {
+      handle: bl,
+      opposite: (current: Rectangle): Point => {
+        return new Point(current.bottomRight.x, current.topLeft.y);
+      },
+      limits: (current: Rectangle): Line[] => {
+        return [
+          new Line(current.topLeft, new Vector(0, 1)),
+          new Line(current.bottomRight, new Vector(-1, 0)),
+        ];
+      },
+      dir: new Vector(1, -1),
+      css: (projected: Point) => {
+        return {
+          left: `${projected.x}px`,
+          bottom: `${container.clientHeight - projected.y}px`,
+        };
+      },
+    },
+  ];
+
+  function br2rect(v: DOMRect): Rectangle {
+    return new Rectangle(
+      new Point(v.x, v.y),
+      new Point(v.x + v.width, v.y + v.height)
     );
+  }
+  let captured = false;
+  for (const c of corners) {
+    c.handle
+      .on("pointerdown", (ev) => {
+        captured = true;
+        ev.preventDefault();
+        ev.stopPropagation();
+        c.handle.get().setPointerCapture(ev.pointerId);
+      })
+      .on("pointerup", (ev) => {
+        captured = false;
+        ev.preventDefault();
+        ev.stopPropagation();
+        c.handle.get().releasePointerCapture(ev.pointerId);
+      })
+      .on(
+        "pointermove",
+        (ev) => {
+          if (!captured) {
+            return;
+          }
+          ev.preventDefault();
+          ev.stopPropagation();
+          const current = br2rect(elem.get().getBoundingClientRect());
+          const parent = br2rect(container.getBoundingClientRect());
+          if (ev.buttons === 1) {
+            const opposite = c
+              .opposite(current)
+              .translate(-parent.topLeft.x, -parent.topLeft.y);
+
+            const mouseInContainerCoordinates = new Point(
+              ev.clientX,
+              ev.clientY
+            ).translate(-parent.topLeft.x, -parent.topLeft.y);
+
+            const corner = panZoomCtrl.canvasBoundsOnScreen();
+
+            function intersect(p: Point, v: Vector): Point {
+              const l = new Line(p, v);
+              return c
+                .limits(corner)
+                .map((lim) => l.intersect(lim).get())
+                .sort((a: Point, b: Point) =>
+                  p.distanceSquare(a) < p.distanceSquare(b) ? -1 : 1
+                )[0];
+            }
+
+            let seg1 = new LineSegment(
+              opposite,
+              intersect(
+                opposite,
+                new Vector(1 * c.dir.x, ratios[mode] * c.dir.y)
+              )
+            );
+            let seg2 = new LineSegment(
+              opposite,
+              intersect(
+                opposite,
+                new Vector(1 * c.dir.x, (1 / ratios[mode]) * c.dir.y)
+              )
+            );
+            const projected1 = seg1.closestPoint(mouseInContainerCoordinates);
+            const projected2 = seg2.closestPoint(mouseInContainerCoordinates);
+
+            let projected =
+              projected1.distanceSquare(mouseInContainerCoordinates) <
+              projected2.distanceSquare(mouseInContainerCoordinates)
+                ? projected1
+                : projected2;
+
+            elem.css(c.css(projected));
+            validate();
+            /*draw.empty();
+            draw.append(`<svg xmlns="http://www.w3.org/2000/svg">
+              <line stroke-width="5" stroke="black" x1="${opposite.x}" y1="${opposite.y}" x2="${projected.x}"  y2="${projected.y}"/>
+              <line stroke-width="1" stroke="black" x1="${opposite.x}" y1="${opposite.y}" x2="${mouseInContainerCoordinates.x}"  y2="${mouseInContainerCoordinates.y}"/>
+              <line stroke-width="1" stroke="black" x1="${projected.x}" y1="${projected.y}" x2="${mouseInContainerCoordinates.x}"  y2="${mouseInContainerCoordinates.y}"/>                        
+              </svg>`);*/
+          }
+        },
+        false
+      );
+  }
+
   function validate() {
-    const topLeft = panZoomCtrl.screenToCanvasCoords(l, t);
-    const bottomRight = panZoomCtrl.screenToCanvasCoords(w - r, h - b);
-    const inBounds =
-      panZoomCtrl.inBounds(topLeft) && panZoomCtrl.inBounds(bottomRight);
+    const current = br2rect(elem.get().getBoundingClientRect());
+    const parent = br2rect(container.getBoundingClientRect());
+    const r = new Rectangle(
+      current.topLeft.translate(-parent.topLeft.x, -parent.topLeft.y),
+      current.bottomRight.translate(-parent.topLeft.x, -parent.topLeft.y)
+    );
+    const img = panZoomCtrl.canvasBoundsOnScreen();
+    const v1 = r.topLeft.minus(img.topLeft);
+    const v2 = r.bottomRight.minus(img.bottomRight);
+    const inBounds = v1.x >= 0 && v1.y >= 0 && v2.x <= 0 && v2.y <= 0;
     ok.addRemoveClass("disabled", !inBounds);
     ok.addRemoveClass("w3-red", !inBounds);
   }
 
   function resize() {
+    let l: number, r: number, t: number, b: number;
+    let w: number, h: number;
     h = e.parentElement!.clientHeight;
     w = e.parentElement!.clientWidth;
     const offsetL = e.parentElement!.offsetLeft;
@@ -253,8 +346,17 @@ export function setupCrop(
   });
   ok.on("click", () => {
     //e.style.display = "none";
-    const topLeft = panZoomCtrl.screenToCanvasRatio(l, t);
-    const bottomRight = panZoomCtrl.screenToCanvasRatio(w - r, h - b);
+    const current = br2rect(elem.get().getBoundingClientRect());
+    const parent = br2rect(container.getBoundingClientRect());
+    const r = new Rectangle(
+      current.topLeft.translate(-parent.topLeft.x, -parent.topLeft.y),
+      current.bottomRight.translate(-parent.topLeft.x, -parent.topLeft.y)
+    );
+    const topLeft = panZoomCtrl.screenToCanvasRatio(r.topLeft.x, r.topLeft.y);
+    const bottomRight = panZoomCtrl.screenToCanvasRatio(
+      r.bottomRight.x,
+      r.bottomRight.y
+    );
     imageCtrl.addOperation(
       toolRegistrar
         .tool(name)

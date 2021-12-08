@@ -77,6 +77,7 @@ export async function makeEditorPage(
 
   const image = $(".edited-image", e).get()!;
   const video = $(".edited-video", e).get()!;
+  const imageContainer = $(".image-container", e);
 
   const zoomController = new ImagePanZoomController(image as HTMLImageElement);
   const imageController = new ImageController(
@@ -86,7 +87,12 @@ export async function makeEditorPage(
   );
   const toolRegistrar = makeTools($(".tools", e).get()!, imageController);
   // Add all the activable features
-  setupCrop(e.get(), zoomController, imageController, toolRegistrar);
+  setupCrop(
+    imageContainer.get()!,
+    zoomController,
+    imageController,
+    toolRegistrar
+  );
   setupAutocolor(imageController, toolRegistrar);
   setupContrast(imageController, toolRegistrar);
   setupGamma(imageController, toolRegistrar);
