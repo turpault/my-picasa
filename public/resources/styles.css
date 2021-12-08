@@ -308,9 +308,21 @@ body {
   /* pointer-events: none; */
 }
 
-.crop-buttons {
-
+.draw {
+  width: 100%;
+  height: 100%;
+  left:0;
+  top:0;
+  position:absolute;
+  /* z-index: -89999; */
 }
+.draw svg {
+  width: 100%;
+  height: 100%;
+  left:0;
+  top:0;
+}
+.crop-buttons {/* border: 20px solid black; */width: 55px;position: absolute;top: 50px;}
 
 .crop-corner {
   width: 40px;
@@ -361,7 +373,7 @@ body {
   white-space: nowrap;
   list-style-type: none;
   cursor: pointer;
-  font-size: 13px;
+  /* font-size: 13px; */
 }
 
 

@@ -37,7 +37,7 @@
     "clean": "rimraf dist",
     "reset": "rimraf node_modules dist",
     "start": "run-p start:*",
-    "start:webpack": "webpack --watch --progress",
+    "start:webpack": "webpack --watch --progress --mode development",
     "start:tsc-server": "tsc-watch -p tsconfig-server.json",
     "start:server": "nodemon --watch ./dist/server --watch ./dist/shared dist/server/index.js",
     "electron": "electron ."

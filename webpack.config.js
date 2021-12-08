@@ -2,7 +2,7 @@ const path = require('path');
 
 module.exports = {
   entry: './client/app.ts',
-  mode: "development",
+  devtool: "source-map",
   module: {
     rules: [
       {
@@ -17,6 +17,7 @@ module.exports = {
   },
   output: {
     filename: 'app.js',
+    sourceMapFilename: 'app.js.map',
     path: path.resolve(__dirname, 'public', 'dist'),
   },
 };
