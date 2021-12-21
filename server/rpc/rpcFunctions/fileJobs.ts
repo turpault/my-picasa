@@ -316,9 +316,9 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
       try {
         let targetName = s.name;
         let found = false;
+        let destPath = join(imagesRoot, dest[index].key, targetName);
+        let idx = 1;
         while (!found) {
-          let destPath = join(imagesRoot, dest[index].key, targetName);
-          let idx = 1;
           found = true;
           await stat(destPath)
             .then((e) => {
@@ -327,7 +327,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
               const ext = extname(s.name);
               const base = basename(s.name, ext);
               targetName = base + ` (${idx++})` + ext;
-              destPath = join(imagesRoot, dest[index].key);
+              destPath = join(imagesRoot, dest[index].key, targetName);
             })
             .catch((e) => {});
         }
@@ -335,7 +335,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
         await copyMetadata(s, { album: dest[index], name: targetName }, true);
         await rename(
           join(imagesRoot, s.album.key, s.name),
-          join(imagesRoot, dest[index].key, s.name)
+          join(imagesRoot, dest[index].key, targetName)
         );
         albumChanged(s.album, updatedAlbums);
         albumChanged(dest[index], updatedAlbums);

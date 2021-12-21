@@ -1,5 +1,5 @@
 import { readFileSync } from "fs";
-import { readFile, writeFile } from "fs/promises";
+import { writeFile } from "fs/promises";
 import { join } from "path";
 import ini from "../../../shared/lib/ini";
 import { sleep } from "../../../shared/lib/utils";
@@ -15,7 +15,7 @@ import { rate } from "../../utils/stats";
 
 let picasaMap: Map<string, PicasaFolderMeta> = new Map();
 let dirtyPicasaSet: Set<string> = new Set();
-
+let faces: Map<string, string> = new Map();
 export async function picasaInitCleaner() {
   while (true) {
     const i = dirtyPicasaSet;
@@ -24,7 +24,6 @@ export async function picasaInitCleaner() {
       rate("writePicasa");
       console.info(`Writing file ${join(imagesRoot, key, PICASA)}`);
       const out = ini.encode(picasaMap.get(key));
-      picasaMap.delete(key);
       await writeFile(join(imagesRoot, key, PICASA), out);
     });
     await sleep(10);
@@ -41,12 +40,55 @@ export function readPicasaIni(album: Album): PicasaFolderMeta {
       });
       const i = ini.parse(iniData);
       picasaMap.set(album.key, i);
+      if (i.Contacts2) {
+        // includes a map of faces/ids
+        for (const [id, name] of Object.entries(
+          i.Contacts2 as { [key: string]: string }
+        )) {
+          if (!faces.has(id)) {
+            faces.set(id, name);
+          }
+        }
+      }
     } catch (e: any) {
       console.warn(e);
       picasaMap.set(album.key, {});
     }
   }
   return picasaMap.get(album.key)!;
+}
+
+export function fullTextSearch(album: Album, filter: string): AlbumEntry[] {
+  let data = { ...readPicasaIni(album) };
+
+  const faceIds: string[] = [];
+  for (const [id, val] of faces.entries()) {
+    if (val.toLowerCase().includes(filter)) {
+      faceIds.push(id);
+    }
+  }
+  const res: AlbumEntry[] = [];
+  Object.entries(data).forEach(([name, picasaEntry]) => {
+    if (name.toLowerCase().includes(filter)) {
+      res.push({ album, name });
+      return;
+    }
+    if (album.name.toLowerCase().includes(filter)) {
+      res.push({ album, name });
+      return;
+    }
+    if (picasaEntry.faces) {
+      for (const id of faceIds) {
+        if (picasaEntry.faces.includes(id)) {
+          res.push({ album, name });
+          return;
+        }
+      }
+    }
+  });
+  if (res.length > 0) {
+  }
+  return res;
 }
 
 function writePicasaIni(album: Album, data: PicasaFolderMeta): void {
@@ -58,6 +100,14 @@ export function readPicasaEntry(entry: AlbumEntry): PicasaFileMeta {
   const picasa = readPicasaIni(entry.album);
   picasa[entry.name] = picasa[entry.name] || ({} as PicasaFileMeta);
   return picasa[entry.name];
+}
+
+export function touchPicasaEntry(entry: AlbumEntry) {
+  const picasa = readPicasaIni(entry.album);
+  if (picasa[entry.name] === undefined) {
+    picasa[entry.name] = {} as PicasaFileMeta;
+    writePicasaIni(entry.album, picasa);
+  }
 }
 
 export function updatePicasaEntry(
@@ -80,6 +130,9 @@ export function updatePicasaEntry(
   } else {
     picasa[entry.name][field as keyof PicasaFileMeta] = value as never;
   }
-  broadcast("picasaFileMetaChanged", { entry, picasa: picasa[entry.name] });
+
+  if (["filters", "caption", "text", "rotate", "star"].includes(field)) {
+    broadcast("picasaFileMetaChanged", { entry, picasa: picasa[entry.name] });
+  }
   return writePicasaIni(entry.album, picasa);
 }

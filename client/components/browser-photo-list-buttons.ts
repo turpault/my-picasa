@@ -1,16 +1,40 @@
 import { $, _$ } from "../lib/dom";
+import {
+  getSettings,
+  getSettingsEmitter,
+  updateIconSize,
+} from "../lib/settings";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
-import { Album, AlbumListEventSource, PicasaFileMeta } from "../types/types";
-import { makeCompositorPage } from "./compositor";
+import { Album, PicasaFileMeta } from "../types/types";
+import { AlbumListEventSource, AppEventSource } from "../uiTypes";
 import { question } from "./question";
-import { ToolRegistrar } from "./tools";
+const html = `<div class="bottom-list-tools">
+<div class="zoom-photo-list">  
+  <label>Icon Size</label>
+  <input type="range" min="75" max="250" class="photos-zoom-ctrl slider">
+</div>
+<div class="w3-bar buttons">
+</div>                    
+</div>`;
 
 export async function makeButtons(
-  e: HTMLElement,
+  appEvents: AppEventSource,
   events: AlbumListEventSource
-) {
+): Promise<_$> {
   const s = await getService();
+  const container = $(html);
+  const buttons = $(".buttons", container);
+  const zoomController = $(".photos-zoom-ctrl", container);
+
+  zoomController.on("input", () => {
+    updateIconSize(zoomController.val());
+  });
+  getSettingsEmitter().on("changed", (event) => {
+    if (event.field === "iconSize") zoomController.val(event.iconSize);
+  });
+  zoomController.val(getSettings().iconSize);
+
   const actions: {
     name: string;
     icon: string;
@@ -94,7 +118,10 @@ export async function makeButtons(
       icon: "resources/images/icons/actions/composition-50.png",
       needSelection: true,
       click: (ev: MouseEvent) => {
-        events.emit("composite", {});
+        appEvents.emit("composite", {
+          initialList: SelectionManager.get().selected(),
+          initialIndex: 0,
+        });
       },
     },
     {
@@ -107,14 +134,13 @@ export async function makeButtons(
       },
     },
   ];
-  const container = $(e);
   for (const action of actions) {
     action.element = $(`<button data-tooltip="${action.name}" 
       class="w3-button" style="background-image: url(${action.icon})"></button>`).on(
       "click",
       action.click
     );
-    container.append(action.element);
+    buttons.append(action.element);
   }
   function enable() {
     const hasSelection = SelectionManager.get().selected().length != 0;
@@ -129,4 +155,5 @@ export async function makeButtons(
   }
   enable();
   SelectionManager.get().events.on("*", enable);
+  return container;
 }

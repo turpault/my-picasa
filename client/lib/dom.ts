@@ -1,3 +1,5 @@
+import { Album, AlbumEntry } from "../types/types";
+
 function NodeListToFirstElem(
   e: HTMLElement | NodeListOf<HTMLElement> | undefined
 ): HTMLElement | undefined {
@@ -28,8 +30,21 @@ export function setImageDataToCanvasElement(
 }
 
 export class _$ {
-  constructor(e: HTMLElement | string | _$, from?: HTMLElement | null | _$) {
+  constructor(
+    e: Element | HTMLElement | string | _$,
+    from?: HTMLElement | null | _$
+  ) {
     this._e = this.resolve(e, from || null);
+  }
+  id(val: string): _$;
+  id(): string;
+  id(val?: string): string | _$ {
+    if (val !== undefined) {
+      this.get().id = val;
+      return this;
+    } else {
+      return this.get().id;
+    }
   }
   on<K extends keyof HTMLElementEventMap>(
     type: K,
@@ -70,15 +85,40 @@ export class _$ {
 
     return this;
   }
-  css(name: string | object, value?: string): _$ {
-    if (typeof name == "string") {
-      (this.get().style as any)[name] = value;
-    } else {
-      for (const [key, val] of Object.entries(name)) {
-        this.css(key, val);
-      }
+  text(value?: any) {
+    if (arguments.length === 0) {
+      return (this.get() as any).innerText;
     }
+
+    (this.get() as any).innerText = value;
+
     return this;
+  }
+  css(name: string): string;
+  css(name: object): _$;
+  css(name: string, value: string): _$;
+  css(name: string, value: string, priority: string): _$;
+  css(name: string | object, value?: string, priority?: string): _$ | string {
+    if (value !== undefined) {
+      if (typeof name == "string") {
+        this.get().style.setProperty(name, value!, priority);
+      } else {
+        throw new Error("Can only set single name/values");
+      }
+      return this;
+    } else {
+      if (typeof name == "object") {
+        for (const [key, val] of Object.entries(name)) {
+          this.css(key, val);
+        }
+        return this;
+      } else if (typeof name == "string") {
+        return this.get().style[name as keyof CSSStyleDeclaration] as string;
+      } else throw new Error("Can only read discrete values");
+    }
+  }
+  clientRect(): DOMRect {
+    return this.get().getBoundingClientRect();
   }
   append(e: HTMLElement | _$ | string): _$ {
     this.get().appendChild(new _$(e).get());
@@ -101,7 +141,14 @@ export class _$ {
       this.removeClass(name);
     }
   }
-
+  all(selector: string): _$[] {
+    return Array.from(this.get().querySelectorAll(selector)).map((e) =>
+      $(e as HTMLElement)
+    );
+  }
+  children(): _$[] {
+    return Array.from(this.get().children).map((e) => $(e as HTMLElement));
+  }
   attr(key: string | object, value?: any): any {
     var args = arguments;
 
@@ -192,11 +239,14 @@ export class _$ {
   }
 
   private resolve(
-    e: HTMLElement | string | _$,
+    e: Element | HTMLElement | string | _$,
     from: HTMLElement | null | _$
   ): HTMLElement | null {
     if (e instanceof HTMLElement) {
       return e;
+    }
+    if (e instanceof Element) {
+      throw new Error("Bad type");
     }
     if (e instanceof _$) {
       return e.get();
@@ -217,9 +267,13 @@ export class _$ {
         }
         return document.getElementById(e.slice(1));
       }
-      const f = _from.querySelector(e);
-      if (f) {
-        return f as HTMLElement;
+      const byId = document.getElementById(e);
+      if (byId) {
+        return byId;
+      }
+      const bySelector = _from.querySelector(e);
+      if (bySelector) {
+        return bySelector as HTMLElement;
       }
     } catch (err) {}
     const n = document.createElement("div");
@@ -233,8 +287,70 @@ export class _$ {
 }
 
 export function $(
-  e: HTMLElement | string | _$,
+  e: Element | HTMLElement | string | _$,
   from: HTMLElement | null | _$ = null
 ): _$ {
   return new _$(e, from);
+}
+
+export function preLoadImage(url: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const i = new Image();
+    i.src = url;
+    i.onload = () => resolve();
+    i.onerror = () => reject();
+  });
+}
+
+export function albumEntryIndexInList(
+  a: AlbumEntry,
+  lst: AlbumEntry[]
+): number {
+  return lst.findIndex((i) => i.album.key === a.album.key && i.name === a.name);
+}
+
+// Name HTML element from/to Album
+export function elementFromAlbum(album: Album, qualifier: string) {
+  const id = idFromAlbum(album);
+  return document.getElementById(qualifier + id);
+}
+
+export function albumFromElement(e: _$, qualifier: string): Album | null {
+  return albumFromId(e.id().slice(qualifier.length));
+}
+export function setIdForAlbum(e: _$, album: Album, qualifier: string) {
+  e.id(qualifier + idFromAlbum(album));
+}
+function albumFromId(id: string): Album | null {
+  const [valid, key, name] = id.split("|");
+  if (valid === "album") return { key, name };
+  return null;
+}
+function idFromAlbum(a: Album): string {
+  return `album|${a.key}|${a.name}`;
+}
+
+// Name HTML element from/to AlbumEntry
+export function elementFromEntry(entry: AlbumEntry, qualifier: string) {
+  const id = idFromAlbumEntry(entry);
+  return $(qualifier + id);
+}
+export function albumEntryFromElement(
+  e: _$,
+  qualifier: string
+): AlbumEntry | null {
+  return albumEntryFromId(e.id().slice(qualifier.length));
+}
+export function setIdForEntry(e: _$, entry: AlbumEntry, qualifier: string) {
+  e.id(qualifier + idFromAlbumEntry(entry));
+}
+function albumEntryFromId(id: string): AlbumEntry | null {
+  const [valid, key, name, entry] = id.split("|");
+  if (valid === "entry") {
+    return { album: { key, name }, name: entry };
+  }
+  return null;
+}
+function idFromAlbumEntry(entry: AlbumEntry): string {
+  return `entry|${entry.album.key}|${entry.album.name}|${entry.name}`;
 }

@@ -28,6 +28,13 @@ export class Queue {
     const copy = this.resolveFct;
     copy.forEach((p) => p(false));
   }
+  async drain() {
+    return new Promise<void>((resolve) => {
+      this.event.once("drain", () => {
+        resolve();
+      });
+    });
+  }
   async startIfNeeded() {
     while (this.active < this.concurrency) {
       if (this.promises.length > 0) {
@@ -57,10 +64,12 @@ export class Queue {
           .catch((e: any) => rejecter(e))
           .finally(() => {
             this.active--;
+            if (this.active === 0 && this.promises.length === 0) {
+              this.event.emit("drain", {});
+            }
             this.startIfNeeded();
           });
       } else {
-        this.event.emit("drain", {});
         // starving....
         break;
       }

@@ -1,41 +1,44 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
-import { albumEntryIndexInList } from "../../shared/lib/utils";
 import { ActiveImageEvent, AlbumEntry } from "../../shared/types/types";
+import { albumEntryIndexInList } from "../lib/dom";
 
 export class ActiveImageManager {
   constructor(lst: AlbumEntry[], current: AlbumEntry) {
-    this.list = lst;
-    this.current = current;
+    this._list = lst;
+    this._current = current;
     this.event = buildEmitter<ActiveImageEvent>();
   }
 
+  list(): AlbumEntry[] {
+    return this._list;
+  }
   active(): AlbumEntry {
-    return this.current;
+    return this._current;
   }
 
   select(entry: AlbumEntry) {
-    this.current = entry;
+    this._current = entry;
     this.event.emit("changed", entry);
   }
 
   selectNext() {
-    const idx = albumEntryIndexInList(this.current, this.list);
-    if (idx < this.list.length - 1) {
-      this.current = this.list[idx + 1];
-      this.event.emit("changed", this.current);
+    const idx = albumEntryIndexInList(this._current, this._list);
+    if (idx < this._list.length - 1) {
+      this._current = this._list[idx + 1];
+      this.event.emit("changed", this._current);
     }
   }
 
   selectPrevious() {
-    const idx = albumEntryIndexInList(this.current, this.list);
+    const idx = albumEntryIndexInList(this._current, this._list);
     if (idx > 0) {
-      this.current = this.list[idx - 1];
-      this.event.emit("changed", this.current);
+      this._current = this._list[idx - 1];
+      this.event.emit("changed", this._current);
     }
   }
 
   event: Emitter<ActiveImageEvent>;
 
-  private list: AlbumEntry[];
-  private current: AlbumEntry;
+  private _list: AlbumEntry[];
+  private _current: AlbumEntry;
 }

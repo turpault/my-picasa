@@ -1,23 +1,29 @@
-import { Album, AlbumListEventSource } from "../../shared/types/types";
 import { folder } from "../element-templates";
-import { FolderMonitor } from "../folder-monitor";
-import { $ } from "../lib/dom";
+import { AlbumDataSource } from "../album-data-source";
 import {
+  $,
   albumFromElement,
   elementFromAlbum,
   setIdForAlbum,
-} from "../../shared/lib/utils";
+} from "../lib/dom";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
+import { Album } from "../types/types";
+import { AlbumListEventSource, AppEventSource } from "../uiTypes";
 
 const elementPrefix = "albumlist:";
-
+const html = `<div class="w3-theme fill folder-pane">
+<ul class="folders w3-ul w3-hoverable w3-tiny"></ul>
+</div>
+`;
 export async function makeAlbumList(
-  container: HTMLElement,
-  monitor: FolderMonitor,
+  dataSource: AlbumDataSource,
+  appEvents: AppEventSource,
   events: AlbumListEventSource
 ) {
+  const container = $(html);
   let lastHighlight: any;
+  let filter = "";
   const folders = $(".folders", container);
   events.on("scrolled", ({ album }) => {
     if (lastHighlight && lastHighlight.is()) {
@@ -30,20 +36,8 @@ export async function makeAlbumList(
     }
   });
   let firstInit = true;
-  monitor.events.on("updated", (event: { folders: Album[] }) => {
-    folders.empty();
-    for (const aFolder of event.folders) {
-      const node = folder(aFolder);
-      setIdForAlbum(node, aFolder, elementPrefix);
-      folders.append(node);
-    }
-    if (firstInit) {
-      firstInit = false;
-      events.emit("selected", { album: event.folders[0] });
-    }
-  });
   folders.on("click", function (ev): any {
-    const album = albumFromElement(ev.target as HTMLElement, elementPrefix)!;
+    const album = albumFromElement($(ev.target as HTMLElement), elementPrefix)!;
     events.emit("selected", { album });
   });
   folders.on("dragover", (ev: any) => {
@@ -59,7 +53,7 @@ export async function makeAlbumList(
   });
   folders.on("drop", async (ev: any) => {
     const selection = SelectionManager.get().selected();
-    const album = albumFromElement(ev.target as HTMLElement, elementPrefix)!;
+    const album = albumFromElement($(ev.target as HTMLElement), elementPrefix)!;
     const s = await getService();
 
     s.createJob("move", {
@@ -68,31 +62,18 @@ export async function makeAlbumList(
     });
     SelectionManager.get().clear();
   });
-  let processKeys = false;
-  events.on("tabChanged", ({ win }) => {
-    processKeys = win.get() === container;
+
+  appEvents.on("keyDown", ({ code, win }) => {
+    if (win.isParent(container))
+      switch (code) {
+        case "Space":
+        default:
+      }
   });
-  events.on("keyDown", ({ code, win }) => {
-    switch (code) {
-      case "Space":
-      default:
-    }
-  });
-  // Status change events
-  const filter = $("#filterAlbum").on("input", () => {
-    // Hide albums not matching the filter
-    const expr = filter.val();
-    for (const elem of folders.get().children) {
-      $(elem as HTMLElement).css(
-        "display",
-        expr === "" ||
-          albumFromElement(elem as HTMLElement, elementPrefix)!.name.includes(
-            expr
-          )
-          ? "block"
-          : "none"
-      );
-    }
+
+  events.on("filterChanged", (event) => {
+    filter = event.filter;
+    refreshList();
   });
 
   const s = await getService();
@@ -104,7 +85,27 @@ export async function makeAlbumList(
       }
     }
     if (refresh) {
-      monitor.walk();
+      refreshList();
     }
   });
+
+  async function refreshList() {
+    await dataSource.walk(filter);
+
+    folders.empty();
+    for (let idx = 0; idx < dataSource.length(); idx++) {
+      const aFolder = dataSource.albumAtIndex(idx);
+      const node = folder(aFolder);
+      setIdForAlbum(node, aFolder, elementPrefix);
+      folders.append(node);
+    }
+    if (firstInit && dataSource.length()) {
+      firstInit = false;
+      events.emit("selected", { album: dataSource.albumAtIndex(0) });
+    }
+  }
+
+  refreshList();
+
+  return container;
 }

@@ -6,20 +6,20 @@ export type Settings = {
     star: boolean;
     video: boolean;
   };
+  iconSize: number;
   inverseSort: boolean;
   sort: "date" | "name";
-  filter: string;
 };
 
 export type SettingsChangeEvent = {
-  changed: Settings;
+  changed: Settings & { field: string };
 };
 const e = buildEmitter<SettingsChangeEvent>();
 const settings: Settings = {
   filters: { star: false, video: false },
   sort: "date",
   inverseSort: false,
-  filter: "",
+  iconSize: 250,
 };
 
 export async function makeSettings() {
@@ -27,7 +27,7 @@ export async function makeSettings() {
   settings.filters.video = (await get("filterByVideos")) || false;
   settings.sort = (await get("sort")) || "date";
   settings.inverseSort = (await get("inverseSort")) || false;
-  settings.filter = (await get("filter")) || "";
+  settings.iconSize = (await get("iconSize")) || 250;
   return e;
 }
 
@@ -35,13 +35,13 @@ export function getSettings() {
   return settings;
 }
 
-async function changed() {
-  e.emit("changed", settings);
+async function changed(field: string) {
+  e.emit("changed", { field, ...settings });
   await set("filterByStar", settings.filters.star);
   await set("filterByVideos", settings.filters.video);
   await set("sort", settings.sort);
   await set("inverseSort", settings.inverseSort);
-  await set("filter", settings.filter);
+  await set("iconSize", settings.iconSize);
 }
 
 export function getSettingsEmitter(): Emitter<SettingsChangeEvent> {
@@ -50,21 +50,21 @@ export function getSettingsEmitter(): Emitter<SettingsChangeEvent> {
 
 export function updateFilterByStar(newValue: boolean) {
   settings.filters.star = newValue;
-  changed();
+  changed("filters.star");
 }
 export function updateFilterByVideos(newValue: boolean) {
   settings.filters.video = newValue;
-  changed();
+  changed("filters.video");
 }
 export function updateSort(newValue: "date" | "name") {
   settings.sort = newValue;
-  changed();
+  changed("sort");
 }
 export function updateInverseSort(newValue: boolean) {
   settings.inverseSort = newValue;
-  changed();
+  changed("inverseSort");
 }
-export function updateFilter(newValue: string) {
-  settings.filter = newValue;
-  changed();
+export function updateIconSize(newValue: number) {
+  settings.iconSize = newValue;
+  changed("iconSize");
 }

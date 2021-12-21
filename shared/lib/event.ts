@@ -1,12 +1,20 @@
+import { triggerAsyncId } from "async_hooks";
+
 export type EventType = string | symbol;
 
 // An event handler can take an optional event argument
 // and should not return a value
 export type Handler<T = unknown> = (event: T) => void;
+export type OffFunction = () => void;
 export type WildcardHandler<T = Record<string, unknown>> = (
   type: keyof T,
   event: T[keyof T]
 ) => void;
+
+export type FilterFct<T = Record<string, unknown>> = (
+  type: keyof T,
+  event: T[keyof T]
+) => boolean;
 
 // An array of all currently registered event handlers for a type
 export type EventHandlerList<T = unknown> = Array<Handler<T>>;
@@ -24,13 +32,16 @@ export interface Emitter<Events extends Record<EventType, unknown>> {
   all: EventHandlerMap<Events>;
   allOnce: EventHandlerMap<Events>;
 
-  on<Key extends keyof Events>(type: Key, handler: Handler<Events[Key]>): void;
-  on(type: "*", handler: WildcardHandler<Events>): void;
+  on<Key extends keyof Events>(
+    type: Key,
+    handler: Handler<Events[Key]>
+  ): OffFunction;
+  on(type: "*", handler: WildcardHandler<Events>): OffFunction;
   once<Key extends keyof Events>(
     type: Key,
     handler: Handler<Events[Key]>
-  ): void;
-  once(type: "*", handler: WildcardHandler<Events>): void;
+  ): OffFunction;
+  once(type: "*", handler: WildcardHandler<Events>): OffFunction;
 
   off<Key extends keyof Events>(
     type: Key,
@@ -45,6 +56,7 @@ export interface Emitter<Events extends Record<EventType, unknown>> {
 }
 
 export function buildEmitter<Events extends Record<EventType, unknown>>(
+  filter?: FilterFct,
   all?: EventHandlerMap<Events>,
   allOnce?: EventHandlerMap<Events>
 ): Emitter<Events> {
@@ -53,6 +65,51 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
     | WildcardHandler<Events>;
   all = all || new Map();
   allOnce = allOnce || new Map();
+  type Key = keyof Events;
+
+  filter = filter || ((() => true) as FilterFct);
+
+  const on: <Key extends keyof Events>(
+    type: Key,
+    handler: GenericEventHandler
+  ) => OffFunction = (type: Key, handler: GenericEventHandler) => {
+    const handlers: Array<GenericEventHandler> | undefined = all!.get(type);
+    if (handlers) {
+      handlers.push(handler);
+    } else {
+      all!.set(type, [handler] as EventHandlerList<Events[keyof Events]>);
+    }
+    return () => {
+      off(type, handler);
+    };
+  };
+  const once: <Key extends keyof Events>(
+    type: Key,
+    handler: GenericEventHandler
+  ) => OffFunction = (type: Key, handler: GenericEventHandler) => {
+    const handlers: Array<GenericEventHandler> | undefined = allOnce!.get(type);
+    if (handlers) {
+      handlers.push(handler);
+    } else {
+      allOnce!.set(type, [handler] as EventHandlerList<Events[keyof Events]>);
+    }
+    return () => {
+      off(type, handler);
+    };
+  };
+  const off: <Key extends keyof Events>(
+    type: Key,
+    handler?: GenericEventHandler
+  ) => void = (type: Key, handler?: GenericEventHandler) => {
+    const handlers: Array<GenericEventHandler> | undefined = all!.get(type);
+    if (handlers) {
+      if (handler) {
+        handlers.splice(handlers.indexOf(handler) >>> 0, 1);
+      } else {
+        all!.set(type, []);
+      }
+    }
+  };
 
   return {
     /**
@@ -60,55 +117,9 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
      */
     all,
     allOnce,
-
-    /**
-     * Register an event handler for the given type.
-     * @param {string|symbol} type Type of event to listen for, or `'*'` for all events
-     * @param {Function} handler Function to call in response to given event
-     * @memberOf mitt
-     */
-    on<Key extends keyof Events>(type: Key, handler: GenericEventHandler) {
-      const handlers: Array<GenericEventHandler> | undefined = all!.get(type);
-      if (handlers) {
-        handlers.push(handler);
-      } else {
-        all!.set(type, [handler] as EventHandlerList<Events[keyof Events]>);
-      }
-    },
-
-    /**
-     * Register an event handler for the given type.
-     * @param {string|symbol} type Type of event to listen for, or `'*'` for all events
-     * @param {Function} handler Function to call in response to given event
-     * @memberOf mitt
-     */
-    once<Key extends keyof Events>(type: Key, handler: GenericEventHandler) {
-      const handlers: Array<GenericEventHandler> | undefined = allOnce!.get(
-        type
-      );
-      if (handlers) {
-        handlers.push(handler);
-      } else {
-        allOnce!.set(type, [handler] as EventHandlerList<Events[keyof Events]>);
-      }
-    },
-    /**
-     * Remove an event handler for the given type.
-     * If `handler` is omitted, all handlers of the given type are removed.
-     * @param {string|symbol} type Type of event to unregister `handler` from, or `'*'`
-     * @param {Function} [handler] Handler function to remove
-     * @memberOf mitt
-     */
-    off<Key extends keyof Events>(type: Key, handler?: GenericEventHandler) {
-      const handlers: Array<GenericEventHandler> | undefined = all!.get(type);
-      if (handlers) {
-        if (handler) {
-          handlers.splice(handlers.indexOf(handler) >>> 0, 1);
-        } else {
-          all!.set(type, []);
-        }
-      }
-    },
+    on,
+    once,
+    off,
 
     /**
      * Invoke all handlers for the given type.

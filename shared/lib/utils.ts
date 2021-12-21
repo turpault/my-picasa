@@ -9,66 +9,6 @@ export async function sleep(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));
 }
 
-export function albumEntryIndexInList(
-  a: AlbumEntry,
-  lst: AlbumEntry[]
-): number {
-  return lst.findIndex((i) => i.album.key === a.album.key && i.name === a.name);
-}
-
-// Name HTML element from/to Album
-export function elementFromAlbum(album: Album, qualifier: string) {
-  const id = idFromAlbum(album);
-  return document.getElementById(qualifier + id);
-}
-
-export function albumFromElement(
-  e: HTMLElement,
-  qualifier: string
-): Album | null {
-  return albumFromId(e.id.slice(qualifier.length));
-}
-export function setIdForAlbum(e: HTMLElement, album: Album, qualifier: string) {
-  e.id = qualifier + idFromAlbum(album);
-}
-function albumFromId(id: string): Album | null {
-  const [valid, key, name] = id.split("|");
-  if (valid === "album") return { key, name };
-  return null;
-}
-function idFromAlbum(a: Album): string {
-  return `album|${a.key}|${a.name}`;
-}
-
-// Name HTML element from/to AlbumEntry
-export function elementFromEntry(entry: AlbumEntry, qualifier: string) {
-  const id = idFromAlbumEntry(entry);
-  return document.getElementById(qualifier + id);
-}
-export function albumEntryFromElement(
-  e: HTMLElement,
-  qualifier: string
-): AlbumEntry | null {
-  return albumEntryFromId(e.id.slice(qualifier.length));
-}
-export function setIdForEntry(
-  e: HTMLElement,
-  entry: AlbumEntry,
-  qualifier: string
-) {
-  e.id = qualifier + idFromAlbumEntry(entry);
-}
-function albumEntryFromId(id: string): AlbumEntry | null {
-  const [valid, key, name, entry] = id.split("|");
-  if (valid === "entry") {
-    return { album: { key, name }, name: entry };
-  }
-  return null;
-}
-function idFromAlbumEntry(entry: AlbumEntry): string {
-  return `entry|${entry.album.key}|${entry.album.name}|${entry.name}`;
-}
-
 export function sortByKey<T>(array: T[], key: keyof T) {
   array.sort((a, b) => (a[key] < b[key] ? -1 : a[key] > b[key] ? 1 : 0));
 }

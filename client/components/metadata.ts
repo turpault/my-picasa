@@ -1,20 +1,19 @@
-import { FolderMonitor } from "../folder-monitor";
 import { getFileExifData } from "../folder-utils";
 import { $ } from "../lib/dom";
-import {
-  SelectionEventSource,
-  SelectionManager,
-} from "../selection/selection-manager";
+import { SelectionEventSource } from "../selection/selection-manager";
+import { AlbumEntry } from "../types/types";
 declare var L: any;
+
+const section = ["Make", "ISO", "ExposureTime", "FNumber", "DateTimeOriginal"];
 
 export function makeMetadata(
   e: HTMLElement,
-  selectionEvent: SelectionEventSource,
-  monitor: FolderMonitor
+  selectionEvent: SelectionEventSource
 ) {
   const meta = $(".metadata", e);
   const metasidebar = $(e);
   const map = $(".map", e);
+  const file = $(".file", e);
   let mapLeaflet: any;
   let marker: any;
   const close = $(".closemetasidebar");
@@ -65,10 +64,18 @@ export function makeMetadata(
     marker.setLatLng([lat, long]);
   }
 
-  selectionEvent.on("added", (event) => {
-    if (event.selection.length === 1) {
-      getFileExifData(event.key).then((data) => {
-        meta.empty();
+  function refreshMetadata(latest: AlbumEntry, selection: AlbumEntry[]) {
+    file.empty();
+
+    selection.forEach((sel) =>
+      file.append(`<li class="meta-file-entry">${sel.name}</li>`)
+    );
+
+    meta.empty();
+    hideMap();
+
+    if (selection.length === 1) {
+      getFileExifData(latest).then((data) => {
         const {
           GPSLatitude,
           GPSLatitudeRef,
@@ -82,17 +89,27 @@ export function makeMetadata(
             GPSLongitudeRef,
             GPSLongitude,
           });
-        } else {
-          hideMap();
         }
         for (const idx in data) {
           if (Number.isNaN(parseInt(idx)))
-            // exclude unknown tags
-            meta.append(
-              `<div><div class="w3-tag">${idx}</div><div>${data[idx]}</div></div>`
-            );
+            if (section.includes(idx)) {
+              // exclude unknown tags
+              let val = idx.includes("Date")
+                ? new Date(data[idx]).toLocaleString()
+                : data[idx];
+              if (idx.includes("Time")) {
+                const v = parseFloat(val);
+                val = v < 1 ? `1/${Math.round(1 / v)} s` : `${v} s`;
+              }
+              meta.append(
+                `<div><div class="w3-tag">${idx}</div><div>${val}</div></div>`
+              );
+            }
         }
       });
     }
+  }
+  selectionEvent.on("added", (event) => {
+    refreshMetadata(event.key, event.selection);
   });
 }
