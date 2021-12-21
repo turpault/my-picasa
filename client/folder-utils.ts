@@ -1,6 +1,7 @@
 import {
   Album,
   AlbumEntry,
+  AlbumEntryPicasa,
   AlbumInfo,
   videoExtensions,
 } from "../shared/types/types";
@@ -9,25 +10,57 @@ import { getSettings, Settings } from "./lib/settings";
 import { getService } from "./rpc/connect";
 import { albumContents } from "./walker";
 
+export async function buildAlbumEntryEx(
+  entries: AlbumEntry[]
+): Promise<AlbumEntryPicasa[]> {
+  const uniqueAlbums = entries.reduce((prev, val) => {
+    if (!prev.find((a) => a.key === val.album.key)) {
+      prev.push(val.album);
+    }
+    return prev;
+  }, [] as Album[]);
+  const s = await getService();
+  const picasa = await Promise.all(
+    uniqueAlbums.map(async (a) => {
+      const pic = await s.readPicasaIni(a);
+      return { album: a, picasa: pic };
+    })
+  );
+  return entries.map((entry) => {
+    const p = picasa.find((e) => e.album.key === entry.album.key);
+    if (!p) {
+      return {
+        ...entry,
+        picasa: {},
+      };
+    }
+    return {
+      ...entry,
+      picasa: p!.picasa[entry.name] || {},
+    };
+  });
+}
+
 export async function getAlbumInfo(
   album: Album,
+  filter: string,
   useSettings: boolean = false
 ): Promise<AlbumInfo> {
   let settings: Settings = {
     sort: "date",
+    iconSize: 250,
     filters: {
       star: false,
       video: false,
     },
     inverseSort: false,
-    filter: "",
   };
 
   if (useSettings) {
     settings = getSettings();
   }
   // Gettings contents might change the picasa data
-  const contents = await albumContents(album, settings.filter);
+  const contents = await albumContents(album, filter);
   const picasa = await readPicasaIni(album);
   let assets = contents.assets;
 

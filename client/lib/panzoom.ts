@@ -1,6 +1,6 @@
-import { PanZoomEvent } from "../../shared/types/types";
 import { buildEmitter, Emitter } from "../../shared/lib/event";
 import { Point, Rectangle } from "ts-2d-geometry/dist";
+import { PanZoomEvent } from "../uiTypes";
 
 declare var panzoom: Function;
 

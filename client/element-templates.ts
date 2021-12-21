@@ -1,16 +1,9 @@
 import { ImageController } from "./components/image-controller";
-import { $ } from "./lib/dom";
+import { $, _$ } from "./lib/dom";
 import { Album } from "./types/types";
 
-export function folder(f: Album): HTMLElement {
-  const e = document.createElement("li");
-  e.innerText = f.name;
-  return e;
-}
-
-export function picture(): HTMLImageElement {
-  const e = document.createElement("img") as HTMLImageElement;
-  e.className = "thumbnail";
+export function folder(f: Album): _$ {
+  const e = $(`<li>${f.name}</li>`);
   return e;
 }
 
@@ -36,14 +29,17 @@ export function toolHeader(
     })
     .css(
       "display",
-      ...(index < imageCtrl.operationList().length - 1
+      ...((index < imageCtrl.operationList().length - 1
         ? ["", ""]
-        : ["none", "important"])
+        : ["none", "important"]) as [string, string])
     );
   $(".down-tool", e)
     .on("click", () => {
       imageCtrl.moveUp(index);
     })
-    .css("display", ...(index > 0 ? ["", ""] : ["none", "important"]));
+    .css(
+      "display",
+      ...((index > 0 ? ["", ""] : ["none", "important"]) as [string, string])
+    );
   return e;
 }

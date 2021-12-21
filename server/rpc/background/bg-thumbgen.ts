@@ -24,6 +24,7 @@ export async function buildThumbs() {
   while (true) {
     const albums = await folders("");
     for (const album of albums.reverse()) {
+      await sleep(1);
       const m = await media(album, "");
       for (const picture of m.assets) {
         while (!isIdle()) {

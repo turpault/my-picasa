@@ -1,6 +1,8 @@
-import { $ } from "../lib/dom";
-import { AlbumListEventSource } from "../types/types";
+import { buildEmitter } from "../../shared/lib/event";
+import { $, _$ } from "../lib/dom";
+import { AppEventSource } from "../uiTypes";
 import { animateStar } from "./animations";
+import { makeGenericTab, TabEvent } from "./tabs";
 
 const editHTML = `<div class="fill">
 <div class="fill w3-bar-block composition-parameters">
@@ -32,22 +34,27 @@ const editHTML = `<div class="fill">
 </div>`;
 
 export async function makeCompositorPage(
-  events: AlbumListEventSource
-): Promise<HTMLElement> {
+  appEvents: AppEventSource
+): Promise<{ win: _$; tab: _$ }> {
   const e = $(editHTML);
 
-  events.on("keyDown", ({ code, win }) => {
-    switch (code) {
-      case "Space":
-        animateStar(true);
-      default:
-    }
-  });
+  const off = [
+    appEvents.on("keyDown", ({ code }) => {
+      switch (code) {
+        case "Space":
+          animateStar(true);
+        default:
+      }
+    }),
 
-  events.on("tabDeleted", ({ win }) => {
-    if (win.get() === e.get()) {
-    }
-  });
+    appEvents.on("tabDeleted", ({ win }) => {
+      if (win.get() === e.get()) {
+        off.forEach((o) => o());
+      }
+    }),
+  ];
 
-  return e.get();
+  const tabEvent = buildEmitter<TabEvent>();
+  tabEvent.emit("rename", { name: "Compositor" });
+  return { win: e, tab: makeGenericTab(tabEvent) };
 }

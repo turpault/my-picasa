@@ -1,5 +1,5 @@
 import { decodeOperation } from "../../shared/lib/utils";
-import { AlbumEntry, Tool } from "../../shared/types/types";
+import { AlbumEntry } from "../../shared/types/types";
 import { toolHeader } from "../element-templates";
 import {
   cloneContext,
@@ -9,6 +9,7 @@ import {
   execute,
 } from "../imageProcess/client";
 import { $ } from "../lib/dom";
+import { Tool } from "../uiTypes";
 import { ImageController } from "./image-controller";
 
 async function toolIconForTool(context: string, tool: Tool): Promise<string> {

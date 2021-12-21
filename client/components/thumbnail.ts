@@ -1,48 +1,50 @@
+import { rectanglesIntersect, uuid } from "../../shared/lib/utils";
+import { AlbumEntry, PicasaFileMeta } from "../../shared/types/types";
+import { thumbnailUrl } from "../imageProcess/client";
 import {
+  $,
   albumEntryFromElement,
   elementFromEntry,
-  rectanglesIntersect,
   setIdForEntry,
-  uuid,
-} from "../../shared/lib/utils";
-import {
-  AlbumEntry,
-  AlbumListEventSource,
-  PicasaFileMeta,
-} from "../../shared/types/types";
-import { thumbnailUrl } from "../imageProcess/client";
-import { $ } from "../lib/dom";
+  _$,
+} from "../lib/dom";
+import { getSettings, getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
+import { AlbumListEventSource, AppEventSource } from "../uiTypes";
 
 const elementPrefix = "thumb:";
 const imagePrefix = "thumbimg:";
 
 export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
   const e = $(
-    '<div class="thumbnail"> <img class="th" loading="lazy"> <img class="star" src="resources/images/star.svg"></div>'
+    '<div class="thumbnail thumbnail-size"> <img class="th" loading="lazy"> <img class="star" src="resources/images/star.svg"></div>'
   );
   e.on("click", (ev: any) => {
-    const entry = albumEntryFromElement(ev.target!, imagePrefix);
+    const entry = albumEntryFromElement(
+      $(ev.target! as HTMLElement),
+      imagePrefix
+    );
     if (entry) {
       ev.stopPropagation();
-      const { album, name } = entry;
 
-      if (!album.key) return;
-      events.emit("clicked", {
+      if (!entry.album.key) return;
+      events.emit("thumbnailClicked", {
         modifiers: {
           range: ev.shiftKey,
           multi: ev.metaKey,
         },
-        album,
-        name,
+        entry,
       });
     }
   });
   e.on(
     "dragstart",
     (ev: any) => {
-      const entry = albumEntryFromElement(ev.target, imagePrefix);
+      const entry = albumEntryFromElement(
+        $(ev.target! as HTMLElement),
+        imagePrefix
+      );
       if (entry) {
         SelectionManager.get().select(entry);
         ev.dataTransfer.effectAllowed = "move";
@@ -52,13 +54,16 @@ export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
     false
   );
   e.on("dblclick", (ev: any) => {
-    const entry = albumEntryFromElement(ev.target, imagePrefix);
+    const entry = albumEntryFromElement(
+      $(ev.target! as HTMLElement),
+      imagePrefix
+    );
     if (!entry) {
       return;
     }
-    if (entry) {
-      events.emit("open", entry);
-    }
+    events.emit("thumbnailDblClicked", {
+      entry,
+    });
   });
   $(".th", e).on("load", (ev) => {
     const thumb = ev.target as HTMLImageElement;
@@ -68,10 +73,16 @@ export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
       height: thumb.parentElement!.clientHeight,
     };
     // position the image
+    const left = ratio > 1 ? 0 : (parentSize.width * (1 - ratio)) / 2;
+    const top = ratio < 1 ? 0 : (parentSize.height * (1 - 1 / ratio)) / 2;
     $(thumb).css({
       opacity: "1",
-      left: `${ratio > 1 ? 0 : (parentSize.width * (1 - ratio)) / 2}px`,
-      top: `${ratio < 1 ? 0 : (parentSize.height * (1 - 1 / ratio)) / 2}px`,
+      left: `${left}px`,
+      top: `${top}px`,
+    });
+    $(thumb).css({
+      width: `${parentSize.width - left * 2}px`,
+      height: `${parentSize.height - top * 2}px`,
     });
     // position the star at the bottom right
     $(".star", e).css({
@@ -94,6 +105,27 @@ export async function makeThumbnailManager() {
       }
     }
   );
+
+  var sheet = Array.from(document.styleSheets).reduce((prev, current) => {
+    try {
+      return [...prev, ...(Array.from(current.cssRules) as any[])];
+    } catch (e) {
+      return prev;
+    }
+  }, [] as any[]);
+
+  const thumbnailRule = sheet.find((p) =>
+    p.cssText.includes(".thumbnail-size")
+  );
+  getSettingsEmitter().on("changed", (event) => {
+    if (event.field === "iconSize") {
+      thumbnailRule.style.width = `${event.iconSize}px`;
+      thumbnailRule.style.height = `${event.iconSize}px`;
+    }
+  });
+  const settings = getSettings();
+  thumbnailRule.style.width = `${settings.iconSize}px`;
+  thumbnailRule.style.height = `${settings.iconSize}px`;
 }
 SelectionManager.get().events.on("added", ({ key }) => {
   $(elementFromEntry(key, elementPrefix)!).alive().addClass("selected");
@@ -103,14 +135,14 @@ SelectionManager.get().events.on("removed", ({ key }) => {
 });
 
 export async function thumbnailData(
-  e: HTMLElement,
+  e: _$,
   entry: AlbumEntry,
   picasaData: PicasaFileMeta
 ) {
   const thumb = $("img", e);
 
   setIdForEntry(e, entry, elementPrefix);
-  setIdForEntry(thumb.get(), entry, imagePrefix);
+  setIdForEntry(thumb, entry, imagePrefix);
 
   if (SelectionManager.get().isSelected(entry)) {
     $(e).addClass("selected");
@@ -128,13 +160,13 @@ export async function thumbnailData(
 }
 
 export function selectThumbnailsInRect(
-  container: HTMLElement,
+  container: _$,
   p1: { x: number; y: number },
   p2: { x: number; y: number }
 ) {
-  var rect = container.getBoundingClientRect();
-  for (const e of Array.from(container.querySelectorAll(".thumbnail img"))) {
-    const r = e.getBoundingClientRect();
+  var rect = container.clientRect();
+  for (const e of container.all(".thumbnail img")) {
+    const r = e.clientRect();
     r.x -= rect.x;
     r.y -= rect.y;
     if (
@@ -146,29 +178,29 @@ export function selectThumbnailsInRect(
         }
       )
     ) {
-      const entry = albumEntryFromElement(e as HTMLElement, imagePrefix);
+      const entry = albumEntryFromElement(e, imagePrefix);
       if (entry) SelectionManager.get().select(entry);
     }
   }
 }
 export function makeNThumbnails(
-  domElement: HTMLElement,
+  domElement: _$,
   count: number,
   events: AlbumListEventSource
 ) {
-  while (domElement.children.length < count) {
-    domElement.appendChild(buildThumbnail(events));
+  while (domElement.get().children.length < count) {
+    domElement.append(buildThumbnail(events));
   }
-  for (const i of domElement.querySelectorAll(".img")) {
-    (i as HTMLImageElement).src = "";
-    (i as HTMLImageElement).id = "";
+  for (const i of domElement.all(".img")) {
+    i.attr("src", "");
+    i.id("");
   }
-  for (const i of domElement.querySelectorAll(".star")) {
-    (i as HTMLImageElement).style.display = "none";
+  for (const i of domElement.all(".star")) {
+    i.css("display", "none");
   }
-  for (let i = 0; i < domElement.children.length; i++) {
-    const e = domElement.children[i] as HTMLImageElement;
-    e.id = "";
-    e.style.display = i < count ? "" : "none";
+  let i = 0;
+  for (const e of domElement.children()) {
+    e.id("");
+    e.css("display", i++ < count ? "" : "none");
   }
 }

@@ -1,17 +1,18 @@
-import { albumEntryIndexInList, isVideoUrl } from "../../shared/lib/utils";
-import { getAlbumInfo } from "../folder-utils";
+import { buildEmitter } from "../../shared/lib/event";
+import { isVideoUrl } from "../../shared/lib/utils";
 import { assetUrl, thumbnailUrl } from "../imageProcess/client";
-import { $ } from "../lib/dom";
-import { Album, AlbumEntry, AlbumListEventSource } from "../types/types";
-import { deleteTabWin } from "./tabs";
+import { $, _$ } from "../lib/dom";
+import { AlbumEntry } from "../types/types";
+import { AppEventSource } from "../uiTypes";
+import { deleteTabWin, makeGenericTab, TabEvent } from "./tabs";
 
 export async function makeGallery(
-  start: AlbumEntry,
-  events: AlbumListEventSource
-): Promise<HTMLElement> {
-  const info = await getAlbumInfo(start.album, true /* use settings */);
-  const thumbs = info.assets.map((asset) => thumbnailUrl(asset));
-  const urls = info.assets.map((asset) => assetUrl(asset));
+  initialIndex: number,
+  initialList: AlbumEntry[],
+  appEvents: AppEventSource
+): Promise<{ win: _$; tab: _$ }> {
+  const thumbs = initialList.map((asset) => thumbnailUrl(asset));
+  const urls = initialList.map((asset) => assetUrl(asset));
   const e = $(`
   <div class="gallery-container">
   <div class="gallery-mySlides">
@@ -33,7 +34,7 @@ export async function makeGallery(
   ${thumbs
     .map(
       (thumb, idx) => `
-  <img class="gallery-demo gallery-cursor" src="${thumb}" action="slide:${idx}" alt="${info.assets[idx].name}">
+  <img class="gallery-demo gallery-cursor" src="${thumb}" action="slide:${idx}" alt="${initialList[idx].name}">
   `
     )
     .join("\n")}
@@ -60,24 +61,31 @@ export async function makeGallery(
     }
   });
   const elem = e.get();
-  var slideIndex = albumEntryIndexInList(start, info.assets);
+  var slideIndex = initialIndex;
   showSlides(slideIndex);
-  events.on("keyDown", ({ code, win }) => {
-    switch (code) {
-      case "Escape":
-        deleteTabWin(win);
-        break;
-      case "ArrowLeft":
-        showSlides(slideIndex - 1);
-        break;
-      case "ArrowRight":
-        showSlides(slideIndex + 1);
-        break;
-    }
-  });
+  const off = [
+    appEvents.on("keyDown", ({ code, win }) => {
+      switch (code) {
+        case "Escape":
+          deleteTabWin(win);
+          break;
+        case "ArrowLeft":
+          showSlides(slideIndex - 1);
+          break;
+        case "ArrowRight":
+          showSlides(slideIndex + 1);
+          break;
+      }
+    }),
+    appEvents.on("tabDeleted", ({ win }) => {
+      if (win.get() === e.get()) {
+        off.forEach((o) => o());
+      }
+    }),
+  ];
 
   function showSlides(n: number) {
-    if (n >= urls.length) {
+    if (n >= urls.length || n < 0) {
       slideIndex = 0;
     } else if (n < 0) {
       slideIndex = urls.length - 1;
@@ -105,5 +113,7 @@ export async function makeGallery(
     }
     dots[slideIndex].className += " active";
   }
-  return e.get();
+  const tabEvent = buildEmitter<TabEvent>();
+  tabEvent.emit("rename", { name: "Gallery" });
+  return { win: e, tab: makeGenericTab(tabEvent) };
 }

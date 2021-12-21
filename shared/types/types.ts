@@ -58,78 +58,6 @@ export type SliderEvent = {
   value: number;
 };
 
-type iconFct = (context: string) => Promise<boolean>;
-type activateFct = () => Promise<boolean>;
-type entryFct = (e: AlbumEntry) => boolean;
-
-export type Tool = {
-  filterName: string;
-  enable: entryFct;
-  icon: iconFct;
-  build: Function;
-  buildUI: (index: number, args: string[]) => HTMLElement;
-  activate: activateFct;
-};
-
-export type PanZoomEvent = {
-  pan: {};
-  zoom: { x: number; y: number; scale: number };
-};
-
-export type ImageControllerEvent = {
-  updated: {
-    context: string;
-    caption: string;
-    filters: string;
-  };
-  liveViewUpdated: {
-    context: string;
-    entry: AlbumEntry;
-  };
-  idle: {};
-  busy: {};
-  operationListChanged: {};
-};
-
-export type AlbumListEvent = {
-  selected: { album: Album };
-  scrolled: { album: Album };
-  open: { album: Album; name: string };
-  show: { start: AlbumEntry };
-  clicked: {
-    modifiers: {
-      range: boolean;
-      multi: boolean;
-    };
-    album: Album;
-    name: string;
-  };
-  tabChanged: {
-    tab: any; // _$
-    win: any; // _$
-  };
-  tabDeleted: {
-    tab: any; // _$
-    win: any; // _$
-  };
-  keyDown: {
-    code: string;
-    win: HTMLElement;
-  };
-  pictureChanged: {
-    entry: AlbumEntry;
-  };
-  pictureAdded: {
-    entry: AlbumEntry;
-  };
-  pictureRemoved: {
-    entry: AlbumEntry;
-  };
-  composite: {};
-};
-
-export type AlbumListEventSource = Emitter<AlbumListEvent>;
-
 export type Album = {
   name: string;
   key: string;
@@ -138,6 +66,9 @@ export type Album = {
 export type AlbumEntry = {
   name: string;
   album: Album;
+};
+export type AlbumEntryPicasa = AlbumEntry & {
+  picasa: PicasaFileMeta;
 };
 
 export type AlbumInfo = {

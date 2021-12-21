@@ -75,7 +75,7 @@ export function setupCrop(
   const bl = $(".crop-bottom-left", elem);
   const br = $(".crop-bottom-right", elem);
 
-  const e = elem.get() as HTMLElement;
+  const e = elem;
 
   type modes = "6x4" | "4x3" | "16x9" | "5x5";
   const ratios: {
@@ -88,7 +88,7 @@ export function setupCrop(
   };
   let mode: modes = "4x3";
   let orientation: "paysage" | "portrait" = "paysage";
-  e.style.display = "none";
+  e.css({ display: "none" });
 
   const corners: {
     handle: _$;
@@ -283,10 +283,8 @@ export function setupCrop(
   function resize() {
     let l: number, r: number, t: number, b: number;
     let w: number, h: number;
-    h = e.parentElement!.clientHeight;
-    w = e.parentElement!.clientWidth;
-    const offsetL = e.parentElement!.offsetLeft;
-    const offsetT = e.parentElement!.offsetTop;
+    h = e.parent().get().clientHeight;
+    w = e.parent().get().clientWidth;
     const winRatio = w / h;
     let cropRatio;
     if (orientation === "paysage") {
@@ -311,13 +309,10 @@ export function setupCrop(
       r = cw;
     }
 
-    e.style.left = `${l}px`;
-    e.style.right = `${r}px`;
-    e.style.top = `${t}px`;
-    e.style.bottom = `${b}px`;
+    e.css({ top: `${t}px`, bottom: `${b}px`, left: `${l}px`, right: `${r}px` });
     validate();
   }
-  new ResizeObserver(resize).observe(e.parentElement!);
+  new ResizeObserver(resize).observe(e.parent().get());
 
   $(".btn-6x4", elem).on("click", () => {
     mode = "6x4";
@@ -362,10 +357,10 @@ export function setupCrop(
         .tool(name)
         .build(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y)
     );
-    e.style.display = "none";
+    e.css({ display: "none" });
   });
   cancel.on("click", () => {
-    e.style.display = "none";
+    e.css({ display: "none" });
   });
   resize();
 
@@ -378,7 +373,7 @@ export function setupCrop(
       return true;
     },
     activate: async function () {
-      e.style.display = "block";
+      e.css({ display: "block" });
       validate();
       return true;
     },

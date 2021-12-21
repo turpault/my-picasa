@@ -1,9 +1,8 @@
-import { Emitter } from "../lib/event";
-import { AlbumListEvent } from "../types/types";
+import { AppEventSource } from "../uiTypes";
 import { questionIsDisplayed } from "./question";
 import { activeTab } from "./tabs";
 
-export function makeHotkeys(emitter: Emitter<AlbumListEvent>) {
+export function makeHotkeys(emitter: AppEventSource) {
   document.addEventListener("keydown", (ev: KeyboardEvent) => {
     if (questionIsDisplayed()) {
       return;
@@ -16,7 +15,7 @@ export function makeHotkeys(emitter: Emitter<AlbumListEvent>) {
     ev.preventDefault();
     emitter.emit("keyDown", {
       code: ev.code,
-      win: _activeTab.win.get(),
+      win: _activeTab.win,
     });
   });
 }
