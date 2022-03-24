@@ -24,7 +24,13 @@ export function addToUndo(
   payload: any
 ) {
   undoStream.write(
-    `${JSON.stringify({ uuid: uuid(), description, operation, payload })}\n`
+    `${JSON.stringify({
+      uuid: uuid(),
+      description,
+      timestamp: new Date().getTime(),
+      operation,
+      payload,
+    })}\n`
   );
   broadcast("undoChanged", {});
 }
@@ -39,51 +45,43 @@ export function registerUndoProvider(type: string, undoFct: doFunction) {
 }
 
 export async function undo(id: string) {
-  // Scan file
-  const read = createReadStream(undoFile, { encoding: "utf-8" });
-  const res = new Promise<void>((resolve) => {
-    const reader = createInterface(read);
-    reader.on("line", (line) => {
-      const op = JSON.parse(line);
-      if (op.uuid === id) {
-        const operation = op.operation as string;
-        if (registrar[operation]) {
-          registrar[operation].undoFct(
-            op.operation as string,
-            op.payload as object
-          );
-          undoneStream.write(`${id}\n`);
-          reader.close();
-          resolve();
-        } else {
-          throw new Error("Operation not found");
-        }
+  const lst = await undoList();
+  for (const op of lst) {
+    if (op.uuid === id) {
+      const operation = op.operation as string;
+      if (registrar[operation]) {
+        registrar[operation].undoFct(
+          op.operation as string,
+          op.payload as object
+        );
+        undoneStream.write(`${id}\n`);
+        broadcast("undoChanged", {});
       }
-    });
-  });
-  return res;
+    }
+  }
 }
 
 export async function undoList(): Promise<undoStep[]> {
-  return new Promise<{ description: string; uuid: string }[]>(
-    async (resolve) => {
-      const readUndo = createReadStream(undoFile, { encoding: "utf-8" });
-      const undoneOperations = (
-        await readFile(undoneFile, { encoding: "utf-8" }).catch((e) => "")
-      ).split("\n");
-      const res: { description: string; uuid: string }[] = [];
-      const reader = createInterface(readUndo);
-      reader.on("line", (line) => {
-        const op = JSON.parse(line);
-        if (undoneOperations.includes(op.uuid)) {
-          return;
-        }
-        res.push({
-          description: op.description as string,
-          uuid: op.uuid as string,
-        });
+  return new Promise<undoStep[]>(async (resolve) => {
+    const readUndo = createReadStream(undoFile, { encoding: "utf-8" });
+    const undoneOperations = (
+      await readFile(undoneFile, { encoding: "utf-8" }).catch((e) => "")
+    ).split("\n");
+    const res: undoStep[] = [];
+    const reader = createInterface(readUndo);
+    reader.on("line", (line) => {
+      const op = JSON.parse(line);
+      if (undoneOperations.includes(op.uuid)) {
+        return;
+      }
+      res.push({
+        description: op.description as string,
+        timestamp: (op.timestamp as number) || 0,
+        uuid: op.uuid as string,
+        operation: op.operation as string,
+        payload: op.payload as object,
       });
-      reader.on("close", () => resolve(res));
-    }
-  );
+    });
+    reader.on("close", () => resolve(res));
+  });
 }

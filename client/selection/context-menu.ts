@@ -1,7 +1,7 @@
 import { question } from "../components/question";
 import { $ } from "../lib/dom";
 import { getService } from "../rpc/connect";
-import { Album } from "../types/types";
+import { Album, JOBNAMES } from "../../shared/types/types";
 import { SelectionManager } from "./selection-manager";
 
 export function makeDropDown() {
@@ -47,7 +47,7 @@ async function moveSelectionInNewAlbum() {
   if (newAlbum) {
     const s = await getService();
     const a: Album = await s.makeAlbum(newAlbum);
-    s.createJob("move", {
+    s.createJob(JOBNAMES.MOVE, {
       source: SelectionManager.get().selected(),
       destination: a.key,
     });
@@ -57,7 +57,7 @@ async function moveSelectionInNewAlbum() {
 
 async function duplicateSelection() {
   const s = await getService();
-  s.createJob("duplicate", {
+  s.createJob(JOBNAMES.DUPLICATE, {
     source: SelectionManager.get().selected(),
   });
 }

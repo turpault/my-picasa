@@ -1,5 +1,3 @@
-import { Emitter } from "../lib/event";
-
 export type PartialRecord<K extends keyof any, T> = {
   [P in K]?: T;
 };
@@ -18,36 +16,54 @@ export type PicasaFileMeta = {
   filters?: string; // crop64=1,5a491bc4dd659056;enhance=1;finetune2=1,0.000000,0.000000,0.190877,00000000,0.000000;autolight=1;tilt=1,-0.233232,0.000000;crop64=1,1ef60000fe77df8d;fill=1,0.448598;autolight=1;fill=1,0.177570;finetune2=1,0.000000,0.000000,0.235789,00000000,0.000000;
 } & PartialRecord<extraFields, string>;
 
-export type undoStep = { description: string; uuid: string };
+export type undoStep = {
+  description: string;
+  uuid: string;
+  timestamp: number;
+  operation: string;
+  payload: object;
+};
+export type JobData = {
+  source: AlbumEntry[] | Album;
+  destination: Album | Album[];
+  noUndo?: boolean;
+  name?: string;
+};
 export type Job = {
   id: string;
   name: string;
-  data: { source?: AlbumEntry[] | Album; destination?: Album | Album[] };
+  data: JobData;
   status: "started" | "queued" | "finished";
   progress: { start: number; remaining: number };
   errors: string[];
   changed: Function;
 };
 
+export enum JOBNAMES {
+  MOVE = "Move",
+  MULTI_MOVE = "Multi move",
+  COPY = "Copy",
+  DUPLICATE = "Duplicate",
+  EXPORT = "Export",
+  DELETE = "Delete",
+  RESTORE = "Restore",
+  DELETE_ALBUM = "Delete Album",
+  RESTORE_ALBUM = "Restore Album",
+  RENAME_ALBUM = "Rename Album",
+}
+
 export const ThumbnailSizeVals = ["th-small", "th-medium", "th-large"] as const;
 export type ThumbnailSize = typeof ThumbnailSizeVals[number];
 
 export type ImageFileMeta = {
+  type: Filetype;
   width: number;
   height: number;
-  data: string;
   transform: string | undefined;
-};
-
-export type ImageFileMetas = {
-  [key in ThumbnailSize]: ImageFileMeta;
 };
 
 export type PicasaFolderMeta = {
   [name: string]: PicasaFileMeta;
-};
-export type FolderPixels = {
-  [name: string]: ImageFileMeta;
 };
 
 export type ActiveImageEvent = {
@@ -67,6 +83,10 @@ export type AlbumEntry = {
   name: string;
   album: Album;
 };
+export type AlbumEntryWithMetadata = AlbumEntry & {
+  meta: ImageFileMeta
+};
+
 export type AlbumEntryPicasa = AlbumEntry & {
   picasa: PicasaFileMeta;
 };
@@ -90,3 +110,7 @@ export const pictureExtensions = [
   "cr2",
 ];
 export const videoExtensions = ["mp4", "mov", "m4v"];
+export enum Filetype {
+  Picture="image",
+  Video="video"
+} ;

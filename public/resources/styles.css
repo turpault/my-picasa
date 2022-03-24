@@ -28,8 +28,8 @@
   bottom: 47px;
   right: 39px;
   font-size: 30px;
-  width: 40px;
-  height: 40px;
+  width: 20px;
+  height: 20px;
 }
 .images .selected .th {
   padding: 2px;
@@ -289,38 +289,81 @@ body {
 .bottom-list-tools {
   position: absolute;
   right: 0px;
-  left: 0px;
+  left: 300px;
   bottom: 0;
   height: 62px;
 }
 .zoom-photo-list {
-  width:50%;
+  width: 200px;
+  padding-right: 20px;
   right:0;
   top:0;
   position:absolute;
 }
 .buttons {
-  width:50%;
+  width: auto;
   left:0;
-  top:0;
+  top: 10px;
   position:absolute;
   /* width: 0px; */
   text-align: center;
+  padding-left: 10px;
+  overflow-x: hidden;
 }
 .buttons > button {
   margin: 2px;
-  width: 66px;
-  height: 50px;
+  width: 39px;
+  height: 32px;
   padding-left: 10px;
   padding-right: 10px;
   /* display: block; */
   background-position: center;
   background-repeat: no-repeat;
+  background-size: contain;
 }
 .w3-tag {
   font-size: smaller;
 }
+.undo-menu {
 
+}
+.open-in-finder {
+  float: right;
+  opacity: 0;
+  height: 32px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  margin-top: 2px;
+}
+.trash-album {
+  float: right;
+  opacity: 0;
+  height: 28px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  margin-top: 4px;
+}
+.browser-tab {
+  display: inline-block;
+}
+.filterAlbum {
+  border: none;
+}
+
+.new-album-button {
+  width: 25px;
+  height: 24px;
+  padding-left: 10px;
+  padding-right: 10px;
+  /* display: block; */
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+#undo {
+  width: auto;
+  right: 0;
+}
 .metadatasidebar {
   width: 220px;
   right:0;
@@ -336,9 +379,12 @@ body {
 
 .crop {
   position: absolute;
+  cursor: move;
+  box-shadow: 0 0 0 99999px rgb(126 126 126 / 50%);
   border: 3px solid blue;
   z-index: 99;
   display: none;
+  /* opacity: 0.1; */
   /* pointer-events: none; */
 }
 
@@ -356,7 +402,11 @@ body {
   left:0;
   top:0;
 }
-.crop-buttons {/* border: 20px solid black; */width: 55px;position: absolute;top: 50px;}
+.crop-buttons {/* border: 20px solid black; */width: 55px;position: absolute;top: 50px;right: 100%;}
+
+.crop-buttons button {
+  width: 100% !important;
+}
 
 .crop-corner {
   width: 40px;
@@ -397,7 +447,7 @@ body {
   /* background-color: #f0f0f0; */
   color: #505050;
   font-family: sans-serif;
-  font-weight: bold;
+  /* font-weight: 500; */
   overflow-y: scroll;
   width: 300px;
   overflow-x: hidden;
@@ -407,7 +457,8 @@ body {
   white-space: nowrap;
   list-style-type: none;
   cursor: pointer;
-  /* font-size: 13px; */
+  font-size: 12px;
+  line-height: 14px;
   padding-top: 4px;
   padding-bottom: 4px;
 }
@@ -494,12 +545,35 @@ body {
   user-select: none;
   background-color: #f5f3f3;
   width: 100%;
+  /* height: 90px; */
 }
-.album > .header > .name {
+.album > .header:hover a {
+  opacity: 1;
+}
+.album > .header:hover button {
+  opacity: 1;
+  /* height: 31px; */
+  border: none;
+}
+
+.name-container {
+  position: absolute;
+  left:0;
+  right: 100px;
+  top:0;
+  /* height: 90px; */
+}
+.name {
   font-size: x-large;
   font-weight: bold;
-  text-align: center;
+  text-align: left;
+  position: absolute;
+  z-index: 0;
+  /* width: 100%; */
   width: 100%;
+  background-color: rgba(0,0,0,0);
+  border: none;
+  max-width: 100%;
 }
 
 .disable-scrollbar::-webkit-scrollbar {
@@ -601,6 +675,19 @@ body {
   display: block;
 }
 
+.edit-album-name {
+  float: right;
+  opacity: 0;
+  font-size: 20px;
+  /* color: darkgray; */
+  /* line-height: 200px; */
+  /* font-weight: bold; */
+  text-align: left;
+  /* width: 100%; */
+  height: 31px;
+  margin-top: 2px;
+}
+
 [data-tooltip]:before {
   position: fixed;
   content : attr(data-tooltip);
@@ -619,6 +706,7 @@ body {
   box-shadow: 2px 2px 1px silver;
 }
 
+
 [data-tooltip]:hover:before {
   opacity : 1;
   /* customizable */
@@ -628,6 +716,35 @@ body {
   /* right: 0px; */
 }
 
+
+[data-tooltip-below]:before {
+  position: absolute;
+  content : attr(data-tooltip-below);
+  pointer-events: none;
+  /* right: 0; */
+  /* bottom: 20px; */
+  margin-right: 9px;
+  margin-left: -55px;
+  margin-top: 25px;
+  opacity : 0;
+    /* customizable */
+  background: yellow;
+  transition: all 0.15s ease;
+  padding: 10px;
+  color: #333;
+  border-radius: 10px;
+  box-shadow: 2px 2px 1px silver;
+}
+
+[data-tooltip-below]:hover:before {
+  opacity : 1;
+  /* customizable */
+  z-index: 999;
+  /* background: yellow; */
+  /* margin-top: -55px; */
+  /* margin-right: 42px; */
+  /* right: 0px; */
+}
 /* ==== Gallery ==== */
 
 /* Position the image container (needed to position the left and right arrows) */
@@ -812,10 +929,41 @@ body {
   width: 300px;
   overflow-x: hidden;
 }
+
 .composition-container {
   position: absolute;
   left: 300px;
   top: 0;
   bottom: 0;
   right: 0;
+}
+
+.montage {
+  background: #DDD;
+  width: 1000px;
+  height: 800px;
+  /* max-width: 1200px; */
+  /* width: 80% !important; */
+  /* aspect-ratio: 10 / 8 !important; */
+  /* height: auto !important; */
+}
+.montage:after {
+  content: '';
+  display: block;
+  clear: both;
+}
+
+.composited-element {
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.composited-element:hover {
+  border-color: hsla(0, 0%, 100%, 0.5);
+  cursor: move;
+}
+
+.resizer {
+  background: white;
 }

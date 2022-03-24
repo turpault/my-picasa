@@ -183,7 +183,8 @@ export class ImageController {
   recenter() {
     const h = this.parent.clientHeight;
     const w = this.parent.clientWidth;
-    this.zoomController!.recenter(w, h);
+    this.zoomController!.setClientSize(h, w);
+    this.zoomController!.recenter();
   }
 
   private image: HTMLImageElement;

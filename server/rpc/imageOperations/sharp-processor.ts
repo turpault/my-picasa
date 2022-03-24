@@ -162,7 +162,8 @@ export async function transform(
           await commit(context);
           j = getContext(context);
           const amount = parseFloat(args[1]);
-          j = j.modulate({ brightness: amount });
+          j = j.gamma(1 + amount);
+          //j = j.modulate({ brightness: amount });
         }
         break;
       case "blur":
@@ -177,15 +178,77 @@ export async function transform(
         break;
 
       case "tilt":
-        const angle = parseInt(args[1]);
+        const angle = (10 * parseInt(args[1]) * Math.PI) / 180; // in radians
+        const angleDeg = (angle / Math.PI) * 180; // in degrees
         const scale = parseInt(args[2]);
         if (scale !== 0) {
           const metadata = await j.metadata();
           const w = metadata.width!;
-          const h = metadata.height;
+          const h = metadata.height!;
           j = j.resize(Math.floor(w * (1 + scale)));
+          j = await commitContext(j);
         }
-        j = j.rotate((10 * angle) / Math.PI);
+
+        j = await commitContext(j);
+        const metadata = await j.metadata();
+        const w = metadata.width!;
+        const h = metadata.height!;
+        j = j.rotate(-angleDeg);
+        j = await commitContext(j);
+        const metadataAfter = await j.metadata();
+        const wAfter = metadataAfter.width!;
+        const hAfter = metadataAfter.height!;
+        const dh = hAfter - h;
+        const dw = wAfter - w;
+        /* adjust */
+        const deltah = Math.floor(dh /*- dw * t*/);
+        const deltaw = Math.floor(dw /*- dh * t*/);
+        /*const layers2: sharp.OverlayOptions[] = [
+          {
+            input: {
+              create: {
+                width: wAfter - deltaw * 2,
+                height: hAfter - deltah * 2,
+                channels: 4,
+                background: "#FF0000",
+              },
+            },
+            left: deltaw,
+            top: deltah,
+            blend: "colour-burn",
+          },
+        ];
+
+        j = j.composite(layers2);*/
+        j = j.extract({
+          left: deltaw,
+          top: deltah,
+          width: wAfter - deltaw * 2,
+          height: hAfter - deltah * 2,
+        });
+        break;
+      case "Orton":
+        {
+          let c = j.clone();
+          const { data, info } = await c
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+
+          j.blur(info.width / 500);
+          const layers: sharp.OverlayOptions[] = [
+            {
+              input: data,
+              raw: info,
+              blend: "screen",
+            },
+            {
+              input: data,
+              raw: info,
+              blend: "soft-light",
+            },
+          ];
+          j = j.composite(layers);
+        }
         break;
       case "finetune2":
         // Really neeps mapLut from vips - kind of a best approach for now.
@@ -310,7 +373,7 @@ export async function transform(
           )}" width="${Math.floor(w * 0.8)}"> <text x="0" y="${Math.floor(
             h / 5
           )}" font-size="${Math.floor(w / 20)}" fill="#000000">${
-            options.get(context)!.caption
+            o.caption
           }</text> </svg>`;
           layers.push({ input: Buffer.from(txtSvg), gravity: "south" });
         }
@@ -329,7 +392,7 @@ export async function transform(
           (args[2].length > 6
             ? args[2].slice(2) + args[2].slice(0, 2)
             : args[2]);
-        j = j.rotate(-angle, { background: col });
+        j = j.rotate(angle, { background: col });
         break;
       }
       default:
@@ -430,12 +493,16 @@ export async function execute(
 
 export async function commit(context: string): Promise<void> {
   let j = getContext(context);
+  j = await commitContext(j);
+  setContext(context, j);
+}
+
+async function commitContext(j: sharp.Sharp): Promise<sharp.Sharp> {
   const updated = await j.raw().toBuffer({ resolveWithObject: true });
   j = sharp(updated.data, {
     limitInputPixels: false,
     raw: updated.info,
     failOnError: false,
   });
-
-  setContext(context, j);
+  return j;
 }

@@ -1,4 +1,5 @@
 import { range } from "../../shared/lib/utils";
+import { Album, AlbumEntry, JOBNAMES } from "../../shared/types/types";
 import { AlbumDataSource } from "../album-data-source";
 import { getAlbumInfo } from "../folder-utils";
 import { $, albumFromElement, setIdForAlbum, _$ } from "../lib/dom";
@@ -6,7 +7,6 @@ import { toggleStar } from "../lib/handles";
 import { getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
-import { Album, AlbumEntry, AlbumEntryPicasa } from "../types/types";
 import { AlbumListEventSource, AppEventSource } from "../uiTypes";
 import { animateStar } from "./animations";
 import {
@@ -24,10 +24,10 @@ const html = `<div class="w3-theme images-area">
 `;
 
 export async function makePhotoList(
-  monitor: AlbumDataSource,
   appEvents: AppEventSource,
   events: AlbumListEventSource
 ): Promise<_$> {
+  const datasource = new AlbumDataSource();
   let tabIsActive = false;
   let topIndex: number = -1;
   let bottomIndex: number = -1;
@@ -36,7 +36,7 @@ export async function makePhotoList(
   const photoList = $(html);
   const container = $(".images", photoList);
 
-  const dragElement = $(".dragregion", container);
+  const dragElement = $(".dragregion", photoList);
   const dragStartPos = { x: 0, y: 0 };
   let dragging = false;
   let doReflow = 0; // bit field
@@ -46,6 +46,7 @@ export async function makePhotoList(
 
   let running = false;
   let filter = "";
+  await datasource.walk(filter);
 
   // UI State events
   const off = [
@@ -56,8 +57,10 @@ export async function makePhotoList(
       if (!tabIsActive) return;
       switch (code) {
         case "Space":
-          const target = await toggleStar(SelectionManager.get().selected());
-          animateStar(target);
+          if (SelectionManager.get().selected().length > 0) {
+            const target = await toggleStar(SelectionManager.get().selected());
+            animateStar(target);
+          }
           break;
         case "Enter":
           startGallery(filter);
@@ -91,19 +94,19 @@ export async function makePhotoList(
           // Multi album range selection
           // Which one is the first ?
           if (
-            monitor.albumIndexFromKey(from.album.key) >
-            monitor.albumIndexFromKey(to.album.key)
+            datasource.albumIndexFromKey(from.album.key) >
+            datasource.albumIndexFromKey(to.album.key)
           ) {
             // swap
             const _a = from;
             from = to;
             to = _a;
           }
-          const fromAlbumIndex = monitor.albumIndexFromKey(from.album.key);
-          const toAlbumIndex = monitor.albumIndexFromKey(to.album.key);
+          const fromAlbumIndex = datasource.albumIndexFromKey(from.album.key);
+          const toAlbumIndex = datasource.albumIndexFromKey(to.album.key);
 
           for (const idx of range(fromAlbumIndex, toAlbumIndex)) {
-            const album = monitor.albumAtIndex(idx);
+            const album = datasource.albumAtIndex(idx);
             getAlbumInfo(album, filter, true).then((data) => {
               const sels = data.assets;
               if (idx === fromAlbumIndex) {
@@ -206,23 +209,52 @@ export async function makePhotoList(
 
   // Status change events
   const s = await getService();
-
-  s.on("albumChanged", async (e: { payload: Album[] }) => {
+  
+  s.on("updateAlbumList", async () => {
+    await datasource.walk(filter);
+    /*
+    // refresh if one of the visible albums does not match the list
+    let initialIndex = datasource.albumIndexFromKey(
+      albumFromElement(displayed[0], elementPrefix)!.key
+    );
+    let repopulate = false;
     for (const d of displayed) {
-      const album = albumFromElement(d, elementPrefix);
-      if (album && e.payload.find((a) => a.key === album.key)) {
-        await populateElement(d, album, filter);
+      const album = albumFromElement(d, elementPrefix)!;
+      if (album.key != datasource.albumAtIndex(initialIndex).key) {
+        repopulate = true;
+        break;
       }
     }
-    doReflow |= REFLOW_FULL;
-    doRepopulate = true;
+    if (repopulate) {
+      refresh(albumFromElement(displayed[0], elementPrefix)!);
+    }*/
+  });
+  
+  s.on("albumChanged", async (e: { payload: Album[] }) => {
+    // save index
+    let idx = visibleIndex();
+    if (idx === -1) {
+      idx = 0;
+    }
+    let repopulate = false;
+    for (const d of displayed) {
+      const album = albumFromElement(d, elementPrefix)!;
+      if (album && e.payload.find((a) => a.key === album.key)) {
+        repopulate = true;
+        break;
+      }
+    }
+    if (repopulate) {
+      await datasource.walk(filter);
+      refresh(datasource.albumAtIndex(idx));
+    }
   });
 
   function visibleIndex(): number {
     const e = visibleElement();
     if (!e) return -1;
     const album = albumFromElement(e, elementPrefix)!;
-    return monitor.albumIndexFromKey(album.key);
+    return datasource.albumIndexFromKey(album.key);
   }
 
   function visibleElement(): _$ | null {
@@ -477,7 +509,7 @@ export async function makePhotoList(
     element: _$,
     events: AlbumListEventSource
   ) {
-    title.text(album.name);
+    title.val(album.name);
 
     const info = await getAlbumInfo(album, filter, true /* use settings */);
     makeNThumbnails(element, info.assets.length, events);
@@ -498,21 +530,53 @@ export async function makePhotoList(
     if (pool.length === 0) {
       const e = $(
         `<div class="album">
-        <div class="header w3-bar">
-        <a class="name w3-bar-item"></a>
+        <div class="header w3-bar w3-bar-item">
+          <div class="name-container"><input class="name" disabled></div>
+          <button data-tooltip-below="Delete Album" class="trash-album w3-button" style="background-image: url(resources/images/icons/actions/trash-50.png)"></button>
+          <button data-tooltip-below="Open in Finder" class="open-in-finder w3-button" style="background-image: url(resources/images/icons/actions/finder-50.png)"></button>
+          <button class="fa fa-pen edit-album-name"></button>
         </div>
         <div class="photos album-photos"></div>
       </div>
       `
       );
-      const title = $(".header", e);
+      const title = $(".name", e);
+      title.on("change", async () => {
+        title.attr("disabled", "");
+        const s = await getService();
+
+        const album = albumFromElement(e, elementPrefix)!;
+        const newName = title.val();
+
+        s.createJob(JOBNAMES.RENAME_ALBUM, {
+          source: album,
+          name: newName,
+        });
+      });
+      $(".edit-album-name", e).on("click", async () => {
+        if (title.attr("disabled") === "") {
+          title.attr("disabled", null);
+          title.get().focus();
+        } else {
+          title.attr("disabled", "");
+        }
+      });
+
+      $(".trash-album", e).on("click", async () => {});
+
+      $(".open-in-finder", e).on("click", async () => {
+        const s = await getService();
+        const album = albumFromElement(e, elementPrefix)!;
+        s.openInFinder(album);
+      });
+
       e.on("drop", async (ev) => {
         const selection = SelectionManager.get().selected();
         const album = albumFromElement(e, elementPrefix)!;
         if (album) {
           const s = await getService();
 
-          s.createJob("move", {
+          s.createJob(JOBNAMES.MOVE, {
             source: selection,
             destination: album,
           });
@@ -583,7 +647,7 @@ export async function makePhotoList(
     if (topIndex > 0) {
       topIndex--;
       const albumElement = getElement();
-      const album = monitor.albumAtIndex(topIndex);
+      const album = datasource.albumAtIndex(topIndex);
       await populateElement(albumElement, album, filter);
       $(albumElement).css({ top: `0px`, opacity: 0 });
       albumElement.attr("index", topIndex.toString());
@@ -599,10 +663,10 @@ export async function makePhotoList(
   }
 
   async function addAtBottom() {
-    if (bottomIndex < monitor.length() - 1) {
+    if (bottomIndex < datasource.length() - 1) {
       bottomIndex++;
       const albumElement = getElement();
-      const album = monitor.albumAtIndex(bottomIndex);
+      const album = datasource.albumAtIndex(bottomIndex);
       await populateElement(albumElement, album, filter);
       $(albumElement).css({ top: `0px`, opacity: 0 });
       albumElement.attr("index", bottomIndex.toString());
@@ -621,7 +685,7 @@ export async function makePhotoList(
       pool.push(e);
     }
     displayed.splice(0, displayed.length);
-    const index = monitor.albumIndexFromKey(album.key);
+    const index = datasource.albumIndexFromKey(album.key);
     topIndex = bottomIndex = index;
     // pick from pool
     const albumElement = getElement();

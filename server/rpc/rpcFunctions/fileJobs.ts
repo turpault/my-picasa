@@ -1,7 +1,13 @@
 import { copyFile, mkdir, rename, stat } from "fs/promises";
-import { basename, dirname, extname, join, relative } from "path";
+import { basename, dirname, extname, join, relative, sep } from "path";
 import { range, sleep, uuid } from "../../../shared/lib/utils";
-import { Album, AlbumEntry, Job } from "../../../shared/types/types";
+import {
+  Album,
+  AlbumEntry,
+  Job,
+  JobData,
+  JOBNAMES,
+} from "../../../shared/types/types";
 import { openExplorer } from "../../open";
 import { exportsRoot, imagesRoot } from "../../utils/constants";
 import { fileExists } from "../../utils/serverUtils";
@@ -35,7 +41,7 @@ export async function createFSJob(
   const job: Job = {
     id: uuid(),
     name: jobName,
-    data: jobArgs,
+    data: jobArgs as JobData,
     status: "queued",
     progress: {
       start: 0,
@@ -52,7 +58,6 @@ export async function createFSJob(
       broadcast("jobFinished", job);
       if (updatedAlbums.length) {
         refreshAlbums(updatedAlbums);
-        broadcast("albumChanged", updatedAlbums);
       }
     })
     .catch((err: Error) => {
@@ -68,24 +73,26 @@ export async function createFSJob(
 
 async function executeJob(job: Job): Promise<Album[]> {
   switch (job.name) {
-    case "move":
+    case JOBNAMES.MOVE:
       return moveJob(job);
-    case "multiMove":
+    case JOBNAMES.MULTI_MOVE:
       return multiMoveJob(job);
-    case "copy":
+    case JOBNAMES.COPY:
       return copyJob(job);
-    case "duplicate":
+    case JOBNAMES.DUPLICATE:
       return duplicateJob(job);
-    case "export":
+    case JOBNAMES.EXPORT:
       return exportJob(job);
-    case "delete":
+    case JOBNAMES.DELETE:
       return deleteJob(job);
-    case "restore":
+    case JOBNAMES.RESTORE:
       return restoreJob(job);
-    case "deleteAlbum":
+    case JOBNAMES.DELETE_ALBUM:
       return deleteAlbumJob(job);
-    case "restoreAlbum":
+    case JOBNAMES.RESTORE_ALBUM:
       return restoreAlbumJob(job);
+    case JOBNAMES.RENAME_ALBUM:
+      return renameAlbumJob(job);
     default:
       job.status = "finished";
       job.errors.push(`Unknown job name ${job.name}`);
@@ -94,7 +101,16 @@ async function executeJob(job: Job): Promise<Album[]> {
   return [];
 }
 
-registerUndoProvider("multiMove", (operation, payload) => {
+registerUndoProvider(JOBNAMES.MULTI_MOVE, (operation, payload) => {
+  createFSJob(operation, payload);
+});
+registerUndoProvider(JOBNAMES.RENAME_ALBUM, (operation, payload) => {
+  createFSJob(operation, payload);
+});
+registerUndoProvider(JOBNAMES.RESTORE_ALBUM, (operation, payload) => {
+  createFSJob(operation, payload);
+});
+registerUndoProvider(JOBNAMES.RESTORE, (operation, payload) => {
   createFSJob(operation, payload);
 });
 
@@ -168,6 +184,7 @@ async function duplicateJob(job: Job): Promise<Album[]> {
 async function deleteAlbumJob(job: Job): Promise<Album[]> {
   const undoDeleteAlbumPayload = {
     source: [] as Album[],
+    noUndo: true,
   };
 
   // Deleting a set of images means renaming them
@@ -192,10 +209,61 @@ async function deleteAlbumJob(job: Job): Promise<Album[]> {
     job.changed();
   }
   addToUndo(
-    "restoreFolder",
+    JOBNAMES.RESTORE_ALBUM,
     `Delete album ${source.name}`,
     undoDeleteAlbumPayload
   );
+  job.status = "finished";
+  job.changed();
+  return updatedAlbums;
+}
+
+async function renameAlbumJob(job: Job): Promise<Album[]> {
+  const undoDeleteAlbumPayload = {
+    source: {} as Album,
+    name: "",
+    noUndo: true,
+  };
+
+  // rename album
+  job.status = "started";
+  const updatedAlbums: Album[] = [];
+  const source = job.data.source as Album;
+  const newName = job.data.name as string;
+  undoDeleteAlbumPayload.name = source.name;
+
+  job.progress.start = 1;
+  job.progress.remaining = 1;
+  job.changed();
+
+  const targetAlbum = { ...source };
+  targetAlbum.name = newName;
+  const newPath = source.key.split(sep);
+  newPath.pop();
+  newPath.push(newName);
+  targetAlbum.key = newPath.join(sep);
+
+  try {
+    await rename(
+      join(imagesRoot, source.key),
+      join(imagesRoot, targetAlbum.key)
+    );
+    undoDeleteAlbumPayload.source = targetAlbum;
+    albumChanged(source, updatedAlbums);
+    albumChanged(targetAlbum, updatedAlbums);
+  } catch (e: any) {
+    job.errors.push(e.message as string);
+  } finally {
+    job.progress.remaining--;
+    job.changed();
+  }
+  if (!job.data.noUndo) {
+    addToUndo(
+      JOBNAMES.RENAME_ALBUM,
+      `Rename album ${targetAlbum.name} back to ${source.name}`,
+      undoDeleteAlbumPayload
+    );
+  }
   job.status = "finished";
   job.changed();
   return updatedAlbums;
@@ -265,6 +333,7 @@ async function restoreAlbumJob(job: Job): Promise<Album[]> {
 async function deleteJob(job: Job): Promise<Album[]> {
   const undoDeletePayload = {
     source: [] as AlbumEntry[],
+    noUndo: true,
   };
 
   // Deleting a set of images means renaming them
@@ -291,7 +360,11 @@ async function deleteJob(job: Job): Promise<Album[]> {
       }
     })
   );
-  addToUndo("restore", `Delete ${source.length} files...`, undoDeletePayload);
+  addToUndo(
+    JOBNAMES.RESTORE,
+    `Delete ${source.length} files...`,
+    undoDeletePayload
+  );
   job.status = "finished";
   job.changed();
   return updatedAlbums;
@@ -301,6 +374,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
   const undoMultiMovePayload = {
     source: [] as AlbumEntry[],
     destination: [] as Album[],
+    noUndo: false,
   };
 
   job.status = "started";
@@ -351,11 +425,14 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
       }
     })
   );
-  addToUndo(
-    "multiMove",
-    `Move ${source.length} files to ${dest[0].name}...`,
-    undoMultiMovePayload
-  );
+  if (!job.data.noUndo) {
+    undoMultiMovePayload.noUndo = true;
+    addToUndo(
+      JOBNAMES.MULTI_MOVE,
+      `Move ${source.length} files to ${dest[0].name}...`,
+      undoMultiMovePayload
+    );
+  }
   job.status = "finished";
   job.changed();
   return updatedAlbums;
@@ -372,7 +449,7 @@ async function exportJob(job: Job): Promise<Album[]> {
   job.changed();
   const targetFolder = join(
     exportsRoot,
-    "exports-" + new Date().toLocaleString()
+    "exports-" + new Date().toLocaleString().replace(/\//g, "-")
   );
   await mkdir(targetFolder, { recursive: true });
   for (const src of source) {
@@ -397,7 +474,7 @@ async function copyMetadata(
   dest: AlbumEntry,
   deleteSource: boolean = false
 ) {
-  const sourceIniData = readPicasaIni(source.album);
+  const sourceIniData = await readPicasaIni(source.album);
   if (sourceIniData[source.name]) {
     updatePicasaEntry(dest, "*", sourceIniData[source.name]);
 

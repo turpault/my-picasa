@@ -1,6 +1,7 @@
 import { Album, AlbumEntry } from "../types/types";
+import { cssSplitValue } from "../../shared/lib/utils";
 
-function NodeListToFirstElem(
+export function NodeListToFirstElem(
   e: HTMLElement | NodeListOf<HTMLElement> | undefined
 ): HTMLElement | undefined {
   if (e instanceof NodeList) {
@@ -9,7 +10,7 @@ function NodeListToFirstElem(
   return e;
 }
 
-function NodeListToArray(
+export function NodeListToArray(
   e: HTMLElement | NodeListOf<HTMLElement> | undefined
 ): HTMLElement[] | undefined {
   if (e instanceof NodeList) {
@@ -94,14 +95,25 @@ export class _$ {
 
     return this;
   }
+  innerHTML(html:string) {
+    this.get()!.innerHTML = html;
+  }
   css(name: string): string;
   css(name: object): _$;
-  css(name: string, value: string): _$;
-  css(name: string, value: string, priority: string): _$;
-  css(name: string | object, value?: string, priority?: string): _$ | string {
+  css(name: string, value: string | Number): _$;
+  css(name: string, value: string | Number, priority: string | undefined): _$;
+  css(name: string | object, value?: string | Number, priority?: string): _$ | string {
     if (value !== undefined) {
       if (typeof name == "string") {
-        this.get().style.setProperty(name, value!, priority);
+        if(typeof value === "number") {
+          let current = this.css(name);
+          const c = cssSplitValue(current);
+          if(isNaN(c.value) || value === 0) {
+            return this.css(name, value.toString(), priority);
+          }
+          return this.css(name, `${c.value + value}${c.unit}`, priority);
+        }
+        this.get().style.setProperty(name, value as string, priority);
       } else {
         throw new Error("Can only set single name/values");
       }
@@ -157,7 +169,11 @@ export class _$ {
     }
 
     if (typeof key === "string") {
-      this.get().setAttribute(key, value);
+      if (value === null) {
+        this.get().removeAttribute(key);
+      } else {
+        this.get().setAttribute(key, value);
+      }
       return this;
     }
     for (const [name, value] of Object.entries(key)) {

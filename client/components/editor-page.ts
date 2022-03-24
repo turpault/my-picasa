@@ -1,4 +1,5 @@
 import { buildEmitter } from "../../shared/lib/event";
+import { AlbumEntry, AlbumEntryPicasa } from "../../shared/types/types";
 import { setupAutocolor } from "../features/autocolor";
 import { setupBlur } from "../features/blur";
 import { setupBrightness } from "../features/brightness";
@@ -16,7 +17,6 @@ import { $, _$ } from "../lib/dom";
 import { toggleStar } from "../lib/handles";
 import { ImagePanZoomController } from "../lib/panzoom";
 import { ActiveImageManager } from "../selection/active-manager";
-import { AlbumEntry, AlbumEntryPicasa } from "../types/types";
 import { AppEventSource } from "../uiTypes";
 import { animateStar } from "./animations";
 import { ImageController } from "./image-controller";

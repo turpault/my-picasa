@@ -48,7 +48,7 @@ async function readOrMakeImageThumbnail(
   inc("thumbnail");
   let exception: Error | undefined = undefined;
   try {
-    const picasa = readPicasaIni(entry.album);
+    const picasa = await readPicasaIni(entry.album);
     const sizes = {
       "th-small": 100,
       "th-medium": 250,

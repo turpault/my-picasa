@@ -8,7 +8,7 @@ import {
   updateSort,
 } from "../lib/settings";
 import { getService } from "../rpc/connect";
-import { undoStep } from "../types/types";
+import { undoStep } from "../../shared/types/types";
 import { AppEventSource } from "../uiTypes";
 
 const genericTab = $(
@@ -65,13 +65,14 @@ export async function makeTabs(_emitter: AppEventSource) {
     const e = $("#undo");
     e.empty();
     for (const u of list.reverse()) {
+      const when = new Date(u.timestamp);
+      const whenStr = when.toDateString();
       e.append(
-        $(`<a class="w3-bar-item w3-button">${u.description}</a>`).on(
-          "click",
-          () => {
-            s.undo(u.uuid);
-          }
-        )
+        $(
+          `<a class="w3-bar-item w3-button">${whenStr}: ${u.description}</a>`
+        ).on("click", () => {
+          s.undo(u.uuid);
+        })
       );
     }
   }
@@ -133,6 +134,8 @@ export function makeTab(win: _$, tab: _$) {
   $(".workarea").append(win);
   tabElements.push({ tab, win });
   selectTab(tab);
+
+  emitter.emit("tabDisplayed", {tab, win});
 }
 
 export function activeTab() {

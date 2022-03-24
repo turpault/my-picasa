@@ -43,6 +43,7 @@
     "electron": "electron ."
   },
   "devDependencies": {
+    "@types/draggabilly": "^2.1.3",
     "@types/ini": "^1.3.31",
     "@types/node": "^16",
     "@types/sharp": "^0.29.2",
@@ -74,6 +75,7 @@
   },
   "dependencies": {
     "cli-spinners": "^2.6.1",
+    "draggabilly": "^3.0.0",
     "exifr": "^7.1.3",
     "fast-exif": "^1.0.1",
     "fastify": "^3.22.1",

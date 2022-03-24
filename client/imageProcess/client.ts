@@ -1,5 +1,6 @@
+import { fixedEncodeURIComponent } from "../../shared/lib/utils";
+import { AlbumEntry, ThumbnailSize } from "../../shared/types/types";
 import { getService, getServicePort } from "../rpc/connect";
-import { AlbumEntry, ThumbnailSize } from "../types/types";
 
 export async function buildContext(entry: AlbumEntry): Promise<string> {
   const c = await getService();
@@ -61,7 +62,7 @@ export async function encode(
 }
 
 export function encodeToURL(context: string, mime: string): string {
-  return `http://127.0.0.1:${getServicePort()}/encode/${context}/${encodeURIComponent(
+  return `http://127.0.0.1:${getServicePort()}/encode/${context}/${fixedEncodeURIComponent(
     mime
   )}`;
 }
@@ -73,16 +74,16 @@ export function thumbnailUrl(
   if (!entry) {
     return "";
   }
-  return `http://127.0.0.1:${getServicePort()}/thumbnail/${encodeURIComponent(
+  return `http://127.0.0.1:${getServicePort()}/thumbnail/${fixedEncodeURIComponent(
     entry.album.key
-  )}/${encodeURIComponent(entry.name)}/${encodeURIComponent(size)}`;
+  )}/${fixedEncodeURIComponent(entry.name)}/${fixedEncodeURIComponent(size)}`;
 }
 
 export function assetUrl(entry: AlbumEntry): string {
   if (!entry) {
     return "";
   }
-  return `http://127.0.0.1:${getServicePort()}/asset/${encodeURIComponent(
+  return `http://127.0.0.1:${getServicePort()}/asset/${fixedEncodeURIComponent(
     entry.album.key
-  )}/${encodeURIComponent(entry.name)}`;
+  )}/${fixedEncodeURIComponent(entry.name)}`;
 }

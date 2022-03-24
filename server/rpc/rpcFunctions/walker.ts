@@ -1,9 +1,15 @@
 import { Stats } from "fs";
 import { readdir, stat } from "fs/promises";
 import { extname, join, relative } from "path";
+import { bool } from "sharp";
 import { inspect } from "util";
 import { Queue } from "../../../shared/lib/queue";
-import { isMediaUrl, sleep, sortByKey } from "../../../shared/lib/utils";
+import {
+  debounce,
+  isMediaUrl,
+  sleep,
+  sortByKey,
+} from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
@@ -23,36 +29,54 @@ import {
 let lastWalk: Album[] = [];
 const walkQueue = new Queue(3);
 
+let keys: { [key: string]: number } = {};
+const notify = () => {
+  console.info("Broadcast", lastWalk.length);
+  broadcast("updateAlbumList", {});
+};
+export function addAlbumToList(a: Album, iteration: number = 0): boolean {
+  if (!keys[a.key]) {
+    keys[a.key] = iteration;
+    lastWalk.push(a);
+    debounce(notify, 1000);
+
+    return true;
+  }
+  keys[a.key] = iteration;
+  return false;
+}
+
+export function renameAlbum(a: Album, newName: string) {
+  for (const alb of lastWalk) {
+    if (alb.key == a.key) {
+    }
+  }
+}
+
 export async function updateLastWalkLoop() {
   let iteration = 0;
-  let keys: { [key: string]: number } = {};
   while (true) {
     iteration++;
     console.info(`Starting scan iteration ${iteration}`);
     console.time("Folder scan");
     let updates = 0;
-    walk("", imagesRoot, (a: Album, entries: AlbumEntry[]) => {
+    walk("", imagesRoot, async (a: Album, entries: AlbumEntry[]) => {
       if (entries.length > 0) {
-        if (!keys[a.key]) {
-          lastWalk.push(a);
-          sortByKey(lastWalk, "name");
-          updates++;
-        }
-        if (99 === updates % 100) {
-          broadcast("updateAlbumList", {});
-        }
+        addAlbumToList(a, iteration);
+
         // precache the contents of the picasa.ini file
-        readPicasaIni(a);
+        await readPicasaIni(a);
         for (const entry of entries) {
           touchPicasaEntry(entry);
         }
-        keys[a.key] = iteration;
       }
     });
     await walkQueue.drain();
+    sortByKey(lastWalk, "name");
+    lastWalk.reverse();
 
     for (const k in keys) {
-      if (keys[k] !== iteration) {
+      if (keys[k] !== iteration && keys[k] != 0) {
         delete keys[k];
         // Remove from lastWalk
         const idx = lastWalk.findIndex((a) => a.key === k);
@@ -70,24 +94,39 @@ export async function updateLastWalkLoop() {
   }
 }
 
-export function refreshAlbums(albums: Album[]) {
-  for (const a of albums) {
-    addOrRefreshAlbum(a);
-  }
+export async function refreshAlbums(albums: Album[]) {
+  await Promise.all(albums.map(addOrRefreshOrDeleteAlbum));
+  broadcast("albumChanged", albums);
 }
 
-function addOrRefreshAlbum(album: Album) {
-  if (lastWalk && !lastWalk.find((f) => f.key == album.key)) {
-    lastWalk.push(album);
-    sortByKey(lastWalk, "name");
+async function albumExists(album: Album): Promise<boolean> {
+  const p = join(imagesRoot, album.key);
+  return await stat(p)
+    .then(() => true)
+    .catch(() => false);
+}
+
+async function addOrRefreshOrDeleteAlbum(album: Album) {
+  if (lastWalk) {
+    const idx = lastWalk.findIndex((f) => f.key == album.key);
+    if (!(await albumExists(album))) {
+      if (idx >= 0) {
+        lastWalk.splice(idx, 1);
+      }
+    } else if (idx === -1) {
+      lastWalk.push(album);
+      sortByKey(lastWalk, "name");
+    }
   }
 }
 
 export async function folders(filter: string): Promise<Album[]> {
   if (filter) {
-    const filtered = lastWalk!.filter(
-      (album) => fullTextSearch(album, filter).length > 0
-    );
+    const filtered: Album[] = [];
+    for (const album of lastWalk) {
+      if ((await fullTextSearch(album, filter)).length > 0)
+        filtered.push(album);
+    }
     return filtered;
   }
   return lastWalk!;
@@ -98,11 +137,11 @@ export async function media(
   filter: string
 ): Promise<{ assets: AlbumEntry[] }> {
   const items = await readdir(join(imagesRoot, album.key));
-  const picasa = readPicasaIni(album);
+  const picasa = await readPicasaIni(album);
   const assets: AlbumEntry[] = [];
 
   if (filter) {
-    return { assets: fullTextSearch(album, filter) };
+    return { assets: await fullTextSearch(album, filter) };
   }
   for (const i of items) {
     if (!i.startsWith(".")) {
@@ -147,7 +186,7 @@ export async function media(
 async function walk(
   name: string,
   path: string,
-  cb: (a: Album, entries: AlbumEntry[]) => void,
+  cb: (a: Album, entries: AlbumEntry[]) => Promise<void>,
   mustHaveAssets: boolean = true
 ): Promise<void> {
   const items = (await readdir(path)).filter((n) => !n.startsWith("."));
@@ -168,15 +207,18 @@ async function walk(
     }
     idx++;
   }
-  folders.forEach((folder) =>
-    walkQueue.add<Album[]>(() =>
-      walk(folder.name, folder.key, cb, mustHaveAssets)
-    )
-  );
+  sortByKey(folders, "name");
+  folders
+    .reverse()
+    .forEach((folder) =>
+      walkQueue.add<Album[]>(() =>
+        walk(folder.name, folder.key, cb, mustHaveAssets)
+      )
+    );
 
   if (hasAssets || !mustHaveAssets) {
     const album = { name, key: relative(imagesRoot, path) };
-    cb(
+    await cb(
       album,
       hasAssets.map((name) => ({ album, name }))
     );
