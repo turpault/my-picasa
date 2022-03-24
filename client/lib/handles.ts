@@ -1,5 +1,5 @@
 import { getService } from "../rpc/connect";
-import { Album, AlbumEntry, PicasaFolderMeta } from "../types/types";
+import { Album, AlbumEntry, PicasaFolderMeta } from "../../shared/types/types";
 
 export async function toggleStar(entries: AlbumEntry[]): Promise<boolean> {
   const picInit = await readPicasaIni(entries[0].album);

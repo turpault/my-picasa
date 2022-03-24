@@ -1,8 +1,7 @@
 import {
-  Album,
   AlbumEntry,
   pictureExtensions,
-  videoExtensions,
+  videoExtensions
 } from "../types/types";
 
 export async function sleep(delay: number) {
@@ -17,6 +16,44 @@ export function uuid(): string {
   return (
     new Date().getTime().toString(36) + Math.random().toString(36).slice(2)
   );
+}
+
+export function fixedEncodeURIComponent(str: string): string {
+  return encodeURIComponent(str).replace(/[!'()*]/g, function(c) {
+    return '%' + c.charCodeAt(0).toString(16);
+  });
+}
+
+export function cssSplitValue(v:string): {value: number, unit:string} {
+    if (typeof v === 'string' && v !== ""){
+        var split = v.match(/^([-.\d]+(?:\.\d+)?)(.*)$/)!;
+        if(split.length >2)
+          return {'value':parseFloat(split[1].trim()),  'unit':split[2].trim()!};
+    }
+    return { 'value':parseFloat(v), 'unit':"" }
+}
+
+const debounceFcts = new Map<Function, number>();
+export function debounce(f: Function, delay?: number) {
+  delay = delay ? delay : 1000;
+  if (debounceFcts.has(f)) {
+    // debounceFcts.set(f, Date.now() + delay);
+  } else {
+    debounceFcts.set(f, Date.now() + delay);
+    (async () => {
+      while (true) {
+        const target = debounceFcts.get(f);
+        const now = Date.now();
+        if (!target || target <= now) {
+          debounceFcts.delete(f);
+          f();
+          break;
+        } else {
+          await sleep((target - now + 100) / 1000);
+        }
+      }
+    })();
+  }
 }
 
 export function isMediaUrl(url: string): boolean {

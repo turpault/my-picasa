@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/camelcase */
 import { Exceptions } from "../../shared/types/exceptions";
 import { undo, undoList } from "../utils/undo";
+import { imageInfo } from "./imageOperations/info";
 import {
   buildContext,
   cloneContext,
@@ -128,6 +129,10 @@ export const MyPicasa: ServiceMap = {
     undo: {
       handler: undo,
       arguments: ["id:string"],
+    },
+    imageInfo: {
+      handler: imageInfo,
+      arguments: ["entry:object"],
     },
   },
 };

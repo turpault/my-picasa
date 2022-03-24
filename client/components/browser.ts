@@ -1,17 +1,20 @@
 import { buildEmitter } from "../../shared/lib/event";
 import {} from "../../shared/types/types";
-import { AlbumDataSource } from "../album-data-source";
 import { $, _$ } from "../lib/dom";
+import { getService } from "../rpc/connect";
 import { AlbumListEvent, AppEventSource } from "../uiTypes";
 import { makeAlbumList } from "./browser-album-list";
 import { makePhotoList } from "./browser-photo-list";
 import { makeButtons } from "./browser-photo-list-buttons";
-import { makePhotoZoomController } from "./image-zoom-controller";
+import { question } from "./question";
 
 const html = `<div class="browser fill" style="position: relative">
 </div>`;
 
-const tabHtml = `<input type="text" class="filterAlbum browser-tab w3-button tab-button" placeholder="Browser">`;
+const tabHtml = `<div class="tab-button browser-tab">
+<input type="text" class="w3-button filterAlbum" placeholder="Browser">
+<button data-tooltip-below="New Album" class="w3-button new-album-button" style="background-image: url(resources/images/icons/actions/new-album-50.png)"></button>
+</div>`;
 
 export async function makeBrowser(
   emitter: AppEventSource
@@ -19,16 +22,25 @@ export async function makeBrowser(
   const win = $(html);
 
   const albumEmitter = buildEmitter<AlbumListEvent>();
-  const dataSource = new AlbumDataSource();
 
-  win.append(await makeAlbumList(dataSource, emitter, albumEmitter));
-  win.append(await makePhotoList(dataSource, emitter, albumEmitter));
+  win.append(await makeAlbumList(emitter, albumEmitter));
+  win.append(await makePhotoList(emitter, albumEmitter));
   win.append(await makeButtons(emitter, albumEmitter));
 
   const tab = $(tabHtml);
   // Status change events
-  const filter = tab.on("input", () => {
+  const filter = $(".filterAlbum", tab).on("input", () => {
     albumEmitter.emit("filterChanged", { filter: filter.val() });
+  });
+  $(".new-album-button", tab).on("click", async () => {
+    const newAlbum = await question(
+      "New album name",
+      "Please type the new album name"
+    );
+    if (newAlbum) {
+      const s = await getService();
+      s.makeAlbum(newAlbum);
+    }
   });
 
   albumEmitter.emit("ready", {});

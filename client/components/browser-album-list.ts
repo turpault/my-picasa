@@ -8,7 +8,7 @@ import {
 } from "../lib/dom";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
-import { Album } from "../types/types";
+import { Album, JOBNAMES } from "../../shared/types/types";
 import { AlbumListEventSource, AppEventSource } from "../uiTypes";
 
 const elementPrefix = "albumlist:";
@@ -17,10 +17,10 @@ const html = `<div class="w3-theme fill folder-pane">
 </div>
 `;
 export async function makeAlbumList(
-  dataSource: AlbumDataSource,
   appEvents: AppEventSource,
   events: AlbumListEventSource
 ) {
+  const dataSource = new AlbumDataSource();
   const container = $(html);
   let lastHighlight: any;
   let filter = "";
@@ -56,7 +56,7 @@ export async function makeAlbumList(
     const album = albumFromElement($(ev.target as HTMLElement), elementPrefix)!;
     const s = await getService();
 
-    s.createJob("move", {
+    s.createJob(JOBNAMES.MOVE, {
       source: selection,
       destination: album,
     });
@@ -78,15 +78,11 @@ export async function makeAlbumList(
 
   const s = await getService();
   s.on("albumChanged", async (e: { payload: Album[] }) => {
-    let refresh = false;
-    for (const album of e.payload) {
-      if (!elementFromAlbum(album, elementPrefix)) {
-        refresh = true;
-      }
-    }
-    if (refresh) {
-      refreshList();
-    }
+    // reload list
+    refreshList();
+  });
+  s.on("updateAlbumList", async () => {
+    refreshList();
   });
 
   async function refreshList() {

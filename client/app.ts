@@ -12,9 +12,12 @@ import { makeThumbnailManager } from "./components/thumbnail";
 import { makeSettings } from "./lib/settings";
 import { setServicePort } from "./rpc/connect";
 import { SelectionManager } from "./selection/selection-manager";
+import { AlbumEntry } from "./types/types";
 import { AppEvent } from "./uiTypes";
 
+
 async function init(port: number) {
+  //new Packery(document.getElementById('body')!, {})
   setServicePort(port);
   const emitter = buildEmitter<AppEvent>();
 
@@ -46,8 +49,11 @@ async function init(port: number) {
     makeTab(win, tab);
   });
 
-  emitter.on("composite", async () => {
-    const { win, tab } = await makeCompositorPage(emitter);
+  emitter.on("composite", async ({
+    initialList,
+    initialIndex,
+  }) => {
+    const { win, tab } = await makeCompositorPage(emitter, initialList as AlbumEntry[]);
     makeTab(win, tab);
   });
 

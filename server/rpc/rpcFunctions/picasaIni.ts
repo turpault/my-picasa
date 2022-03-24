@@ -1,5 +1,5 @@
 import { readFileSync } from "fs";
-import { writeFile } from "fs/promises";
+import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import ini from "../../../shared/lib/ini";
 import { sleep } from "../../../shared/lib/utils";
@@ -26,16 +26,19 @@ export async function picasaInitCleaner() {
       const out = ini.encode(picasaMap.get(key));
       await writeFile(join(imagesRoot, key, PICASA), out);
     });
+    picasaMap.clear();
     await sleep(10);
   }
 }
 
-export function readPicasaIni(album: Album): PicasaFolderMeta {
+export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
   // In the cache
+  const filename = join(imagesRoot, album.key, PICASA);
+  // TODO: check for file modified date
   if (!picasaMap.has(album.key)) {
     rate("readPicasa");
     try {
-      const iniData = readFileSync(join(imagesRoot, album.key, PICASA), {
+      const iniData = await readFile(filename, {
         encoding: "utf8",
       });
       const i = ini.parse(iniData);
@@ -58,8 +61,11 @@ export function readPicasaIni(album: Album): PicasaFolderMeta {
   return picasaMap.get(album.key)!;
 }
 
-export function fullTextSearch(album: Album, filter: string): AlbumEntry[] {
-  let data = { ...readPicasaIni(album) };
+export async function fullTextSearch(
+  album: Album,
+  filter: string
+): Promise<AlbumEntry[]> {
+  let data = { ...(await readPicasaIni(album)) };
 
   const faceIds: string[] = [];
   for (const [id, val] of faces.entries()) {
@@ -96,26 +102,28 @@ function writePicasaIni(album: Album, data: PicasaFolderMeta): void {
   picasaMap.set(album.key, data);
 }
 
-export function readPicasaEntry(entry: AlbumEntry): PicasaFileMeta {
-  const picasa = readPicasaIni(entry.album);
+export async function readPicasaEntry(
+  entry: AlbumEntry
+): Promise<PicasaFileMeta> {
+  const picasa = await readPicasaIni(entry.album);
   picasa[entry.name] = picasa[entry.name] || ({} as PicasaFileMeta);
   return picasa[entry.name];
 }
 
-export function touchPicasaEntry(entry: AlbumEntry) {
-  const picasa = readPicasaIni(entry.album);
+export async function touchPicasaEntry(entry: AlbumEntry) {
+  const picasa = await readPicasaIni(entry.album);
   if (picasa[entry.name] === undefined) {
     picasa[entry.name] = {} as PicasaFileMeta;
     writePicasaIni(entry.album, picasa);
   }
 }
 
-export function updatePicasaEntry(
+export async function updatePicasaEntry(
   entry: AlbumEntry,
   field: keyof PicasaFileMeta | "*",
   value: any
 ) {
-  const picasa = readPicasaIni(entry.album);
+  const picasa = await readPicasaIni(entry.album);
   picasa[entry.name] = picasa[entry.name] || ({} as PicasaFileMeta);
   if (value === "toggle") {
     value = !picasa[entry.name][field as keyof PicasaFileMeta];

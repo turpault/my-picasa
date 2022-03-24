@@ -67,7 +67,7 @@ export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
   });
   $(".th", e).on("load", (ev) => {
     const thumb = ev.target as HTMLImageElement;
-    const ratio = thumb.width / thumb.height;
+    const ratio = thumb.naturalWidth / thumb.naturalHeight;
     const parentSize = {
       width: thumb.parentElement!.clientWidth,
       height: thumb.parentElement!.clientHeight,
@@ -128,10 +128,16 @@ export async function makeThumbnailManager() {
   thumbnailRule.style.height = `${settings.iconSize}px`;
 }
 SelectionManager.get().events.on("added", ({ key }) => {
-  $(elementFromEntry(key, elementPrefix)!).alive().addClass("selected");
+  // Element might be not displayed
+  try {
+    $(elementFromEntry(key, elementPrefix)!).addClass("selected");
+  } catch (e) {}
 });
 SelectionManager.get().events.on("removed", ({ key }) => {
-  $(elementFromEntry(key, elementPrefix)!).alive().removeClass("selected");
+  // Element might be not displayed
+  try {
+    $(elementFromEntry(key, elementPrefix)!).removeClass("selected");
+  } catch (e) {}
 });
 
 export async function thumbnailData(

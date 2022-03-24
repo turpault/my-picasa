@@ -44,6 +44,10 @@ export type AppEvent = {
     tab: _$;
     win: _$;
   };
+  tabDisplayed: {
+    tab: _$;
+    win: _$;
+  };
   keyDown: {
     code: string;
     win: _$;

@@ -6,7 +6,7 @@ import {
 } from "../lib/settings";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
-import { Album, PicasaFileMeta } from "../types/types";
+import { Album, JOBNAMES, PicasaFileMeta } from "../../shared/types/types";
 import { AlbumListEventSource, AppEventSource } from "../uiTypes";
 import { question } from "./question";
 const html = `<div class="bottom-list-tools">
@@ -56,7 +56,9 @@ export async function makeButtons(
       icon: "resources/images/icons/actions/export-50.png",
       needSelection: true,
       click: (ev: MouseEvent) => {
-        s.createJob("export", { source: SelectionManager.get().selected() });
+        s.createJob(JOBNAMES.EXPORT, {
+          source: SelectionManager.get().selected(),
+        });
       },
     },
     {
@@ -64,7 +66,9 @@ export async function makeButtons(
       icon: "resources/images/icons/actions/duplicate-50.png",
       needSelection: true,
       click: (ev: MouseEvent) => {
-        s.createJob("duplicate", { source: SelectionManager.get().selected() });
+        s.createJob(JOBNAMES.DUPLICATE, {
+          source: SelectionManager.get().selected(),
+        });
       },
     },
     {
@@ -76,7 +80,7 @@ export async function makeButtons(
           (newAlbum) => {
             if (newAlbum) {
               s.makeAlbum(newAlbum).then((a: Album) => {
-                s.createJob("move", {
+                s.createJob(JOBNAMES.MOVE, {
                   source: SelectionManager.get().selected(),
                   destination: a,
                 });
@@ -85,14 +89,6 @@ export async function makeButtons(
             }
           }
         );
-      },
-    },
-    {
-      name: "New Album",
-      icon: "resources/images/icons/actions/new-album-50.png",
-      needSelection: false,
-      click: (ev: MouseEvent) => {
-        alert("todo");
       },
     },
     {
@@ -129,7 +125,9 @@ export async function makeButtons(
       icon: "resources/images/icons/actions/trash-50.png",
       needSelection: true,
       click: (ev: MouseEvent) => {
-        s.createJob("delete", { source: SelectionManager.get().selected() });
+        s.createJob(JOBNAMES.DELETE, {
+          source: SelectionManager.get().selected(),
+        });
         SelectionManager.get().clear();
       },
     },

@@ -1,20 +1,17 @@
+import {
+  Line,
+  LineSegment, Point,
+  Rectangle,
+  Vector
+} from "ts-2d-geometry";
+import { decodeRect, encodeRect, isPicture } from "../../shared/lib/utils";
 import { ImageController } from "../components/image-controller";
 import { ToolRegistrar } from "../components/tools";
 import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
-import { ImagePanZoomController } from "../lib/panzoom";
-import { encodeRect, isPicture } from "../../shared/lib/utils";
-
 import { $, _$ } from "../lib/dom";
-import {
-  Line,
-  LineSegment,
-  lineSegment,
-  lineSegmentsIntersectThemselves,
-  Point,
-  Rectangle,
-  Vector,
-} from "ts-2d-geometry";
+import { ImagePanZoomController } from "../lib/panzoom";
+
 
 export function setupCrop(
   container: HTMLElement,
@@ -182,6 +179,47 @@ export function setupCrop(
     );
   }
   let captured = false;
+  
+  let initialMousePosMove:Point;
+  elem
+  .on("pointerdown", (ev) => {
+    if(ev.target !== elem.get()) {
+      return;
+    }
+    if(ev.buttons === 1) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      elem.get().setPointerCapture(ev.pointerId);
+      captured = true;
+      initialMousePosMove = new Point(ev.clientX, ev.clientY);
+    }
+  })
+  .on("pointerup", (ev) => {
+    if(!captured) {
+      return;
+    }
+    captured = false;
+    elem.get().setPointerCapture(ev.pointerId);
+    ev.preventDefault();
+    ev.stopPropagation();    
+  })
+  .on("pointermove", (ev) => {
+    if (!captured) {
+      return;
+    }
+    ev.preventDefault();
+    ev.stopPropagation();    
+    const currentPos = new Point(ev.clientX, ev.clientY);
+    const deltaX = Math.round(currentPos.x - initialMousePosMove.x);
+    const deltaY = Math.round(currentPos.y - initialMousePosMove.y);
+    if(ev.buttons === 1 && deltaX !== 0 || deltaY !== 0) {
+        elem.css("left", deltaX);
+        elem.css("top", deltaY);
+        elem.css("right", -deltaX);
+        elem.css("bottom", -deltaY);
+        initialMousePosMove = currentPos;
+      }
+    });
   for (const c of corners) {
     c.handle
       .on("pointerdown", (ev) => {
@@ -253,12 +291,12 @@ export function setupCrop(
 
             elem.css(c.css(projected));
             validate();
-            /*draw.empty();
+            draw.empty();
             draw.append(`<svg xmlns="http://www.w3.org/2000/svg">
               <line stroke-width="5" stroke="black" x1="${opposite.x}" y1="${opposite.y}" x2="${projected.x}"  y2="${projected.y}"/>
               <line stroke-width="1" stroke="black" x1="${opposite.x}" y1="${opposite.y}" x2="${mouseInContainerCoordinates.x}"  y2="${mouseInContainerCoordinates.y}"/>
               <line stroke-width="1" stroke="black" x1="${projected.x}" y1="${projected.y}" x2="${mouseInContainerCoordinates.x}"  y2="${mouseInContainerCoordinates.y}"/>                        
-              </svg>`);*/
+              </svg>`);
           }
         },
         false
@@ -382,6 +420,18 @@ export function setupCrop(
     },
     buildUI: function (index: number, args: string[]) {
       const e = toolHeader(name, index, imageCtrl);
+      const edit = $(`<a style="display="block">Edit</a>`).on(
+        "click",
+        () => {
+          e.css({ display: "block" });
+          const rect = decodeRect(args[2])!;
+          panZoomCtrl.recenter();
+          const img = panZoomCtrl.canvasBoundsOnScreen();
+          rect.left
+
+        }
+      );
+      e.append(edit);
       return e.get()!;
     },
   });

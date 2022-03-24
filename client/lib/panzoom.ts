@@ -14,8 +14,11 @@ export class ImagePanZoomController {
       maxZoom: 10,
       minZoom: 1,
       bounds: true,
+      boundsPadding: 1,
+      //      bounds: true,
       smoothScroll: false,
     });
+    this.clientWidth = this.clientHeight = 0;
     this.element = c;
     this.events = buildEmitter<PanZoomEvent>();
     this.panner.on("pan", () => {
@@ -27,6 +30,10 @@ export class ImagePanZoomController {
     });
   }
 
+  setClientSize(w: number, h: number) {
+    this.clientWidth = w;
+    this.clientHeight = h;
+  }
   screenToCanvasCoords(x: number, y: number): { x: number; y: number } {
     const transform = this.panner.getTransform();
     const canvasRatio = this.element.width / this.element.clientWidth;
@@ -65,22 +72,26 @@ export class ImagePanZoomController {
     );
   }
 
-  recenter(screenWidth: number, screenHeight: number) {
+  recenter() {
+    this.panner.moveTo(0,0);
     this.panner.zoomAbs(0, 0, 1);
-    this.panner.moveTo(
-      (screenWidth - this.element.clientWidth) / 2,
-      (screenHeight - this.element.clientHeight) / 2
-    );
+    /*this.panner.moveTo(
+      (this.clientWidth - this.element.clientWidth) / 2,
+      (this.clientHeight - this.element.clientHeight) / 2
+    );*/
   }
   zoom(zoom: number) {
-    const current = this.panner.getTransform();
-    this.panner.zoomAbs(
-      current.x + this.element.width / 2,
-      current.y + this.element.height / 2,
-      zoom
+    console.info(this.panner.getTransform());
+    this.recenter();
+    const zoomPos = this.screenToCanvasCoords(
+      this.element.width / 2,
+      this.element.height / 2
     );
+    this.panner.zoomAbs(zoomPos.x, zoomPos.y, zoom);
   }
   events: Emitter<PanZoomEvent>;
+  private clientWidth: number;
+  private clientHeight: number;
 
   private panner: any;
   private element: HTMLCanvasElement | HTMLImageElement;

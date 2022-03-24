@@ -1,5 +1,5 @@
 import { sortByKey } from "../shared/lib/utils";
-import { Album } from "./types/types";
+import { Album } from "../shared/types/types";
 import { walkFromServer } from "./walker";
 
 export type AlbumSortOrder = "ReverseDate" | "ForwardDate";

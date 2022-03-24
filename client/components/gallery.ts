@@ -2,7 +2,7 @@ import { buildEmitter } from "../../shared/lib/event";
 import { isVideoUrl } from "../../shared/lib/utils";
 import { assetUrl, thumbnailUrl } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
-import { AlbumEntry } from "../types/types";
+import { AlbumEntry } from "../../shared/types/types";
 import { AppEventSource } from "../uiTypes";
 import { deleteTabWin, makeGenericTab, TabEvent } from "./tabs";
 

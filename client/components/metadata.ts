@@ -1,7 +1,7 @@
 import { getFileExifData } from "../folder-utils";
 import { $ } from "../lib/dom";
 import { SelectionEventSource } from "../selection/selection-manager";
-import { AlbumEntry } from "../types/types";
+import { AlbumEntry } from "../../shared/types/types";
 declare var L: any;
 
 const section = ["Make", "ISO", "ExposureTime", "FNumber", "DateTimeOriginal"];
