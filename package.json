@@ -34,6 +34,7 @@
     "build:ico": "png2icons resources/picisa.png public/favicon -ico",
     "build:rpc": "node dist/server/rpc/generate.js client/rpc/generated-rpc",
     "package": "electron-packager . --icon resources/picisa.icns --app-version 1.0.0 --appname Picisa --no-deref-symlinks --overwrite --ignore='\\.d\\.ts|\\.map'",
+    "deploy": "osascript -e 'do shell script \"rm -rf /Applications/picisa.app ; cp -Rf  picisa-darwin-x64/picisa.app /Applications/\" with administrator privileges'",
     "clean": "rimraf dist",
     "reset": "rimraf node_modules dist",
     "start": "run-p start:*",

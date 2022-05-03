@@ -2,7 +2,7 @@ import { readFileSync } from "fs";
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import ini from "../../../shared/lib/ini";
-import { sleep } from "../../../shared/lib/utils";
+import { lock, sleep } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
@@ -31,12 +31,13 @@ export async function picasaInitCleaner() {
   }
 }
 
-export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
+export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {  
   // In the cache
   const filename = join(imagesRoot, album.key, PICASA);
   // TODO: check for file modified date
   if (!picasaMap.has(album.key)) {
     rate("readPicasa");
+    const l = await lock("readPicasaIni:" + album.key);
     try {
       const iniData = await readFile(filename, {
         encoding: "utf8",
@@ -57,6 +58,7 @@ export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
       console.warn(e);
       picasaMap.set(album.key, {});
     }
+    l();
   }
   return picasaMap.get(album.key)!;
 }
@@ -136,7 +138,11 @@ export async function updatePicasaEntry(
       delete picasa[entry.name];
     }
   } else {
-    picasa[entry.name][field as keyof PicasaFileMeta] = value as never;
+    if (value) {
+      picasa[entry.name][field as keyof PicasaFileMeta] = value as never;
+    } else {
+      delete picasa[entry.name][field as keyof PicasaFileMeta];
+    }
   }
 
   if (["filters", "caption", "text", "rotate", "star"].includes(field)) {

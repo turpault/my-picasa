@@ -6,12 +6,12 @@ import {
   albumEntryFromElement,
   elementFromEntry,
   setIdForEntry,
-  _$,
+  _$
 } from "../lib/dom";
 import { getSettings, getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
-import { AlbumListEventSource, AppEventSource } from "../uiTypes";
+import { AlbumListEventSource } from "../uiTypes";
 
 const elementPrefix = "thumb:";
 const imagePrefix = "thumbimg:";

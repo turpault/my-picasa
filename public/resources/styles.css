@@ -920,15 +920,30 @@ body {
   } 
 }
 
-.composition-parameters {
+.composition-sidebar {
+  overflow-y: scroll;
+  height: 100%;
+  width: 300px;
+  position: relative;
+  /* box-sizing: border-box; */
+  padding-left: 5px;
+}
+
+.composition-parameter-block {
   /* background-color: #f0f0f0; */
   color: #505050;
   font-family: sans-serif;
   font-weight: bold;
-  overflow-y: scroll;
-  width: 300px;
+  /* height: 20px; */
+  /* overflow-y: scroll; */
+  width: 100%;
   overflow-x: hidden;
+  /* box-sizing: border-box; */
 }
+
+.composition-parameters {
+}
+
 
 .composition-container {
   position: absolute;
@@ -963,7 +978,65 @@ body {
   border-color: hsla(0, 0%, 100%, 0.5);
   cursor: move;
 }
-
+.dropdown-item {
+  text-indent: 20px;
+text-align: right !important;}
+.dropdown-content {
+  z-index:1000;
+position: relative;/* left: 350px; */width: 100%;/* max-width: 350px !important; */min-width: auto !important;}
 .resizer {
   background: white;
+}
+
+.wrapper-space-evenly{
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-evenly;
+}
+.wrapper-space-evenly-element{
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+  margin: 0 10px;
+}
+.smooth-transition
+{ 
+  transition: all 0.3s ease;
+}
+
+.multiselect-values {
+  width: 100%;
+}
+.radio-button {
+  display: none;
+}
+
+.radio-button-label {
+  white-space: nowrap;
+  text-align: center;
+  width:100%;
+}
+
+.radio-toggle:hover {
+  color: #000!important;
+  background-color: #ccc!important;
+}
+
+.radio-button:checked + label {
+  border: 1px solid royalblue;
+}
+ 
+.multiselect-image-list {
+  width: 70px;
+  display: inline-block;height: 150px;
+}
+
+.multiselect-image {
+  padding: 2px;
+}
+
+.multiselect-image-selected {
+  border: 1px solid royalblue;
 }

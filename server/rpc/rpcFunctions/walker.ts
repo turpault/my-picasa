@@ -1,29 +1,25 @@
 import { Stats } from "fs";
 import { readdir, stat } from "fs/promises";
 import { extname, join, relative } from "path";
-import { bool } from "sharp";
-import { inspect } from "util";
 import { Queue } from "../../../shared/lib/queue";
 import {
   debounce,
   isMediaUrl,
   sleep,
-  sortByKey,
+  sortByKey
 } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
   pictureExtensions,
-  videoExtensions,
+  videoExtensions
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { broadcast } from "../../utils/socketList";
 import { exifDataAndStats } from "./exif";
 import {
   fullTextSearch,
-  readPicasaIni,
-  touchPicasaEntry,
-  updatePicasaEntry,
+  readPicasaIni, updatePicasaEntry
 } from "./picasaIni";
 
 let lastWalk: Album[] = [];
@@ -63,12 +59,6 @@ export async function updateLastWalkLoop() {
     walk("", imagesRoot, async (a: Album, entries: AlbumEntry[]) => {
       if (entries.length > 0) {
         addAlbumToList(a, iteration);
-
-        // precache the contents of the picasa.ini file
-        await readPicasaIni(a);
-        for (const entry of entries) {
-          touchPicasaEntry(entry);
-        }
       }
     });
     await walkQueue.drain();

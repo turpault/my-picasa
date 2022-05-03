@@ -36,7 +36,7 @@ export async function readThumbnailFromCache(
   size: ThumbnailSize
 ): Promise<Buffer | undefined> {
   const path = thumbnailPathFromEntryAndSize(entry, size);
-  const unlock = await lock(path);
+  const unlock = await lock('readThumbnailFromCache: ' + path);
   let d: Buffer | undefined;
   try {
     d = await readFile(path);
@@ -53,7 +53,7 @@ export async function writeThumbnailToCache(
   data: Buffer
 ): Promise<void> {
   const path = thumbnailPathFromEntryAndSize(entry, size);
-  const unlock = await lock(path);
+  const unlock = await lock('writeThumbnailToCache: ' + path);
   let d: Buffer | undefined;
   try {
     const d = await writeFile(path, data);
@@ -68,7 +68,7 @@ export async function deleteThumbnailFromCache(
   size: ThumbnailSize
 ): Promise<void> {
   const path = thumbnailPathFromEntryAndSize(entry, size);
-  const unlock = await lock(path);
+  const unlock = await lock('deleteThumbnailFromCache: ' + path);
   try {
     await unlink(path);
   } catch (e) {}

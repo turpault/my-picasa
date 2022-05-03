@@ -4,10 +4,8 @@ import { Queue } from "../../../shared/lib/queue";
 import { lock } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
-  extraFields,
-  PicasaFolderMeta,
-  ThumbnailSize,
-  videoExtensions,
+  extraFields, ThumbnailSize,
+  videoExtensions
 } from "../../../shared/types/types";
 import { dec, inc } from "../../utils/stats";
 import {
@@ -18,14 +16,14 @@ import {
   encode,
   execute,
   setOptions,
-  transform,
+  transform
 } from "../imageOperations/sharp-processor";
 import { createGif } from "../videoOperations/gif";
 import { readPicasaIni, updatePicasaEntry } from "./picasaIni";
 import {
   readThumbnailFromCache,
   thumbnailPathFromEntryAndSize,
-  writeThumbnailToCache,
+  writeThumbnailToCache
 } from "./thumbnailCache";
 
 export async function readOrMakeThumbnail(
@@ -43,7 +41,7 @@ async function readOrMakeImageThumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize = "th-medium"
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
-  const lockLabel = `thumbnail:${entry.album.key}-${entry.name}-${size}`;
+  const lockLabel = `readOrMakeImageThumbnail: ${entry.album.key}-${entry.name}-${size}`;
   const release = await lock(lockLabel);
   inc("thumbnail");
   let exception: Error | undefined = undefined;
@@ -163,7 +161,7 @@ export async function readOrMakeVideoThumbnail(
   let res: { data: Buffer; width: number; height: number } | undefined;
   const gif = thumbnailPathFromEntryAndSize(entry, size);
   if (!(await stat(gif).catch((e) => false))) {
-    const unlock = await lock(entry.album.key + entry.name);
+    const unlock = await lock('readOrMakeVideoThumbnail: ' + entry.album.key + ' ' + entry.name + ' ' + size);
     let _exception;
     try {
       const sizes = {
