@@ -1,14 +1,15 @@
+import { bouncingBall } from "cli-spinners";
 import { watch } from "fs";
 import { stat } from "fs/promises";
 import Spinnies from "spinnies";
-import { isMediaUrl, isVideo, sleep } from "../../../shared/lib/utils";
+import { isMediaUrl, sleep } from "../../../shared/lib/utils";
 import { ThumbnailSizeVals } from "../../../shared/types/types";
 import { isIdle } from "../../utils/busy";
 import { imagesRoot } from "../../utils/constants";
+import { imageInfo } from "../imageOperations/info";
 import { readOrMakeThumbnail } from "../rpcFunctions/thumbnail";
 import { thumbnailPathFromEntryAndSize } from "../rpcFunctions/thumbnailCache";
 import { folders, media } from "../rpcFunctions/walker";
-import { bouncingBall } from "cli-spinners";
 
 export async function buildThumbs() {
   let spinnerName = Date.now().toString();
@@ -36,6 +37,7 @@ export async function buildThumbs() {
         spinner.update(spinnerName, {
           text: `Building thumbnails for album ${album.name}`,
         });
+        await imageInfo(picture);
         await Promise.all(
           // All size except large ones
           ThumbnailSizeVals.filter((f) => !f.includes("large")).map((size) =>

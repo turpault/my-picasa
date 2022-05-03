@@ -234,7 +234,7 @@ export async function transform(
             .raw()
             .toBuffer({ resolveWithObject: true });
 
-          j.blur(info.width / 500);
+          j.blur(Math.min(0.3, info.width / 500));
           const layers: sharp.OverlayOptions[] = [
             {
               input: data,

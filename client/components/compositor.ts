@@ -1,11 +1,12 @@
 const { Resizable } = require("../lib/resizable");
 import { buildEmitter } from "../../shared/lib/event";
-import { uuid } from "../../shared/lib/utils";
+import { keysOfEnum, uuid, valuesOfEnum } from "../../shared/lib/utils";
+import { AlbumEntry, AlbumEntryWithMetadata, Format, Orientation } from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
-import { $, _$ } from "../lib/dom";
+import { $, albumEntryFromElement, elementFromEntry, idFromAlbumEntry, _$ } from "../lib/dom";
 import { getService } from "../rpc/connect";
-import { AlbumEntry, AlbumEntryWithMetadata } from "../types/types";
 import { AppEventSource } from "../uiTypes";
+import { makeChoiceList, makeMultiselectImageList } from "./controls/multiselect";
 import { makeGenericTab, TabEvent } from "./tabs";
 
 
@@ -21,39 +22,37 @@ type Cell = {
     right: Cell;
   }
 };
+enum Layout  {
+  MOSAIC,
+  SQUARE,
+}
 
-const editHTML = `<div class="fill">
-<div class="fill w3-bar-block composition-parameters">
-  <div class="w3-bar-item w3-white">Parameters</div>
-    <div class="parameters">
-    <div class="w3-dropdown-hover">
-      <button class="w3-button">Layout</button>
-      <div class="w3-dropdown-content w3-bar-block w3-card-4">
-        <a href="#" class="w3-bar-item w3-button">6x4</a>
-        <a href="#" class="w3-bar-item w3-button">5x5</a>
-        <a href="#" class="w3-bar-item w3-button">4x6</a>
-      </div>
+
+const editHTML = `
+<div class="fill">
+  <div class="composition-sidebar w3-theme w3-sidebar">
+    <div class="w3-bar-block composition-parameter-block composition-parameters">
+      <div class="composition-parameters-title">Composition Parameters</div>
     </div>
-    <div class="w3-dropdown-hover">
-      <button class="w3-button">Presentation</button>
-      <div class="w3-dropdown-content w3-bar-block w3-card-4">
-        <a href="#" class="w3-bar-item w3-button">Center Image</a>
-        <a href="#" class="w3-bar-item w3-button">Spiral</a>
-        <a href="#" class="w3-bar-item w3-button">Random</a>
-        <a href="#" class="w3-bar-item w3-button">Pile</a>
-      </div>
+    <div class="w3-bar-block  composition-parameter-block composition-actions">
+      <div class="w3-bar-block composition-parameters-title">Actions</div>
+      <a class="compose-shuffle w3-bar-item w3-button">Shuffle</a>
+      <a class="compose-make w3-bar-item w3-button">Make Image</a>
+      <a class="compose-choose-folder w3-bar-item w3-button">Choose Folder</a>
+      <a class="compose-add-selection w3-bar-item w3-button">Add from selection</a>
+      <div class="compose-image-list w3-bar-item w3-white">Image List</div>
+    </div>
+    <div class="w3-bar-block composition-parameter-block composition-images">
+      <div class="w3-bar-block composition-parameters-title">Images</div>
     </div>
   </div>
-  <div class="w3-bar-item w3-white">Selection</div>
-</div>
-
-<div class="composition-container">
-  <div class="montage"></div>
-
-</div>
+  <div class="composition-container">
+    <div class="montage"></div>
+  </div>
 </div>`;
 
 
+type CompositedImages =  ({ image: string, key: any, selected: boolean } & AlbumEntryWithMetadata)[] ;
 
 async function imageDimensions(a:AlbumEntry[]): Promise<AlbumEntryWithMetadata[]>
 {
@@ -61,16 +60,14 @@ async function imageDimensions(a:AlbumEntry[]): Promise<AlbumEntryWithMetadata[]
   return Promise.all(a.map(entry => s.imageInfo(entry) as Promise<AlbumEntryWithMetadata>));  
 }
 
-export async function makeCompositorPage(
-  appEvents: AppEventSource, selectedImages: AlbumEntry[]
-): Promise<{ win: _$; tab: _$ }> {
-  const imgs = await imageDimensions(selectedImages);
+function rebuildMosaic(container: _$, list:AlbumEntryWithMetadata[], method: Layout, orientation:Orientation, format: Format): {reflow: Function, erase: Function} {
 
+  container.empty();
   // 1- sort images as portrait/paysage/square
   const portrait: AlbumEntryWithMetadata[] = [];
   const paysage: AlbumEntryWithMetadata[] = [];
   const square: AlbumEntryWithMetadata[] = [];
-  for(const i of imgs) {
+  for(const i of list) {
     if(Math.abs(1 - i.meta.width / i.meta.height) < 0.1) {
       square.push(i);
     } else if(i.meta.width > i.meta.height) {
@@ -79,11 +76,33 @@ export async function makeCompositorPage(
       portrait.push(i);
     }
   }
-  const e = $(editHTML);
+  const resolutions:{[key: string]: [width: Number, height: Number]} = {
+    [Format.F10x8]: [ 1000,  800],
+    [Format.F16x9]: [ 800, 450],
+    [Format.F5x5]: [1000,  1000],
+    [Format.F6x4]: [ 1200,  800],
+  };
+  const canvasSize = resolutions[format];
+  if(orientation === Orientation.PORTRAIT) {
+    canvasSize.reverse();
+  }
+  container.css({
+    width: `${canvasSize[0]}px`,
+    height: `${canvasSize[1]}px`,
+  });
 
   // Add images
   // Create a binary tree with all the images
-  const depth = Math.floor(Math.log(imgs.length)/Math.log(2));
+  const depth = Math.ceil(Math.log(list.length)/Math.log(2));  
+  function leaves(nodes:Cell[]) {
+    let cnt = 0;
+    for(const node of nodes) {
+      if(!node.childs) {
+        cnt++;
+      }
+    }
+    return cnt;
+  }
   function split(node: Cell, remainingDepth: number): {node: Cell, allNodes: Cell[]} {
     if(remainingDepth === 0) {
       return {node, allNodes:[node]};
@@ -101,8 +120,32 @@ export async function makeCompositorPage(
     split: "v"    
   }, depth);
 
-  const randomized = [...allNodes].sort(()=> Math.random()-0.5);
-  for(const img of imgs) {
+  if(leaves(allNodes)!== Math.pow(2, depth)) {
+    throw new Error("Wrong number of leaves");
+  }
+
+  const randomized1 = [...allNodes].sort(()=> Math.random()-0.5);  
+  // Remove extra nodes
+  let extraNodeCount = Math.pow(2, depth) - list.length;
+  for(const node of randomized1) {
+    if(extraNodeCount >0 && node.childs && !node.childs.left.childs && !node.childs.right.childs) {
+      //console.info('Removing nodes', node.childs.left.id, node.childs.right.id);
+      extraNodeCount--;
+      allNodes.splice(allNodes.indexOf(node.childs.left),1);
+      allNodes.splice(allNodes.indexOf(node.childs.right),1);
+      delete node.childs;
+    }
+  }
+  if(leaves(allNodes)!== list.length) {
+    throw new Error("Wrong number of leaves");
+  }
+  const randomized = [...allNodes].sort(()=> Math.random()-0.5);  
+  if(leaves(randomized)!== list.length) {
+    throw new Error("Wrong number of leaves");
+  }
+
+
+  for(const img of list) {
     let found = false;
     for(const node of randomized) {
       if(!node.childs && !node.image) {
@@ -192,19 +235,19 @@ export async function makeCompositorPage(
     let res = "";
     if(node.childs && node.childs.left) {
       if(node.split === "h")
-        res += `<div class="resizable-top composited-element" ${node.childs!.left.image? ("style=\"background-image: url(" + thumbnailUrl(node.childs!.left.image!, "th-large") +");") : ""} id="${node.childs!.left.id}">${buildHTMLForNode(node.childs!.left)}</div>`;
+        res += `<div class="resizable-top composited-element ${node.childs!.left.image?"composited-image":""} " ${node.childs!.left.image? ("draggable style=\"background-image: url(" + thumbnailUrl(node.childs!.left.image!, "th-large") +");") : ""} id="${node.childs!.left.id}">${buildHTMLForNode(node.childs!.left)}</div>`;
       else
-        res+= `<div class="resizable-left composited-element"  ${node.childs!.left.image? ("style=\"background-image: url(" + thumbnailUrl(node.childs!.left.image!, "th-large") +");") : ""} id="${node.childs!.left.id}">${buildHTMLForNode(node.childs!.left)}</div>`;
+        res+= `<div class="resizable-left composited-element ${node.childs!.left.image?"composited-image":""}"  ${node.childs!.left.image? ("draggable style=\"background-image: url(" + thumbnailUrl(node.childs!.left.image!, "th-large") +");") : ""} id="${node.childs!.left.id}">${buildHTMLForNode(node.childs!.left)}</div>`;
     }
     if(node.childs && node.childs.right) {
       if(node.split === "h")
-        res+=`<div class="resizable-bottom composited-element"  ${node.childs!.right.image ? ("style=\"background-image: url(" + thumbnailUrl(node.childs!.right.image, "th-large") +");") : ""} id="${node.childs!.right.id}">${buildHTMLForNode(node.childs!.right)}</div>`;
+        res+=`<div class="resizable-bottom composited-element ${node.childs!.right.image?"composited-image":""}"  ${node.childs!.right.image ? ("draggable style=\"background-image: url(" + thumbnailUrl(node.childs!.right.image, "th-large") +");") : ""} id="${node.childs!.right.id}">${buildHTMLForNode(node.childs!.right)}</div>`;
      else  // "v"
-     res+=`<div class="resizable-right composited-element"  ${node.childs!.right.image? ("style=\"background-image: url(" + thumbnailUrl(node.childs!.right.image, "th-large") +");") : ""} id="${node.childs!.right.id}">${buildHTMLForNode(node.childs!.right)}</div>`;
+     res+=`<div class="resizable-right composited-element ${node.childs!.right.image?"composited-image":""}"  ${node.childs!.right.image? ("draggable style=\"background-image: url(" + thumbnailUrl(node.childs!.right.image, "th-large") +");") : ""} id="${node.childs!.right.id}">${buildHTMLForNode(node.childs!.right)}</div>`;
     }
     return res;
   }
-  const html = buildHTMLForNode(root);
+  const html = buildHTMLForNode(root);  
   // Now create the div nodes
 
   
@@ -213,11 +256,158 @@ export async function makeCompositorPage(
     sizes[node.id] = node.weight!;
   }
 
-  $(".montage",e).innerHTML(html);
-  let deleteResizable: () => {} | undefined;
+  container.innerHTML(html);
+  let deleteResizable: (() => {}) | undefined;
 
-  const panner = window["pz" as any] = panzoom(e.get(), {
-    filterKey: function (/* e, dx, dy, dz */) {
+  let draggedImageElement: _$;
+  for(const elem of container.all('.composited-image')) {
+
+  elem.on(
+    "dragstart",
+    (ev: DragEvent) => {
+        ev.dataTransfer!.effectAllowed = "move";
+        ev.dataTransfer!.setDragImage(elem.get(), 0, 0);
+        draggedImageElement = elem;
+      //ev.preventDefault();
+    }
+    ,
+    false
+  ).on(
+    "dragenter",
+    (ev: any) => {
+        elem.css("opacity", "0.5");
+      
+      //ev.preventDefault();
+    },
+    false
+  ).on(
+    "dragleave",
+    (ev: any) => {
+      elem.css("opacity", "1");
+      //ev.preventDefault();
+    },
+    false
+  ).on(
+    "drop",
+    (ev: any) => {
+      elem.css("opacity", "1");
+      const swapCSS = "background-image";
+      const cp = elem.css(swapCSS);
+      elem.css(swapCSS, draggedImageElement.css(swapCSS));
+      draggedImageElement.css(swapCSS, cp);
+      //ev.preventDefault();
+    },
+    false
+  );
+  }
+
+  return {
+    reflow: () => {
+      if(deleteResizable) {
+        deleteResizable();
+        deleteResizable = undefined;
+      }
+      deleteResizable = Resizable.initialise(container.get(), sizes).delete;
+    }, 
+    erase: () => {
+      if(deleteResizable) {
+        deleteResizable();
+        deleteResizable = undefined;
+      }
+    }
+  }
+
+}
+
+const OrientationLabels:{[key in Orientation]: string } = {
+  [Orientation.PAYSAGE]: "Paysage",
+  [Orientation.PORTRAIT]: "Portrait",
+}
+const FormatLabels:{[key in Format]: string } = {
+  [Format.F10x8]: "10 / 8",
+  [Format.F16x9]: "16 / 9",
+  [Format.F5x5]: "5 / 5",
+  [Format.F6x4]: "6 / 4"
+}
+const LayoutLabels:{[key in Layout]: string } = {
+  [Layout.MOSAIC]: "Mosaic",
+  [Layout.SQUARE]: "Square",
+}
+
+
+export async function makeCompositorPage(
+  appEvents: AppEventSource, selectedImages: AlbumEntry[]
+): Promise<{ win: _$; tab: _$ }> {
+  const e = $(editHTML);
+  const montageImages = selectedImages;
+  const mosaic = $(".montage",e);
+  let imgs = await imageDimensions(montageImages);
+  let reflow: Function;
+  let erase: Function;
+  let format:Format = Format.F10x8;
+  let layout:Layout = Layout.MOSAIC;
+  let orientation:Orientation = Orientation.PAYSAGE;
+  const compositionList: CompositedImages = imgs.map(img=> ({...img, key: idFromAlbumEntry(img, "select"), label:"", image:thumbnailUrl(img, "th-small"), selected: true}));
+
+  const parameters = $(".composition-parameters", e);
+  function redraw() {
+    if(erase) {
+      erase();
+    }
+    const r = rebuildMosaic(mosaic, compositionList, layout, orientation, format);
+    reflow = r.reflow;
+    erase = r.erase;
+  }
+
+  const orientationDropdown = makeChoiceList("Orientation", valuesOfEnum(Orientation).map(k => ({
+    label: OrientationLabels[k as Orientation],
+    key: k
+  })), orientation);
+  orientationDropdown.emitter.on("select", ({key}) => {
+    orientation = key;
+    redraw();
+    reflow();
+  });
+  parameters.append(orientationDropdown.element);
+
+
+  const layoutDropdown = makeChoiceList("Layout", valuesOfEnum(Layout).map(k => ({
+    label: LayoutLabels[k as Layout],
+    key: k
+  })), layout);
+  layoutDropdown.emitter.on("select", ({key}) => {
+    layout = key;
+    redraw();
+    reflow();
+  });
+  parameters.append(layoutDropdown.element);
+
+
+  const formatDropdown = makeChoiceList("Format", valuesOfEnum(Format).map(k => ({
+    label: FormatLabels[k as Format],
+    key: k
+  })), format);
+  formatDropdown.emitter.on("select", ({key}) => {
+    format = key;
+    redraw();
+    reflow();
+  });
+  parameters.append(formatDropdown.element);
+
+
+  const imageControl = makeMultiselectImageList("Images", compositionList);
+
+  imageControl.emitter.on('multiselect', (e) => {
+    redraw();
+    reflow();
+  });
+
+  $(".composition-images", e).empty().append(imageControl.element);
+
+  redraw();
+
+  /*const panner = window["pz" as any] = panzoom(e.get(), {
+    filterKey: function () {
       // don't let panzoom handle this event:
       return true;
     },
@@ -226,22 +416,24 @@ export async function makeCompositorPage(
     bounds: true,
     boundsPadding: 1,
     smoothScroll: true,
-  });
+  });*/
 
   const off = [
     appEvents.on("tabDeleted", ({ win }) => {
       if (win.get() === e.get()) {
         off.forEach((o) => o());
-        if(deleteResizable) {
-          deleteResizable();
+        if(erase) {
+          erase();
         }
-      }
+          }
     }),
     appEvents.on("tabDisplayed", ({ win }) => {
       if (win.get() === e.get()) {
-        deleteResizable = Resizable.initialise($(".montage",e).get(), sizes).delete;        
-        panner.moveTo(0,0);
-        panner.zoomAbs(0, 0, 1);
+        if(reflow) {
+          reflow();
+        }
+        //panner.moveTo(0,0);
+        //panner.zoomAbs(0, 0, 1);
       }
     }),
   ];

@@ -11,6 +11,8 @@ export type PicasaFileMeta = {
   caption?: string;
   text?: string;
   textactive?: string;
+  dimensions?: string;
+  dimensionsFromFilter?: string;
   rotate?: string; // f.e. rotate(angle)
   faces?: string; // f.e. rect64(5a6b0000c28ab778),42d7ff00b9602bb9
   filters?: string; // crop64=1,5a491bc4dd659056;enhance=1;finetune2=1,0.000000,0.000000,0.190877,00000000,0.000000;autolight=1;tilt=1,-0.233232,0.000000;crop64=1,1ef60000fe77df8d;fill=1,0.448598;autolight=1;fill=1,0.177570;finetune2=1,0.000000,0.000000,0.235789,00000000,0.000000;
@@ -114,3 +116,15 @@ export enum Filetype {
   Picture="image",
   Video="video"
 } ;
+
+export enum Orientation  {
+  PORTRAIT,
+  PAYSAGE
+}
+
+export enum Format  {
+  F10x8,
+  F6x4,
+  F5x5,
+  F16x9
+}

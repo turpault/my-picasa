@@ -1,5 +1,6 @@
 import { Album, AlbumEntry } from "../types/types";
 import { cssSplitValue } from "../../shared/lib/utils";
+import { off } from "process";
 
 export function NodeListToFirstElem(
   e: HTMLElement | NodeListOf<HTMLElement> | undefined
@@ -87,32 +88,47 @@ export class _$ {
     return this;
   }
   text(value?: any) {
-    if (arguments.length === 0) {
-      return (this.get() as any).innerText;
+    const nodes = this.get().childNodes;
+    let found = false;
+    for(var i = 0; i < nodes.length; i++){
+      // Check for a text node
+      if(nodes[i].nodeType === 3){
+        if (arguments.length === 0) {
+          return nodes[i].textContent;
+        }
+        nodes[i].textContent = value;
+        found = true;
+        break;
+      }
+    };
+    if(!found) {
+      if (arguments.length === 0) {
+        return "";
+      }
+      
+      this.get().appendChild(document.createTextNode(value));
     }
-
-    (this.get() as any).innerText = value;
 
     return this;
   }
   innerHTML(html:string) {
     this.get()!.innerHTML = html;
   }
+  cssDelta(name: string , value: number, priority?: string): _$ | string {
+    let current = this.css(name);
+    const c = cssSplitValue(current);
+    if(isNaN(c.value)) {
+      throw new Error("Not a parsable value");
+    }
+    return this.css(name, `${c.value! + value}${c.unit}`, priority);
+  }
   css(name: string): string;
   css(name: object): _$;
-  css(name: string, value: string | Number): _$;
-  css(name: string, value: string | Number, priority: string | undefined): _$;
-  css(name: string | object, value?: string | Number, priority?: string): _$ | string {
+  css(name: string, value: string): _$;
+  css(name: string, value: string, priority: string | undefined): _$;
+  css(name: string | object, value?: string, priority?: string): _$ | string {
     if (value !== undefined) {
       if (typeof name == "string") {
-        if(typeof value === "number") {
-          let current = this.css(name);
-          const c = cssSplitValue(current);
-          if(isNaN(c.value) || value === 0) {
-            return this.css(name, value.toString(), priority);
-          }
-          return this.css(name, `${c.value + value}${c.unit}`, priority);
-        }
         this.get().style.setProperty(name, value as string, priority);
       } else {
         throw new Error("Can only set single name/values");
@@ -253,7 +269,7 @@ export class _$ {
     });
     return this;
   }
-
+  
   private resolve(
     e: Element | HTMLElement | string | _$,
     from: HTMLElement | null | _$
@@ -327,29 +343,29 @@ export function albumEntryIndexInList(
 
 // Name HTML element from/to Album
 export function elementFromAlbum(album: Album, qualifier: string) {
-  const id = idFromAlbum(album);
-  return document.getElementById(qualifier + id);
+  const id = idFromAlbum(album, qualifier);
+  return document.getElementById(id);
 }
 
 export function albumFromElement(e: _$, qualifier: string): Album | null {
-  return albumFromId(e.id().slice(qualifier.length));
+  return albumFromId(e.id());
 }
 export function setIdForAlbum(e: _$, album: Album, qualifier: string) {
-  e.id(qualifier + idFromAlbum(album));
+  e.id(idFromAlbum(album, qualifier));
 }
 function albumFromId(id: string): Album | null {
-  const [valid, key, name] = id.split("|");
+  const [qualifier, valid, key, name] = id.split("|");
   if (valid === "album") return { key, name };
   return null;
 }
-function idFromAlbum(a: Album): string {
-  return `album|${a.key}|${a.name}`;
+function idFromAlbum(a: Album, qualifier:string): string {
+  return `${qualifier}|album|${a.key}|${a.name}`;
 }
 
 // Name HTML element from/to AlbumEntry
 export function elementFromEntry(entry: AlbumEntry, qualifier: string) {
-  const id = idFromAlbumEntry(entry);
-  return $(qualifier + id);
+  const id = idFromAlbumEntry(entry, qualifier);
+  return $(id);
 }
 export function albumEntryFromElement(
   e: _$,
@@ -358,15 +374,15 @@ export function albumEntryFromElement(
   return albumEntryFromId(e.id().slice(qualifier.length));
 }
 export function setIdForEntry(e: _$, entry: AlbumEntry, qualifier: string) {
-  e.id(qualifier + idFromAlbumEntry(entry));
+  e.id(idFromAlbumEntry(entry, qualifier));
 }
 function albumEntryFromId(id: string): AlbumEntry | null {
-  const [valid, key, name, entry] = id.split("|");
+  const [qualifier, valid, key, name, entry] = id.split("|");
   if (valid === "entry") {
     return { album: { key, name }, name: entry };
   }
   return null;
 }
-function idFromAlbumEntry(entry: AlbumEntry): string {
-  return `entry|${entry.album.key}|${entry.album.name}|${entry.name}`;
+export function idFromAlbumEntry(entry: AlbumEntry, qualifier: string): string {
+  return `${qualifier}|entry|${entry.album.key}|${entry.album.name}|${entry.name}`;
 }

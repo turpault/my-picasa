@@ -11,9 +11,7 @@ import { getService } from "../rpc/connect";
 import { undoStep } from "../../shared/types/types";
 import { AppEventSource } from "../uiTypes";
 
-const genericTab = $(
-  `<a class="w3-button tab-button"><span class="label"></span><span class="remove-tab">&times;</span></a>`
-);
+const genericTab = `<a class="w3-button tab-button"><span class="label"></span><span class="remove-tab">&times;</span></a>`;
 
 export type TabEvent = {
   rename: { name: string };
@@ -23,7 +21,7 @@ export type TabEventEmitter = Emitter<TabEvent>;
 
 export function makeGenericTab(tabEvent: TabEventEmitter): _$ {
   const e = $(genericTab);
-  const label = $(".label", genericTab);
+  const label = $(".label", e);
   tabEvent.on("rename", ({ name }) => {
     label.text(name);
   });

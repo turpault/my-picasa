@@ -213,10 +213,10 @@ export function setupCrop(
     const deltaX = Math.round(currentPos.x - initialMousePosMove.x);
     const deltaY = Math.round(currentPos.y - initialMousePosMove.y);
     if(ev.buttons === 1 && deltaX !== 0 || deltaY !== 0) {
-        elem.css("left", deltaX);
-        elem.css("top", deltaY);
-        elem.css("right", -deltaX);
-        elem.css("bottom", -deltaY);
+        elem.cssDelta("left", deltaX);
+        elem.cssDelta("top", deltaY);
+        elem.cssDelta("right", -deltaX);
+        elem.cssDelta("bottom", -deltaY);
         initialMousePosMove = currentPos;
       }
     });

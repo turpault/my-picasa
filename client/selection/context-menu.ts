@@ -4,7 +4,7 @@ import { getService } from "../rpc/connect";
 import { Album, JOBNAMES } from "../../shared/types/types";
 import { SelectionManager } from "./selection-manager";
 
-export function makeDropDown() {
+export function makeDropDownContextMenu() {
   document.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     const menu = $(`<div class="context-menu">

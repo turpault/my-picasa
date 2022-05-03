@@ -220,10 +220,13 @@ class Mutex {
   }
   private current: Promise<void>;
   private nest: number;
+  lockDate: Date = new Date();
   lock() {
     let _resolve: Function;
+    this.lockDate = new Date();
     const p = new Promise<void>((resolve) => {
-      _resolve = () => {
+      _resolve = () => {        
+        this.lockDate = new Date();
         this.nest--;
         return resolve();
       };
@@ -243,13 +246,28 @@ class Mutex {
 }
 const locks: Map<string, Mutex> = new Map();
 
+function checkForVeryLongLocks() {
+  const now = new Date();
+  const table = Array.from(locks.entries()).filter(([name, mutex]) => mutex.locked()).map(([name, mutex])=> ({
+    name,
+    duration: now.getTime() - mutex.lockDate.getTime()
+  })).filter(l => l.duration > 1000);
+  if(table.length > 1) {
+    console.warn("These locks are taking longer than expected");
+    console.table(table);
+  }
+}
+
+setInterval(checkForVeryLongLocks, 10000);
+
 function pruneLocks() {
   // Prune unused mutexes
-  for (const l in locks) {
-    if (!locks.get(l)!.locked()) {
-      locks.delete(l);
+  for (const [name, mutex] of locks.entries()) {
+    if (!mutex.locked()) {
+      locks.delete(name);
     }
   }
+  checkForVeryLongLocks();
 }
 
 export async function lock(label: string): Promise<Function> {
@@ -264,4 +282,12 @@ export function lockedLocks(): string[] {
   return Array.from(locks)
     .filter((l) => l[1].locked())
     .map((l) => l[0]);
+}
+
+export function valuesOfEnum<T>(e: T): any[] {
+  return Object.values(e).filter(v=>!isNaN(Number(v)));
+}
+
+export function keysOfEnum<T>(e: T): (keyof T)[] {
+  return Object.keys(e) as unknown as (keyof T)[];
 }

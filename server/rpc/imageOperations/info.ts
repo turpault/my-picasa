@@ -1,6 +1,6 @@
 import { isPicture, isVideo } from "../../../shared/lib/utils";
 import { AlbumEntry, AlbumEntryWithMetadata, Filetype } from "../../../shared/types/types";
-import { readPicasaIni } from "../rpcFunctions/picasaIni";
+import { readPicasaIni, updatePicasaEntry } from "../rpcFunctions/picasaIni";
 import {
   buildContext, destroyContext, encode, setOptions,
   transform
@@ -15,16 +15,23 @@ export async function imageInfo(entry: AlbumEntry): Promise<AlbumEntryWithMetada
   } else if (isPicture(entry)) {
     res.meta.type = Filetype.Picture;
     
-    const context = await buildContext(entry);
-    await setOptions(context, options);
-    if (options.filters) {
-      await transform(context, options.filters!);
-    }    
-    const encoded = (await encode(context));
-    res.meta.width = encoded.width;
-    res.meta.height = encoded.height;    
-    await destroyContext(context);
-
+    if(options.dimensions && options.dimensionsFromFilter === options.filters) {
+      const [w, h] = options.dimensions.split('x');
+      res.meta.width = parseInt(w);
+      res.meta.height = parseInt(h);    
+    } else {
+      const context = await buildContext(entry);
+      await setOptions(context, options);
+      if (options.filters) {
+        await transform(context, options.filters!);
+      }    
+      const encoded = (await encode(context));
+      res.meta.width = encoded.width;
+      res.meta.height = encoded.height;
+      await destroyContext(context);
+      updatePicasaEntry(entry, 'dimensions', `${encoded.width}x${encoded.height}`);
+      updatePicasaEntry(entry, 'dimensionsFromFilter', options.filters);
+    }
     res.meta.transform = options.filters;
   }
   return res;
