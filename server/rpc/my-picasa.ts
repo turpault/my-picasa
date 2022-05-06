@@ -10,7 +10,7 @@ import {
   encode,
   execute,
   setOptions,
-  transform,
+  transform
 } from "./imageOperations/sharp-processor";
 import { exifData } from "./rpcFunctions/exif";
 import { createFSJob, getJob } from "./rpcFunctions/fileJobs";
@@ -19,12 +19,14 @@ import {
   makeAlbum,
   openAlbumInFinder,
   readFileContents,
-  writeFileContents,
+  writeFileContents
 } from "./rpcFunctions/fs";
 import {
   readPicasaEntry,
   readPicasaIni,
-  updatePicasaEntry,
+  setRank,
+  sortAlbum,
+  updatePicasaEntry
 } from "./rpcFunctions/picasaIni";
 import { folders, media } from "./rpcFunctions/walker";
 import { ServiceMap } from "./rpcHandler";
@@ -97,6 +99,14 @@ export const MyPicasa: ServiceMap = {
     folder: {
       handler: folder,
       arguments: ["folder:string"],
+    },
+    sortAlbum: {
+      handler: sortAlbum,
+      arguments: ["album:string", "sort:string"],
+    },
+    setRank: {
+      handler: setRank,
+      arguments: ["entry:string", "rank:number"],
     },
     readPicasaIni: {
       handler: readPicasaIni,

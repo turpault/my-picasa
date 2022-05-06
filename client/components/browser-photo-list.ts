@@ -15,6 +15,17 @@ import {
   thumbnailData,
 } from "./thumbnail";
 
+const extra = `
+<div class="w3-dropdown-hover w3-right sort-menu">
+  <button
+    style="font-size: 22px"
+    class="w3-button fa fa-sort"
+  ></button>
+  <div class="w3-dropdown-content w3-bar-block w3-card-4">
+    <a id="SortByDate" class="w3-bar-item w3-button">By date</a>
+    <a id="SortByName" class="w3-bar-item w3-button">By name</a>
+  </div>
+</div>`;
 // Create two elements, allergic to visibility
 const elementPrefix = "photolist:";
 const html = `<div class="w3-theme images-area">
@@ -209,7 +220,7 @@ export async function makePhotoList(
 
   // Status change events
   const s = await getService();
-  
+
   s.on("updateAlbumList", async () => {
     await datasource.walk(filter);
     /*
@@ -229,7 +240,7 @@ export async function makePhotoList(
       refresh(albumFromElement(displayed[0], elementPrefix)!);
     }*/
   });
-  
+
   s.on("albumChanged", async (e: { payload: Album[] }) => {
     // save index
     let idx = visibleIndex();
@@ -519,9 +530,7 @@ export async function makePhotoList(
     const p: Promise<void>[] = [];
     const children = element.children();
     for (const name of keys) {
-      p.push(
-        thumbnailData(children[--idx], { album, name }, info.picasa[name])
-      );
+      p.push(thumbnailData(children[--idx], { album, name }, info.picasa[name]));
     }
     await Promise.allSettled(p);
   }
@@ -585,14 +594,14 @@ export async function makePhotoList(
       });
       e.on("dragenter", (ev) => {
         e.addClass("album-drop-area");
-        ev.preventDefault();
+        //ev.preventDefault();
       });
       e.on("dragleave", (ev) => {
         e.removeClass("album-drop-area");
-        ev.preventDefault();
+        //ev.preventDefault();
       });
       e.on("dragover", (ev: any) => {
-        ev.preventDefault();
+        //ev.preventDefault();
       });
       e.on("click", async (ev: any) => {
         const album = albumFromElement(e, elementPrefix)!;

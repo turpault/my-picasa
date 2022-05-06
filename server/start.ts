@@ -1,9 +1,10 @@
-import Fastify, { FastifyInstance, RouteShorthandOptions } from "fastify";
-import fastifystatic from "fastify-static";
+import Fastify, { fastify, FastifyInstance, RouteShorthandOptions } from "fastify";
+import {default as websocketPlugin} from "@fastify/websocket";
+import fastifystatic from "@fastify/static";
 import { Server } from "http";
 import { basename, join } from "path";
 import WebSocket from "ws";
-import { lockedLocks } from "../shared/lib/utils";
+import { lockedLocks, startLockMonitor } from "../shared/lib/utils";
 import { SocketAdaptorInterface } from "../shared/socket/socketAdaptorInterface";
 import { WsAdaptor } from "../shared/socket/wsAdaptor";
 import { buildThumbs } from "./rpc/background/bg-thumbgen";
@@ -16,42 +17,8 @@ import { updateLastWalkLoop } from "./rpc/rpcFunctions/walker";
 import { busy, measureCPULoad } from "./utils/busy";
 import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
-const server: FastifyInstance = Fastify({
-  //logger: true,
-  maxParamLength: 32000,
-  bodyLimit: 50 * 1024 * 1024,
-});
 
-server.register(fastifystatic, {
-  root: join(__dirname, "..", "..", "public"),
-  prefix: "/", // optional: default '/',
-});
-server.addHook("preHandler", (request, reply, done) => {
-  busy();
-  done();
-});
-
-const pingOpts: RouteShorthandOptions = {
-  schema: {
-    response: {
-      200: {
-        type: "object",
-        properties: {
-          pong: {
-            type: "string",
-          },
-        },
-      },
-    },
-  },
-};
 /** */
-
-// Initializes the server to use, depending on the socket implementation
-function serverInit(httpServer: Server): WebSocket.Server {
-  const wsServer = new WebSocket.Server({ server: httpServer, path: "/cmd" });
-  return wsServer;
-}
 
 // Returns a socket that can be used
 function socketAdaptorInit(serverClient: any): SocketAdaptorInterface {
@@ -60,70 +27,75 @@ function socketAdaptorInit(serverClient: any): SocketAdaptorInterface {
   return s;
 }
 
-export function socketInit(httpServer: Server) {
-  const wsServer = serverInit(httpServer);
+export function socketInit(httpServer: FastifyInstance) {
 
-  wsServer.on("connection", (client: WebSocket) => {
+  httpServer.get('/cmd', {websocket: true}, (connection, req) => {
     console.info("[socket]: Client has connected...");
-    const socket = socketAdaptorInit(client);
+    const socket = socketAdaptorInit(connection.socket);
     addSocket(socket);
 
     RPCInit(socket, {});
 
-    client.onerror = () => {
+    connection.on('error', () => {
       console.debug("[socket]: Socket had an error...");
       removeSocket(socket);
-    };
-    socket.onDisconnect((args: CloseEvent) => {
-      console.debug(
-        "[socket]: Client has disconnected...",
-        args ? args.reason : "no specific reason"
-      );
-      removeSocket(socket);
-
-      return;
     });
   });
-  return { httpServer, wsServer };
 }
 
-server.get("/ping", pingOpts, async (request, reply) => {
-  return { pong: "it worked!" };
-});
-
-server.get("/encode/:context/:mime", async (request, reply) => {
-  const { context, mime } = request.params as any;
-  reply.type(mime);
-  return encode(context, mime).then((r) => r.data);
-});
-
-server.get("/stats", async (request, reply) => {
-  return { series: await history(), locks: lockedLocks() };
-});
-
-server.get("/thumbnail/:album/:name/:resolution", async (request, reply) => {
-  const { album, name, resolution } = request.params as any;
-  const entry = {
-    album: { key: album, name: basename(album) },
-    name,
+function setupRoutes(server: FastifyInstance) {
+  const pingOpts: RouteShorthandOptions = {
+    schema: {
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            pong: {
+              type: "string",
+            },
+          },
+        },
+      },
+    },
   };
+  server.get("/ping", pingOpts, async (request, reply) => {
+    return { pong: "it worked!" };
+  });
 
-  const r = await thumbnail(entry, resolution);
-  reply.type(r.mime);
-  return r.data;
-});
+  server.get("/encode/:context/:mime", async (request, reply) => {
+    const { context, mime } = request.params as any;
+    reply.type(mime);
+    return encode(context, mime).then((r) => r.data);
+  });
 
-server.get("/asset/:album/:name", async (request, reply) => {
-  const { album, name } = request.params as any;
-  const entry = {
-    album: { key: album, name: "" },
-    name,
-  };
+  server.get("/stats", async (request, reply) => {
+    return { series: await history(), locks: lockedLocks() };
+  });
 
-  const file = await asset(entry);
-  await reply.sendFile(file, "/");
-});
+  server.get("/thumbnail/:album/:name/:resolution", async (request, reply) => {
+    const { album, name, resolution } = request.params as any;
+    const entry = {
+      album: { key: album, name: basename(album) },
+      name,
+    };
 
+    const r = await thumbnail(entry, resolution);
+    reply.type(r.mime);
+    reply.header("cache-control", "no-cache");
+    return r.data;
+  });
+
+  server.get("/asset/:album/:name", async (request, reply) => {
+    const { album, name } = request.params as any;
+    const entry = {
+      album: { key: album, name: "" },
+      name,
+    };
+
+    const file = await asset(entry);
+    await reply.sendFile(file, "/");
+  });
+}
 const port = Math.floor(Math.random() * 10000 + 5000);
 export function getPort() {
   return port;
@@ -138,8 +110,29 @@ export async function start(p?: number) {
     updateLastWalkLoop();
     measureCPULoad();
     picasaInitCleaner();
-    await server.listen(p);
-    await socketInit(server.server);
+    startLockMonitor();
+    const server: FastifyInstance = Fastify({
+      logger: true,
+      maxParamLength: 32000,
+      bodyLimit: 50 * 1024 * 1024,
+    });
+
+    server.register(fastifystatic, {
+      root: join(__dirname, "..", "..", "public"),
+      prefix: "/", // optional: default '/',
+    });
+
+    server.register(websocketPlugin);
+    await socketInit(server);
+
+    server.addHook("preHandler", (request, reply, done) => {
+      console.info('request');
+      busy();
+      done();
+    });
+
+    setupRoutes(server);
+    await server.listen(p, "localhost");
     console.info(`Ready to accept connections on port ${p}.`);
   } catch (err) {
     console.error(err);

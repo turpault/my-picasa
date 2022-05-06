@@ -1,16 +1,14 @@
 const { Resizable } = require("../lib/resizable");
 import { buildEmitter } from "../../shared/lib/event";
-import { keysOfEnum, uuid, valuesOfEnum } from "../../shared/lib/utils";
+import { uuid, valuesOfEnum } from "../../shared/lib/utils";
 import { AlbumEntry, AlbumEntryWithMetadata, Format, Orientation } from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
-import { $, albumEntryFromElement, elementFromEntry, idFromAlbumEntry, _$ } from "../lib/dom";
+import { $, idFromAlbumEntry, _$ } from "../lib/dom";
 import { getService } from "../rpc/connect";
 import { AppEventSource } from "../uiTypes";
 import { makeChoiceList, makeMultiselectImageList } from "./controls/multiselect";
 import { makeGenericTab, TabEvent } from "./tabs";
 
-
-declare var panzoom: Function;
 
 type Cell = {
   id: string;
@@ -57,7 +55,7 @@ type CompositedImages =  ({ image: string, key: any, selected: boolean } & Album
 async function imageDimensions(a:AlbumEntry[]): Promise<AlbumEntryWithMetadata[]>
 {
   const s = await getService();
-  return Promise.all(a.map(entry => s.imageInfo(entry) as Promise<AlbumEntryWithMetadata>));  
+  return Promise.all(a.map(entry => s.imageInfo(entry) as Promise<AlbumEntryWithMetadata>));
 }
 
 function rebuildMosaic(container: _$, list:AlbumEntryWithMetadata[], method: Layout, orientation:Orientation, format: Format): {reflow: Function, erase: Function} {
@@ -93,7 +91,7 @@ function rebuildMosaic(container: _$, list:AlbumEntryWithMetadata[], method: Lay
 
   // Add images
   // Create a binary tree with all the images
-  const depth = Math.ceil(Math.log(list.length)/Math.log(2));  
+  const depth = Math.ceil(Math.log(list.length)/Math.log(2));
   function leaves(nodes:Cell[]) {
     let cnt = 0;
     for(const node of nodes) {
@@ -117,14 +115,14 @@ function rebuildMosaic(container: _$, list:AlbumEntryWithMetadata[], method: Lay
   }
   const {node: root, allNodes } = split({
     id: uuid(),
-    split: "v"    
+    split: "v"
   }, depth);
 
   if(leaves(allNodes)!== Math.pow(2, depth)) {
     throw new Error("Wrong number of leaves");
   }
 
-  const randomized1 = [...allNodes].sort(()=> Math.random()-0.5);  
+  const randomized1 = [...allNodes].sort(()=> Math.random()-0.5);
   // Remove extra nodes
   let extraNodeCount = Math.pow(2, depth) - list.length;
   for(const node of randomized1) {
@@ -139,7 +137,7 @@ function rebuildMosaic(container: _$, list:AlbumEntryWithMetadata[], method: Lay
   if(leaves(allNodes)!== list.length) {
     throw new Error("Wrong number of leaves");
   }
-  const randomized = [...allNodes].sort(()=> Math.random()-0.5);  
+  const randomized = [...allNodes].sort(()=> Math.random()-0.5);
   if(leaves(randomized)!== list.length) {
     throw new Error("Wrong number of leaves");
   }
@@ -165,7 +163,7 @@ function rebuildMosaic(container: _$, list:AlbumEntryWithMetadata[], method: Lay
           randomized.push(node.childs!.right);
           randomized.push(node);
           randomized.splice(randomized.indexOf(node),1);
-          break;       
+          break;
         }
       }
     }
@@ -247,10 +245,10 @@ function rebuildMosaic(container: _$, list:AlbumEntryWithMetadata[], method: Lay
     }
     return res;
   }
-  const html = buildHTMLForNode(root);  
+  const html = buildHTMLForNode(root);
   // Now create the div nodes
 
-  
+
   var sizes:{[key:string]: number} = {};
   for(const node of randomized) {
     sizes[node.id] = node.weight!;
@@ -276,7 +274,7 @@ function rebuildMosaic(container: _$, list:AlbumEntryWithMetadata[], method: Lay
     "dragenter",
     (ev: any) => {
         elem.css("opacity", "0.5");
-      
+
       //ev.preventDefault();
     },
     false
@@ -308,7 +306,7 @@ function rebuildMosaic(container: _$, list:AlbumEntryWithMetadata[], method: Lay
         deleteResizable = undefined;
       }
       deleteResizable = Resizable.initialise(container.get(), sizes).delete;
-    }, 
+    },
     erase: () => {
       if(deleteResizable) {
         deleteResizable();
@@ -440,6 +438,6 @@ export async function makeCompositorPage(
 
   const tabEvent = buildEmitter<TabEvent>();
   const tab = makeGenericTab(tabEvent);
-  tabEvent.emit("rename", { name: "Compositor" });  
+  tabEvent.emit("rename", { name: "Compositor" });
   return { win: e, tab };
 }

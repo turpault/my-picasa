@@ -11,6 +11,7 @@ import {
 import {
   Album,
   AlbumEntry,
+  PicasaFolderMeta,
   pictureExtensions,
   videoExtensions
 } from "../../../shared/types/types";
@@ -170,7 +171,17 @@ export async function media(
       }
     }
   }
+  await sortAssetsByRank(assets, picasa);
   return { assets };
+}
+
+async function sortAssetsByRank(entries: AlbumEntry[], picasa: PicasaFolderMeta) {
+  entries.sort((a, b) => {
+    if(picasa[a.name] && picasa[b.name] && picasa[a.name].rank !== undefined && picasa[b.name].rank !== undefined) {
+      return parseInt(picasa[a.name].rank!) - parseInt(picasa[b.name].rank!);
+    }
+    return 0;
+  });
 }
 
 async function walk(

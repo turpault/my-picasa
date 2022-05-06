@@ -8,10 +8,10 @@ import { imagesRoot } from "../../utils/constants";
 
 export async function exifDataAndStats(
   entry: AlbumEntry
-): Promise<{ stats: Stats | void; tags: any }> {
+): Promise<{ stats: Stats; tags: any }> {
   const path = join(imagesRoot, entry.album.key, entry.name);
   const [s, t] = await Promise.all([
-    stat(path).catch((e) => {}),
+    stat(path),
     exifData(entry),
   ]);
   const tags = t || {};

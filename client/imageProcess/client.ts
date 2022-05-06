@@ -62,7 +62,7 @@ export async function encode(
 }
 
 export function encodeToURL(context: string, mime: string): string {
-  return `http://127.0.0.1:${getServicePort()}/encode/${context}/${fixedEncodeURIComponent(
+  return `http://localhost:${getServicePort()}/encode/${context}/${fixedEncodeURIComponent(
     mime
   )}`;
 }
@@ -74,7 +74,7 @@ export function thumbnailUrl(
   if (!entry) {
     return "";
   }
-  return `http://127.0.0.1:${getServicePort()}/thumbnail/${fixedEncodeURIComponent(
+  return `http://localhost:${getServicePort()}/thumbnail/${fixedEncodeURIComponent(
     entry.album.key
   )}/${fixedEncodeURIComponent(entry.name)}/${fixedEncodeURIComponent(size)}`;
 }

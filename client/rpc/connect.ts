@@ -54,7 +54,7 @@ export function getServicePort() {
 
 export async function getService(): Promise<MyPicasa> {
   if (!ev) {
-    ev = connect(getServicePort(), "127.0.0.1", false);
+    ev = connect(getServicePort(), "localhost", false);
     ev.on("connected", ({ service }) => {
       _service = service;
       _connected = true;
