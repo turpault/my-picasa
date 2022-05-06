@@ -126,7 +126,8 @@ export class WsAdaptor implements SocketAdaptorInterface {
     retryDelay: number
   ): Promise<void> {
     if (this.ws!.readyState !== 1) {
-      this.ws!.onerror!({} as Event);
+      if(this.ws!.onerror)
+        this.ws!.onerror({} as Event);
       if (remainingRetries > 0) {
         await sleep(retryDelay);
         return this.emitRetry(

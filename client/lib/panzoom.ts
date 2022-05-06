@@ -1,12 +1,12 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
 import { Point, Rectangle } from "ts-2d-geometry/dist";
 import { PanZoomEvent } from "../uiTypes";
+import createPanZoom from "panzoom";
 
-declare var panzoom: Function;
 
 export class ImagePanZoomController {
   constructor(c: HTMLCanvasElement | HTMLImageElement) {
-    this.panner = panzoom(c, {
+    this.panner = createPanZoom(c, {
       filterKey: function (/* e, dx, dy, dz */) {
         // don't let panzoom handle this event:
         return true;

@@ -64,12 +64,6 @@ export async function getAlbumInfo(
   const picasa = await readPicasaIni(album);
   let assets = contents.assets;
 
-  // Add missing assets to the picasa contents
-  for (const p of assets) {
-    if (!picasa[p.name]) {
-      picasa[p.name] = {};
-    }
-  }
   if (settings.filters.star) {
     assets = assets.filter((v) => {
       return !!picasa[v.name].star;
@@ -80,6 +74,7 @@ export async function getAlbumInfo(
       videoExtensions.find((e) => v.name.toLowerCase().endsWith(e))
     );
   }
+  /*
   assets.sort((a, b) => {
     if (settings.sort === "date") {
       const dateA = picasa[a.name].dateTaken;
@@ -99,6 +94,7 @@ export async function getAlbumInfo(
   if (settings.inverseSort) {
     assets.reverse();
   }
+  */
   return { picasa, assets };
 }
 

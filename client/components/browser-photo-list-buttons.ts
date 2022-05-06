@@ -2,6 +2,8 @@ import { $, _$ } from "../lib/dom";
 import {
   getSettings,
   getSettingsEmitter,
+  updateFilterByStar,
+  updateFilterByVideos,
   updateIconSize,
 } from "../lib/settings";
 import { getService } from "../rpc/connect";
@@ -10,12 +12,12 @@ import { Album, JOBNAMES, PicasaFileMeta } from "../../shared/types/types";
 import { AlbumListEventSource, AppEventSource } from "../uiTypes";
 import { question } from "./question";
 const html = `<div class="bottom-list-tools">
-<div class="zoom-photo-list">  
+<div class="zoom-photo-list">
   <label>Icon Size</label>
   <input type="range" min="75" max="250" class="photos-zoom-ctrl slider">
 </div>
 <div class="w3-bar buttons">
-</div>                    
+</div>
 </div>`;
 
 export async function makeButtons(
@@ -40,6 +42,7 @@ export async function makeButtons(
     icon: string;
     element?: _$;
     click: (ev: MouseEvent) => any;
+    displayed?: (element: _$) => any;
     needSelection: boolean;
   }[] = [
     {
@@ -110,6 +113,38 @@ export async function makeButtons(
       },
     },
     {
+      name: "View starred only",
+      icon: "resources/images/icons/actions/filter-star-50.png",
+      needSelection: false,
+      displayed:(element: _$)=>{
+        function updateSettings() {
+          const settings = getSettings();
+          element.addRemoveClass("highlight", settings.filters.star);
+        }
+        updateSettings();
+        getSettingsEmitter().on("changed", updateSettings);
+      },
+      click: async (ev: MouseEvent) => {
+        updateFilterByStar(!getSettings().filters.star);
+      }
+    },
+    {
+      name: "View videos only",
+      icon: "resources/images/icons/actions/filter-video-50.png",
+      needSelection: false,
+      displayed:(element: _$)=>{
+        function updateSettings() {
+          const settings = getSettings();
+          element.addRemoveClass("highlight", settings.filters.video);
+        }
+        updateSettings();
+        getSettingsEmitter().on("changed", updateSettings);
+      },
+      click: async (ev: MouseEvent) => {
+        updateFilterByVideos(!getSettings().filters.video);
+      }
+    },
+    {
       name: "Composition",
       icon: "resources/images/icons/actions/composition-50.png",
       needSelection: true,
@@ -133,11 +168,14 @@ export async function makeButtons(
     },
   ];
   for (const action of actions) {
-    action.element = $(`<button data-tooltip="${action.name}" 
+    action.element = $(`<button data-tooltip="${action.name}"
       class="w3-button" style="background-image: url(${action.icon})"></button>`).on(
       "click",
       action.click
     );
+    if(action.displayed) {
+      action.displayed(action.element);
+    }
     buttons.append(action.element);
   }
   function enable() {

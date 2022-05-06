@@ -96,7 +96,7 @@ export function rectanglesIntersect(
 }
 /*
 # Picasa uses a special string format to store crop boxes of
-# detected faces and from an applied crop filters. The number encased 
+# detected faces and from an applied crop filters. The number encased
 # in the rect64() statement is a 64 bit hexadecimal number:
 
 #     rect64(3f845bcb59418507)
@@ -106,7 +106,7 @@ export function rectanglesIntersect(
 # '3f845bcb59418507'.substring(0,4) //"3f84"
 # '3f845bcb59418507'.substring(4,8) //"5bcb"
 # '3f845bcb59418507'.substring(8,12) // "5941"
-# '3f845bcb59418507'.substring(12,16) // "8507"  
+# '3f845bcb59418507'.substring(12,16) // "8507"
 
 # convert each obtained substring to an integer and divide it
 # by the highest 16-bit number (2^16 = 65536), which should give 0 < results < 1.
@@ -225,7 +225,7 @@ class Mutex {
     let _resolve: Function;
     this.lockDate = new Date();
     const p = new Promise<void>((resolve) => {
-      _resolve = () => {        
+      _resolve = () => {
         this.lockDate = new Date();
         this.nest--;
         return resolve();
@@ -258,8 +258,6 @@ function checkForVeryLongLocks() {
   }
 }
 
-setInterval(checkForVeryLongLocks, 10000);
-
 function pruneLocks() {
   // Prune unused mutexes
   for (const [name, mutex] of locks.entries()) {
@@ -290,4 +288,8 @@ export function valuesOfEnum<T>(e: T): any[] {
 
 export function keysOfEnum<T>(e: T): (keyof T)[] {
   return Object.keys(e) as unknown as (keyof T)[];
+}
+
+export function startLockMonitor() {
+  setInterval(checkForVeryLongLocks, 10000);
 }

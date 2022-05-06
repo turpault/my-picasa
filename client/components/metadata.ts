@@ -2,9 +2,15 @@ import { getFileExifData } from "../folder-utils";
 import { $ } from "../lib/dom";
 import { SelectionEventSource } from "../selection/selection-manager";
 import { AlbumEntry } from "../../shared/types/types";
-declare var L: any;
-
-const section = ["Make", "ISO", "ExposureTime", "FNumber", "DateTimeOriginal"];
+import L from "leaflet";
+const section = [
+  "Make",
+  "Model",
+  "ISO",
+  "ExposureTime",
+  "FNumber",
+  "DateTimeOriginal",
+];
 
 export function makeMetadata(
   e: HTMLElement,
@@ -16,6 +22,7 @@ export function makeMetadata(
   const file = $(".file", e);
   let mapLeaflet: any;
   let marker: any;
+
   const close = $(".closemetasidebar");
   close.on("click", () => {
     metasidebar.css("display", "none");
@@ -94,11 +101,11 @@ export function makeMetadata(
           if (Number.isNaN(parseInt(idx)))
             if (section.includes(idx)) {
               // exclude unknown tags
-              let val = idx.includes("Date")
-                ? new Date(data[idx]).toLocaleString()
-                : data[idx];
-              if (idx.includes("Time")) {
-                const v = parseFloat(val);
+              let val = data[idx];
+              if (idx.includes("Date")) {
+                val = new Date(data[idx]).toLocaleString();
+              } else if (idx.includes("Time")) {
+                const v = parseFloat(data[idx]);
                 val = v < 1 ? `1/${Math.round(1 / v)} s` : `${v} s`;
               }
               meta.append(

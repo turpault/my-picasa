@@ -14,11 +14,12 @@ import { fileExists } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { addToUndo, registerUndoProvider } from "../../utils/undo";
 import { exportToFolder } from "../imageOperations/export";
-import { readPicasaIni, updatePicasaEntry } from "./picasaIni";
+import { readPicasaEntry, readPicasaIni, setRank, updatePicasaEntry } from "./picasaIni";
 import { copyThumbnails } from "./thumbnailCache";
 import { refreshAlbums } from "./walker";
 
 const jobs: Job[] = [];
+type MultiMoveJobArguments = {source: AlbumEntry, destination: Album, rank: Number}[];
 
 export async function getJob(id: string): Promise<object> {
   const j = jobs.filter((j) => j.id === id);
@@ -121,9 +122,17 @@ function albumChanged(album: Album, list: Album[]) {
 async function moveJob(job: Job): Promise<Album[]> {
   // convert to a multi-move
   const source = job.data.source as AlbumEntry[];
-  job.data.destination = range(0, source.length).map(
-    () => job.data.destination as Album
-  );
+  const target = job.data.destination as Album;
+  let targetRank = job.data.argument || 0;
+  const mmArgs:MultiMoveJobArguments = source.map((entry, index) => ({
+    source: entry,
+    destination: target,
+    rank: targetRank++
+  }));
+  job.data.source = mmArgs;
+  job.data.destination = undefined;
+  job.data.argument = undefined;
+
 
   return multiMoveJob(job);
 }
@@ -372,15 +381,13 @@ async function deleteJob(job: Job): Promise<Album[]> {
 
 async function multiMoveJob(job: Job): Promise<Album[]> {
   const undoMultiMovePayload = {
-    source: [] as AlbumEntry[],
-    destination: [] as Album[],
+    source: [] as MultiMoveJobArguments,
     noUndo: false,
   };
 
   job.status = "started";
   const updatedAlbums: Album[] = [];
-  const source = job.data.source as AlbumEntry[];
-  const dest = job.data.destination as Album[];
+  const source = job.data.source as {source: AlbumEntry, destination: Album, rank: Number}[];
   const steps = source.length;
   job.progress.start = steps;
   job.progress.remaining = steps;
@@ -388,36 +395,40 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
   await Promise.allSettled(
     source.map(async (s, index) => {
       try {
-        let targetName = s.name;
-        let found = false;
-        let destPath = join(imagesRoot, dest[index].key, targetName);
-        let idx = 1;
-        while (!found) {
-          found = true;
-          await stat(destPath)
-            .then((e) => {
-              // target already exists
-              found = false;
-              const ext = extname(s.name);
-              const base = basename(s.name, ext);
-              targetName = base + ` (${idx++})` + ext;
-              destPath = join(imagesRoot, dest[index].key, targetName);
-            })
-            .catch((e) => {});
+        let targetName = s.source.name;
+        const sourceRank = parseInt((await readPicasaEntry(s.source)).rank || '0');
+        if(s.destination.key !== s.source.album.key) {
+          let found = false;
+          let destPath = join(imagesRoot, s.destination.key, targetName);
+          let idx = 1;
+          while (!found) {
+            found = true;
+            await stat(destPath)
+              .then((e) => {
+                // target already exists
+                found = false;
+                const ext = extname(s.source.name);
+                const base = basename(s.source.name, ext);
+                targetName = base + ` (${idx++})` + ext;
+                destPath = join(imagesRoot, s.destination.key, targetName);
+              })
+              .catch((e) => {});
+          }
+          await copyMetadata(s.source, { album: s.destination, name: targetName }, true);
+          await rename(
+            join(imagesRoot, s.source.album.key, s.source.name),
+            join(imagesRoot, s.destination.key, targetName)
+          );
+          undoMultiMovePayload.source.push({source: {
+            album:  s.destination,
+            name: targetName,
+          }, destination: s.source.album, rank:sourceRank} );
         }
+        await setRank({ album: s.destination, name: targetName }, s.rank);
+        albumChanged(s.source.album, updatedAlbums);
+        if(s.source.album.key !== s.destination.key)
+          albumChanged(s.destination, updatedAlbums);
 
-        await copyMetadata(s, { album: dest[index], name: targetName }, true);
-        await rename(
-          join(imagesRoot, s.album.key, s.name),
-          join(imagesRoot, dest[index].key, targetName)
-        );
-        albumChanged(s.album, updatedAlbums);
-        albumChanged(dest[index], updatedAlbums);
-        undoMultiMovePayload.source.push({
-          album: dest[index],
-          name: targetName,
-        });
-        undoMultiMovePayload.destination.push(s.album);
       } catch (e: any) {
         job.errors.push(e.message as string);
       } finally {
@@ -429,7 +440,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
     undoMultiMovePayload.noUndo = true;
     addToUndo(
       JOBNAMES.MULTI_MOVE,
-      `Move ${source.length} files to ${dest[0].name}...`,
+      `Move ${source.length} files to ${source[0].destination.name}...`,
       undoMultiMovePayload
     );
   }

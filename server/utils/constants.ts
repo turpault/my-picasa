@@ -1,5 +1,5 @@
-export const imagesRoot = "/Volumes/Photos/Photos";
+export const imagesRoot = "/Users/turpauj/Pictures/Pics";
 export const defaultNewFolderRoot = "2022";
 export const PICASA = ".picasa.ini";
 export const THUMBS = ".thumbnails.ini";
-export const exportsRoot = "/Volumes/1TB USB/exports";
+export const exportsRoot = "/tmp";

@@ -1,14 +1,7 @@
+import { undoStep } from "../../shared/types/types";
 import { $, _$ } from "../lib/dom";
 import { Emitter } from "../lib/event";
-import {
-  getSettings,
-  getSettingsEmitter,
-  updateFilterByStar,
-  updateFilterByVideos,
-  updateSort,
-} from "../lib/settings";
 import { getService } from "../rpc/connect";
-import { undoStep } from "../../shared/types/types";
 import { AppEventSource } from "../uiTypes";
 
 const genericTab = `<a class="w3-button tab-button"><span class="label"></span><span class="remove-tab">&times;</span></a>`;
@@ -38,24 +31,6 @@ let emitter: AppEventSource;
 export async function makeTabs(_emitter: AppEventSource) {
   emitter = _emitter;
   tabs = $(".tabs");
-
-  const fStar = $("#FilterStar").on("click", () =>
-    updateFilterByStar(!getSettings().filters.star)
-  );
-  const fFilterVideo = $("#FilterVideo").on("click", () =>
-    updateFilterByVideos(!getSettings().filters.video)
-  );
-  const fSortByDate = $("#SortByDate").on("click", () => updateSort("date"));
-  const fSortByName = $("#SortByName").on("click", () => updateSort("name"));
-  function updateSettings() {
-    const settings = getSettings();
-    fStar.addRemoveClass("highlight", settings.filters.star);
-    fFilterVideo.addRemoveClass("highlight", settings.filters.video);
-    fSortByDate.addRemoveClass("highlight", settings.sort === "date");
-    fSortByName.addRemoveClass("highlight", settings.sort === "name");
-  }
-  updateSettings();
-  getSettingsEmitter().on("changed", updateSettings);
 
   const s = await getService();
   async function updateUndoList() {

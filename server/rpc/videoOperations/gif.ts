@@ -5,6 +5,8 @@ import { AlbumEntry } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { delayEnd, delayStart, inc, rate } from "../../utils/stats";
 
+var pathToFfmpeg = require('ffmpeg-static');
+
 export async function createGif(
   asset: AlbumEntry,
   size: number
@@ -20,7 +22,7 @@ export async function createGif(
     converted = await new Promise<boolean>((resolve) => {
       const p = spawn("sh", [
         "-c",
-        `ffmpeg -t 20 -i "${source}" -vf "fps=10,scale=${size}:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -loop 0 -f gif -`,
+        `"${pathToFfmpeg}" -t 20 -i "${source}" -vf "fps=10,scale=${size}:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -loop 0 -f gif -`,
       ]);
       p.stdout.on("data", (data) => {
         result.push(data);

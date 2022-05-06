@@ -1,12 +1,12 @@
 import { rectanglesIntersect, uuid } from "../../shared/lib/utils";
-import { AlbumEntry, PicasaFileMeta } from "../../shared/types/types";
+import { AlbumEntry, JOBNAMES, PicasaFileMeta } from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
 import {
   $,
   albumEntryFromElement,
   elementFromEntry,
   setIdForEntry,
-  _$
+  _$,
 } from "../lib/dom";
 import { getSettings, getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
@@ -18,13 +18,45 @@ const imagePrefix = "thumbimg:";
 
 export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
   const e = $(
-    '<div class="thumbnail thumbnail-size"> <img class="th" loading="lazy"> <img class="star" src="resources/images/star.svg"></div>'
+    `<div draggable="true" class="thumbnail thumbnail-size">
+    <span class="thumbnail-drop-area-left"></span><span class="thumbnail-drop-area-right"></span>
+    <img class="th" loading="lazy"> <img class="star" src="resources/images/star.svg">
+    </div>`
   );
+  for (const side of ["left", "right"]) {
+    $(`.thumbnail-drop-area-${side}`, e)
+      .on("dragenter", function (ev) {
+        $(this).addClass(`thumbnail-drop-area-drag-over-${side}`);
+        ev.preventDefault();
+      })
+      .on("dragover", function (ev) {
+        ev.preventDefault();
+      })
+      .on("dragleave", function () {
+        $(this).removeClass(`thumbnail-drop-area-drag-over-${side}`);
+      })
+      .on("drop", async function (ev) {
+        $(this).removeClass(`thumbnail-drop-area-drag-over-${side}`);
+        ev.stopPropagation();
+        $(this).removeClass(`thumbnail-drop-area-drag-over-${side}`);
+        const s = await getService();
+        const entry = albumEntryFromElement(e, elementPrefix);
+        if (!entry) {
+          return;
+        }
+        const p = (await s.readPicasaEntry(entry)) as PicasaFileMeta;
+        const rank = parseInt(p.rank || "0");
+        const selection = SelectionManager.get().selected();
+        s.createJob(JOBNAMES.MOVE, {
+          source: selection,
+          destination: entry.album,
+          arguments: rank + (side === "left" ? 0 : 1),
+        });
+        return false;
+      });
+  }
   e.on("click", (ev: any) => {
-    const entry = albumEntryFromElement(
-      $(ev.target! as HTMLElement),
-      imagePrefix
-    );
+    const entry = albumEntryFromElement(e, elementPrefix);
     if (entry) {
       ev.stopPropagation();
 
@@ -38,26 +70,18 @@ export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
       });
     }
   });
-  e.on(
-    "dragstart",
-    (ev: any) => {
-      const entry = albumEntryFromElement(
-        $(ev.target! as HTMLElement),
-        imagePrefix
-      );
-      if (entry) {
-        SelectionManager.get().select(entry);
-        ev.dataTransfer.effectAllowed = "move";
-      }
-      //ev.preventDefault();
-    },
-    false
-  );
+  e.on("dragstart", (ev: any) => {
+    const entry = albumEntryFromElement(e, elementPrefix);
+    if (entry) {
+      SelectionManager.get().select(entry);
+      ev.dataTransfer.effectAllowed = "move";
+      ev.dataTransfer.setData("text/html", "");
+    }
+    ev.stopPropagation();
+    //ev.preventDefault();
+  });
   e.on("dblclick", (ev: any) => {
-    const entry = albumEntryFromElement(
-      $(ev.target! as HTMLElement),
-      imagePrefix
-    );
+    const entry = albumEntryFromElement(e, elementPrefix);
     if (!entry) {
       return;
     }
@@ -101,6 +125,7 @@ export async function makeThumbnailManager() {
       // Is there a thumbnail with that data ?
       const elem = elementFromEntry(e.payload.entry, elementPrefix);
       if (elem) {
+        debugger;
         thumbnailData(elem, e.payload.entry, e.payload.picasa);
       }
     }
@@ -155,8 +180,7 @@ export async function thumbnailData(
   } else {
     $(e).removeClass("selected");
   }
-  thumb.attr("src", thumbnailUrl(entry, "th-medium") + "?bust=" + uuid());
-  thumb.css("opacity", "0");
+  thumb.attr("src", thumbnailUrl(entry, "th-medium"));
   // Async get the thumbnail
   if (picasaData && picasaData.star) {
     $(".star", e).css("display", "");
@@ -197,16 +221,16 @@ export function makeNThumbnails(
   while (domElement.get().children.length < count) {
     domElement.append(buildThumbnail(events));
   }
-  for (const i of domElement.all(".img")) {
+  /*for (const i of domElement.all(".img")) {
     i.attr("src", "");
     i.id("");
   }
   for (const i of domElement.all(".star")) {
     i.css("display", "none");
-  }
+  }*/
   let i = 0;
   for (const e of domElement.children()) {
-    e.id("");
+    //e.id("");
     e.css("display", i++ < count ? "" : "none");
   }
 }
