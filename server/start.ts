@@ -1,9 +1,7 @@
-import Fastify, { fastify, FastifyInstance, RouteShorthandOptions } from "fastify";
-import {default as websocketPlugin} from "@fastify/websocket";
 import fastifystatic from "@fastify/static";
-import { Server } from "http";
+import { default as websocketPlugin } from "@fastify/websocket";
+import Fastify, { FastifyInstance, RouteShorthandOptions } from "fastify";
 import { basename, join } from "path";
-import WebSocket from "ws";
 import { lockedLocks, startLockMonitor } from "../shared/lib/utils";
 import { SocketAdaptorInterface } from "../shared/socket/socketAdaptorInterface";
 import { WsAdaptor } from "../shared/socket/wsAdaptor";
@@ -97,6 +95,7 @@ function setupRoutes(server: FastifyInstance) {
   });
 }
 const port = Math.floor(Math.random() * 10000 + 5000);
+
 export function getPort() {
   return port;
 }

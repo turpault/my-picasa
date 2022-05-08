@@ -21,14 +21,13 @@ import {
   readFileContents,
   writeFileContents
 } from "./rpcFunctions/fs";
+import { media, setRank, sortAlbum } from "./rpcFunctions/media";
 import {
   readPicasaEntry,
   readPicasaIni,
-  setRank,
-  sortAlbum,
   updatePicasaEntry
 } from "./rpcFunctions/picasaIni";
-import { folders, media } from "./rpcFunctions/walker";
+import { folders } from "./rpcFunctions/walker";
 import { ServiceMap } from "./rpcHandler";
 
 /**

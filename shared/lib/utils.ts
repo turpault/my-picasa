@@ -252,7 +252,7 @@ function checkForVeryLongLocks() {
     name,
     duration: now.getTime() - mutex.lockDate.getTime()
   })).filter(l => l.duration > 1000);
-  if(table.length > 1) {
+  if(table.length > 0) {
     console.warn("These locks are taking longer than expected");
     console.table(table);
   }

@@ -9,6 +9,8 @@ import {
   toHex2,
   uuid,
 } from "../../../shared/lib/utils";
+import {
+  rotateRectangle } from "../../../shared/lib/geometry";
 import { AlbumEntry, PicasaFileMeta } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { promisify } from "util";
@@ -107,7 +109,6 @@ export async function cloneContext(context: string): Promise<string> {
 # # = 32-bit color in hex notation, e.g.: fff7f5f3
 # [] = crop rectangle
 */
-
 export async function transform(
   context: string,
   transformation: string
@@ -180,51 +181,50 @@ export async function transform(
       case "tilt":
         const angle = (10 * parseInt(args[1]) * Math.PI) / 180; // in radians
         const angleDeg = (angle / Math.PI) * 180; // in degrees
-        const scale = parseInt(args[2]);
-        if (scale !== 0) {
-          const metadata = await j.metadata();
-          const w = metadata.width!;
-          const h = metadata.height!;
-          j = j.resize(Math.floor(w * (1 + scale)));
-          j = await commitContext(j);
-        }
-
+        let scale = parseInt(args[2]);
         j = await commitContext(j);
         const metadata = await j.metadata();
         const w = metadata.width!;
         const h = metadata.height!;
+        const newRect = rotateRectangle(w, h, angle);
+        if (scale === 0 || scale === NaN) {
+          scale = newRect.ratio;
+        }
+
+
+
         j = j.rotate(-angleDeg);
         j = await commitContext(j);
-        const metadataAfter = await j.metadata();
-        const wAfter = metadataAfter.width!;
-        const hAfter = metadataAfter.height!;
-        const dh = hAfter - h;
-        const dw = wAfter - w;
-        /* adjust */
-        const deltah = Math.floor(dh /*- dw * t*/);
-        const deltaw = Math.floor(dw /*- dh * t*/);
+
+        const rw = Math.floor(newRect.w*scale);
+        const rh = Math.floor(newRect.h*scale);
+        j = j.resize(rw, rh);
+        j = await commitContext(j);
+
+        const rl = Math.floor((rw-w)/2);
+        const rt = Math.floor((rh-h)/2);
         /*const layers2: sharp.OverlayOptions[] = [
           {
             input: {
               create: {
-                width: wAfter - deltaw * 2,
-                height: hAfter - deltah * 2,
+                width: w,
+                height: h,
                 channels: 4,
                 background: "#FF0000",
               },
             },
-            left: deltaw,
-            top: deltah,
+            left: rl,
+            top: rt,
             blend: "colour-burn",
           },
         ];
 
         j = j.composite(layers2);*/
         j = j.extract({
-          left: deltaw,
-          top: deltah,
-          width: wAfter - deltaw * 2,
-          height: hAfter - deltah * 2,
+          left: rl,
+          top: rt,
+          width: w,
+          height: h,
         });
         break;
       case "Orton":
@@ -234,7 +234,7 @@ export async function transform(
             .raw()
             .toBuffer({ resolveWithObject: true });
 
-          j.blur(Math.min(0.3, info.width / 500));
+          j.blur(Math.max(0.3, info.width / 500));
           const layers: sharp.OverlayOptions[] = [
             {
               input: data,
@@ -506,3 +506,7 @@ async function commitContext(j: sharp.Sharp): Promise<sharp.Sharp> {
   });
   return j;
 }
+
+console.info(rotateRectangle(10, 1, Math.PI/2));
+console.info(rotateRectangle(10, 10, Math.PI/3));
+const a = rotateRectangle(10, 10, Math.PI/3);

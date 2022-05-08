@@ -63,12 +63,12 @@ export function selectTab(_tab: _$) {
   }
   for (const e of tabElements) {
     e.tab.removeClass("highlight");
-    e.win.css("display", "none");
+    e.win.css("opacity", "0");
   }
   const last = tabElements[tabElements.length - 1];
 
   last.tab.addClass("highlight");
-  last.win.css("display", "");
+  last.win.css("opacity", "1");
   emitter.emit("tabChanged", last);
 }
 

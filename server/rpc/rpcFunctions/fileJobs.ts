@@ -1,12 +1,12 @@
 import { copyFile, mkdir, rename, stat } from "fs/promises";
 import { basename, dirname, extname, join, relative, sep } from "path";
-import { range, sleep, uuid } from "../../../shared/lib/utils";
+import { sleep, uuid } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
   Job,
   JobData,
-  JOBNAMES,
+  JOBNAMES
 } from "../../../shared/types/types";
 import { openExplorer } from "../../open";
 import { exportsRoot, imagesRoot } from "../../utils/constants";
@@ -14,7 +14,8 @@ import { fileExists } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { addToUndo, registerUndoProvider } from "../../utils/undo";
 import { exportToFolder } from "../imageOperations/export";
-import { readPicasaEntry, readPicasaIni, setRank, updatePicasaEntry } from "./picasaIni";
+import { setRank } from "./media";
+import { readPicasaEntry, readPicasaIni, updatePicasaEntry } from "./picasaIni";
 import { copyThumbnails } from "./thumbnailCache";
 import { refreshAlbums } from "./walker";
 

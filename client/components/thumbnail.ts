@@ -38,7 +38,6 @@ export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
       .on("drop", async function (ev) {
         $(this).removeClass(`thumbnail-drop-area-drag-over-${side}`);
         ev.stopPropagation();
-        $(this).removeClass(`thumbnail-drop-area-drag-over-${side}`);
         const s = await getService();
         const entry = albumEntryFromElement(e, elementPrefix);
         if (!entry) {
@@ -50,7 +49,7 @@ export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
         s.createJob(JOBNAMES.MOVE, {
           source: selection,
           destination: entry.album,
-          arguments: rank + (side === "left" ? 0 : 1),
+          argument: rank + (side === "left" ? 0 : 1),
         });
         return false;
       });
@@ -125,7 +124,6 @@ export async function makeThumbnailManager() {
       // Is there a thumbnail with that data ?
       const elem = elementFromEntry(e.payload.entry, elementPrefix);
       if (elem) {
-        debugger;
         thumbnailData(elem, e.payload.entry, e.payload.picasa);
       }
     }
@@ -180,7 +178,7 @@ export async function thumbnailData(
   } else {
     $(e).removeClass("selected");
   }
-  thumb.attr("src", thumbnailUrl(entry, "th-medium"));
+  thumb.attr("src", thumbnailUrl(entry, "th-medium", true));
   // Async get the thumbnail
   if (picasaData && picasaData.star) {
     $(".star", e).css("display", "");

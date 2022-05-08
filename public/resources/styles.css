@@ -126,8 +126,8 @@ text-overflow: ellipsis;white-space: nowrap;width: 100%;overflow: hidden;}
 .highlight-list {
   /* background-color: darkgray; */
   color: black;
-  border-left: 2px solid black;
-}
+  border-right: 11px solid black;
+background: lightgray;}
 
 html,
 body {
@@ -146,9 +146,9 @@ body {
 }
 
 .fill {
-  height: 100%;
+  top: 0;left: 0;height: 100%;
   width: 100%;
-  position: relative;
+  position: absolute;
   /* display: none; */
 }
 
@@ -421,7 +421,7 @@ body {
   top:0;
   position:absolute;
   /* z-index: -89999; */
-}
+transform: rotate(45deg);}
 .draw svg {
   width: 100%;
   height: 100%;
@@ -515,7 +515,7 @@ body {
   /* padding: 0 !important; */
 }
 .slider {
-  -webkit-appearance: none;
+  /* -webkit-appearance: none; */
   width: 100%;
   height: 15px;
   border-radius: 5px;
@@ -596,7 +596,7 @@ body {
   position: absolute;
   z-index: 0;
   /* width: 100%; */
-  /* width: 100%; */
+  width: 100%;
   background-color: rgba(0,0,0,0);
   border: none;
   max-width: 100%;
