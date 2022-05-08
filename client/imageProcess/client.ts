@@ -1,4 +1,4 @@
-import { fixedEncodeURIComponent } from "../../shared/lib/utils";
+import { fixedEncodeURIComponent, uuid } from "../../shared/lib/utils";
 import { AlbumEntry, ThumbnailSize } from "../../shared/types/types";
 import { getService, getServicePort } from "../rpc/connect";
 
@@ -69,14 +69,15 @@ export function encodeToURL(context: string, mime: string): string {
 
 export function thumbnailUrl(
   entry: AlbumEntry,
-  size: ThumbnailSize = "th-medium"
+  size: ThumbnailSize = "th-medium",
+  cacheBust?: boolean
 ): string {
   if (!entry) {
     return "";
   }
   return `http://localhost:${getServicePort()}/thumbnail/${fixedEncodeURIComponent(
     entry.album.key
-  )}/${fixedEncodeURIComponent(entry.name)}/${fixedEncodeURIComponent(size)}`;
+  )}/${fixedEncodeURIComponent(entry.name)}/${fixedEncodeURIComponent(size)}` + (cacheBust ? `?cacheBust=${uuid()}` : "");
 }
 
 export function assetUrl(entry: AlbumEntry): string {

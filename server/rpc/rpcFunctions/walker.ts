@@ -28,7 +28,6 @@ const walkQueue = new Queue(3);
 
 let keys: { [key: string]: number } = {};
 const notify = () => {
-  console.info("Broadcast", lastWalk.length);
   broadcast("updateAlbumList", {});
 };
 export function addAlbumToList(a: Album, iteration: number = 0): boolean {
@@ -123,66 +122,6 @@ export async function folders(filter: string): Promise<Album[]> {
   return lastWalk!;
 }
 
-export async function media(
-  album: Album,
-  filter: string
-): Promise<{ assets: AlbumEntry[] }> {
-  const items = await readdir(join(imagesRoot, album.key));
-  const picasa = await readPicasaIni(album);
-  const assets: AlbumEntry[] = [];
-
-  if (filter) {
-    return { assets: await fullTextSearch(album, filter) };
-  }
-  for (const i of items) {
-    if (!i.startsWith(".")) {
-      const entry = { album, name: i };
-      const ext = extname(i).toLowerCase().replace(".", "");
-      if (
-        filter &&
-        !(album.key + album.name + i + JSON.stringify(picasa[i]))
-          .toLowerCase()
-          .includes(filter)
-      ) {
-        continue;
-      }
-      if (pictureExtensions.includes(ext)) {
-        if (!picasa[i] || !picasa[i].dateTaken) {
-          const exif = await exifDataAndStats(entry);
-          if (exif.tags.DateTimeOriginal)
-            updatePicasaEntry(
-              entry,
-              "dateTaken",
-              exif.tags.DateTimeOriginal.toISOString()
-            );
-          else if (exif.stats) {
-            // Default to file creation time
-            updatePicasaEntry(
-              entry,
-              "dateTaken",
-              exif.stats.ctime.toISOString()
-            );
-          }
-        }
-        assets.push(entry);
-      }
-      if (videoExtensions.includes(ext)) {
-        assets.push(entry);
-      }
-    }
-  }
-  await sortAssetsByRank(assets, picasa);
-  return { assets };
-}
-
-async function sortAssetsByRank(entries: AlbumEntry[], picasa: PicasaFolderMeta) {
-  entries.sort((a, b) => {
-    if(picasa[a.name] && picasa[b.name] && picasa[a.name].rank !== undefined && picasa[b.name].rank !== undefined) {
-      return parseInt(picasa[a.name].rank!) - parseInt(picasa[b.name].rank!);
-    }
-    return 0;
-  });
-}
 
 async function walk(
   name: string,

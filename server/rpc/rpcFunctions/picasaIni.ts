@@ -1,23 +1,21 @@
-import { readFileSync } from "fs";
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import ini from "../../../shared/lib/ini";
-import { isPicture, isVideo, lock, sleep } from "../../../shared/lib/utils";
+import { lock, sleep } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
   PicasaFileMeta,
-  PicasaFolderMeta,
+  PicasaFolderMeta
 } from "../../../shared/types/types";
 import { imagesRoot, PICASA } from "../../utils/constants";
 import { broadcast } from "../../utils/socketList";
 import { rate } from "../../utils/stats";
-import { imageInfo } from "../imageOperations/info";
-import { exifData, exifDataAndStats } from "./exif";
+import { exifDataAndStats } from "./exif";
 import { folder } from "./fs";
-import { media } from "./walker";
 
 let picasaMap: Map<string, PicasaFolderMeta> = new Map();
+let lastAccessPicasaMap: Map<string, number> = new Map();
 let dirtyPicasaSet: Set<string> = new Set();
 let faces: Map<string, string> = new Map();
 export async function picasaInitCleaner() {
@@ -26,102 +24,56 @@ export async function picasaInitCleaner() {
     dirtyPicasaSet = new Set();
     i.forEach(async (key) => {
       rate("writePicasa");
-      console.info(`Writing file ${join(imagesRoot, key, PICASA)}`);
+      console.info(`\nWriting file ${join(imagesRoot, key, PICASA)}`);
       const out = ini.encode(picasaMap.get(key));
       await writeFile(join(imagesRoot, key, PICASA), out);
     });
-    picasaMap.clear();
+    picasaMap.forEach((value, key) => {
+      const lastAccess = lastAccessPicasaMap.get(key);
+      if(!lastAccess || (Date.now() - lastAccess) > 5000) {
+        picasaMap.delete(key);
+        lastAccessPicasaMap.delete(key);
+      }
+    });
     await sleep(10);
   }
 }
 
-export async function sortAlbum(album: Album, order:string): Promise<void> {
-  const i = await readPicasaIni(album);
-  const files = await folder(album.key);
-
-  switch(order) {
-    case "date":
-      {
-        const infos = await Promise.all(files.map(file => exifDataAndStats({album, name: file.name}).then(exif=>({exif, entry:{album, name: file.name}}))));
-        const sorted = infos.sort((e1, e2) => {
-          if(e1.exif.tags.DateTime && e2.exif.tags.DateTime)
-            return e1.exif.tags.DateTime - e2.exif.tags.DateTime
-          if(!e1.exif.tags.DateTime && !e2.exif.tags.DateTime)
-            return e1.exif.stats.ctime.getTime() - e2.exif.stats.ctime.getTime();
-            if(!e1.exif.tags.DateTime)
-              return e1.exif.stats.ctime.getTime() - e2.exif.tags.DateTime;
-              return e1.exif.tags.DateTime - e2.exif.stats.ctime.getTime();
-        });
-        sorted.forEach((sortedEntry, index) => {
-          updatePicasaEntry(sortedEntry.entry, "rank", index);
-        });
-      }
-      break;
-  }
-}
-
-export async function setRank(entry: AlbumEntry, rank:Number): Promise<void> {
-  const ini = await readPicasaIni(entry.album);
-
-  const sortedAndFiltered = Object.entries(ini).sort((a,b) => parseInt(a[1].rank||'0') - parseInt(b[1].rank||'0')).filter(v => v[0] != entry.name);
-  let rankIndex = 0;
-  for(const [name, i] of sortedAndFiltered) {
-    if(rankIndex === rank) {
-      rankIndex++;
-    }
-    updatePicasaEntry({album: entry.album, name}, "rank", rankIndex);
-    rankIndex++;
-  }
-  updatePicasaEntry(entry, "rank", rank);
-}
-
-async function assignRanks(album: Album, ini: PicasaFolderMeta): Promise<void> {
-  const filesInFolder = await media(album, '');
-  let rank = 0;
-  for(const f of filesInFolder.assets) {
-    const entry = {album, name: f.name};
-    if(isPicture(entry) || isVideo(entry)) {
-      if(!ini[f.name] || ini[f.name].rank === undefined) {
-        updatePicasaEntry(entry, "rank", rank++);
-      }
-      else if(ini[f.name].rank === undefined || parseInt(ini[f.name].rank!) <= rank) {
-        updatePicasaEntry(entry, "rank", rank++);
-      }
-    }
-  }
-}
-
 export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
-  // In the cache
-  const filename = join(imagesRoot, album.key, PICASA);
-  // TODO: check for file modified date
-  if (!picasaMap.has(album.key)) {
-    rate("readPicasa");
-    const l = await lock("readPicasaIni:" + album.key);
-    try {
-      const iniData = await readFile(filename, {
-        encoding: "utf8",
-      });
-      const i = ini.parse(iniData);
-      picasaMap.set(album.key, i);
-      if (i.Contacts2) {
-        // includes a map of faces/ids
-        for (const [id, name] of Object.entries(
-          i.Contacts2 as { [key: string]: string }
-        )) {
-          if (!faces.has(id)) {
-            faces.set(id, name);
-          }
+  lastAccessPicasaMap.set(album.key, Date.now());
+  if (picasaMap.has(album.key)) {
+    return picasaMap.get(album.key)!;
+  }
+  rate("readPicasa");
+  const l = await lock("readPicasaIni:" + album.key);
+  const now = Date.now();
+  console.info(`< read ${album.key}`);
+  try {
+    // In the cache
+    const filename = join(imagesRoot, album.key, PICASA);
+    const iniData = await readFile(filename, {
+      encoding: "utf8",
+    });
+    const i = ini.parse(iniData);
+    picasaMap.set(album.key, i);
+    if (i.Contacts2) {
+      // includes a map of faces/ids
+      for (const [id, name] of Object.entries(
+        i.Contacts2 as { [key: string]: string }
+      )) {
+        if (!faces.has(id)) {
+          faces.set(id, name);
         }
       }
-    } catch (e: any) {
-      console.warn(e);
-      picasaMap.set(album.key, {});
     }
-    l();
-    await assignRanks(album, picasaMap.get(album.key)!);
+  } catch (e: any) {
+    console.warn(e);
+    picasaMap.set(album.key, {});
   }
-  return picasaMap.get(album.key)!;
+  console.info(`> read ${album.key} - ${Date.now() - now}`);
+  l();
+  const res =  await readPicasaIni(album);
+  return res;
 }
 
 export async function fullTextSearch(
@@ -162,6 +114,7 @@ export async function fullTextSearch(
 
 
 function writePicasaIni(album: Album, data: PicasaFolderMeta): void {
+  lastAccessPicasaMap.set(album.key, Date.now());
   dirtyPicasaSet.add(album.key);
   picasaMap.set(album.key, data);
 }
@@ -200,8 +153,8 @@ export async function updatePicasaEntry(
       delete picasa[entry.name];
     }
   } else {
-    if (value) {
-      picasa[entry.name][field as keyof PicasaFileMeta] = value as never;
+    if (value !== undefined) {
+      picasa[entry.name][field as keyof PicasaFileMeta] = value.toString() as never;
     } else {
       delete picasa[entry.name][field as keyof PicasaFileMeta];
     }

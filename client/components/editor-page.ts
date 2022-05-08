@@ -3,6 +3,7 @@ import { AlbumEntry, AlbumEntryPicasa } from "../../shared/types/types";
 import { setupAutocolor } from "../features/autocolor";
 import { setupBlur } from "../features/blur";
 import { setupBrightness } from "../features/brightness";
+import { setupBW } from "../features/bw";
 import { setupContrast } from "../features/contrast";
 import { setupCrop } from "../features/crop";
 import { setupFlip } from "../features/flip";
@@ -12,6 +13,7 @@ import { setupPolaroid } from "../features/polaroid";
 import { setupRotate } from "../features/rotate";
 import { setupSepia } from "../features/sepia";
 import { setupSharpen } from "../features/sharpen";
+import { setupTilt } from "../features/tilt";
 import { buildAlbumEntryEx } from "../folder-utils";
 import { $, _$ } from "../lib/dom";
 import { toggleStar } from "../lib/handles";
@@ -95,7 +97,13 @@ export async function makeEditorPage(
     imageController,
     toolRegistrar
   );
+  setupTilt(
+    imageContainer.get()!,
+    imageController,
+    toolRegistrar
+  );
   setupAutocolor(imageController, toolRegistrar);
+  setupBW(imageController, toolRegistrar);
   setupContrast(imageController, toolRegistrar);
   setupGamma(imageController, toolRegistrar);
   setupBrightness(imageController, toolRegistrar);

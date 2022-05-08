@@ -7,9 +7,10 @@ import { ThumbnailSizeVals } from "../../../shared/types/types";
 import { isIdle } from "../../utils/busy";
 import { imagesRoot } from "../../utils/constants";
 import { imageInfo } from "../imageOperations/info";
+import { media } from "../rpcFunctions/media";
 import { readOrMakeThumbnail } from "../rpcFunctions/thumbnail";
 import { thumbnailPathFromEntryAndSize } from "../rpcFunctions/thumbnailCache";
-import { folders, media } from "../rpcFunctions/walker";
+import { folders } from "../rpcFunctions/walker";
 
 export async function buildThumbs() {
   let spinnerName = Date.now().toString();
@@ -28,12 +29,12 @@ export async function buildThumbs() {
       await sleep(1);
       const m = await media(album, "");
       for (const picture of m.assets) {
-        while (!isIdle()) {
+        /*while (!isIdle()) {
           spinner.update(spinnerName, {
             text: `Thumbnail generation paused: system busy`,
           });
           await sleep(1);
-        }
+        }*/
         spinner.update(spinnerName, {
           text: `Building thumbnails for album ${album.name}`,
         });

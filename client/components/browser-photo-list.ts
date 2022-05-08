@@ -594,14 +594,14 @@ export async function makePhotoList(
       });
       e.on("dragenter", (ev) => {
         e.addClass("album-drop-area");
-        //ev.preventDefault();
+        ev.preventDefault();
       });
       e.on("dragleave", (ev) => {
         e.removeClass("album-drop-area");
-        //ev.preventDefault();
+        ev.preventDefault();
       });
       e.on("dragover", (ev: any) => {
-        //ev.preventDefault();
+        ev.preventDefault();
       });
       e.on("click", async (ev: any) => {
         const album = albumFromElement(e, elementPrefix)!;

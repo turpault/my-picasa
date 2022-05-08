@@ -25,6 +25,7 @@ export async function exifDataAndStats(
 export async function exifData(entry: AlbumEntry): Promise<any> {
   const path = join(imagesRoot, entry.album.key, entry.name);
   if (isPicture(entry)) {
+    console.info(`Read exif from ${path}`);
     const tags = await exifr
       .parse(join(imagesRoot, entry.album.key, entry.name))
       .catch((e: any) => {

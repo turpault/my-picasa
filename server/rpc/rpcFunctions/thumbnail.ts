@@ -113,7 +113,6 @@ async function readOrMakeImageThumbnail(
   }
   throw new Error("bad locking");
 }
-
 // Queue last-in first out
 const thumbnailQueue = new Queue(4, { fifo: false });
 async function makeImageThumbnail(
@@ -127,6 +126,7 @@ async function makeImageThumbnail(
       entry.name
     } / ${transformations} / ${extraOperations ? extraOperations[0] : "no op"}`;
     console.time(label);
+    console.info(label);
     try {
       const context = await buildContext(entry);
       if (options) {
