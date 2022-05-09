@@ -4,10 +4,12 @@ import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
 import { $ } from "../lib/dom";
 import { isPicture } from "../../shared/lib/utils";
+import { ImagePanZoomController } from "../lib/panzoom";
 
 
 export function setupTilt(
   container: HTMLElement,
+  panZoomCtrl: ImagePanZoomController,
   imageCtrl: ImageController,
   toolRegistrar: ToolRegistrar
 ) {
@@ -25,10 +27,24 @@ export function setupTilt(
   </defs>
       
   <rect width="100%" height="100%" fill="url(#grid)" />
+  <rect id="tiltArea" x="0" y="0" width="0" height="0" style="stroke:red;stroke-width:5" />
 </svg>
+  <div class="tool-control slidecontainer">
+  <label>Rotation</label>
+  <input type="range" min="-180" max="180" value="0" class="rotation slider">
+  </div>
 </div>`);
 
   $(container).append(elem);
+  $(".rotation", container).on('change', ()=> {
+
+  });
+
+  function show() {
+    panZoomCtrl.recenter();
+    panZoomCtrl.enable(false);
+    elem.css({ display: "block" });
+  }
 
   toolRegistrar.registerTool(name, {
     filterName: "tilt",
@@ -39,8 +55,8 @@ export function setupTilt(
       return true;
     },
     activate: async function () {
+      show();
       imageCtrl.addOperation(this.build(0, 0));
-      elem.css({ display: "block" });
       return true;
     },
     build: function (angle: number, zoom: number) {
@@ -51,26 +67,19 @@ export function setupTilt(
       e.append(`<div>
         <div class="tool-control>
           <label>Show/Hide Grid</label>
-          <input type="checkbox" class
+          <input type="checkbox">
         </div>
         <div class="tool-control slidecontainer">
           <label>Rotation</label>
           <input type="range" min="-180" max="180" value="0" class="rotation slider">
         </div>
-        <div class="tool-control slidecontainer">
-          <label>Zoom</label>
-          <input type="range" min="0" max="10" value="0" class="zoom slider">
-        </div>
       </div>`);
       const update = () => {
-        const rotation = Math.PI*parseInt($(".rotation", e).val())/180;
-        const zoom = 10*parseInt($(".zoom", e).val());
-        imageCtrl.updateOperation(index, this.build(rotation, zoom));
+        const rotation = Math.PI*parseFloat($(".rotation", e).val())/180;
+        imageCtrl.updateOperation(index, this.build(rotation, 0));
       };
-      $(".rotation", e).val(180*parseInt(args[1] || "0")/Math.PI);
-      $(".zoom", e).val(parseInt(args[2] || "0")/10);
+      $(".rotation", e).val(180*parseFloat(args[1] || "0")/Math.PI);
       $(".rotation", e).on("change", update);
-      $(".zoom", e).on("change", update);
       return e.get()!;
     },
   });

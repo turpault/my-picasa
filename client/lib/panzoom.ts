@@ -80,6 +80,12 @@ export class ImagePanZoomController {
       (this.clientHeight - this.element.clientHeight) / 2
     );*/
   }
+  enable(enabled: boolean) {
+    if(enabled)
+      this.panner.enable()
+    else
+      this.panner.disable();
+  }
   zoom(zoom: number) {
     console.info(this.panner.getTransform());
     this.recenter();

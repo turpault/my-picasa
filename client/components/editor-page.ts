@@ -99,6 +99,7 @@ export async function makeEditorPage(
   );
   setupTilt(
     imageContainer.get()!,
+    zoomController,
     imageController,
     toolRegistrar
   );
