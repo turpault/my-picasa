@@ -12,15 +12,15 @@ import {
   thumbnailUrl,
   transform,
 } from "../imageProcess/client";
-import { $, preLoadImage } from "../lib/dom";
+import { $, preLoadImage, _$ } from "../lib/dom";
 import { ImagePanZoomController } from "../lib/panzoom";
 import { getService } from "../rpc/connect";
 import { ImageControllerEvent } from "../uiTypes";
 
 export class ImageController {
   constructor(
-    image: HTMLImageElement,
-    video: HTMLVideoElement,
+    image: _$,
+    video: _$,
     panZoomCtrl: ImagePanZoomController
   ) {
     this.image = image;
@@ -34,9 +34,8 @@ export class ImageController {
     this.q.event.on("drain", () => {});
     this.filters = "";
     this.caption = "";
-    const i = $(this.image);
-    i.on("load", () => {
-      this.image.style.display = "";
+    this.image.on("load", () => {
+      this.image.css("display", "");
       this.recenter();
 
       this.events.emit("idle", {});
@@ -45,7 +44,7 @@ export class ImageController {
         entry: this.entry,
       });
     });
-    const parent = i.parent();
+    const parent = this.image.parent();
     this.parent = parent.get();
     new ResizeObserver(() => this.recenter()).observe(this.parent);
   }
@@ -88,14 +87,14 @@ export class ImageController {
     this.filters = data.filters || "";
     this.caption = data.caption || "";
     if (isPicture(this.entry)) {
-      this.image.src = thumbnailUrl(this.entry, "th-large");
-      this.image.style.display = "";
-      this.video.style.display = "none";
+      this.image.attr("src", thumbnailUrl(this.entry, "th-large"));
+      this.image.css({display : ""});
+      this.video.css({display : "none"});
       this.context = await buildContext(this.entry);
     }
     if (isVideo(this.entry)) {
-      this.image.style.display = "none";
-      this.video.style.display = "";
+      this.image.css({display : "none"});
+      this.video.css({display : ""});
     }
 
     this.update();
@@ -112,17 +111,18 @@ export class ImageController {
 
         const data = await encodeToURL(this.liveContext, "image/jpeg");
         preLoadImage(data).then(() => {
-          this.image.src = data;
+          this.image.attr("src" , data);
           //this.image.style.display = "none";
         });
       }
     }
     if (isVideo(this.entry)) {
-      $(this.video)
+      this.video
         .empty()
         .append(`<source src="${assetUrl(this.entry)}" type="video/mp4">`);
-      this.video.load();
-      this.video.play();
+      const v = this.video.get() as HTMLVideoElement;
+      v.load();
+      v.play();
     }
   }
 
@@ -187,8 +187,8 @@ export class ImageController {
     this.zoomController!.recenter();
   }
 
-  private image: HTMLImageElement;
-  private video: HTMLVideoElement;
+  private image: _$;
+  private video: _$;
   private entry: AlbumEntryPicasa;
   private context: string;
   private liveContext: string;

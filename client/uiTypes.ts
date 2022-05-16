@@ -3,7 +3,7 @@ import { Emitter } from "./lib/event";
 import { Album, AlbumEntry } from "./types/types";
 
 type iconFct = (context: string) => Promise<boolean>;
-type activateFct = () => Promise<boolean>;
+type activateFct = (index: number, args?:string[]) => Promise<boolean>;
 type entryFct = (e: AlbumEntry) => boolean;
 
 export type Tool = {

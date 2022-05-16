@@ -79,96 +79,88 @@ export async function makeEditorPage(
 ): Promise<{ win: _$; tab: _$ }> {
   const win = $(editHTML);
 
-  const image = $(".edited-image", win).get()!;
-  const video = $(".edited-video", win).get()!;
+  const image = $(".edited-image", win);
+  const video = $(".edited-video", win);
   const imageContainer = $(".image-container", win);
-
-  const zoomController = new ImagePanZoomController(image as HTMLImageElement);
-  const imageController = new ImageController(
-    image as HTMLImageElement,
-    video as HTMLVideoElement,
-    zoomController
-  );
-  const toolRegistrar = makeTools($(".tools", win).get()!, imageController);
-  // Add all the activable features
-  setupCrop(
-    imageContainer.get()!,
-    zoomController,
-    imageController,
-    toolRegistrar
-  );
-  setupTilt(
-    imageContainer.get()!,
-    zoomController,
-    imageController,
-    toolRegistrar
-  );
-  setupAutocolor(imageController, toolRegistrar);
-  setupBW(imageController, toolRegistrar);
-  setupContrast(imageController, toolRegistrar);
-  setupGamma(imageController, toolRegistrar);
-  setupBrightness(imageController, toolRegistrar);
-  setupSepia(imageController, toolRegistrar);
-  setupPolaroid(imageController, toolRegistrar);
-  setupRotate(imageController, toolRegistrar);
-  setupFlip(imageController, toolRegistrar);
-  setupMirror(imageController, toolRegistrar);
-  setupBlur(imageController, toolRegistrar);
-  setupSharpen(imageController, toolRegistrar);
-
-  const entries = await buildAlbumEntryEx(initialList);
-
-  const activeManager = new ActiveImageManager(entries, entries[initialIndex]);
-  makeImageStrip($(".image-strip", win).get()!, activeManager);
-
-  imageController.init(activeManager.active() as AlbumEntryPicasa);
-
-  activeManager.event.on("changed", (event) => {
-    imageController.display(event as AlbumEntryPicasa);
-  });
-  imageController.events.on("idle", () => {
-    $(".busy-spinner", win).css("display", "none");
-  });
-  imageController.events.on("busy", () => {
-    $(".busy-spinner", win).css("display", "block");
-  });
-  const off = [
-    appEvents.on("keyDown", async ({ code, win }) => {
-      switch (code) {
-        case "Space":
-          const target = await toggleStar([activeManager.active()]);
-          animateStar(target);
-          break;
-        case "ArrowLeft":
-          activeManager.selectPrevious();
-          break;
-        case "ArrowRight":
-          activeManager.selectNext();
-          break;
-        case "Escape":
-          deleteTabWin(win);
-      }
-    }),
-    appEvents.on("tabDeleted", ({ win }) => {
-      if (win.get() === win.get()) {
-        off.forEach((o) => o());
-      }
-    }),
-  ];
-  const z = $(".zoom-ctrl", win);
-  z.on("input", () => {
-    zoomController.zoom(z.val() / 100);
-  });
-  zoomController.events.on("zoom", (zoom) => {
-    z.val(zoom.scale * 100);
-  });
-
-  activeManager.event.on("changed", (entry) => {
-    tabEvent.emit("rename", { name: entry.name });
-  });
 
   const tabEvent = buildEmitter<TabEvent>();
   const tab = makeGenericTab(tabEvent);
   tabEvent.emit("rename", { name: initialList[initialIndex].name });
+  appEvents.on("tabDisplayed", async (event) => {
+    if (event.win === win) {
+      const zoomController = new ImagePanZoomController(image);
+      const imageController = new ImageController(image, video, zoomController);
+      const toolRegistrar = makeTools($(".tools", win).get()!, imageController);
+      // Add all the activable features
+      setupCrop(imageContainer, zoomController, imageController, toolRegistrar);
+      setupTilt(imageContainer, zoomController, imageController, toolRegistrar);
+      setupAutocolor(imageController, toolRegistrar);
+      setupBW(imageController, toolRegistrar);
+      setupContrast(imageController, toolRegistrar);
+      setupGamma(imageController, toolRegistrar);
+      setupBrightness(imageController, toolRegistrar);
+      setupSepia(imageController, toolRegistrar);
+      setupPolaroid(imageController, toolRegistrar);
+      setupRotate(imageController, toolRegistrar);
+      setupFlip(imageController, toolRegistrar);
+      setupMirror(imageController, toolRegistrar);
+      setupBlur(imageController, toolRegistrar);
+      setupSharpen(imageController, toolRegistrar);
+
+      const entries = await buildAlbumEntryEx(initialList);
+
+      const activeManager = new ActiveImageManager(
+        entries,
+        entries[initialIndex]
+      );
+      makeImageStrip($(".image-strip", win).get()!, activeManager);
+
+      imageController.init(activeManager.active() as AlbumEntryPicasa);
+
+      activeManager.event.on("changed", (event) => {
+        imageController.display(event as AlbumEntryPicasa);
+      });
+      imageController.events.on("idle", () => {
+        $(".busy-spinner", win).css("display", "none");
+      });
+      imageController.events.on("busy", () => {
+        $(".busy-spinner", win).css("display", "block");
+      });
+      const off = [
+        appEvents.on("keyDown", async ({ code, win }) => {
+          switch (code) {
+            case "Space":
+              const target = await toggleStar([activeManager.active()]);
+              animateStar(target);
+              break;
+            case "ArrowLeft":
+              activeManager.selectPrevious();
+              break;
+            case "ArrowRight":
+              activeManager.selectNext();
+              break;
+            case "Escape":
+              deleteTabWin(win);
+          }
+        }),
+        appEvents.on("tabDeleted", ({ win }) => {
+          if (win.get() === win.get()) {
+            off.forEach((o) => o());
+          }
+        }),
+      ];
+      const z = $(".zoom-ctrl", win);
+      z.on("input", () => {
+        zoomController.zoom(z.val() / 100);
+      });
+      zoomController.events.on("zoom", (zoom) => {
+        z.val(zoom.scale * 100);
+      });
+
+      activeManager.event.on("changed", (entry) => {
+        tabEvent.emit("rename", { name: entry.name });
+      });
+    }
+  });
   return { win, tab };
 }

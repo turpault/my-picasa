@@ -47,7 +47,6 @@ export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
   rate("readPicasa");
   const l = await lock("readPicasaIni:" + album.key);
   const now = Date.now();
-  console.info(`< read ${album.key}`);
   try {
     // In the cache
     const filename = join(imagesRoot, album.key, PICASA);
@@ -70,7 +69,6 @@ export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
     console.warn(e);
     picasaMap.set(album.key, {});
   }
-  console.info(`> read ${album.key} - ${Date.now() - now}`);
   l();
   const res =  await readPicasaIni(album);
   return res;

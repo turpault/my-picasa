@@ -108,7 +108,7 @@ export function makeTab(win: _$, tab: _$) {
   tabElements.push({ tab, win });
   selectTab(tab);
 
-  emitter.emit("tabDisplayed", {tab, win});
+  emitter.emit("tabDisplayed", { tab, win });
 }
 
 export function activeTab() {

@@ -78,6 +78,7 @@
   "dependencies": {
     "@fastify/static": "^5.0.0",
     "@fastify/websocket": "^5.0.0",
+    "@panzoom/panzoom": "^4.4.4",
     "cli-spinners": "^2.6.1",
     "draggabilly": "^3.0.0",
     "exifr": "^7.1.3",

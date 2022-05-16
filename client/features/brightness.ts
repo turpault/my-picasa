@@ -31,12 +31,14 @@ export function setupBrightness(
       await transform(context, this.build(0.5, 0, 0, "#ffffff", 0));
       return true;
     },
-    activate: async function () {
-      imageController.addOperation(this.build(0, 0, 0, "#ffffff", 0));
+    activate: async function (index: number, args?: string[]) {
+      if (!args) {
+        imageController.addOperation(this.build(0, 0, 0, "#ffffff", 0));
+      }
       return true;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController);
+      const e = toolHeader(name, index, imageController, toolRegistrar);
       e.append(`<div><div class="tool-control slidecontainer">
           <label>Brightness</label>
           <input type="range" min="0" max="100" value="0" class="brightness slider">

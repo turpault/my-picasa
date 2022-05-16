@@ -50,10 +50,10 @@ export class _$ {
   }
   on<K extends keyof HTMLElementEventMap>(
     type: K,
-    listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
+    listener: (this: _$, ev: HTMLElementEventMap[K]) => any,
     options?: boolean | AddEventListenerOptions
   ): _$ {
-    this.get().addEventListener(type, listener, options);
+    this.get().addEventListener(type, (...args)=>{listener.call(this, ...args);}, options);
     return this;
   }
   get(): HTMLElement {
@@ -236,6 +236,12 @@ export class _$ {
   empty(): _$ {
     this.get().innerHTML = "";
     return this;
+  }
+  get width(): number {
+    return this.get().getBoundingClientRect().width;
+  }
+  get height(): number {
+    return this.get().getBoundingClientRect().height;
   }
 
   centerOnLoad(): _$ {

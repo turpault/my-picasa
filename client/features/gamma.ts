@@ -20,12 +20,14 @@ export function setupGamma(
       await transform(context, this.build(0.5));
       return true;
     },
-    activate: async function () {
-      imageController.addOperation(this.build(0));
+    activate: async function (index: number, args?: string[]) {
+      if (!args) {
+        imageController.addOperation(this.build(0));
+      }
       return true;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController);
+      const e = toolHeader(name, index, imageController, toolRegistrar);
       e.append(`<div>
       <div class="tool-control slidecontainer">
           <label>Gamma</label>

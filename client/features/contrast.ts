@@ -20,12 +20,14 @@ export function setupContrast(
       await transform(context, this.build(150));
       return true;
     },
-    activate: async function () {
-      imageController.addOperation(this.build(100));
+    activate: async function (index: number, args?: string[]) {
+      if (!args) {
+        imageController.addOperation(this.build(100));
+      }
       return true;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController);
+      const e = toolHeader(name, index, imageController, toolRegistrar);
       e.append(`<div>
       <div class="tool-control slidecontainer">
           <label>Constrast level</label>
