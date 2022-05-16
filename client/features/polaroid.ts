@@ -25,7 +25,7 @@ export function setupPolaroid(
       return true;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController);
+      const e = toolHeader(name, index, imageController, toolRegistrar);
 
       e.append(`<div><div class="tool-control slidecontainer">
           <label>Angle</label>

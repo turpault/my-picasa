@@ -20,12 +20,14 @@ export function setupBlur(
       await transform(context, this.build(10));
       return true;
     },
-    activate: async function () {
-      imageController.addOperation(this.build(10));
+    activate: async function (index: number, args?: string[]) {
+      if (!args) {
+        imageController.addOperation(this.build(10));
+      }
       return true;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController);
+      const e = toolHeader(name, index, imageController, toolRegistrar);
       e.append(`<div>
       <div class="tool-control slidecontainer">
           <label>Radius</label>

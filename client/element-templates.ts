@@ -1,4 +1,5 @@
 import { ImageController } from "./components/image-controller";
+import { ToolRegistrar } from "./components/tools";
 import { $, _$ } from "./lib/dom";
 import { Album } from "./types/types";
 
@@ -10,12 +11,14 @@ export function folder(f: Album): _$ {
 export function toolHeader(
   name: string,
   index: number,
-  imageCtrl: ImageController
+  imageCtrl: ImageController,
+  toolRegistrar: ToolRegistrar
 ) {
   const e = $(`<div class="tool-box">
   <div class="w3-bar">
     <a class="w3-bar-item inline">${name}</a>
     <a class="delete-tool inline w3-button w3-bar-item w3-right fa fa-times"></a>
+    <a class="edit-tool inline w3-button w3-bar-item w3-right fa fa-pen"></a>
     <a class="up-tool inline w3-button w3-bar-item w3-right fa fa-arrow-up"></a>
     <a class="down-tool inline w3-button w3-bar-item w3-right fa fa-arrow-down"></a>
   </div>
@@ -41,5 +44,9 @@ export function toolHeader(
       "display",
       ...((index > 0 ? ["", ""] : ["none", "important"]) as [string, string])
     );
+    $(".edit-tool", e)
+    .on("click", () => {
+      toolRegistrar.edit(index, name);
+    })
   return e;
 }

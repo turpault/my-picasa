@@ -20,12 +20,14 @@ export function setupRotate(
       await transform(context, this.build(1));
       return true;
     },
-    activate: async function () {
-      imageController.addOperation(this.build(1));
+    activate: async function (index: number, args?: string[]) {
+      if (!args) {
+        imageController.addOperation(this.build(1));
+      }
       return true;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController);
+      const e = toolHeader(name, index, imageController, toolRegistrar);
       e.append(`<div class="tool-control">
           <label>Type</label>
           <a class="rotate-left w3-button">90 ⟲</a>

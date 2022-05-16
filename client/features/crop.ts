@@ -1,9 +1,4 @@
-import {
-  Line,
-  LineSegment, Point,
-  Rectangle,
-  Vector
-} from "ts-2d-geometry";
+import { Line, LineSegment, Point, Rectangle, Vector } from "ts-2d-geometry";
 import { decodeRect, encodeRect, isPicture } from "../../shared/lib/utils";
 import { ImageController } from "../components/image-controller";
 import { ToolRegistrar } from "../components/tools";
@@ -12,9 +7,8 @@ import { transform } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
 import { ImagePanZoomController } from "../lib/panzoom";
 
-
 export function setupCrop(
-  container: HTMLElement,
+  container: _$,
   panZoomCtrl: ImagePanZoomController,
   imageCtrl: ImageController,
   toolRegistrar: ToolRegistrar
@@ -108,7 +102,7 @@ export function setupCrop(
       dir: new Vector(1, -1),
       css: (projected: Point) => {
         return {
-          right: `${container.clientWidth - projected.x}px`,
+          right: `${container.width - projected.x}px`,
           top: `${projected.y}px`,
         };
       },
@@ -127,8 +121,8 @@ export function setupCrop(
       dir: new Vector(-1, -1),
       css: (projected: Point) => {
         return {
-          right: `${container.clientWidth - projected.x}px`,
-          bottom: `${container.clientHeight - projected.y}px`,
+          right: `${container.width - projected.x}px`,
+          bottom: `${container.height - projected.y}px`,
         };
       },
     },
@@ -166,7 +160,7 @@ export function setupCrop(
       css: (projected: Point) => {
         return {
           left: `${projected.x}px`,
-          bottom: `${container.clientHeight - projected.y}px`,
+          bottom: `${container.height - projected.y}px`,
         };
       },
     },
@@ -179,40 +173,40 @@ export function setupCrop(
     );
   }
   let captured = false;
-  
-  let initialMousePosMove:Point;
+
+  let initialMousePosMove: Point;
   elem
-  .on("pointerdown", (ev) => {
-    if(ev.target !== elem.get()) {
-      return;
-    }
-    if(ev.buttons === 1) {
+    .on("pointerdown", (ev) => {
+      if (ev.target !== elem.get()) {
+        return;
+      }
+      if (ev.buttons === 1) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        elem.get().setPointerCapture(ev.pointerId);
+        captured = true;
+        initialMousePosMove = new Point(ev.clientX, ev.clientY);
+      }
+    })
+    .on("pointerup", (ev) => {
+      if (!captured) {
+        return;
+      }
+      captured = false;
+      elem.get().setPointerCapture(ev.pointerId);
       ev.preventDefault();
       ev.stopPropagation();
-      elem.get().setPointerCapture(ev.pointerId);
-      captured = true;
-      initialMousePosMove = new Point(ev.clientX, ev.clientY);
-    }
-  })
-  .on("pointerup", (ev) => {
-    if(!captured) {
-      return;
-    }
-    captured = false;
-    elem.get().setPointerCapture(ev.pointerId);
-    ev.preventDefault();
-    ev.stopPropagation();    
-  })
-  .on("pointermove", (ev) => {
-    if (!captured) {
-      return;
-    }
-    ev.preventDefault();
-    ev.stopPropagation();    
-    const currentPos = new Point(ev.clientX, ev.clientY);
-    const deltaX = Math.round(currentPos.x - initialMousePosMove.x);
-    const deltaY = Math.round(currentPos.y - initialMousePosMove.y);
-    if(ev.buttons === 1 && deltaX !== 0 || deltaY !== 0) {
+    })
+    .on("pointermove", (ev) => {
+      if (!captured) {
+        return;
+      }
+      ev.preventDefault();
+      ev.stopPropagation();
+      const currentPos = new Point(ev.clientX, ev.clientY);
+      const deltaX = Math.round(currentPos.x - initialMousePosMove.x);
+      const deltaY = Math.round(currentPos.y - initialMousePosMove.y);
+      if ((ev.buttons === 1 && deltaX !== 0) || deltaY !== 0) {
         elem.cssDelta("left", deltaX);
         elem.cssDelta("top", deltaY);
         elem.cssDelta("right", -deltaX);
@@ -243,7 +237,7 @@ export function setupCrop(
           ev.preventDefault();
           ev.stopPropagation();
           const current = br2rect(elem.get().getBoundingClientRect());
-          const parent = br2rect(container.getBoundingClientRect());
+          const parent = br2rect(container.get()!.getBoundingClientRect());
           if (ev.buttons === 1) {
             const opposite = c
               .opposite(current)
@@ -305,7 +299,7 @@ export function setupCrop(
 
   function validate() {
     const current = br2rect(elem.get().getBoundingClientRect());
-    const parent = br2rect(container.getBoundingClientRect());
+    const parent = br2rect(container.get()!.getBoundingClientRect());
     const r = new Rectangle(
       current.topLeft.translate(-parent.topLeft.x, -parent.topLeft.y),
       current.bottomRight.translate(-parent.topLeft.x, -parent.topLeft.y)
@@ -380,7 +374,7 @@ export function setupCrop(
   ok.on("click", () => {
     //e.style.display = "none";
     const current = br2rect(elem.get().getBoundingClientRect());
-    const parent = br2rect(container.getBoundingClientRect());
+    const parent = br2rect(container.get()!.getBoundingClientRect());
     const r = new Rectangle(
       current.topLeft.translate(-parent.topLeft.x, -parent.topLeft.y),
       current.bottomRight.translate(-parent.topLeft.x, -parent.topLeft.y)
@@ -400,7 +394,6 @@ export function setupCrop(
   cancel.on("click", () => {
     e.css({ display: "none" });
   });
-  resize();
 
   toolRegistrar.registerTool(name, {
     filterName: "crop64",
@@ -410,27 +403,25 @@ export function setupCrop(
       await transform(context, this.build(0.25, 0.25, 0.75, 0.75));
       return true;
     },
-    activate: async function () {
-      e.css({ display: "block" });
-      validate();
+    activate: async function (index: number, args?: string[]) {
+      if (!args) {
+        e.css({ display: "block" });
+        validate();
+      }
       return true;
     },
     build: function (left: number, top: number, right: number, bottom: number) {
       return `${this.filterName}=1,${encodeRect({ left, top, right, bottom })}`;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageCtrl);
-      const edit = $(`<a style="display="block">Edit</a>`).on(
-        "click",
-        () => {
-          e.css({ display: "block" });
-          const rect = decodeRect(args[2])!;
-          panZoomCtrl.recenter();
-          const img = panZoomCtrl.canvasBoundsOnScreen();
-          rect.left
-
-        }
-      );
+      const e = toolHeader(name, index, imageCtrl, toolRegistrar);
+      const edit = $(`<a style="display="block">Edit</a>`).on("click", () => {
+        e.css({ display: "block" });
+        const rect = decodeRect(args[2])!;
+        panZoomCtrl.recenter();
+        const img = panZoomCtrl.canvasBoundsOnScreen();
+        rect.left;
+      });
       e.append(edit);
       return e.get()!;
     },
