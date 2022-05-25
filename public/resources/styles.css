@@ -25,6 +25,12 @@
   background: darkkhaki;
 }
 
+.crontract-metadata {
+  right: 200px !important;
+}
+.expand-metadata {
+  right: 0 !important;
+}
 .thumbnail-drop-area-right {
   position: absolute;
   right: -10px;
@@ -170,7 +176,7 @@ background: #e3e3e3;}
   left:0;
   right:0;
   height:50px;
-}
+z-index: 10000;}
 .head {
   /* border-bottom: 0; */
   height: 65px;
@@ -385,7 +391,7 @@ overflow: hidden;background: #f3f3f3;}
   font-size: smaller;
 }
 .undo-menu {
-}
+z-index: 10000;}
 .open-in-finder {
   float: right;
   opacity: 0;
@@ -435,14 +441,19 @@ font-style: italic;font-weight: bold;
   width: auto;
   right: 0;
 }
+
 .metadatasidebar {
-  width: 220px;
-  right: 0;
-  display: none;
+  width: 200px;
+  right: -200px;
   overflow-y: scroll;
   background-color: lightgrey;
   padding-top: 38px;
+  top: 68px;
+  position:absolute;
+  bottom:0;
+  transition: right 1s ease-in;
 }
+
 .closemetasidebar {
   font-size: 22px;
   top: 0;
@@ -686,7 +697,7 @@ font-style: italic;font-weight: bold;
   top: 115px;
   right: 0;
   bottom: 0;
-}
+transition: right 1s ease-in;}
 
 .jobs {
   position: fixed;

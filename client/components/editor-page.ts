@@ -80,21 +80,21 @@ export async function makeEditorPage(
   initialList: AlbumEntry[],
   appEvents: AppEventSource
 ): Promise<{ win: _$; tab: _$, tool: _$ }> {
-  const win = $(editHTML);
+  const editor = $(editHTML);
 
-  const image = $(".edited-image", win);
-  const video = $(".edited-video", win);
-  const imageContainer = $(".image-container", win);
+  const image = $(".edited-image", editor);
+  const video = $(".edited-video", editor);
+  const imageContainer = $(".image-container", editor);
   const tool = $(toolsHTML);
 
   const tabEvent = buildEmitter<TabEvent>();
   const tab = makeGenericTab(tabEvent);
   tabEvent.emit("rename", { name: initialList[initialIndex].name });
   appEvents.on("tabDisplayed", async (event) => {
-    if (event.win === win) {
+    if (event.win.get() === editor.get()) {
       const zoomController = new ImagePanZoomController(image);
       const imageController = new ImageController(image, video, zoomController);
-      const toolRegistrar = makeTools(win, imageController);
+      const toolRegistrar = makeTools(editor, imageController);
       // Add all the activable features
       setupCrop(imageContainer, zoomController, imageController, toolRegistrar);
       setupTilt(imageContainer, zoomController, imageController, toolRegistrar);
@@ -125,30 +125,32 @@ export async function makeEditorPage(
         imageController.display(event as AlbumEntryPicasa);
       });
       imageController.events.on("idle", () => {
-        $(".busy-spinner", win).css("display", "none");
+        $(".busy-spinner", editor).css("display", "none");
       });
       imageController.events.on("busy", () => {
-        $(".busy-spinner", win).css("display", "block");
+        $(".busy-spinner", editor).css("display", "block");
       });
       const off = [
         appEvents.on("keyDown", async ({ code, win }) => {
-          switch (code) {
-            case "Space":
-              const target = await toggleStar([activeManager.active()]);
-              animateStar(target);
-              break;
-            case "ArrowLeft":
-              activeManager.selectPrevious();
-              break;
-            case "ArrowRight":
-              activeManager.selectNext();
-              break;
-            case "Escape":
-              deleteTabWin(win);
+          if(win.get() === editor.get()) {
+            switch (code) {
+              case "Space":
+                const target = await toggleStar([activeManager.active()]);
+                animateStar(target);
+                break;
+              case "ArrowLeft":
+                activeManager.selectPrevious();
+                break;
+              case "ArrowRight":
+                activeManager.selectNext();
+                break;
+              case "Escape":
+                deleteTabWin(win);
+            }
           }
         }),
         appEvents.on("tabDeleted", ({ win }) => {
-          if (win.get() === win.get()) {
+          if (win.get() === editor.get()) {
             off.forEach((o) => o());
           }
         }),
@@ -166,5 +168,5 @@ export async function makeEditorPage(
       });
     }
   });
-  return { win, tab, tool };
+  return { win: editor, tab, tool };
 }

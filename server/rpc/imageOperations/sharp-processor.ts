@@ -9,8 +9,7 @@ import {
   toHex2,
   uuid,
 } from "../../../shared/lib/utils";
-import {
-  rotateRectangle } from "../../../shared/lib/geometry";
+import { rotateRectangle } from "../../../shared/lib/geometry";
 import { AlbumEntry, PicasaFileMeta } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { promisify } from "util";
@@ -147,7 +146,12 @@ export async function transform(
           const { info } = await j.raw().toBuffer({ resolveWithObject: true });
           const w = info.width!;
           const h = info.height!;
-          if(h >0 && w >0 && (crop.right - crop.left) >0 && (crop.bottom - crop.top) > 0) {
+          if (
+            h > 0 &&
+            w > 0 &&
+            crop.right - crop.left > 0 &&
+            crop.bottom - crop.top > 0
+          ) {
             j = j.extract({
               left: Math.floor(crop.left * w),
               top: Math.floor(crop.top * h),
@@ -165,8 +169,8 @@ export async function transform(
           await commit(context);
           j = getContext(context);
           const amount = parseFloat(args[1]);
-          j = j.gamma(1 + amount);
-          //j = j.modulate({ brightness: amount });
+          //j = j.gamma(2.2, 1 + amount);
+          j = j.modulate({ brightness: amount });
         }
         break;
       case "blur":
@@ -182,7 +186,7 @@ export async function transform(
 
       case "tilt":
         const angleDeg = 10 * parseFloat(args[1]); // in degrees
-        const angle = Math.PI * angleDeg / 180;
+        const angle = (Math.PI * angleDeg) / 180;
         let scale = parseInt(args[2]);
         j = await commitContext(j);
         const metadata = await j.metadata();
@@ -193,18 +197,16 @@ export async function transform(
           scale = newRect.ratio;
         }
 
-
-
         j = j.rotate(-angleDeg);
         j = await commitContext(j);
 
-        const rw = Math.floor(newRect.w*scale);
-        const rh = Math.floor(newRect.h*scale);
+        const rw = Math.floor(newRect.w * scale);
+        const rh = Math.floor(newRect.h * scale);
         j = j.resize(rw, rh);
         j = await commitContext(j);
 
-        const rl = Math.floor((rw-w)/2);
-        const rt = Math.floor((rh-h)/2);
+        const rl = Math.floor((rw - w) / 2);
+        const rt = Math.floor((rh - h) / 2);
         /*const layers2: sharp.OverlayOptions[] = [
           {
             input: {
@@ -325,7 +327,35 @@ export async function transform(
 
         break;
       case "autocolor":
-        j = j.normalize();
+        // Get the min/max values
+        const levels = (min:number, max:number) => {
+          const scale = 255 / (max - min);
+          return [scale, -min * scale];
+        };
+
+        const blurred = await j.clone().blur(5).toBuffer();
+        const stats = await sharp(blurred).stats();
+
+        // For each channel, get the min/max values
+        {
+          let copy = j.clone();
+          const buffers = await Promise.all(
+            [0, 1, 2].map((v) => 
+              copy
+                .extractChannel(v)
+                .toColorspace("b-w")
+                .linear(...levels(stats.channels[v].min, stats.channels[v].max))
+                .toBuffer()
+            )
+          );
+          const before = await j.stats();
+          const meta = await j.metadata();
+          j = sharp(meta).joinChannel(buffers);
+          const after = await j.stats();
+
+          console.info(before, after);
+        }
+
         break;
       case "contrast":
         let contrast = parseFloat(args[1] || "0") / 100;

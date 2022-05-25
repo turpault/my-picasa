@@ -1,4 +1,3 @@
-import { triggerAsyncId } from "async_hooks";
 
 export type EventType = string | symbol;
 

@@ -32,6 +32,7 @@ export function socketInit(httpServer: FastifyInstance) {
     console.info("[socket]: Client has connected...");
     const socket = socketAdaptorInit(connection.socket);
     addSocket(socket);
+    socket.onDisconnect(()=>removeSocket(socket));
 
     RPCInit(socket, {});
 

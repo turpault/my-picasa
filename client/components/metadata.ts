@@ -23,13 +23,12 @@ export function makeMetadata(
   let mapLeaflet: any;
   let marker: any;
 
-  const close = $(".closemetasidebar");
-  close.on("click", () => {
-    metasidebar.css("display", "none");
-  });
   const open = $(".openmetasidebar");
+  let openedMeta = false;
   open.on("click", () => {
-    metasidebar.css("display", "block");
+    openedMeta=!openedMeta;
+    $(".workarea").addRemoveClass('crontract-metadata', openedMeta)
+    metasidebar.addRemoveClass('expand-metadata', openedMeta)
     if (mapLeaflet) {
       mapLeaflet.invalidateSize();
     }

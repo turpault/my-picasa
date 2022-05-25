@@ -17,7 +17,7 @@ export function setupGamma(
       return `${this.filterName}=1,${amount}`;
     },
     icon: async function (context) {
-      await transform(context, this.build(0.5));
+      await transform(context, this.build(2));
       return true;
     },
     activate: async function (index: number, args?: string[]) {
