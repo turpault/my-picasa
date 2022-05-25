@@ -11,7 +11,8 @@ import { RPCInit } from "./rpc/index";
 import { asset } from "./rpc/routes/asset";
 import { thumbnail } from "./rpc/routes/thumbnail";
 import { picasaInitCleaner } from "./rpc/rpcFunctions/picasaIni";
-import { updateLastWalkLoop } from "./rpc/rpcFunctions/walker";
+import { startAlbumUpdateNotification, updateLastWalkLoop } from "./rpc/rpcFunctions/walker";
+import { startSentry } from "./sentry";
 import { busy, measureCPULoad } from "./utils/busy";
 import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
@@ -105,11 +106,13 @@ export async function start(p?: number) {
     if (!p) {
       p = getPort();
     }
+    startSentry();
     buildThumbs();
     updateLastWalkLoop();
     measureCPULoad();
     picasaInitCleaner();
     startLockMonitor();
+    startAlbumUpdateNotification();
     const server: FastifyInstance = Fastify({
       logger: true,
       maxParamLength: 32000,

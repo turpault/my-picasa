@@ -5,6 +5,7 @@ import { getService } from "../rpc/connect";
 import { AppEventSource } from "../uiTypes";
 
 const genericTab = `<a class="w3-button tab-button"><span class="label"></span><span class="remove-tab">&times;</span></a>`;
+const genericTools = `<a class="w3-button tab-button">Close</a>`;
 
 export type TabEvent = {
   rename: { name: string };
@@ -26,7 +27,7 @@ export function makeGenericTab(tabEvent: TabEventEmitter): _$ {
 }
 
 let tabs: _$;
-let tabElements: { tab: _$; win: _$ }[] = [];
+let tabElements: { tab: _$; win: _$, tool: _$ }[] = [];
 let emitter: AppEventSource;
 export async function makeTabs(_emitter: AppEventSource) {
   emitter = _emitter;
@@ -63,12 +64,14 @@ export function selectTab(_tab: _$) {
   }
   for (const e of tabElements) {
     e.tab.removeClass("highlight");
-    e.win.css("opacity", "0");
+    e.win.css("z-index", 0);
+    e.tool.css("z-index", 0);
   }
   const last = tabElements[tabElements.length - 1];
 
   last.tab.addClass("highlight");
-  last.win.css("opacity", "1");
+  last.win.css("z-index", 1);
+  last.tool.css("z-index", 1);
   emitter.emit("tabChanged", last);
 }
 
@@ -78,6 +81,7 @@ export function deleteTab(_tab: _$) {
       emitter.emit("tabDeleted", e);
       e.tab.remove();
       e.win.remove();
+      e.tool.remove();
       tabElements.splice(tabElements.indexOf(e), 1);
     }
   }
@@ -98,14 +102,18 @@ export function deleteTabWin(_win: _$) {
   selectTab(last.tab);
 }
 
-export function makeTab(win: _$, tab: _$) {
+export function makeTab(win: _$, tab: _$, tool?: _$) {
+  if(tool === undefined) {
+    tool = $(genericTools);
+  }
   tabs.append(tab);
   tab.on("click", () => {
     selectTab(tab);
   });
 
   $(".workarea").append(win);
-  tabElements.push({ tab, win });
+  $(".head").append(tool);
+  tabElements.push({ tab, win, tool });
   selectTab(tab);
 
   emitter.emit("tabDisplayed", { tab, win });

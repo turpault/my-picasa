@@ -33,6 +33,7 @@ export class ImageController {
     this.q = new Queue(1);
     this.q.event.on("drain", () => {});
     this.filters = "";
+    this.mute = -1;
     this.caption = "";
     this.image.on("load", () => {
       this.image.css("display", "");
@@ -44,16 +45,25 @@ export class ImageController {
         entry: this.entry,
       });
     });
-    const parent = this.image.parent();
-    this.parent = parent.get();
-    new ResizeObserver(() => this.recenter()).observe(this.parent);
+    this.parent = this.image.parent()!;
+    new ResizeObserver(() => this.recenter()).observe(this.parent.get()!);
   }
 
   operationList(): string[] {
     return (this.filters || "").split(";").filter((v) => v);
   }
   operations(): string {
+    if(this.mute !== -1) {
+      return this.operationList().slice(0, this.mute).join(';');
+    }
     return this.filters || "";
+  }
+  muteAt(indexToMute:number) {
+    this.mute = indexToMute;
+    this.update();
+  }
+  muted() {
+    return this.mute;
   }
 
   async rebuildContext(): Promise<boolean> {
@@ -113,6 +123,8 @@ export class ImageController {
         preLoadImage(data).then(() => {
           this.image.attr("src" , data);
           //this.image.style.display = "none";
+        }).catch(e => {
+          // Might fails as it's quite asynchronous
         });
       }
     }
@@ -181,8 +193,8 @@ export class ImageController {
   }
 
   recenter() {
-    const h = this.parent.clientHeight;
-    const w = this.parent.clientWidth;
+    const h = this.parent.height;
+    const w = this.parent.width;
     this.zoomController!.setClientSize(h, w);
     this.zoomController!.recenter();
   }
@@ -196,6 +208,7 @@ export class ImageController {
   private caption: string;
   private zoomController?: ImagePanZoomController;
   private q: Queue;
-  private parent: HTMLElement;
+  private parent: _$;
+  private mute:number;
   events: Emitter<ImageControllerEvent>;
 }

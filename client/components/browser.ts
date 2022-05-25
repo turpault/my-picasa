@@ -18,14 +18,14 @@ const tabHtml = `<div class="tab-button browser-tab">
 
 export async function makeBrowser(
   emitter: AppEventSource
-): Promise<{ win: _$; tab: _$ }> {
+): Promise<{ win: _$; tab: _$, tool: _$ }> {
   const win = $(html);
 
   const albumEmitter = buildEmitter<AlbumListEvent>();
 
   win.append(await makeAlbumList(emitter, albumEmitter));
   win.append(await makePhotoList(emitter, albumEmitter));
-  win.append(await makeButtons(emitter, albumEmitter));
+  const tool = await makeButtons(emitter, albumEmitter);
 
   const tab = $(tabHtml);
   // Status change events
@@ -44,5 +44,5 @@ export async function makeBrowser(
   });
 
   albumEmitter.emit("ready", {});
-  return { win, tab };
+  return { win, tab, tool };
 }

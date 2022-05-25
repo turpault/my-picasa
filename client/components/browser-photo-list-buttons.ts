@@ -82,10 +82,10 @@ export async function makeButtons(
         question("New album name", "Please type the new album name").then(
           (newAlbum) => {
             if (newAlbum) {
-              s.makeAlbum(newAlbum).then((a: Album) => {
+              s.makeAlbum(newAlbum).then((album: Album) => {
                 s.createJob(JOBNAMES.MOVE, {
                   source: SelectionManager.get().selected(),
-                  destination: a,
+                  destination: {album},
                 });
                 SelectionManager.get().clear();
               });

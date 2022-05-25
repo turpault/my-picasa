@@ -62,15 +62,15 @@ export async function getAlbumInfo(
   // Gettings contents might change the picasa data
   const contents = await albumContents(album, filter);
   const picasa = await readPicasaIni(album);
-  let assets = contents.assets;
+  let entries = contents.entries;
 
   if (settings.filters.star) {
-    assets = assets.filter((v) => {
+    entries = entries.filter((v) => {
       return !!picasa[v.name].star;
     });
   }
   if (settings.filters.video) {
-    assets = assets.filter((v) =>
+    entries = entries.filter((v) =>
       videoExtensions.find((e) => v.name.toLowerCase().endsWith(e))
     );
   }
@@ -95,7 +95,7 @@ export async function getAlbumInfo(
     assets.reverse();
   }
   */
-  return { picasa, assets };
+  return { picasa, assets: entries };
 }
 
 export async function getFileExifData(entry: AlbumEntry): Promise<any> {

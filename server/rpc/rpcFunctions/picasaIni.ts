@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "fs/promises";
+import { readFile, stat, writeFile } from "fs/promises";
 import { join } from "path";
 import ini from "../../../shared/lib/ini";
 import { lock, sleep } from "../../../shared/lib/utils";
@@ -46,7 +46,16 @@ export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
   }
   rate("readPicasa");
   const l = await lock("readPicasaIni:" + album.key);
-  const now = Date.now();
+  if (picasaMap.has(album.key)) {
+    l();
+    return picasaMap.get(album.key)!;
+  }
+  try {
+    await stat(join(imagesRoot, album.key));
+  } catch(e) {
+    l();
+    throw e;
+  }
   try {
     // In the cache
     const filename = join(imagesRoot, album.key, PICASA);
@@ -66,7 +75,6 @@ export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
       }
     }
   } catch (e: any) {
-    console.warn(e);
     picasaMap.set(album.key, {});
   }
   l();

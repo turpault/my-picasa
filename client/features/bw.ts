@@ -27,7 +27,7 @@ export function setupBW(
     },
     buildUI: function (index: number, args: string[]) {
       const e = toolHeader(name, index, imageController, toolRegistrar);
-      return e.get()!;
+      return {ui: e.get()!};
     },
   });
 }

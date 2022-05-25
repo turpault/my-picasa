@@ -124,12 +124,16 @@ export class _$ {
   }
   css(name: string): string;
   css(name: object): _$;
-  css(name: string, value: string): _$;
-  css(name: string, value: string, priority: string | undefined): _$;
-  css(name: string | object, value?: string, priority?: string): _$ | string {
+  css(name: string, value: any): _$;
+  css(name: string, value: any, priority: string | undefined): _$;
+  css(name: string | object, value?: any, priority?: string): _$ | string {
     if (value !== undefined) {
       if (typeof name == "string") {
-        this.get().style.setProperty(name, value as string, priority);
+        if(Array.isArray(value)) {
+          return this.css(name, ...(value as [value: any, priority?: string]));
+        } else {
+          this.get().style.setProperty(name, value as string, priority);
+        }
       } else {
         throw new Error("Can only set single name/values");
       }
@@ -150,6 +154,10 @@ export class _$ {
   }
   append(e: HTMLElement | _$ | string): _$ {
     this.get().appendChild(new _$(e).get());
+    return this;
+  }
+  insertBefore(e: HTMLElement | _$ | string, before: HTMLElement | _$): _$ {
+    this.get().insertBefore(new _$(e).get(), new _$(before).get());
     return this;
   }
   addClass(className: string): _$ {
@@ -204,16 +212,16 @@ export class _$ {
 
   isParent(e: HTMLElement | _$) {
     const _e = $(e);
-    let p: _$ | undefined = this;
-    while ((p = p.parentElement())) {
+    let p: _$ | null = this;
+    while ((p = p.parent())) {
       if (p.get() === _e.get()) {
         return true;
       }
     }
     return false;
   }
-  parentElement(): _$ | undefined {
-    return this.get().parentElement ? $(this.get().parentElement!) : undefined;
+  parentElement(): HTMLElement | undefined {
+    return this.get().parentElement ? this.get().parentElement! : undefined;
   }
 
   removeClass(className: string): _$ {
@@ -226,8 +234,8 @@ export class _$ {
 
     return this;
   }
-  parent(): _$ {
-    return new _$(this.get().parentElement!);
+  parent(): _$ | null {
+    return this.get().parentElement && new _$(this.get().parentElement!) ;
   }
   visible(): boolean {
     return this.get().offsetParent !== null;
@@ -237,11 +245,17 @@ export class _$ {
     this.get().innerHTML = "";
     return this;
   }
+  get left(): number {
+    return this.get().offsetLeft;
+  }
+  get top(): number {
+    return this.get().offsetTop;
+  }
   get width(): number {
-    return this.get().getBoundingClientRect().width;
+    return this.get().clientWidth;
   }
   get height(): number {
-    return this.get().getBoundingClientRect().height;
+    return this.get().clientHeight;
   }
 
   centerOnLoad(): _$ {
@@ -350,7 +364,7 @@ export function albumEntryIndexInList(
 // Name HTML element from/to Album
 export function elementFromAlbum(album: Album, qualifier: string) {
   const id = idFromAlbum(album, qualifier);
-  return document.getElementById(id);
+  return $(id);
 }
 
 export function albumFromElement(e: _$, qualifier: string): Album | null {

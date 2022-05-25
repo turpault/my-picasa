@@ -1,50 +1,38 @@
 import { Stats } from "fs";
-import { readdir, stat } from "fs/promises";
-import { extname, join, relative } from "path";
+import { stat } from "fs/promises";
+import { join, relative } from "path";
 import { Queue } from "../../../shared/lib/queue";
 import {
-  debounce,
-  isMediaUrl,
-  sleep,
+  alphaSorter, sleep,
   sortByKey
 } from "../../../shared/lib/utils";
 import {
-  Album,
-  AlbumEntry,
-  PicasaFolderMeta,
-  pictureExtensions,
-  videoExtensions
+  Album, AlbumChangeEvent, AlbumWithCount
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { broadcast } from "../../utils/socketList";
-import { exifDataAndStats } from "./exif";
+import { assetsInAlbum, mediaCount } from "./media";
 import {
-  fullTextSearch,
-  readPicasaIni, updatePicasaEntry
+  fullTextSearch
 } from "./picasaIni";
 
-let lastWalk: Album[] = [];
+let lastWalk: AlbumWithCount[] = [];
 const walkQueue = new Queue(3);
 
-let keys: { [key: string]: number } = {};
-const notify = () => {
-  broadcast("updateAlbumList", {});
-};
-export function addAlbumToList(a: Album, iteration: number = 0): boolean {
-  if (!keys[a.key]) {
-    keys[a.key] = iteration;
-    lastWalk.push(a);
-    debounce(notify, 1000);
 
-    return true;
-  }
-  keys[a.key] = iteration;
-  return false;
+const notificationQueue: AlbumChangeEvent[] = [];
+
+export async function monitorAlbums(): Promise<{}> {
+  await broadcast('albums', lastWalk);
+  return {};
 }
 
-export function renameAlbum(a: Album, newName: string) {
-  for (const alb of lastWalk) {
-    if (alb.key == a.key) {
+export async function startAlbumUpdateNotification() {
+  while(true) {
+    await sleep(1);
+    if(notificationQueue.length > 0) {
+      broadcast('albumEvent', notificationQueue);
+      notificationQueue.splice(0,notificationQueue.length);
     }
   }
 }
@@ -55,57 +43,80 @@ export async function updateLastWalkLoop() {
     iteration++;
     console.info(`Starting scan iteration ${iteration}`);
     console.time("Folder scan");
-    let updates = 0;
-    walk("", imagesRoot, async (a: Album, entries: AlbumEntry[]) => {
-      if (entries.length > 0) {
-        addAlbumToList(a, iteration);
-      }
+    const old = [...lastWalk];
+    walk("", imagesRoot, async (a: Album) => {
+      addOrRefreshOrDeleteAlbum(a);
     });
     await walkQueue.drain();
-    sortByKey(lastWalk, "name");
-    lastWalk.reverse();
-
-    for (const k in keys) {
-      if (keys[k] !== iteration && keys[k] != 0) {
-        delete keys[k];
-        // Remove from lastWalk
-        const idx = lastWalk.findIndex((a) => a.key === k);
-        lastWalk.splice(idx, 1);
-        updates++;
+    sortByKey(lastWalk, "key");
+    const deletedAlbums: AlbumWithCount[] = [];
+    let startIndex = 0;
+    for(const oldAlbum of old) {
+      if(lastWalk.length < startIndex || lastWalk[startIndex].key > oldAlbum.key) {
+        // could not be found, it has been removed
+        deletedAlbums.push(oldAlbum);
+        continue;
       }
+      if(lastWalk[startIndex].key === oldAlbum.key) {
+        // found it, do nothing
+        startIndex++;
+        continue;
+      }
+      startIndex++;
+    }
+    for(const oldAlbum of deletedAlbums) {
+      addOrRefreshOrDeleteAlbum(oldAlbum);
     }
 
-    if (updates) {
-      broadcast("updateAlbumList", {});
-    }
     console.timeEnd("Folder scan");
-
     await sleep(60 * 3); // Wait 3 minutes
   }
 }
 
 export async function refreshAlbums(albums: Album[]) {
   await Promise.all(albums.map(addOrRefreshOrDeleteAlbum));
-  broadcast("albumChanged", albums);
 }
 
+const ALLOW_EMPTY_ALBUM_CREATED_SINCE=1000 * 60 * 60; // one hour
 async function albumExists(album: Album): Promise<boolean> {
   const p = join(imagesRoot, album.key);
-  return await stat(p)
-    .then(() => true)
-    .catch(() => false);
+  const s = await stat(p).catch(() => false)
+  if(s === false) { 
+    return false;
+  }
+  if(Date.now() - (s as Stats).ctime.getTime() < ALLOW_EMPTY_ALBUM_CREATED_SINCE) {
+    return true;
+  }
+  
+  const count = (await mediaCount(album)).count;
+  if(count !== 0) {
+    return true;      
+  }
+  return false;
 }
 
-async function addOrRefreshOrDeleteAlbum(album: Album) {
+
+export async function addOrRefreshOrDeleteAlbum(album: Album) {
   if (lastWalk) {
-    const idx = lastWalk.findIndex((f) => f.key == album.key);
     if (!(await albumExists(album))) {
+      const idx = lastWalk.findIndex((f) => f.key == album.key);
       if (idx >= 0) {
-        lastWalk.splice(idx, 1);
+        const data = lastWalk.splice(idx, 1)[0];      
+        notificationQueue.push({type: "albumDeleted", data});
       }
-    } else if (idx === -1) {
-      lastWalk.push(album);
-      sortByKey(lastWalk, "name");
+    } else {
+      const count = (await mediaCount(album)).count;
+      const idx = lastWalk.findIndex((f) => f.key == album.key);
+      if(idx === -1) {
+        notificationQueue.push({type: "albumAdded", data: {...album, count}});
+        lastWalk.push({...album, count});
+        sortByKey(lastWalk, "key");
+      } else {
+        if(count !== lastWalk[idx].count) {
+          lastWalk[idx].count = count;
+          notificationQueue.push({type: "albumCountUpdated", data:{...album, count}});
+        }
+      }
     }
   }
 }
@@ -126,41 +137,17 @@ export async function folders(filter: string): Promise<Album[]> {
 async function walk(
   name: string,
   path: string,
-  cb: (a: Album, entries: AlbumEntry[]) => Promise<void>,
-  mustHaveAssets: boolean = true
+  cb: (a: Album) => Promise<void>
 ): Promise<void> {
-  const items = (await readdir(path)).filter((n) => !n.startsWith("."));
+  const album = { name, key: relative(imagesRoot, path) };
+  const m = await assetsInAlbum(album);
 
-  const hasAssets = items.filter((i) => isMediaUrl(i));
-  const stats = await Promise.allSettled(
-    items.map((item) => stat(join(path, item)))
-  );
-
-  const folders: { name: string; key: string }[] = [];
-  let idx = 0;
-  for (const item of items) {
-    if (
-      stats[idx].status === "fulfilled" &&
-      ((stats[idx] as any).value as Stats).isDirectory()
-    ) {
-      folders.push({ name: item, key: join(path, item) });
-    }
-    idx++;
+  // depth down first
+  for(const child of m.folders.sort(alphaSorter(false)).reverse()) {
+    walkQueue.add<Album[]>(() => walk(child, join(path, child), cb));      
   }
-  sortByKey(folders, "name");
-  folders
-    .reverse()
-    .forEach((folder) =>
-      walkQueue.add<Album[]>(() =>
-        walk(folder.name, folder.key, cb, mustHaveAssets)
-      )
-    );
 
-  if (hasAssets || !mustHaveAssets) {
-    const album = { name, key: relative(imagesRoot, path) };
-    await cb(
-      album,
-      hasAssets.map((name) => ({ album, name }))
-    );
+  if(m.entries.length > 0) {
+    cb(album);
   }
 }

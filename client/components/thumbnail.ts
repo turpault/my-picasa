@@ -1,12 +1,13 @@
-import { rectanglesIntersect, uuid } from "../../shared/lib/utils";
-import { AlbumEntry, JOBNAMES, PicasaFileMeta } from "../../shared/types/types";
+import { Rectangle, Point } from "ts-2d-geometry";
+import { rectanglesIntersect } from "../../shared/lib/utils";
+import { Album, AlbumEntry, PicasaFileMeta } from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
 import {
   $,
   albumEntryFromElement,
   elementFromEntry,
   setIdForEntry,
-  _$,
+  _$
 } from "../lib/dom";
 import { getSettings, getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
@@ -19,11 +20,11 @@ const imagePrefix = "thumbimg:";
 export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
   const e = $(
     `<div draggable="true" class="thumbnail thumbnail-size">
-    <span class="thumbnail-drop-area-left"></span><span class="thumbnail-drop-area-right"></span>
-    <img class="th" loading="lazy"> <img class="star" src="resources/images/star.svg">
+    <!--<span class="thumbnail-drop-area-left"></span><span class="thumbnail-drop-area-right"></span>-->
+    <img class="th browser-thumbnail" loading="lazy"> <img class="star" src="resources/images/star.svg">
     </div>`
   );
-  for (const side of ["left", "right"]) {
+  /*for (const side of ["left", "right"]) {
     $(`.thumbnail-drop-area-${side}`, e)
       .on("dragenter", function (ev) {
         $(this).addClass(`thumbnail-drop-area-drag-over-${side}`);
@@ -53,7 +54,7 @@ export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
         });
         return false;
       });
-  }
+  }*/
   e.on("click", (ev: any) => {
     const entry = albumEntryFromElement(e, elementPrefix);
     if (entry) {
@@ -193,7 +194,10 @@ export function selectThumbnailsInRect(
   p2: { x: number; y: number }
 ) {
   var rect = container.clientRect();
-  for (const e of container.all(".thumbnail img")) {
+  for (const e of container.all(".browser-thumbnail")) {
+    if(e.get()!.offsetParent === null) {
+      continue; // Element is not displayed
+    }
     const r = e.clientRect();
     r.x -= rect.x;
     r.y -= rect.y;
@@ -211,6 +215,33 @@ export function selectThumbnailsInRect(
     }
   }
 }
+export function thumbnailsAround(  container: _$,
+  p: Point,
+  album?:Album):AlbumEntry[] {
+    function distanceTo(p: Point, r:Rectangle) {
+      const midPoint = new Point((r.bottomRight.x + r.topLeft.x)/2,(r.bottomRight.y + r.topLeft.y)/2);
+      return p.distanceSquare(midPoint);
+    }
+    //var rect = container.clientRect();
+    //let candidate:AlbumEntry | undefined;
+    let d: number = Number.MAX_SAFE_INTEGER;
+    const distances:{entry:AlbumEntry, d:number}[] = [];
+    for (const e of container.all(".browser-thumbnail:not([id=\"\"])")) {
+      if(e.get()!.offsetParent === null) {
+        continue; // Element is not displayed
+      }
+      const r = e.clientRect();
+      //r.x -= rect.x;
+      //r.y -= rect.y;     
+      const entry = albumEntryFromElement(e, imagePrefix)!;
+      if((album && album.key == entry.album.key) || !album) 
+        distances.push({entry, d:distanceTo(p, new Rectangle(new Point(r.x, r.y), new Point(r.x+r.width, r.y+r.height)))});
+    }
+    distances.sort((a,b)=> a.d-b.d);
+
+
+    return distances.slice(0,4).map(v=>v.entry);
+  }
 export function makeNThumbnails(
   domElement: _$,
   count: number,
@@ -228,7 +259,11 @@ export function makeNThumbnails(
   }*/
   let i = 0;
   for (const e of domElement.children()) {
-    //e.id("");
-    e.css("display", i++ < count ? "" : "none");
+    if(i++ < count) {
+      e.css("display", "");  
+    } else {
+      e.id("");
+      e.css("display" , "none");
+    }
   }
 }

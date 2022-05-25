@@ -1,8 +1,9 @@
-import { range } from "../../shared/lib/utils";
+import { Point } from "ts-2d-geometry/dist";
+import { range, sleep } from "../../shared/lib/utils";
 import { Album, AlbumEntry, JOBNAMES } from "../../shared/types/types";
 import { AlbumDataSource } from "../album-data-source";
 import { getAlbumInfo } from "../folder-utils";
-import { $, albumFromElement, setIdForAlbum, _$ } from "../lib/dom";
+import { $, albumFromElement, elementFromAlbum, elementFromEntry, setIdForAlbum, _$ } from "../lib/dom";
 import { toggleStar } from "../lib/handles";
 import { getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
@@ -13,6 +14,7 @@ import {
   makeNThumbnails,
   selectThumbnailsInRect,
   thumbnailData,
+  thumbnailsAround,
 } from "./thumbnail";
 
 const extra = `
@@ -83,15 +85,15 @@ export async function makePhotoList(
       filter = event.filter;
     }),
     events.on("thumbnailDblClicked", async (event) => {
-      const { assets } = await s.media(event.entry.album, filter);
-      const initialIndex = assets.findIndex(
+      const { entries } = await s.media(event.entry.album, filter);
+      const initialIndex = entries.findIndex(
         (e: AlbumEntry) => e.name === event.entry.name
       );
       if (initialIndex === -1) {
         return;
       }
 
-      appEvents.emit("edit", { initialIndex, initialList: assets });
+      appEvents.emit("edit", { initialIndex, initialList: entries });
     }),
 
     events.on("thumbnailClicked", (e) => {
@@ -247,17 +249,16 @@ export async function makePhotoList(
     if (idx === -1) {
       idx = 0;
     }
-    let repopulate = false;
+    let reflow = false;
     for (const d of displayed) {
       const album = albumFromElement(d, elementPrefix)!;
       if (album && e.payload.find((a) => a.key === album.key)) {
-        repopulate = true;
-        break;
+        refreshSingleAlbum(album);
+        reflow = true;
       }
     }
-    if (repopulate) {
-      await datasource.walk(filter);
-      refresh(datasource.albumAtIndex(idx));
+    if (reflow) {
+      doReflow |= REFLOW_FULL;
     }
   });
 
@@ -323,7 +324,7 @@ export async function makePhotoList(
     if (found) {
       const album = albumFromElement(found, elementPrefix);
       if (album) {
-        refresh(album);
+        refreshViewStartingFrom(album);
       }
     }
   });
@@ -580,14 +581,17 @@ export async function makePhotoList(
       });
 
       e.on("drop", async (ev) => {
-        const selection = SelectionManager.get().selected();
+        // Find the closest picture in the target album
         const album = albumFromElement(e, elementPrefix)!;
+        const closestEntries = thumbnailsAround(container, new Point(ev.clientX, ev.clientY), album);
+
+        const selection = SelectionManager.get().selected();
         if (album) {
           const s = await getService();
 
           s.createJob(JOBNAMES.MOVE, {
             source: selection,
-            destination: album,
+            destination: {album, between: closestEntries},
           });
           SelectionManager.get().clear();
         }
@@ -602,6 +606,14 @@ export async function makePhotoList(
       });
       e.on("dragover", (ev: any) => {
         ev.preventDefault();
+        const album = albumFromElement(e, elementPrefix)!;
+        const closestEntries = thumbnailsAround(e, new Point(ev.clientX, ev.clientY), album);
+        closestEntries.slice(0,2).forEach(async entry=> {
+          const e = elementFromEntry(entry, "thumb:");
+          e.addClass('highlight-debug');
+          await sleep(0.5);
+          e.removeClass('highlight-debug');
+        });
       });
       e.on("click", async (ev: any) => {
         const album = albumFromElement(e, elementPrefix)!;
@@ -687,8 +699,13 @@ export async function makePhotoList(
     }
   }
 
-  async function refresh(album: Album) {
-    console.info(`Refresh from ${album.name}`);
+  async function refreshSingleAlbum(album: Album) {
+    const albumElement = elementFromAlbum(album, elementPrefix);
+    if(albumElement)
+      await populateElement(albumElement, album, filter);
+  }
+  async function refreshViewStartingFrom(album: Album) {
+    console.info(`Refresh from ${album.name}`);    
     for (const e of displayed) {
       e.remove();
       pool.push(e);
@@ -712,7 +729,7 @@ export async function makePhotoList(
   }
 
   events.on("selected", ({ album }) => {
-    refresh(album);
+    refreshViewStartingFrom(album);
   });
 
   async function startGallery(filter: string) {
@@ -725,7 +742,7 @@ export async function makePhotoList(
       const v = visibleElement();
       const album = albumFromElement(v!, elementPrefix)!;
       const s = await getService();
-      const assets = await s.media(album, filter);
+      const assets = (await s.media(album, filter)).entries;
       initialList = assets;
     }
 

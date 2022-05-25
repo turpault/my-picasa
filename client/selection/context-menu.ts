@@ -49,7 +49,7 @@ async function moveSelectionInNewAlbum() {
     const a: Album = await s.makeAlbum(newAlbum);
     s.createJob(JOBNAMES.MOVE, {
       source: SelectionManager.get().selected(),
-      destination: a.key,
+      destination: a,
     });
     SelectionManager.get().clear();
   }

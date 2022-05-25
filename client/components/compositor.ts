@@ -38,7 +38,7 @@ const editHTML = `
       <a class="compose-make w3-bar-item w3-button">Make Image</a>
       <a class="compose-choose-folder w3-bar-item w3-button">Choose Folder</a>
       <a class="compose-add-selection w3-bar-item w3-button">Add from selection</a>
-      <div class="compose-image-list w3-bar-item w3-white">Image List</div>
+      <div class="compose-image-list w3-bar-item editor-image-block">Image List</div>
     </div>
     <div class="w3-bar-block composition-parameter-block composition-images">
       <div class="w3-bar-block composition-parameters-title">Images</div>

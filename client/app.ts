@@ -7,6 +7,7 @@ import { makeGallery } from "./components/gallery";
 import { makeHotkeys } from "./components/hotkey";
 import { makeJobList } from "./components/joblist";
 import { makeMetadata } from "./components/metadata";
+import { initClientSentry } from "./components/sentry";
 import { makeTab, makeTabs, selectTab } from "./components/tabs";
 import { makeThumbnailManager } from "./components/thumbnail";
 import { makeSettings } from "./lib/settings";
@@ -17,7 +18,8 @@ import { AppEvent } from "./uiTypes";
 
 
 async function init(port: number) {
-  //new Packery(document.getElementById('body')!, {})
+
+  initClientSentry();
   setServicePort(port);
   const emitter = buildEmitter<AppEvent>();
 
@@ -37,16 +39,16 @@ async function init(port: number) {
 
   emitter.on("show", async ({ initialList, initialIndex }) => {
     const { win, tab } = await makeGallery(initialIndex, initialList, emitter);
-    makeTab(win, tab);
+    makeTab(win, tab, tool);
   });
 
   emitter.on("edit", async ({ initialList, initialIndex }) => {
-    const { win, tab } = await makeEditorPage(
+    const { win, tab, tool } = await makeEditorPage(
       initialIndex,
       initialList,
       emitter
     );
-    makeTab(win, tab);
+    makeTab(win, tab, tool);
   });
 
   emitter.on("composite", async ({
@@ -54,11 +56,11 @@ async function init(port: number) {
     initialIndex,
   }) => {
     const { win, tab } = await makeCompositorPage(emitter, initialList as AlbumEntry[]);
-    makeTab(win, tab);
+    makeTab(win, tab, tool);
   });
 
-  const { win, tab } = await makeBrowser(emitter);
-  makeTab(win, tab);
+  const { win, tab, tool } = await makeBrowser(emitter);
+  makeTab(win, tab, tool);
 
   selectTab(win);
 }
