@@ -45,7 +45,7 @@ export function toolHeader(
     });
   $(".edit-tool", e)
     .css({
-      display: toolRegistrar.tool(name).editable ? "" : ["none", "important"],
+      display: (toolRegistrar.tool(name) && toolRegistrar.tool(name).editable) ? "" : ["none", "important"],
     })
     .on("click", () => {
       toolRegistrar.edit(index, name);
