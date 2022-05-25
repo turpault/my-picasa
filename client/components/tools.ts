@@ -8,7 +8,7 @@ import {
   encode,
   execute,
 } from "../imageProcess/client";
-import { $ } from "../lib/dom";
+import { $, _$ } from "../lib/dom";
 import { buildEmitter, Emitter } from "../../shared/lib/event";
 import { Tool } from "../uiTypes";
 import { ImageController } from "./image-controller";
@@ -27,7 +27,7 @@ type ToolRegistrarEvents = {
 };
 
 export class ToolRegistrar {
-  constructor(toolListElement: HTMLElement) {
+  constructor(toolListElement: _$) {
     this.tools = {};
     this.toolButtons = {};
     this.toolListElement = toolListElement;
@@ -43,7 +43,7 @@ export class ToolRegistrar {
     );
     this.toolButtons[toolName] = t;
     t.on("click", () => this.events.emit("added", { tool }));
-    this.toolListElement.appendChild(t.get());
+    this.toolListElement.append(t);
   }
 
   async refreshToolIcons(context: string, entry: AlbumEntry) {
@@ -69,13 +69,13 @@ export class ToolRegistrar {
     index: number,
     args: string[],
     ctrl: ImageController
-  ): HTMLElement {
+  ): {ui: HTMLElement, clearFct?: Function} {
     const tool = Object.values(this.tools).filter(
       (t) => t.filterName === filterName
     )[0];
     if (!tool) {
       const e = toolHeader(filterName, index, ctrl, this);
-      return e.get()!;
+      return {ui: e.get()!};
     }
     return tool.buildUI(index, args);
   }
@@ -91,11 +91,11 @@ export class ToolRegistrar {
   private tools: {
     [name: string]: Tool;
   };
-  private toolListElement: HTMLElement;
+  private toolListElement: _$;
 }
 
-export function make(e: HTMLElement, ctrl: ImageController): ToolRegistrar {
-  const registrar = new ToolRegistrar($(".actions", e).get());
+export function make(e: _$, ctrl: ImageController): ToolRegistrar {
+  const registrar = new ToolRegistrar($(".actions", e));
 
   const history = $(".history", e);
   const description = $(".description", e);
@@ -107,23 +107,41 @@ export function make(e: HTMLElement, ctrl: ImageController): ToolRegistrar {
     // Refresh the icons
     registrar.refreshToolIcons(context, entry);
   });
-  let toolCount = 0;
+  const clearList: (Function|undefined)[] = [];
   ctrl.events.on("updated", ({ context, caption, filters }) => {
     description.val(caption || "");
     // Update the operation list
+    while(clearList.length > 0) {
+      const fct = clearList.pop();
+      if(fct) fct();
+    }
     history.empty();
     const activeTools = ctrl.operationList().map(decodeOperation);
-    toolCount = 0;
+    let toolCount = 0;
     for (const { name, args } of activeTools) {
-      const ui = registrar.makeUiForTool(name, toolCount++, args, ctrl);
-      if (ui) history.get().insertBefore(ui, history.get().firstChild);
+      const toolUi = registrar.makeUiForTool(name, toolCount++, args, ctrl);
+      clearList.push(toolUi.clearFct);
+      if (toolUi.ui) history.get().insertBefore(toolUi.ui, history.get().firstChild);
     }
   });
-  registrar.events.on("added", ({ tool }) => {
-    tool.activate(toolCount++);
+  registrar.events.on("added", async ({ tool }) => {
+    const activeTools = ctrl.operationList().map(decodeOperation);
+    const toolCount = activeTools.length;
+    if(tool.editable) {
+      ctrl.muteAt(toolCount);
+      const commited = await tool.activate(toolCount);
+      ctrl.muteAt(-1);
+      if(!commited) {
+        ctrl.deleteOperation(toolCount);
+      }
+    } else {
+      tool.activate(toolCount);
+    }
   });
-  registrar.events.on("activate", ({ index, tool }) => {
-    tool.activate(index, decodeOperation(ctrl.operationList()[index]).args);
+  registrar.events.on("activate", async ({ index, tool }) => {
+    ctrl.muteAt(index);
+    await tool.activate(index, decodeOperation(ctrl.operationList()[index]).args);
+    ctrl.muteAt(-1);
   });
   return registrar;
 }

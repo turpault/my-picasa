@@ -54,7 +54,7 @@ export function setupPolaroid(
 
       $(".colorpicker", e).on("change", update);
       $(".angle", e).on("change", update);
-      return e.get()!;
+      return {ui: e.get()!};
     },
   });
 }

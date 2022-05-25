@@ -50,7 +50,7 @@ export function setupRotate(
       $(".rotate-invert", e)
         .on("click", () => update(2))
         .css("border", current === 2 ? "solid 1px" : "");
-      return e.get()!;
+      return {ui: e.get()!};
     },
   });
 }

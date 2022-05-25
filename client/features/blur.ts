@@ -42,7 +42,7 @@ export function setupBlur(
       $(".amount", e).val(parseFloat(args[1]) * 100);
 
       $(".amount", e).on("change", update);
-      return e.get()!;
+      return {ui: e.get()!};
     },
   });
 }

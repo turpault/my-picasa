@@ -3,7 +3,7 @@ import { join } from "path";
 import { Album } from "../../../shared/types/types";
 import { openExplorer } from "../../open";
 import { defaultNewFolderRoot, imagesRoot } from "../../utils/constants";
-import { addAlbumToList } from "./walker";
+import { addOrRefreshOrDeleteAlbum } from "./walker";
 
 export async function readFileContents(file: string): Promise<string> {
   const p = join(imagesRoot, file);
@@ -41,7 +41,7 @@ export async function makeAlbum(name: string): Promise<Album> {
     .catch((e) => mkdir(p, { recursive: true }))
     .then(() => {
       const a: Album = { key: join(defaultNewFolderRoot, name), name };
-      addAlbumToList(a);
+      addOrRefreshOrDeleteAlbum(a);
       return a;
     });
 }

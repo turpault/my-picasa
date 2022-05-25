@@ -42,7 +42,7 @@ export function setupGamma(
       $(".amount", e).val(parseFloat(args[1]) * 50);
 
       $(".amount", e).on("change", update);
-      return e.get()!;
+      return {ui: e.get()!};
     },
   });
 }

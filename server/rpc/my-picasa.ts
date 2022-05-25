@@ -21,13 +21,13 @@ import {
   readFileContents,
   writeFileContents
 } from "./rpcFunctions/fs";
-import { media, setRank, sortAlbum } from "./rpcFunctions/media";
+import { media, mediaCount, setRank, sortAlbum } from "./rpcFunctions/media";
 import {
   readPicasaEntry,
   readPicasaIni,
   updatePicasaEntry
 } from "./rpcFunctions/picasaIni";
-import { folders } from "./rpcFunctions/walker";
+import { folders, monitorAlbums } from "./rpcFunctions/walker";
 import { ServiceMap } from "./rpcHandler";
 
 /**
@@ -83,9 +83,17 @@ export const MyPicasa: ServiceMap = {
       handler: folders,
       arguments: ["filter:string"],
     },
+    monitorAlbums: {
+      handler: monitorAlbums,
+      arguments: [],
+    },
     media: {
       handler: media,
       arguments: ["album:object", "filter:string"],
+    },
+    mediaCount: {
+      handler: mediaCount,
+      arguments: ["album:object"],
     },
     readFileContents: {
       handler: readFileContents,

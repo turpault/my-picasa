@@ -9,7 +9,20 @@ export async function sleep(delay: number) {
 }
 
 export function sortByKey<T>(array: T[], key: keyof T) {
-  array.sort((a, b) => (a[key] < b[key] ? -1 : a[key] > b[key] ? 1 : 0));
+  array.sort((a, b) => (a[key] < b[key] ? -1 : (a[key] > b[key] ? 1 : 0)));
+}
+
+export function alphaSorter(caseSensitive: boolean = true): (a: string, b: string) => number {
+  if(caseSensitive)
+  return (a:string,b:string) => {
+    return a < b ? -1 : a === b ? 0 : 1;
+  };
+  else
+  return (a:string,b:string) => {
+    const la = a.toLowerCase();
+    const lb = b.toLowerCase();
+    return la < lb ? -1 : la === lb ? 0 : 1;
+  };
 }
 
 export function uuid(): string {
@@ -34,6 +47,11 @@ export function cssSplitValue(v:string): {value: number, unit:string} {
 }
 
 const debounceFcts = new Map<Function, number>();
+/**
+ * Make sure that the function f is called at most every <delay> milliseconds
+ * @param f 
+ * @param delay 
+ */
 export function debounce(f: Function, delay?: number) {
   delay = delay ? delay : 1000;
   if (debounceFcts.has(f)) {
@@ -94,6 +112,11 @@ export function rectanglesIntersect(
   if (Math.min(b.p1.y, b.p2.y) > Math.max(a.p1.y, a.p2.y)) return false;
   return true;
 }
+/**
+ * Rectangle expressed as a set of 0->1 values
+ */
+export type RectRange =  { left: number; top: number; right: number; bottom: number };
+
 /*
 # Picasa uses a special string format to store crop boxes of
 # detected faces and from an applied crop filters. The number encased
@@ -114,14 +137,14 @@ export function rectanglesIntersect(
 
 # parseInt("3f84",16)/65536 //0.24810791015625  - left
 # parseInt("5bcb",16)/65536 //0.3585662841796875 - top
-# parseInt("5941",16)/65536 //0.3486480712890625 - right
-# parseInt("8507",16)/65536 //0.5196380615234375 - bottom
+# parseInt("5941",16)/65536 //0.3486480712890625 - right (measured from left)
+# parseInt("8507",16)/65536 //0.5196380615234375 - bottom (measured from top)
 */
 export function decodeRect(
-  rect: string | undefined
-): { left: number; top: number; right: number; bottom: number } | undefined {
+  rect: string
+): RectRange {
   if (!rect) {
-    return undefined;
+    throw new Error("No Rect");
   }
   const rectData =
     rect.toLowerCase().match(/rect64\(([0-9a-f]*)\)/) ||
@@ -135,7 +158,7 @@ export function decodeRect(
       bottom: parseInt(split[3], 16) / 65535,
     };
   }
-  return undefined;
+  throw new Error("Invalid Rect");
 }
 
 export function fromHex(hex: string): number[] {
@@ -149,12 +172,7 @@ export function clipColor(c: number): number {
   return c < 0 ? 0 : c > 255 ? 255 : c;
 }
 
-export function encodeRect(rect: {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-}): string {
+export function encodeRect(rect: RectRange): string {
   return (
     Math.floor(rect.left * 65535)
       .toString(16)
@@ -226,6 +244,9 @@ class Mutex {
     this.lockDate = new Date();
     const p = new Promise<void>((resolve) => {
       _resolve = () => {
+        if((Date.now() - this.lockDate.getTime()) > 1000) {
+          debugger;
+        }
         this.lockDate = new Date();
         this.nest--;
         return resolve();

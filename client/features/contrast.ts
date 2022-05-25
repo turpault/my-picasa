@@ -42,7 +42,7 @@ export function setupContrast(
       $(".amount", e).val(parseInt(args[1] || "0"));
 
       $(".amount", e).on("change", update);
-      return e.get()!;
+      return {ui: e.get()!};
     },
   });
 }

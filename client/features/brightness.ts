@@ -81,7 +81,7 @@ export function setupBrightness(
       $(".shadows", e).on("change", update);
       $(".colorpicker", e).on("change", update);
       $(".amount", e).on("change", update);
-      return e.get()!;
+      return {ui: e.get()!};
     },
   });
 }

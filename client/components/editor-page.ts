@@ -26,62 +26,66 @@ import { makeImageStrip } from "./image-strip";
 import { deleteTabWin, makeGenericTab, TabEvent } from "./tabs";
 import { make as makeTools } from "./tools";
 
-const editHTML = `<div class="fill">
-<div class="fill w3-bar-block tools">
-  <div class="w3-bar-item w3-white">Description</div>
-  <div>
-    <input
-      class="description w3-input"
-      style="background: none"
-      type="text"
-    />
+const editHTML = `
+<div class="fill">
+  <div class="fill w3-bar-block tools">
+    <div class="w3-bar-item editor-image-block">Description</div>
+    <div>
+      <input
+        class="description w3-input"
+        style="background: none"
+        type="text"
+      />
+    </div>
+    <div class="w3-bar-item editor-image-block">Actions</div>
+    <div class="actions"></div>
+    <div class="w3-bar-item editor-image-block">History</div>
+    <div class="history w3-bar-item"></div>
   </div>
-  <div class="w3-bar-item w3-white">Actions</div>
-  <div class="actions"></div>
-  <div class="w3-bar-item w3-white">History</div>
-  <div class="history w3-bar-item"></div>
-</div>
 
-<div class="image-container">
-  <div    
-    style="display: none"
-    class="busy-spinner w3-display-container fill"
-  >
-    <img src="resources/images/thinking.gif" class="w3-display-middle" />
+  <div class="image-container">
+    <div    
+      style="display: none"
+      class="busy-spinner w3-display-container fill"
+    >
+      <img src="resources/images/thinking.gif" class="w3-display-middle" />
+    </div>
+    <video autoplay muted loop controls class="edited-video">
+    </video>
+    <img class="fill-with-aspect edited-image"></img>
   </div>
-  <video autoplay muted loop controls class="edited-video">
-  </video>
-  <img class="fill-with-aspect edited-image"></img>
-</div>
+</div>`;
+
+const toolsHTML = `
 <div class="editor-bottom-tools">
-<div class="zoom-strip">  
-  <label>Zoom</label>
-  <input type="range" min="100" max="1000" value="100" class="zoom-ctrl slider">
-</div>
-<div class="image-strip">
-    <button
-      class="previous-image w3-circle fa fa-arrow-left w3-green"
-      style="position: absolute; left: 0; top: 0"
-    ></button>
-    <button
-      class="next-image w3-circle fa fa-arrow-right w3-green"
-      style="position: absolute; right: 0; top: 0"
-    ></button>
-    <div class="image-strip-thumbs"></div>
+  <div class="image-strip">
+      <button
+        class="previous-image fa fa-arrow-left editor-navigation-button"
+        style="position: absolute; left: 0; top: 0"
+      ></button>
+      <button
+        class="next-image fa fa-arrow-right editor-navigation-button"
+        style="position: absolute; right: 0; top: 0"
+      ></button>
+      <div class="image-strip-thumbs"></div>
+    </div>
+    <div class="zoom-strip">  
+      <label>Zoom</label>
+    <input type="range" min="10" max="40" value="10" class="zoom-ctrl slider">
   </div>
-</div>
 </div>`;
 
 export async function makeEditorPage(
   initialIndex: number,
   initialList: AlbumEntry[],
   appEvents: AppEventSource
-): Promise<{ win: _$; tab: _$ }> {
+): Promise<{ win: _$; tab: _$, tool: _$ }> {
   const win = $(editHTML);
 
   const image = $(".edited-image", win);
   const video = $(".edited-video", win);
   const imageContainer = $(".image-container", win);
+  const tool = $(toolsHTML);
 
   const tabEvent = buildEmitter<TabEvent>();
   const tab = makeGenericTab(tabEvent);
@@ -90,7 +94,7 @@ export async function makeEditorPage(
     if (event.win === win) {
       const zoomController = new ImagePanZoomController(image);
       const imageController = new ImageController(image, video, zoomController);
-      const toolRegistrar = makeTools($(".tools", win).get()!, imageController);
+      const toolRegistrar = makeTools(win, imageController);
       // Add all the activable features
       setupCrop(imageContainer, zoomController, imageController, toolRegistrar);
       setupTilt(imageContainer, zoomController, imageController, toolRegistrar);
@@ -113,7 +117,7 @@ export async function makeEditorPage(
         entries,
         entries[initialIndex]
       );
-      makeImageStrip($(".image-strip", win).get()!, activeManager);
+      makeImageStrip($(".image-strip", tool).get()!, activeManager);
 
       imageController.init(activeManager.active() as AlbumEntryPicasa);
 
@@ -149,12 +153,12 @@ export async function makeEditorPage(
           }
         }),
       ];
-      const z = $(".zoom-ctrl", win);
+      const z = $(".zoom-ctrl", tool);
       z.on("input", () => {
-        zoomController.zoom(z.val() / 100);
+        zoomController.zoom(z.val() / 10);
       });
       zoomController.events.on("zoom", (zoom) => {
-        z.val(zoom.scale * 100);
+        z.val(zoom.scale * 10);
       });
 
       activeManager.event.on("changed", (entry) => {
@@ -162,5 +166,5 @@ export async function makeEditorPage(
       });
     }
   });
-  return { win, tab };
+  return { win, tab, tool };
 }

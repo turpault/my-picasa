@@ -136,7 +136,7 @@ export class WsAdaptor implements SocketAdaptorInterface {
           retryDelay * WsAdaptor.TIMEOUT_MULTIPLIER
         );
       }
-      throw new Error("closed");
+      console.warn('Socket has been closed, cannot send message', JSON.stringify(message).slice(0,50));
     }
     this.ws!.send(message.toString());
   }
@@ -201,7 +201,9 @@ export class WsAdaptor implements SocketAdaptorInterface {
         });
 
         if (this.ws!.readyState !== 1) {
-          this.ws!.onerror!({} as Event);
+          if(this.ws!.onerror) {
+            this.ws!.onerror!({} as Event);
+          }
           return;
         }
         // console.debug(`Sending ${error ? 'error' : 'success'} response ${response}`);

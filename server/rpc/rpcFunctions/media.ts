@@ -1,18 +1,15 @@
-import { readdir } from "fs/promises";
-import { extname, join } from "path";
+import { readdir, stat } from "fs/promises";
+import { join } from "path";
 import { isPicture, isVideo } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
-  PicasaFolderMeta,
-  pictureExtensions,
-  videoExtensions
+  PicasaFolderMeta
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { exifDataAndStats } from "./exif";
 import { folder } from "./fs";
 import {
-  fullTextSearch,
   readPicasaIni, updatePicasaEntry
 } from "./picasaIni";
 
@@ -67,57 +64,68 @@ export async function sortAlbum(album: Album, order:string): Promise<void> {
   }
 }
 
-export async function media(
-  album: Album,
-  filter: string
-): Promise<{ assets: AlbumEntry[] }> {
-  const items = await readdir(join(imagesRoot, album.key));
-  const picasa = await readPicasaIni(album);
-  const assets: AlbumEntry[] = [];
+export async function mediaCount(
+  album: Album
+): Promise<{ count: number }> {
+  return {count: (await assetsInAlbum(album)).entries.length};
+}
 
-  if (filter) {
-    return { assets: await fullTextSearch(album, filter) };
-  }
+export async function assetsInAlbum(album: Album): Promise<{entries: AlbumEntry[], folders: string[]}>{
+  const items = await readdir(join(imagesRoot, album.key));
+  const entries: AlbumEntry[] = [];
+  const folders: string[] = [];
+
   for (const i of items) {
     if (!i.startsWith(".")) {
       const entry = { album, name: i };
-      const ext = extname(i).toLowerCase().replace(".", "");
-      if (
-        filter &&
-        !(album.key + album.name + i + JSON.stringify(picasa[i]))
-          .toLowerCase()
-          .includes(filter)
-      ) {
-        continue;
-      }
-      if (pictureExtensions.includes(ext)) {
-        if (!picasa[i] || !picasa[i].dateTaken) {
-          const exif = await exifDataAndStats(entry);
-          if (exif.tags.DateTimeOriginal)
-            updatePicasaEntry(
-              entry,
-              "dateTaken",
-              exif.tags.DateTimeOriginal.toISOString()
-            );
-          else if (exif.stats) {
-            // Default to file creation time
-            updatePicasaEntry(
-              entry,
-              "dateTaken",
-              exif.stats.ctime.toISOString()
-            );
-          }
+      if(isPicture(entry) || isVideo(entry)){
+        entries.push(entry);
+      } else {
+        const s = await stat(join(imagesRoot, album.key, i));
+        if(s.isDirectory()) {
+          folders.push(i);
         }
-        assets.push(entry);
-      }
-      if (videoExtensions.includes(ext)) {
-        assets.push(entry);
       }
     }
   }
-  await assignRanks(assets, picasa);
-  await sortAssetsByRank(assets, picasa);
-  return { assets };
+  return {entries, folders};
+}
+
+
+export async function media(
+  album: Album,
+  filter: string
+): Promise<{ entries: AlbumEntry[] }> {
+  let [picasa, assets] = await Promise.all([readPicasaIni(album), assetsInAlbum(album)]);
+
+  let entries = assets.entries;
+  if (filter) {
+    entries = entries.filter(asset => asset.album.name.toLowerCase().includes(filter.toLowerCase()) || asset.name.toLowerCase().includes(filter.toLowerCase()));
+  }
+  for (const entry of entries) {
+    if (isPicture(entry)) {
+      if (!picasa[entry.name] || !picasa[entry.name].dateTaken) {
+        const exif = await exifDataAndStats(entry);
+        if (exif.tags.DateTimeOriginal)
+          updatePicasaEntry(
+            entry,
+            "dateTaken",
+            exif.tags.DateTimeOriginal.toISOString()
+          );
+        else if (exif.stats) {
+          // Default to file creation time
+          updatePicasaEntry(
+            entry,
+            "dateTaken",
+            exif.stats.ctime.toISOString()
+          );
+        }
+      }
+    }
+  }
+  await assignRanks(entries, picasa);
+  await sortAssetsByRank(entries, picasa);
+  return { entries };
 }
 
 async function sortAssetsByRank(entries: AlbumEntry[], picasa: PicasaFolderMeta) {

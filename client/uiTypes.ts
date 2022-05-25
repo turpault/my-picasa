@@ -9,15 +9,16 @@ type entryFct = (e: AlbumEntry) => boolean;
 export type Tool = {
   filterName: string;
   enable: entryFct;
+  editable?: boolean;
   icon: iconFct;
   build: Function;
-  buildUI: (index: number, args: string[]) => HTMLElement;
+  buildUI: (index: number, args: string[]) => {ui: HTMLElement, clearFct?: Function};
   activate: activateFct;
 };
 
 export type PanZoomEvent = {
-  pan: {};
-  zoom: { x: number; y: number; scale: number };
+  pan: {x: number; y: number};
+  zoom: { scale: number };
 };
 
 export type ImageControllerEvent = {

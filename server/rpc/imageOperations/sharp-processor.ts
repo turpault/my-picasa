@@ -73,7 +73,7 @@ export async function cloneContext(context: string): Promise<string> {
 #|--Identifier-|--------------Parameters-------------|----------Description-----------|---------Example---------------|-- Done--|
 #| crop64      |  CROP_RECTANGLE*                    |   crop filter, crops the image | crop64=1,30a730d2bf1ab897     | X
 #|             |                                     |    according to crop rectangle |                               |
-#| tilt        | !TILT_ANGLE,!SCALE                  |  tilts and scales image        | tilt=1,0.280632,0.000000      | X
+#| tilt        | !TILT_ANGLE,!SCALE                  |  tilts and scales image        | tilt=1,0.280632,0.000000 -1=-10deg / +1=+10deg | X
 #| redeye      |                                     |  redeye removal                | redeye=1                      |
 #| enhance     |                                     | "I'm feeling lucky" enhancement| enhance=1                     |
 #| autolight   |                                     | automatic contrast correction  | autolight=1                   | X
@@ -147,12 +147,14 @@ export async function transform(
           const { info } = await j.raw().toBuffer({ resolveWithObject: true });
           const w = info.width!;
           const h = info.height!;
-          j = j.extract({
-            left: Math.floor(crop.left * w),
-            top: Math.floor(crop.top * h),
-            width: Math.floor(w * (crop.right - crop.left)),
-            height: Math.floor(h * (crop.bottom - crop.top)),
-          });
+          if(h >0 && w >0 && (crop.right - crop.left) >0 && (crop.bottom - crop.top) > 0) {
+            j = j.extract({
+              left: Math.floor(crop.left * w),
+              top: Math.floor(crop.top * h),
+              width: Math.floor(w * (crop.right - crop.left)),
+              height: Math.floor(h * (crop.bottom - crop.top)),
+            });
+          }
         }
         break;
       case "bw":
@@ -179,8 +181,8 @@ export async function transform(
         break;
 
       case "tilt":
-        const angle = (10 * parseInt(args[1]) * Math.PI) / 180; // in radians
-        const angleDeg = (angle / Math.PI) * 180; // in degrees
+        const angleDeg = 10 * parseFloat(args[1]); // in degrees
+        const angle = Math.PI * angleDeg / 180;
         let scale = parseInt(args[2]);
         j = await commitContext(j);
         const metadata = await j.metadata();
@@ -506,7 +508,3 @@ async function commitContext(j: sharp.Sharp): Promise<sharp.Sharp> {
   });
   return j;
 }
-
-console.info(rotateRectangle(10, 1, Math.PI/2));
-console.info(rotateRectangle(10, 10, Math.PI/3));
-const a = rotateRectangle(10, 10, Math.PI/3);

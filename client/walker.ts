@@ -12,9 +12,9 @@ export async function albumContents(
   fh: Album,
   filter: string
 ): Promise<{
-  assets: AlbumEntry[];
+  entries: AlbumEntry[];
 }> {
   const service = await getService();
-  const { assets } = await service.media(fh, filter);
-  return { assets };
+  const { entries } = await service.media(fh, filter);
+  return { entries };
 }

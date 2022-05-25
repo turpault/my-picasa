@@ -89,17 +89,17 @@
 }
 .editor-bottom-tools {
   position: absolute;
-  left: 300px;
+  left: 0;
   right: 0;
-  /* top: 0; */
-  bottom: 0px;
+  top: 0;
+  /* bottom: 0px; */
   height: 65px;
-  background: lightgray;
+  overflow: hidden;background: #f3f3f3;
 }
 .zoom-strip {
   display: inline-block;
-  width: 50%;
-  height: 100%;
+  width: 150px;
+  position: absolute;right: 50%;height: 100%;
   padding: 10px;
   /* vertical-align: middle; */
 }
@@ -118,14 +118,14 @@
 }
 
 .highlight {
-  /* background-color: darkgray; */
+  background-color: #f3f3f3;
   color: black;
   border-top: 3px solid black !important;
-  border-bottom: none !important;
-  /* border-left: 2px solid black; */
-  /* border-right: 2px solid black; */
-  /* border-radius: 10px 10px 0 0; */
-}
+  /* border-bottom: 4px solid black; */
+  /* border-left: 4px solid black; */
+  /* border-right: 4px solid black; */
+  /* border-radius: 10px; */
+font-weight: bold;}
 
 .highlight-list {
   /* background-color: darkgray; */
@@ -142,7 +142,7 @@ body {
   overflow: hidden;
   font-family: system-ui;
   font-size: small;
-}
+background: #e3e3e3;}
 
 .full-container {
   /* height: 100%; */
@@ -158,7 +158,25 @@ body {
   position: absolute;
   /* display: none; */
 }
-
+.tabs {
+  height: 50px;
+}
+.editor-image-block {
+  background-color: #f3f3f3;
+}
+.main-tab-bar {
+  border-top: 3px lightgray solid;position:absolute;
+  top: 65px;
+  left:0;
+  right:0;
+  height:50px;
+}
+.head {
+  /* border-bottom: 0; */
+  height: 65px;
+  width: 100%;overflow-x: scroll;
+  overflow-y: hidden;
+}
 .fill-with-aspect {
   /* margin-top: auto; */
   /* align-content: center; */
@@ -224,6 +242,9 @@ body {
   background-position: center;
   background-repeat: no-repeat;
   margin: 3px;
+  /* border: -21px; */
+  border: none;
+  background-color: #f3f3f3;
 }
 
 .tools {
@@ -320,28 +341,28 @@ body {
   left: 300px;
   right: 0;
   top: 0;
-  bottom: 65px;
+  bottom: 0;
   overflow: hidden;
-  background-color: #9e9e9e !important;
+  background-color: #f3f3f3 !important;
 }
 
 .bottom-list-tools {
-  position: absolute;
+  position: relative;
   right: 0px;
-  left: 300px;
-  bottom: 0;
-  height: 62px;
-}
+  /* left: 300px; */
+  /* bottom: 0; */
+  height: 65px;
+overflow: hidden;background: #f3f3f3;}
 .zoom-photo-list {
   width: 200px;
-  padding-right: 20px;
-  right: 0;
+  padding-top: 10px;padding-right: 20px;
+  height: 65px;/* float: right; */right: 0;
   top: 0;
   position: absolute;
 }
 .buttons {
   width: auto;
-  left: 0;
+  right: 230px;
   top: 10px;
   position: absolute;
   /* width: 0px; */
@@ -384,6 +405,18 @@ body {
 .browser-tab {
   display: inline-block;
 }
+.browser-list-text {
+  position: relative;
+  display: inline-block;/* right: 68px; */
+  text-overflow: ellipsis;
+overflow: hidden;/* left: -4px; */white-space: nowrap;width: 244px;}
+
+.browser-list-count {
+  right: 14px; 
+  position: absolute;
+font-style: italic;font-weight: bold;
+}
+
 .filterAlbum {
   border: none;
 }
@@ -418,7 +451,7 @@ body {
 .crop {
   position: absolute;
   cursor: move;
-  box-shadow: 0 0 0 99999px rgb(126 126 126 / 50%);
+  left: 0;top: 0;/* width: 100%; *//* height: 100%; */box-shadow: 0 0 0 99999px rgb(126 126 126 / 50%);
   border: 3px solid blue;
   z-index: 99;
   display: none;
@@ -489,7 +522,7 @@ body {
 }
 
 .folder-pane {
-  /* background-color: #f0f0f0; */
+  background-color: #f3f3f3;
   color: #505050;
   font-family: sans-serif;
   /* font-weight: 500; */
@@ -505,7 +538,7 @@ body {
   font-size: 12px;
   line-height: 14px;
   padding-top: 4px;
-  padding-bottom: 4px;
+  /* right: 30px; *//* text-overflow: ellipsis; *//* position: relative; *//* left: 20px; */padding-bottom: 4px;
 }
 
 .folders {
@@ -517,7 +550,7 @@ body {
   left: 0;
   top: 0;
   right: 0;
-  bottom: 70px;
+  bottom: 0;
   position: absolute;
   /* background: darkgrey; */
 }
@@ -632,9 +665,9 @@ body {
 }
 
 .tab-button {
-  height: 38px; /* color: black; */ /* border-bottom: 2px solid black; */
-  border-top: 3px solid #ffffff;
-}
+  height: 47px; /* color: black; */ /* border-bottom: 2px solid black; */
+  border-top: 3px solid #f3f3f3;
+/* position: relative; *//* bottom: 0; */}
 
 .remove-tab {
   /* padding: 10px; */
@@ -650,7 +683,7 @@ body {
 .workarea {
   position: absolute;
   left: 0;
-  top: 38px;
+  top: 115px;
   right: 0;
   bottom: 0;
 }
@@ -1090,8 +1123,16 @@ body {
 
 .rotation-tool-inner-control {
   position: absolute;
-  bottom: 200px;
+  bottom: 100px;
   left: 30%;
   right: 30%;
+  padding: 10px;
   width: auto;
+  background-color: rgba(255, 255, 255, 0.265);
+}
+.tilt-accept-buttons {
+  float: right;
+}
+.highlight-debug {
+  background-color: red;
 }

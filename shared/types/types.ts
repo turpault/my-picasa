@@ -28,7 +28,7 @@ export type undoStep = {
 };
 export type JobData = {
   source: AlbumEntry[] | Album | any[];
-  destination: Album | Album[] | undefined;
+  destination: any;
   noUndo?: boolean;
   name?: string;
   argument?: any;
@@ -82,6 +82,13 @@ export type Album = {
   name: string;
   key: string;
 };
+export type AlbumWithCount = Album & { count: number};
+
+export type AlbumChangeType = "albumDeleted" | "albumAdded" | "albumCountUpdated";
+export type AlbumChangeEvent = {
+  type: AlbumChangeType,
+  data: AlbumWithCount;
+}
 
 export type AlbumEntry = {
   name: string;
