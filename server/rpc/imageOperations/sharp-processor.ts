@@ -14,6 +14,7 @@ import { AlbumEntry, PicasaFileMeta } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { promisify } from "util";
 import sizeOf from "image-size";
+import { Queue } from "../../../shared/lib/queue";
 
 const s = promisify(sizeOf);
 
@@ -101,6 +102,8 @@ export async function cloneContext(context: string): Promise<string> {
 #| flip        |                                     | flip                           | 1                             |  New
 #| blur        |                                     | blur                           | 1                             |  New
 #| sharpen     |                                     | sharpen                        | 1                             |  New
+#| resize      | max Dimension                       | resize image (nearest)         | 1, 1500                       | Personal
+#| label       | text, font size, position (n,s,e,w) | Adds a label to the image      | 1, "hello", 12, s             | Personal
 
 # LEGEND:
 # ! = float between 0 and 1, precision:6
@@ -328,7 +331,7 @@ export async function transform(
         break;
       case "autocolor":
         // Get the min/max values
-        const levels = (min:number, max:number) => {
+        const levels = (min: number, max: number) => {
           const scale = 255 / (max - min);
           return [scale, -min * scale];
         };
@@ -340,7 +343,7 @@ export async function transform(
         {
           let copy = j.clone();
           const buffers = await Promise.all(
-            [0, 1, 2].map((v) => 
+            [0, 1, 2].map((v) =>
               copy
                 .extractChannel(v)
                 .toColorspace("b-w")
@@ -427,6 +430,56 @@ export async function transform(
         j = j.rotate(angle, { background: col });
         break;
       }
+      case "resize": {
+        const sizeW = args[2] ? parseInt(args[2]) : undefined;
+        const sizeH = args[3] ? parseInt(args[3]) : undefined;
+        j = j.resize(sizeW, sizeH, { fit: "inside" });
+        break;
+      }
+      case "label": {
+        await commit(context);
+        j = getContext(context);
+        const metadata = await j.metadata();
+        const text = args[2];
+        const size = parseInt(args[3]);
+        const gravity = args[4];
+        const { data, info } = await j
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+        const leftByPosition = {
+          n: w / 2,
+          s: w / 2,
+          w: 0,
+          e: w,
+        };
+
+        const layers: sharp.OverlayOptions[] = [
+          {
+            input: data,
+            gravity,
+            raw: info,
+          },
+        ];
+        const txtSvg = `<svg> <text font-size="${size}" fill="#000000">${text}</text> </svg>`;
+        layers.push({ input: Buffer.from(txtSvg), gravity: "south" });
+
+        const newImage = sharp({
+          create: {
+            width: w,
+            /** Number of pixels high. */
+            height: h,
+            /** Number of bands e.g. 3 for RGB, 4 for RGBA */
+            channels: 4,
+            /** Parsed by the [color](https://www.npmjs.org/package/color) module to extract values for red, green, blue and alpha. */
+            background: "#ffffff",
+          },
+          limitInputPixels: false,
+          failOnError: false,
+        });
+        j = newImage.composite(layers);
+        break;
+      }
+
       default:
         break;
     }
@@ -537,4 +590,45 @@ async function commitContext(j: sharp.Sharp): Promise<sharp.Sharp> {
     failOnError: false,
   });
   return j;
+}
+
+// Queue last-in first out
+const thumbnailQueue = new Queue(4, { fifo: false });
+export async function buildImage(
+  entry: AlbumEntry,
+  options: any | undefined,
+  transformations: string | undefined,
+  extraOperations: any[] | undefined
+): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
+  return thumbnailQueue.add(async () => {
+    const label = `Thumbnail for image ${entry.album.name} / ${
+      entry.name
+    } / ${transformations} / ${extraOperations ? extraOperations[0] : "no op"}`;
+    console.time(label);
+    console.info(label);
+    try {
+      const context = await buildContext(entry);
+      if (options) {
+        await setOptions(context, options);
+      }
+      if (extraOperations) {
+        await execute(context, extraOperations);
+        await commit(context);
+      }
+      if (transformations) {
+        await transform(context, transformations);
+      }
+      const res = (await encode(context, "image/jpeg", "Buffer")) as {
+        width: number;
+        height: number;
+        data: Buffer;
+      };
+      await destroyContext(context);
+      console.timeEnd(label);
+      return { ...res, mime: "image/jpeg" };
+    } catch (e) {
+      console.timeEnd(label);
+      throw e;
+    }
+  });
 }

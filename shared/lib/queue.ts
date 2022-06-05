@@ -4,6 +4,7 @@ export type Task = (() => PromiseLike<any>) | (() => any);
 
 export type QueueEvent = {
   drain: {};
+  changed: { waiting: number, progress: number, done: number }
 };
 export class Queue {
   constructor(concurrency: number = 1, options?: { fifo?: boolean }) {
@@ -12,6 +13,7 @@ export class Queue {
     this.rejectFct = [];
     this.concurrency = concurrency;
     this.active = 0;
+    this.total = 0;
     this.options = options || {};
     this.event = buildEmitter<QueueEvent>();
   }
@@ -20,8 +22,13 @@ export class Queue {
     return new Promise<T>((resolve, reject) => {
       this.resolveFct.push(resolve);
       this.rejectFct.push(reject);
+      this.total++;
+      this.changed();
       this.startIfNeeded();
     });
+  }
+  private changed() {
+    this.event.emit('changed', { waiting: this.promises.length - this.active, progress: this.active, done: this.total })
   }
   clear() {
     this.promises = [];
@@ -51,6 +58,7 @@ export class Queue {
           rejecter = this.rejectFct.pop()!;
         }
         this.active++;
+        this.changed();
 
         promiseFunctor()
           .then((v: any) => {
@@ -64,6 +72,7 @@ export class Queue {
           .catch((e: any) => rejecter(e))
           .finally(() => {
             this.active--;
+            this.changed();
             if (this.active === 0 && this.promises.length === 0) {
               this.event.emit("drain", {});
             }
@@ -81,5 +90,6 @@ export class Queue {
   private rejectFct: ((v: any) => void)[];
   private concurrency: number;
   private active: number;
+  private total: number;
   private options: { fifo?: boolean };
 }

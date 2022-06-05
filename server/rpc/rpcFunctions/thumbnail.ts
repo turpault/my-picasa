@@ -10,6 +10,7 @@ import {
 import { dec, inc } from "../../utils/stats";
 import {
   buildContext,
+  buildImage,
   commit,
   destroyContext,
   dimensionsFromFile,
@@ -72,7 +73,7 @@ async function readOrMakeImageThumbnail(
     let cachedSize = picasa[entry.name][picasaSizeLabel];
     let jpegBuffer = await readThumbnailFromCache(entry, size);
     if (!jpegBuffer || !cachedSize || transform !== cachedTransform) {
-      const res = await makeImageThumbnail(
+      const res = await buildImage(
         entry,
         picasa[entry.name],
         transform,
@@ -113,46 +114,7 @@ async function readOrMakeImageThumbnail(
   }
   throw new Error("bad locking");
 }
-// Queue last-in first out
-const thumbnailQueue = new Queue(4, { fifo: false });
-async function makeImageThumbnail(
-  entry: AlbumEntry,
-  options: any | undefined,
-  transformations: string | undefined,
-  extraOperations: any[] | undefined
-): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
-  return thumbnailQueue.add(async () => {
-    const label = `Thumbnail for image ${entry.album.name} / ${
-      entry.name
-    } / ${transformations} / ${extraOperations ? extraOperations[0] : "no op"}`;
-    console.time(label);
-    console.info(label);
-    try {
-      const context = await buildContext(entry);
-      if (options) {
-        await setOptions(context, options);
-      }
-      if (extraOperations) {
-        await execute(context, extraOperations);
-        await commit(context);
-      }
-      if (transformations) {
-        await transform(context, transformations);
-      }
-      const res = (await encode(context, "image/jpeg", "Buffer")) as {
-        width: number;
-        height: number;
-        data: Buffer;
-      };
-      await destroyContext(context);
-      console.timeEnd(label);
-      return { ...res, mime: "image/jpeg" };
-    } catch (e) {
-      console.timeEnd(label);
-      throw e;
-    }
-  });
-}
+
 
 export async function readOrMakeVideoThumbnail(
   entry: AlbumEntry,

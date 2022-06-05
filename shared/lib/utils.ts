@@ -1,3 +1,4 @@
+import { extname } from "path";
 import {
   AlbumEntry,
   pictureExtensions,
@@ -49,8 +50,8 @@ export function cssSplitValue(v:string): {value: number, unit:string} {
 const debounceFcts = new Map<Function, number>();
 /**
  * Make sure that the function f is called at most every <delay> milliseconds
- * @param f 
- * @param delay 
+ * @param f
+ * @param delay
  */
 export function debounce(f: Function, delay?: number) {
   delay = delay ? delay : 1000;
@@ -72,6 +73,10 @@ export function debounce(f: Function, delay?: number) {
       }
     })();
   }
+}
+
+export function mediaName(entry: AlbumEntry): string {
+  return entry.album.name + ' - ' + entry.name.substring(0, -extname(entry.name).length);
 }
 
 export function isMediaUrl(url: string): boolean {

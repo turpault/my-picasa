@@ -3,6 +3,7 @@ import { join } from "path";
 import { isPicture, isVideo } from "../../../shared/lib/utils";
 import { AlbumEntry } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
+import { entryFilePath } from "../../utils/serverUtils";
 import { readPicasaIni } from "../rpcFunctions/picasaIni";
 import {
   encode,
@@ -18,7 +19,7 @@ export async function exportToFolder(entry: AlbumEntry, targetFolder: string) {
   if (isVideo(entry)) {
     // Straight copy
     await copyFile(
-      join(imagesRoot, entry.album.key, entry.name),
+      entryFilePath(entry),
       join(targetFolder, entry.name)
     );
   } else if (isPicture(entry)) {
