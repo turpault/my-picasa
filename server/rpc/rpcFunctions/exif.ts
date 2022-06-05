@@ -5,11 +5,12 @@ import { join } from "path";
 import { isPicture, isVideo } from "../../../shared/lib/utils";
 import { AlbumEntry } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
+import { entryFilePath } from "../../utils/serverUtils";
 
 export async function exifDataAndStats(
   entry: AlbumEntry
 ): Promise<{ stats: Stats; tags: any }> {
-  const path = join(imagesRoot, entry.album.key, entry.name);
+  const path = entryFilePath(entry));
   const [s, t] = await Promise.all([
     stat(path),
     exifData(entry),
@@ -27,7 +28,7 @@ export async function exifData(entry: AlbumEntry): Promise<any> {
   if (isPicture(entry)) {
     console.info(`Read exif from ${path}`);
     const tags = await exifr
-      .parse(join(imagesRoot, entry.album.key, entry.name))
+      .parse(entryFilePath(entry))
       .catch((e: any) => {
         console.error(`Exception while reading exif for ${path}: ${e}`);
         return {};

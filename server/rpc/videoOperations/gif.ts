@@ -3,6 +3,7 @@ import { join } from "path";
 import { lock } from "../../../shared/lib/utils";
 import { AlbumEntry } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
+import { entryFilePath } from "../../utils/serverUtils";
 import { delayEnd, delayStart, inc, rate } from "../../utils/stats";
 
 var pathToFfmpeg = require('ffmpeg-static');
@@ -14,7 +15,7 @@ export async function createGif(
   rate("createGif");
   let converted = false;
   var result: Buffer[] = [];
-  const source = join(imagesRoot, asset.album.key, asset.name);
+  const source = entryFilePath(asset);
   // Global lock - only one gif created at any given time
   const unlock = await lock("createGif");
   try {

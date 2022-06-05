@@ -10,7 +10,7 @@ import {
 } from "../../../shared/types/types";
 import { openExplorer } from "../../open";
 import { exportsRoot, imagesRoot } from "../../utils/constants";
-import { fileExists } from "../../utils/serverUtils";
+import { entryFilePath, fileExists } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { addToUndo, registerUndoProvider } from "../../utils/undo";
 import { exportToFolder } from "../imageOperations/export";
@@ -172,7 +172,7 @@ async function copyJob(job: Job): Promise<Album[]> {
         }
 
         await copyFile(
-          join(imagesRoot, s.album.key, s.name),
+          entryFilePath(s),
           join(imagesRoot, dest.key, targetName)
         );
         await copyMetadata(s, { album: dest, name: targetName }, false);
@@ -299,8 +299,8 @@ async function restoreJob(job: Job): Promise<Album[]> {
         if (!s.name.startsWith(".")) {
           throw new Error(`${s.name} is not a deleted file`);
         }
-        const from = join(imagesRoot, s.album.key, s.name);
-        const to = join(imagesRoot, s.album.key, s.name.substr(1));
+        const from = entryFilePath(s);
+        const to = join(imagesRoot, s.album.key, s.name.slice(1));
         await rename(from, to);
         albumChanged(s.album, updatedAlbums);
       } catch (e: any) {
@@ -362,7 +362,7 @@ async function deleteJob(job: Job): Promise<Album[]> {
   await Promise.allSettled(
     source.map(async (s) => {
       try {
-        const from = join(imagesRoot, s.album.key, s.name);
+        const from = entryFilePath(s);
         const to = join(imagesRoot, s.album.key, "." + s.name);
         await rename(from, to);
         undoDeletePayload.source.push({ album: s.album, name: "." + s.name });
@@ -422,7 +422,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
           }
           await copyMetadata(s.source, { album: s.destination, name: targetName }, true);
           await rename(
-            join(imagesRoot, s.source.album.key, s.source.name),
+            entryFilePath(s.source),
             join(imagesRoot, s.destination.key, targetName)
           );
           undoMultiMovePayload.source.push({source: {

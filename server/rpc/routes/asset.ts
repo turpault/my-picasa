@@ -2,21 +2,21 @@ import { writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { isVideo } from "../../../shared/lib/utils";
-import { AlbumEntry, PicasaFolderMeta } from "../../../shared/types/types";
-import { imagesRoot } from "../../utils/constants";
+import { AlbumEntry } from "../../../shared/types/types";
+import { entryFilePath } from "../../utils/serverUtils";
 import {
   buildContext,
   destroyContext,
   encode,
   setOptions,
-  transform,
+  transform
 } from "../imageOperations/sharp-processor";
 import { readPicasaIni } from "../rpcFunctions/picasaIni";
 
 export async function asset(entry: AlbumEntry): Promise<string> {
   if (isVideo(entry)) {
     // Send the video pack as-is
-    const path = join(imagesRoot, entry.album.key, entry.name);
+    const path = entryFilePath(entry);
     return path;
   }
 
