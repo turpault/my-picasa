@@ -38,7 +38,7 @@ export async function makeTabs(_emitter: AppEventSource) {
     const list = (await s.undoList()) as undoStep[];
     const e = $("#undo");
     e.empty();
-    for (const u of list.reverse()) {
+    for (const u of list.reverse().slice(0, 20)) {
       const when = new Date(u.timestamp);
       const whenStr = when.toDateString();
       e.append(

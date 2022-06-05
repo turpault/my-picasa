@@ -111,8 +111,12 @@ export class _$ {
 
     return this;
   }
-  innerHTML(html:string) {
+  innerHTML(html?:string) {
+    if(html === undefined) {
+      return this.get()!.innerHTML;
+    }
     this.get()!.innerHTML = html;
+    return this;
   }
   cssDelta(name: string , value: number, priority?: string): _$ | string {
     let current = this.css(name);
