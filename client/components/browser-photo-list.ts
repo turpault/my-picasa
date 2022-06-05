@@ -521,7 +521,7 @@ export async function makePhotoList(
     element: _$,
     events: AlbumListEventSource
   ) {
-    title.val(album.name);
+    title.innerHTML(album.name);
 
     const info = await getAlbumInfo(album, filter, true /* use settings */);
     makeNThumbnails(element, info.assets.length, events);
@@ -541,7 +541,7 @@ export async function makePhotoList(
       const e = $(
         `<div class="album">
         <div class="header w3-bar w3-bar-item">
-          <div class="name-container"><input class="name" disabled></div>
+          <div class="name-container"><div class="name"/></div>
           <button data-tooltip-below="Delete Album" class="trash-album w3-button" style="background-image: url(resources/images/icons/actions/trash-50.png)"></button>
           <button data-tooltip-below="Open in Finder" class="open-in-finder w3-button" style="background-image: url(resources/images/icons/actions/finder-50.png)"></button>
           <button class="fa fa-pen edit-album-name"></button>
@@ -551,24 +551,33 @@ export async function makePhotoList(
       `
       );
       const title = $(".name", e);
-      title.on("change", async () => {
-        title.attr("disabled", "");
-        const s = await getService();
-
+      title.on("blur", async () => {
+        title.attr("contenteditable", "false");
+        title.removeClass('name-is-focused');
+        const newName = title.innerHTML();
         const album = albumFromElement(e, elementPrefix)!;
-        const newName = title.val();
 
+        const s = await getService();
         s.createJob(JOBNAMES.RENAME_ALBUM, {
           source: album,
           name: newName,
         });
       });
+      title.on("focus", async () => {
+        title.addClass('name-is-focused');
+      });
+      title.on("keydown", (ev: KeyboardEvent) => {
+        if(ev.code === "Enter") {
+          ev.preventDefault();
+          $(".edit-album-name", e).get().focus();
+        }
+      });
       $(".edit-album-name", e).on("click", async () => {
-        if (title.attr("disabled") === "") {
-          title.attr("disabled", null);
-          title.get().focus();
+        if (title.attr("contenteditable") === "true") {
+          title.attr("contenteditable", "false");
         } else {
-          title.attr("disabled", "");
+          title.attr("contenteditable", "true");
+          title.get().focus();
         }
       });
 
@@ -583,7 +592,7 @@ export async function makePhotoList(
       e.on("drop", async (ev) => {
         // Find the closest picture in the target album
         const album = albumFromElement(e, elementPrefix)!;
-        const closestEntries = thumbnailsAround(container, new Point(ev.clientX, ev.clientY), album);
+        const closestEntry = thumbnailsAround(container, new Point(ev.clientX, ev.clientY), album);
 
         const selection = SelectionManager.get().selected();
         if (album) {
@@ -591,7 +600,7 @@ export async function makePhotoList(
 
           s.createJob(JOBNAMES.MOVE, {
             source: selection,
-            destination: {album, between: closestEntries},
+            destination: {album, at: closestEntry.entry, before: closestEntry.leftOf},
           });
           SelectionManager.get().clear();
         }
@@ -604,16 +613,14 @@ export async function makePhotoList(
         e.removeClass("album-drop-area");
         ev.preventDefault();
       });
-      e.on("dragover", (ev: any) => {
+      e.on("dragover", async (ev: any) => {
         ev.preventDefault();
         const album = albumFromElement(e, elementPrefix)!;
-        const closestEntries = thumbnailsAround(e, new Point(ev.clientX, ev.clientY), album);
-        closestEntries.slice(0,2).forEach(async entry=> {
-          const e = elementFromEntry(entry, "thumb:");
-          e.addClass('highlight-debug');
-          await sleep(0.5);
-          e.removeClass('highlight-debug');
-        });
+        const closestEntry = thumbnailsAround(e, new Point(ev.clientX, ev.clientY), album);
+        const target = elementFromEntry(closestEntry.entry, "thumb:");
+        target.addClass('highlight-debug');
+        await sleep(0.5);
+        target.removeClass('highlight-debug');
       });
       e.on("click", async (ev: any) => {
         const album = albumFromElement(e, elementPrefix)!;
@@ -626,6 +633,9 @@ export async function makePhotoList(
         }
       });
       title.on("click", async (ev: any) => {
+        if(title.attr("contenteditable") === "true") {
+          return;
+        }
         const album = albumFromElement(e, elementPrefix)!;
         if (album) {
           ev.preventDefault();
@@ -641,6 +651,9 @@ export async function makePhotoList(
         }
       });
       title.on("dblclick", async (ev: any) => {
+        if(title.attr("contenteditable") === "true") {
+          return;
+        }
         const album = albumFromElement(e, elementPrefix)!;
         if (album) {
           ev.preventDefault();

@@ -61,7 +61,6 @@ export async function createFSJob(
       if (updatedAlbums.length) {
         refreshAlbums(updatedAlbums);
       }
-      broadcast("albumChanged", updatedAlbums);
     })
     .catch((err: Error) => {
       job.errors.push(err.message);
@@ -124,14 +123,12 @@ function albumChanged(album: Album, list: Album[]) {
 async function moveJob(job: Job): Promise<Album[]> {
   // convert to a multi-move
   const source = job.data.source as AlbumEntry[];
-  const {album, between} = job.data.destination as {album: Album, between: AlbumEntry[]};
+  const {album, at, before} = job.data.destination as {album: Album, at: AlbumEntry, before: boolean};
   let rank: number;
-  if(between && between.length >= 2) {
-    const p1 = await readPicasaEntry(between[0]);
+  if(at) {
+    const p1 = await readPicasaEntry(at);
     const rank1 = parseInt(p1.rank || "0");
-    const p2 = await readPicasaEntry(between[1]);
-    const rank2 = parseInt(p2.rank || "0");
-    rank = Math.floor((rank1+rank2)/2);
+    rank = rank1 + (before ? 0: 1);
   }
   const mmArgs:MultiMoveJobArguments = source.map((entry, index) => ({
     source: entry,

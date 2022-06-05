@@ -217,15 +217,20 @@ export function selectThumbnailsInRect(
 }
 export function thumbnailsAround(  container: _$,
   p: Point,
-  album?:Album):AlbumEntry[] {
-    function distanceTo(p: Point, r:Rectangle) {
+  album?:Album):{entry: AlbumEntry, leftOf :boolean } {
+    function distanceTo(p: Point, r:Rectangle): { distance: number, leftOf: boolean} {
+      if(p.y > r.bottomRight.y || p.y < r.topLeft.y) {
+        return { distance: Number.MAX_SAFE_INTEGER, leftOf: true}
+      }
+      
       const midPoint = new Point((r.bottomRight.x + r.topLeft.x)/2,(r.bottomRight.y + r.topLeft.y)/2);
-      return p.distanceSquare(midPoint);
+      const xDelta = p.x - midPoint.x;
+      return { distance: Math.abs(xDelta), leftOf: xDelta < 0};
     }
     //var rect = container.clientRect();
     //let candidate:AlbumEntry | undefined;
     let d: number = Number.MAX_SAFE_INTEGER;
-    const distances:{entry:AlbumEntry, d:number}[] = [];
+    const distances:{entry:AlbumEntry, d:{ distance: number, leftOf: boolean}  }[] = [];
     for (const e of container.all(".browser-thumbnail:not([id=\"\"])")) {
       if(e.get()!.offsetParent === null) {
         continue; // Element is not displayed
@@ -237,10 +242,10 @@ export function thumbnailsAround(  container: _$,
       if((album && album.key == entry.album.key) || !album) 
         distances.push({entry, d:distanceTo(p, new Rectangle(new Point(r.x, r.y), new Point(r.x+r.width, r.y+r.height)))});
     }
-    distances.sort((a,b)=> a.d-b.d);
+    distances.sort((a,b)=> a.d.distance-b.d.distance);
 
 
-    return distances.slice(0,4).map(v=>v.entry);
+    return { entry: distances[0].entry, leftOf: distances[0].d.leftOf};
   }
 export function makeNThumbnails(
   domElement: _$,

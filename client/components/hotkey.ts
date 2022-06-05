@@ -1,3 +1,4 @@
+import { $ } from "../lib/dom";
 import { AppEventSource } from "../uiTypes";
 import { questionIsDisplayed } from "./question";
 import { activeTab } from "./tabs";
@@ -8,7 +9,10 @@ export function makeHotkeys(emitter: AppEventSource) {
       return;
     }
 
-    if (document.activeElement && document.activeElement.tagName === "INPUT") {
+    if (document.activeElement && 
+      (document.activeElement.tagName === "INPUT" ||
+      $(document.activeElement).attr("contenteditable") === "true"
+      )) {
       return;
     }
     const _activeTab = activeTab();
