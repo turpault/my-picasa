@@ -1,29 +1,19 @@
-import { exec, spawn } from "child_process";
-import { fstat, writeFileSync } from "fs";
-import { copyFile, mkdir, rename, stat, writeFile } from "fs/promises";
-import { basename, dirname, extname, join, relative, sep } from "path";
+import { spawn } from "child_process";
+import { copyFile, writeFile } from "fs/promises";
+import { join } from "path";
 import { env } from "process";
 import { Queue } from "../../../shared/lib/queue";
-import { isPicture, isVideo, mediaName, sleep, uuid } from "../../../shared/lib/utils";
+import { isPicture, isVideo, mediaName, sleep } from "../../../shared/lib/utils";
 import {
-  Album,
-  AlbumEntry,
-  Job,
-  JobData,
-  JOBNAMES,
+  Album, Job
 } from "../../../shared/types/types";
-import { openExplorer } from "../../open";
-import { exportsRoot, imagesRoot } from "../../utils/constants";
-import { entryFilePath, fileExists } from "../../utils/serverUtils";
-import { broadcast } from "../../utils/socketList";
-import { addToUndo, registerUndoProvider } from "../../utils/undo";
-import { exportToFolder } from "../imageOperations/export";
+import { exportsRoot } from "../../utils/constants";
+import { entryFilePath } from "../../utils/serverUtils";
 import { buildImage } from "../imageOperations/sharp-processor";
-import { media, setRank } from "./media";
+import { media } from "./media";
 import { importScript } from "./osascripts";
-import { readPicasaEntry, readPicasaIni, updatePicasaEntry } from "./picasaIni";
-import { copyThumbnails } from "./thumbnailCache";
-import { folders, refreshAlbums } from "./walker";
+import { readPicasaIni } from "./picasaIni";
+import { folders, updateLastWalkLoop, waitUntilWalk } from "./walker";
 
 const exportFolder = "/tmp/t";
 function photoLibrary() {
@@ -128,3 +118,9 @@ async function exportAllFavoritesJob(job: Job): Promise<Album[]> {
   return [];
 }
 
+if (require.main === module) {
+  updateLastWalkLoop();
+  await sleep(1);
+  waitUntilWalk();
+  allPhotosInPhotoApp();
+}
