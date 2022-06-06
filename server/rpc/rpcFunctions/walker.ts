@@ -3,7 +3,7 @@ import { stat } from "fs/promises";
 import { join, relative } from "path";
 import { Queue } from "../../../shared/lib/queue";
 import {
-  alphaSorter, sleep,
+  alphaSorter, lock, sleep,
   sortByKey
 } from "../../../shared/lib/utils";
 import {
@@ -43,6 +43,7 @@ export async function updateLastWalkLoop() {
     iteration++;
     console.info(`Starting scan iteration ${iteration}`);
     console.time("Folder scan");
+    const r = await lock("Folder scan");
     const old = [...lastWalk];
     walk("", imagesRoot, async (a: Album) => {
       addOrRefreshOrDeleteAlbum(a);
@@ -67,10 +68,15 @@ export async function updateLastWalkLoop() {
     for(const oldAlbum of deletedAlbums) {
       addOrRefreshOrDeleteAlbum(oldAlbum);
     }
+    r();
 
     console.timeEnd("Folder scan");
     await sleep(60 * 3); // Wait 3 minutes
   }
+}
+export async function waitUntilWalk() {
+  const r = await lock("Folder scan");
+  r();
 }
 
 export async function refreshAlbums(albums: Album[]) {
@@ -81,16 +87,16 @@ const ALLOW_EMPTY_ALBUM_CREATED_SINCE=1000 * 60 * 60; // one hour
 async function albumExists(album: Album): Promise<boolean> {
   const p = join(imagesRoot, album.key);
   const s = await stat(p).catch(() => false)
-  if(s === false) { 
+  if(s === false) {
     return false;
   }
   if(Date.now() - (s as Stats).ctime.getTime() < ALLOW_EMPTY_ALBUM_CREATED_SINCE) {
     return true;
   }
-  
+
   const count = (await mediaCount(album)).count;
   if(count !== 0) {
-    return true;      
+    return true;
   }
   return false;
 }
@@ -101,7 +107,7 @@ export async function addOrRefreshOrDeleteAlbum(album: Album) {
     if (!(await albumExists(album))) {
       const idx = lastWalk.findIndex((f) => f.key == album.key);
       if (idx >= 0) {
-        const data = lastWalk.splice(idx, 1)[0];      
+        const data = lastWalk.splice(idx, 1)[0];
         notificationQueue.push({type: "albumDeleted", data});
       }
     } else {
@@ -144,7 +150,7 @@ async function walk(
 
   // depth down first
   for(const child of m.folders.sort(alphaSorter(false)).reverse()) {
-    walkQueue.add<Album[]>(() => walk(child, join(path, child), cb));      
+    walkQueue.add<Album[]>(() => walk(child, join(path, child), cb));
   }
 
   if(m.entries.length > 0) {
