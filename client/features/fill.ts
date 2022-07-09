@@ -5,11 +5,11 @@ import { transform } from "../imageProcess/client";
 import { $ } from "../lib/dom";
 import { isPicture } from "../../shared/lib/utils";
 
-export function setupGamma(
+export function setupFill(
   imageController: ImageController,
   toolRegistrar: ToolRegistrar
 ) {
-  const name = "Gamma";
+  const name = "Extra Light";
   toolRegistrar.registerTool(name, {
     filterName: "fill",
     enable: (e) => isPicture(e),

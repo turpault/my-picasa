@@ -7,7 +7,7 @@ import { setupBW } from "../features/bw";
 import { setupContrast } from "../features/contrast";
 import { setupCrop } from "../features/crop";
 import { setupFlip } from "../features/flip";
-import { setupGamma } from "../features/gamma";
+import { setupFill } from "../features/fill";
 import { setupMirror } from "../features/mirror";
 import { setupPolaroid } from "../features/polaroid";
 import { setupRotate } from "../features/rotate";
@@ -101,8 +101,8 @@ export async function makeEditorPage(
       setupAutocolor(imageController, toolRegistrar);
       setupBW(imageController, toolRegistrar);
       setupContrast(imageController, toolRegistrar);
-      setupGamma(imageController, toolRegistrar);
       setupBrightness(imageController, toolRegistrar);
+      setupFill(imageController, toolRegistrar);
       setupSepia(imageController, toolRegistrar);
       setupPolaroid(imageController, toolRegistrar);
       setupRotate(imageController, toolRegistrar);

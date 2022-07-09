@@ -26,7 +26,7 @@
 }
 
 .crontract-metadata {
-  right: 200px !important;
+  right: 227px !important;
 }
 .expand-metadata {
   right: 0 !important;
@@ -128,10 +128,11 @@
   color: black;
   border-top: 3px solid black !important;
   /* border-bottom: 4px solid black; */
-  /* border-left: 4px solid black; */
-  /* border-right: 4px solid black; */
+  border-left: 3px solid black !important;
+  border-right: 3px solid black !important;
   /* border-radius: 10px; */
-font-weight: bold;}
+  font-weight: bold;
+  }
 
 .highlight-list {
   /* background-color: darkgray; */
@@ -177,13 +178,15 @@ background: #e3e3e3;}
   left:0;
   right:0;
   height:50px;
-  z-index: 10000;
+  /* z-index: 10000; */
+  border-bottom: 3px solid black;
   overflow: visible;
 }
 .head {
   /* border-bottom: 0; */
-  height: 65px;
-  width: 100%;overflow-x: scroll;
+  height: 66px;
+  width: 100%;
+  /* overflow-x: scroll; */
   overflow-y: hidden;
 }
 .fill-with-aspect {
@@ -393,9 +396,7 @@ overflow: hidden;background: #f3f3f3;}
 .w3-tag {
   font-size: smaller;
 }
-.undo-menu {
-  
-}
+
 .open-in-finder {
   float: right;
   opacity: 0;
@@ -431,6 +432,7 @@ font-style: italic;font-weight: bold;
 
 .filterAlbum {
   border: none;
+  padding: 11px 16px;
 }
 
 .new-album-button {
@@ -449,15 +451,17 @@ font-style: italic;font-weight: bold;
 }
 
 .metadatasidebar {
-  width: 200px;
-  right: -200px;
+  width: 227px;
+  right: -227px;
   overflow-y: scroll;
   background-color: lightgrey;
   padding-top: 38px;
-  top: 68px;
-  position:absolute;
+  padding: 10px;
+  top: 115px;
+  position:
+  absolute;
   bottom:0;
-  transition: right 1s ease-in;
+  /* transition: right 1s ease-in; */
 }
 
 .closemetasidebar {
@@ -617,14 +621,14 @@ font-style: italic;font-weight: bold;
   position: absolute;
   display: inline;
   width: 100%;
-  padding-top: 12px;
+  padding-top: 0px;
 }
 
 .album-photos {
   user-select: none;
   background-color: #f3f3f3;
   padding-left: 20px;
-  padding-top: 42px;
+  padding-top: 62px;
   padding-right: 20px;
   padding-bottom: 20px;
   border-left: 1px solid gray;
@@ -697,9 +701,15 @@ font-style: italic;font-weight: bold;
 }
 
 .tab-button {
-  height: 47px; /* color: black; */ /* border-bottom: 2px solid black; */
+  height: 47px;
+  /* color: black; */
+  /* border-bottom: 2px solid black; */
   border-top: 3px solid #f3f3f3;
-/* position: relative; *//* bottom: 0; */}
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  /* position: relative; */
+  /* bottom: 0; */
+  }
 
 .remove-tab {
   /* padding: 10px; */
@@ -718,7 +728,8 @@ font-style: italic;font-weight: bold;
   top: 115px;
   right: 0;
   bottom: 0;
-transition: right 1s ease-in;}
+  /* transition: right 1s ease-in; */
+  }
 
 .jobs {
   position: fixed;
@@ -823,14 +834,14 @@ transition: right 1s ease-in;}
 [data-tooltip]:hover:before {
   opacity: 1;
   /* customizable */
-  /* background: yellow; */
+  background: yellow;
   /* margin-top: -55px; */
   /* margin-right: 42px; */
   /* right: 0px; */
 }
 
 [data-tooltip-below]:before {
-  position: absolute;
+  position: fixed;
   content: attr(data-tooltip-below);
   pointer-events: none;
   /* right: 0; */
@@ -840,7 +851,7 @@ transition: right 1s ease-in;}
   margin-top: 25px;
   opacity: 0;
   /* customizable */
-  background: yellow;
+  background: #ffffb7;
   transition: all 0.15s ease;
   padding: 10px;
   color: #333;
@@ -851,7 +862,7 @@ transition: right 1s ease-in;}
 [data-tooltip-below]:hover:before {
   opacity: 1;
   /* customizable */
-  z-index: 999;
+  z-index: 10000;
   /* background: yellow; */
   /* margin-top: -55px; */
   /* margin-right: 42px; */
@@ -1093,8 +1104,10 @@ transition: right 1s ease-in;}
 }
 .dropdown-content {
   z-index: 1000;
-  position: relative; /* left: 350px; */
-  width: 100%; /* max-width: 350px !important; */
+  position: relative;
+  /* left: 350px; */
+  width: 100%;
+  max-width: 350px !important;
   min-width: auto !important;
 }
 .resizer {

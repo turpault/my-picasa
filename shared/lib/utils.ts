@@ -1,4 +1,3 @@
-import { extname } from "path";
 import {
   AlbumEntry,
   pictureExtensions,
@@ -73,10 +72,6 @@ export function debounce(f: Function, delay?: number) {
       }
     })();
   }
-}
-
-export function mediaName(entry: AlbumEntry): string {
-  return entry.album.name + ' - ' + entry.name.substring(0, -extname(entry.name).length);
 }
 
 export function isMediaUrl(url: string): boolean {
@@ -250,7 +245,7 @@ class Mutex {
     const p = new Promise<void>((resolve) => {
       _resolve = () => {
         if((Date.now() - this.lockDate.getTime()) > 1000) {
-          debugger;
+          //debugger;
         }
         this.lockDate = new Date();
         this.nest--;

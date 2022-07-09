@@ -10,6 +10,7 @@ import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
 import { AlbumListEventSource, AppEventSource } from "../uiTypes";
 import { animateStar } from "./animations";
+import { t } from "./strings";
 import {
   makeNThumbnails,
   selectThumbnailsInRect,
@@ -542,9 +543,9 @@ export async function makePhotoList(
         `<div class="album">
         <div class="header w3-bar w3-bar-item">
           <div class="name-container"><div class="name"/></div>
-          <button data-tooltip-below="Delete Album" class="trash-album w3-button" style="background-image: url(resources/images/icons/actions/trash-50.png)"></button>
-          <button data-tooltip-below="Open in Finder" class="open-in-finder w3-button" style="background-image: url(resources/images/icons/actions/finder-50.png)"></button>
-          <button class="fa fa-pen edit-album-name"></button>
+          <button data-tooltip-below=${t("Delete Album")} class="trash-album w3-button" style="background-image: url(resources/images/icons/actions/trash-50.png)"></button>
+          <button data-tooltip-below=${t("Open in Finder")} class="open-in-finder w3-button" style="background-image: url(resources/images/icons/actions/finder-50.png)"></button>
+          <button data-tooltip-below=${t("Edit Album Name")} class="fa fa-pen edit-album-name"></button>
         </div>
         <div class="photos album-photos"></div>
       </div>

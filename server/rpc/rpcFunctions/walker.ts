@@ -36,14 +36,14 @@ export async function startAlbumUpdateNotification() {
     }
   }
 }
-
+let resolveInitialScan: Function;
+const initialScan = new Promise(resolve => {
+  resolveInitialScan = resolve;
+})
 export async function updateLastWalkLoop() {
   let iteration = 0;
   while (true) {
-    iteration++;
     console.info(`Starting scan iteration ${iteration}`);
-    console.time("Folder scan");
-    const r = await lock("Folder scan");
     const old = [...lastWalk];
     walk("", imagesRoot, async (a: Album) => {
       addOrRefreshOrDeleteAlbum(a);
@@ -68,15 +68,16 @@ export async function updateLastWalkLoop() {
     for(const oldAlbum of deletedAlbums) {
       addOrRefreshOrDeleteAlbum(oldAlbum);
     }
-    r();
 
-    console.timeEnd("Folder scan");
+    if(iteration === 0) {
+      resolveInitialScan();
+    }
+    iteration++;
     await sleep(60 * 3); // Wait 3 minutes
   }
 }
 export async function waitUntilWalk() {
-  const r = await lock("Folder scan");
-  r();
+  return initialScan;
 }
 
 export async function refreshAlbums(albums: Album[]) {

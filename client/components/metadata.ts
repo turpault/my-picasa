@@ -3,6 +3,7 @@ import { $ } from "../lib/dom";
 import { SelectionEventSource } from "../selection/selection-manager";
 import { AlbumEntry } from "../../shared/types/types";
 import L from "leaflet";
+import { t } from "./strings";
 const section = [
   "Make",
   "Model",
@@ -11,15 +12,24 @@ const section = [
   "FNumber",
   "DateTimeOriginal",
 ];
-
+const metaHTML = ` <div>
+<div class="w3-bar-item w3-white meta-title">${t("File")}</div>
+<div class="file"></div>
+<div class="w3-bar-item w3-white meta-title">${t("Map")}</div>
+<div class="map"></div>
+<div class="w3-bar-item w3-white meta-title">${t("Metadata")}</div>
+<div class="metadata w3-bar-item"></div>
+</div>
+`;
 export function makeMetadata(
   e: HTMLElement,
   selectionEvent: SelectionEventSource
 ) {
-  const meta = $(".metadata", e);
-  const metasidebar = $(e);
-  const map = $(".map", e);
-  const file = $(".file", e);
+  const meta = $(e);
+  const metasidebar = $(metaHTML);
+  meta.append(metasidebar);
+  const map = $(".map", metasidebar);
+  const file = $(".file", metasidebar);
   let mapLeaflet: any;
   let marker: any;
 
@@ -28,7 +38,7 @@ export function makeMetadata(
   open.on("click", () => {
     openedMeta=!openedMeta;
     $(".workarea").addRemoveClass('crontract-metadata', openedMeta)
-    metasidebar.addRemoveClass('expand-metadata', openedMeta)
+    meta.addRemoveClass('expand-metadata', openedMeta)
     if (mapLeaflet) {
       mapLeaflet.invalidateSize();
     }

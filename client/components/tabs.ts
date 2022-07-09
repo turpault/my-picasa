@@ -32,26 +32,6 @@ let emitter: AppEventSource;
 export async function makeTabs(_emitter: AppEventSource) {
   emitter = _emitter;
   tabs = $(".tabs");
-
-  const s = await getService();
-  async function updateUndoList() {
-    const list = (await s.undoList()) as undoStep[];
-    const e = $("#undo");
-    e.empty();
-    for (const u of list.reverse().slice(0, 20)) {
-      const when = new Date(u.timestamp);
-      const whenStr = when.toDateString();
-      e.append(
-        $(
-          `<a class="w3-bar-item w3-button">${whenStr}: ${u.description}</a>`
-        ).on("click", () => {
-          s.undo(u.uuid);
-        })
-      );
-    }
-  }
-  s.on("undoChanged", updateUndoList);
-  await updateUndoList();
 }
 
 export function selectTab(_tab: _$) {
