@@ -7,12 +7,13 @@ import { makeAlbumList } from "./browser-album-list";
 import { makePhotoList } from "./browser-photo-list";
 import { makeButtons } from "./browser-photo-list-buttons";
 import { question } from "./question";
+import { t } from "./strings";
 
 const html = `<div class="browser fill" style="position: relative">
 </div>`;
 
 const tabHtml = `<div class="tab-button browser-tab">
-<input type="text" class="w3-button filterAlbum" placeholder="Browser">
+<input type="text" class="w3-button filterAlbum" placeholder=${t("Browser")}>
 <button data-tooltip-below="New Album" class="w3-button new-album-button" style="background-image: url(resources/images/icons/actions/new-album-50.png)"></button>
 </div>`;
 

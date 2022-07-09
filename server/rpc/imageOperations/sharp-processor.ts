@@ -1,6 +1,5 @@
 import { readFile } from "fs/promises";
 import { join } from "path";
-import sharp, { Sharp } from "sharp";
 import {
   clipColor,
   decodeOperations,
@@ -15,6 +14,7 @@ import { imagesRoot } from "../../utils/constants";
 import { promisify } from "util";
 import sizeOf from "image-size";
 import { Queue } from "../../../shared/lib/queue";
+import sharp, { Sharp } from "sharp";
 
 const s = promisify(sizeOf);
 
@@ -53,12 +53,22 @@ export async function buildContext(entry: AlbumEntry): Promise<string> {
     join(imagesRoot, entry.album.key, entry.name)
   );
   const contextId = uuid();
-  let s = sharp(fileData, {
-    limitInputPixels: false,
-    failOnError: false,
-  }).rotate();
-  contexts.set(contextId, s);
-  return contextId;
+  try {
+    let s = sharp(fileData, {
+      limitInputPixels: false,
+      failOnError: false,
+    })
+      .withMetadata()
+      .rotate();
+    const meta = await s.metadata();
+    contexts.set(contextId, s);
+    return contextId;
+  } catch (e: any) {
+    console.error(
+      `An error occured while reading file ${entry.name} in folder ${entry.album.key} : ${e.message}`
+    );
+    throw e;
+  }
 }
 export async function cloneContext(context: string): Promise<string> {
   const j = getContext(context);
@@ -173,7 +183,7 @@ export async function transform(
           j = getContext(context);
           const amount = parseFloat(args[1]);
           //j = j.gamma(2.2, 1 + amount);
-          j = j.modulate({ brightness: amount });
+          j = j.modulate({ brightness: 1 + amount });
         }
         break;
       case "blur":
@@ -330,14 +340,28 @@ export async function transform(
 
         break;
       case "autocolor":
+        /*const dominantColor = await j.clone()
+          .resize(5, 5, { position: sharp.strategy.attention })
+          .toBuffer()
+          .then((buffer) => {
+            return sharp(buffer)
+              .stats()
+              .then((stats) => {
+                return stats.dominant;
+              });
+          });
+        const reverseTint = {r: 255-dominantColor.r, g: 255-dominantColor.g, b: 255-dominantColor.b};*/
+        j = j.normalise();
+
+        /*
         // Get the min/max values
         const levels = (min: number, max: number) => {
           const scale = 255 / (max - min);
           return [scale, -min * scale];
         };
 
-        const blurred = await j.clone().blur(5).toBuffer();
-        const stats = await sharp(blurred).stats();
+        const blurred = await commitContext(await j.clone().blur(5));
+        const stats = await blurred.stats();
 
         // For each channel, get the min/max values
         {
@@ -351,13 +375,10 @@ export async function transform(
                 .toBuffer()
             )
           );
-          const before = await j.stats();
           const meta = await j.metadata();
           j = sharp(meta).joinChannel(buffers);
-          const after = await j.stats();
-
-          console.info(before, after);
         }
+        */
 
         break;
       case "contrast":
@@ -431,18 +452,27 @@ export async function transform(
         break;
       }
       case "resize": {
-        const sizeW = args[2] ? parseInt(args[2]) : undefined;
-        const sizeH = args[3] ? parseInt(args[3]) : undefined;
+        const sizeW = args[1] ? parseInt(args[1]) : undefined;
+        const sizeH = args[2] ? parseInt(args[2]) : undefined;
         j = j.resize(sizeW, sizeH, { fit: "inside" });
+        break;
+      }
+      case "exif": {
+        const exif = args[0]
+          ? JSON.parse(decodeURIComponent(args[0]))
+          : undefined;
+        j = j.withMetadata({ exif: exif });
         break;
       }
       case "label": {
         await commit(context);
         j = getContext(context);
         const metadata = await j.metadata();
-        const text = args[2];
-        const size = parseInt(args[3]);
-        const gravity = args[4];
+        const w = metadata.width!;
+        const h = metadata.height!;
+        const text = decodeURIComponent(args[1]);
+        const size = parseInt(args[2]);
+        const gravity = args[3];
         const { data, info } = await j
           .raw()
           .toBuffer({ resolveWithObject: true });
@@ -460,7 +490,12 @@ export async function transform(
             raw: info,
           },
         ];
-        const txtSvg = `<svg> <text font-size="${size}" fill="#000000">${text}</text> </svg>`;
+
+        const txtSvg = `<svg width="${w}" height="100"> 
+        <text  x="50%" y ="50%" text-anchor="middle" dominant-baseline="middle" font-size="${Math.floor(
+          (size * w) / 1000
+        )}" fill="#000000">${text}</text> 
+        </svg>`;
         layers.push({ input: Buffer.from(txtSvg), gravity: "south" });
 
         const newImage = sharp({
@@ -593,14 +628,14 @@ async function commitContext(j: sharp.Sharp): Promise<sharp.Sharp> {
 }
 
 // Queue last-in first out
-const thumbnailQueue = new Queue(4, { fifo: false });
+const buildImageQueue = new Queue(4, { fifo: false });
 export async function buildImage(
   entry: AlbumEntry,
   options: any | undefined,
   transformations: string | undefined,
   extraOperations: any[] | undefined
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
-  return thumbnailQueue.add(async () => {
+  return buildImageQueue.add(async () => {
     const label = `Thumbnail for image ${entry.album.name} / ${
       entry.name
     } / ${transformations} / ${extraOperations ? extraOperations[0] : "no op"}`;

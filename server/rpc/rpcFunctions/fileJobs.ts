@@ -14,6 +14,7 @@ import { entryFilePath, fileExists } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { addToUndo, registerUndoProvider } from "../../utils/undo";
 import { exportToFolder } from "../imageOperations/export";
+import { exportAllFavoritesJob } from "./fileJob-export-favorites";
 import { setRank } from "./media";
 import { readPicasaEntry, readPicasaIni, updatePicasaEntry } from "./picasaIni";
 import { copyThumbnails } from "./thumbnailCache";
@@ -95,6 +96,8 @@ async function executeJob(job: Job): Promise<Album[]> {
       return restoreAlbumJob(job);
     case JOBNAMES.RENAME_ALBUM:
       return renameAlbumJob(job);
+    case JOBNAMES.EXPORT_TO_IPHOTO:
+      return exportAllFavoritesJob(job);
     default:
       job.status = "finished";
       job.errors.push(`Unknown job name ${job.name}`);
@@ -225,7 +228,7 @@ async function deleteAlbumJob(job: Job): Promise<Album[]> {
   }
   addToUndo(
     JOBNAMES.RESTORE_ALBUM,
-    `Delete album ${source.name}`,
+    `Delete album $1|${source.name}`,
     undoDeleteAlbumPayload
   );
   job.status = "finished";
@@ -275,7 +278,7 @@ async function renameAlbumJob(job: Job): Promise<Album[]> {
   if (!job.data.noUndo) {
     addToUndo(
       JOBNAMES.RENAME_ALBUM,
-      `Rename album ${targetAlbum.name} back to ${source.name}`,
+      `Rename album $1 back to $2|${targetAlbum.name}|${source.name}`,
       undoDeleteAlbumPayload
     );
   }
@@ -377,7 +380,7 @@ async function deleteJob(job: Job): Promise<Album[]> {
   );
   addToUndo(
     JOBNAMES.RESTORE,
-    `Delete ${source.length} files...`,
+    `Delete $1 files...|${source.length}`,
     undoDeletePayload
   );
   job.status = "finished";
@@ -446,7 +449,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
     undoMultiMovePayload.noUndo = true;
     addToUndo(
       JOBNAMES.MULTI_MOVE,
-      `Move ${source.length} files to ${source[0].destination.name}...`,
+      `Move $1 files to $2...|${source.length}|${source[0].destination.name}`,
       undoMultiMovePayload
     );
   }

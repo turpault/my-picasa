@@ -150,6 +150,6 @@ export const MyPicasa: ServiceMap = {
     imageInfo: {
       handler: imageInfo,
       arguments: ["entry:object"],
-    },
+    }
   },
 };

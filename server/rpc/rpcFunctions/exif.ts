@@ -10,7 +10,7 @@ import { entryFilePath } from "../../utils/serverUtils";
 export async function exifDataAndStats(
   entry: AlbumEntry
 ): Promise<{ stats: Stats; tags: any }> {
-  const path = entryFilePath(entry));
+  const path = entryFilePath(entry);
   const [s, t] = await Promise.all([
     stat(path),
     exifData(entry),
@@ -21,6 +21,12 @@ export async function exifDataAndStats(
     stats: s,
     tags: { ...tags.image, ...tags.gps, ...tags.exif, ...tags },
   };
+}
+
+export function toExifDate(isoDate: string) {
+  // exif is YYYY:MM:DD HH:MM:SS
+  // iso is YYYY-MM-DDTHH:mm:ss.sssZ
+  return `${isoDate.slice(0,4)}:${isoDate.slice(5,7)}:${isoDate.slice(8,10)} ${isoDate.slice(11,13)}:${isoDate.slice(14,16)}:${isoDate.slice(17,19)}`
 }
 
 export async function exifData(entry: AlbumEntry): Promise<any> {

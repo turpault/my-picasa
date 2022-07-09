@@ -5,6 +5,32 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Start favorite to iPhoto",      
+      "request": "launch",
+      "runtimeArgs": [
+        "run-script",
+        "start-fav"
+      ],
+      "runtimeExecutable": "npm",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "type": "node"
+    },
+    {
+      "name": "Start server",
+      "program": "${workspaceFolder}/server/index.ts",
+      "request": "launch",
+      "args": [
+        "-r",
+        "ts-node/register"        
+      ],
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "type": "node"
+    },
+    {
       "name": "Attach by Process ID",
       "processId": "${command:PickProcess}",
       "request": "attach",
