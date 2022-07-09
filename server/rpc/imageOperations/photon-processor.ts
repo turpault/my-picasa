@@ -182,14 +182,11 @@ export async function transform(
         {
           const out = await j.png().toBuffer({resolveWithObject: true});
           const image = photon.PhotonImage.new_from_base64(out.data.toString('base64'));
-          const amount = parseFloat(args[1]);
-          photon.lch(image, 'lighten', amount / 2 );
+          photon.grayscale(image);
           const buf = image.get_raw_pixels();
-          j = sharp(buf, {
-            raw: {
-            width: out.info.width,
-            height: out.info.height,
-            channels: 4}
+          j = sharp({
+            raw: buf,
+            ...out.info
           });
           /*await commit(context);
           j = getContext(context);
