@@ -18,7 +18,7 @@ import { exportAllFavoritesJob } from "./fileJob-export-favorites";
 import { setRank } from "./media";
 import { readPicasaEntry, readPicasaIni, updatePicasaEntry } from "./picasaIni";
 import { copyThumbnails } from "./thumbnailCache";
-import { refreshAlbums } from "./walker";
+import { onRenamedAlbums, refreshAlbums } from "./walker";
 
 const jobs: Job[] = [];
 type MultiMoveJobArguments = {source: AlbumEntry, destination: Album, rank: Number}[];
@@ -267,8 +267,7 @@ async function renameAlbumJob(job: Job): Promise<Album[]> {
       join(imagesRoot, targetAlbum.key)
     );
     undoDeleteAlbumPayload.source = targetAlbum;
-    albumChanged(source, updatedAlbums);
-    albumChanged(targetAlbum, updatedAlbums);
+    onRenamedAlbums(source, targetAlbum);
   } catch (e: any) {
     job.errors.push(e.message as string);
   } finally {
@@ -278,7 +277,7 @@ async function renameAlbumJob(job: Job): Promise<Album[]> {
   if (!job.data.noUndo) {
     addToUndo(
       JOBNAMES.RENAME_ALBUM,
-      `Rename album $1 back to $2|${targetAlbum.name}|${source.name}`,
+      `Rename album $1 to $2|${source.name}|${targetAlbum.name}`,
       undoDeleteAlbumPayload
     );
   }
@@ -402,7 +401,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
   job.progress.remaining = steps;
   job.changed();
   await Promise.allSettled(
-    source.map(async (s, index) => {
+    source.map(async (s) => {
       try {
         let targetName = s.source.name;
         const sourceRank = parseInt((await readPicasaEntry(s.source)).rank || '0');
@@ -437,6 +436,9 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
         albumChanged(s.source.album, updatedAlbums);
         if(s.source.album.key !== s.destination.key)
           albumChanged(s.destination, updatedAlbums);
+        else {
+          broadcast('albumEvent', [{type: "albumOrderUpdated", data:s.source.album}]);
+        }
 
       } catch (e: any) {
         job.errors.push(e.message as string);

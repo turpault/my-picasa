@@ -4,6 +4,13 @@ import { buildEmitter, Emitter } from "../../shared/lib/event";
 import { PanZoomEvent } from "../uiTypes";
 import { _$ } from "./dom";
 
+function toMatrix(from: Matrix3x3): string {
+  return `matrix(${from.get(0, 0)}, ${from.get(1, 0)}, ${from.get(
+    0,
+    1
+  )}, ${from.get(1, 1)}, ${from.get(0, 2)}, ${from.get(1, 2)})`;
+}
+
 export class ImagePanZoomController {
   constructor(c: _$) {
     this.panner = createPanZoom(c.get(), {
@@ -127,7 +134,6 @@ export class ImagePanZoomController {
     this.panner.moveTo(initialLeft, initialTop);
   }
   enable(enabled: boolean) {
-    this.localTransforms = this.panner.getTransform();
     if (enabled) {
       this.element.css({
         position: "",
@@ -135,15 +141,20 @@ export class ImagePanZoomController {
         top: "",
       });
       this.panner.resume();
-    } else this.panner.pause();
+    } else{ 
+      this.localTransforms = this.panner.getTransform();
+      const matrix = Matrix3x3.identity().scale(this.localTransforms.scale).timesMatrix(Matrix3x3.translation(-this.localTransforms.x, -this.localTransforms.y));      
+      this.element.css({      
+        "transform-origin": `${0}px ${0}px`,
+        position: "relative",
+        //left: `${this.localTransforms.x}px`,
+        //top: `${this.localTransforms.y}px`,
+        transform: toMatrix(matrix)
+      });
+      this.panner.pause();
+    }
   }
   rotate(angleDeg: number) {
-    function toMatrix(from: Matrix3x3): string {
-      return `matrix(${from.get(0, 0)}, ${from.get(1, 0)}, ${from.get(
-        0,
-        1
-      )}, ${from.get(1, 1)}, ${from.get(0, 2)}, ${from.get(1, 2)})`;
-    }
     const transform = this.localTransforms!;
     const elemCenter = {
       x: this.element.width / 2,
@@ -156,7 +167,7 @@ export class ImagePanZoomController {
     });*/
 
     //const matrix = JSON.parse(`[${this.localTransforms.slice(7,-1)}]`);
-    let matrix = Matrix3x3.identity();
+    let matrix = Matrix3x3.translation(transform.x / transform.scale, transform.y / transform.scale); //Matrix3x3.identity();
     let translation = Matrix3x3.translation(-elemCenter.x, -elemCenter.y);
     let translationBack = Matrix3x3.translation(elemCenter.x, elemCenter.y);
     matrix = matrix.timesMatrix(translationBack);
@@ -167,12 +178,8 @@ export class ImagePanZoomController {
     const values = toMatrix(matrix);
     console.info("Output data", transform, elemCenter, values);
     this.element.css({
-      "transform-origin": `${0}px ${0}px`,
       transform: values,
-      position: "relative",
-      left: `${transform.x}px`,
-      top: `${transform.y}px`,
-    });
+    });  
   }
   zoom(zoom: number) {
     const targetZoom = this.panner.getMinZoom() * zoom;

@@ -16,7 +16,7 @@ function valueToSlider(v: any) {
 }
 
 export type ValueChangeEvent = {
-  updated: { index: number; value: number };
+  updated: { index: number; value: number, origin: 'preview' | 'control' };
   preview: { index: number; value: number };
   cancel: {}
 };
@@ -64,7 +64,8 @@ export function setupTiltPreview(container: _$, emitter: Emitter<ValueChangeEven
   $(".btn-ok-tilt", container).on("click", function () {
     emitter.emit("updated", {
       index: activeIndex,
-      value: sliderToValue($(".rotation", container).val()),
+      value: sliderToValue($(".rotation", container).val()
+      ),origin: 'preview'
     });
   });
   $(".btn-cancel-tilt", container).on("click", function () {
@@ -97,8 +98,8 @@ export function setupTiltPreview(container: _$, emitter: Emitter<ValueChangeEven
   });
   return {
     show: (index:number , initialValue: number)=> {
-      updatePreview(initialValue);
       activeIndex = index;
+      updatePreview(initialValue);
       elem.css({ display: "block" });
     },
     hide: ()=> {

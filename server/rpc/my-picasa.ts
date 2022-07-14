@@ -109,7 +109,7 @@ export const MyPicasa: ServiceMap = {
     },
     sortAlbum: {
       handler: sortAlbum,
-      arguments: ["album:string", "sort:string"],
+      arguments: ["album:object", "sort:string"],
     },
     setRank: {
       handler: setRank,

@@ -120,10 +120,11 @@ export function setupCrop(
           emitter.emit("updated", { index, value: rectFromControls() });
         }
       }
-      $(".crop-left", e).on("change", controlsChanged);
-      $(".crop-right", e).on("change", controlsChanged);
-      $(".crop-top", e).on("change", controlsChanged);
-      $(".crop-bottom", e).on("change", controlsChanged);
+      const decoded = decodeRect(args[1]);
+      $(".crop-left", e).on("change", controlsChanged).val(decoded.left * 100);
+      $(".crop-right", e).on("change", controlsChanged).val(decoded.right * 100);
+      $(".crop-top", e).on("change", controlsChanged).val(decoded.top * 100);
+      $(".crop-bottom", e).on("change", controlsChanged).val(decoded.bottom * 100);
       return {ui: e.get()!, clearFcts: ()=>{ clearFcts.forEach(f=>f())}};
     },
   });

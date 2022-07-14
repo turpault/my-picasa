@@ -1,17 +1,19 @@
 import { getFileExifData } from "../folder-utils";
-import { $ } from "../lib/dom";
+import { $, _$ } from "../lib/dom";
 import { SelectionEventSource } from "../selection/selection-manager";
 import { AlbumEntry } from "../../shared/types/types";
 import L from "leaflet";
 import { t } from "./strings";
-const section = [
-  "Make",
-  "Model",
-  "ISO",
-  "ExposureTime",
-  "FNumber",
-  "DateTimeOriginal",
-];
+const section:{[k:string]:any} = {
+  "Make": ()=>t("Make"),
+  "Model": ()=>t("Model"),
+  "ISO": ()=>t("ISO"),
+  "ExposureTime": ()=>t("Exposure Time"),
+  "FNumber": ()=>t("F-Number"),
+  "DateTimeOriginal": ()=>t("Original Date"),
+  "ExifImageHeight": ()=>t("Height (pixels)"),
+  "ExifImageWidth": ()=>t("Width (pixels)")
+};
 const metaHTML = ` <div>
 <div class="w3-bar-item w3-white meta-title">${t("File")}</div>
 <div class="file"></div>
@@ -22,14 +24,14 @@ const metaHTML = ` <div>
 </div>
 `;
 export function makeMetadata(
-  e: HTMLElement,
+  e: _$,
   selectionEvent: SelectionEventSource
 ) {
-  const meta = $(e);
   const metasidebar = $(metaHTML);
-  meta.append(metasidebar);
+  e.append(metasidebar);
   const map = $(".map", metasidebar);
   const file = $(".file", metasidebar);
+  const meta = $(".metadata", metasidebar);
   let mapLeaflet: any;
   let marker: any;
 
@@ -38,7 +40,7 @@ export function makeMetadata(
   open.on("click", () => {
     openedMeta=!openedMeta;
     $(".workarea").addRemoveClass('crontract-metadata', openedMeta)
-    meta.addRemoveClass('expand-metadata', openedMeta)
+    e.addRemoveClass('expand-metadata', openedMeta)
     if (mapLeaflet) {
       mapLeaflet.invalidateSize();
     }
@@ -108,7 +110,7 @@ export function makeMetadata(
         }
         for (const idx in data) {
           if (Number.isNaN(parseInt(idx)))
-            if (section.includes(idx)) {
+            if (section.hasOwnProperty(idx)) {
               // exclude unknown tags
               let val = data[idx];
               if (idx.includes("Date")) {
@@ -118,7 +120,7 @@ export function makeMetadata(
                 val = v < 1 ? `1/${Math.round(1 / v)} s` : `${v} s`;
               }
               meta.append(
-                `<div><div class="w3-tag">${idx}</div><div>${val}</div></div>`
+                `<div><div class="w3-tag">${section[idx]()}</div><div>${val}</div></div>`
               );
             }
         }

@@ -60,8 +60,8 @@ export class WsAdaptor implements SocketAdaptorInterface {
   on(
     action: string,
     callback: (payload: any, callback: Function) => void
-  ): void {
-    this.handlerMap.on(action, callback as Handler<any>);
+  ): Function {
+    return this.handlerMap.on(action, callback as Handler<any>);
   }
 
   /**

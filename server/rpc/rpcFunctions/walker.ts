@@ -84,6 +84,13 @@ export async function refreshAlbums(albums: Album[]) {
   await Promise.all(albums.map(addOrRefreshOrDeleteAlbum));
 }
 
+export async function onRenamedAlbums(from: Album, to: Album) {
+  const idx = lastWalk.findIndex((f) => f.key == from.key);
+  const old = {...lastWalk[idx]};
+  lastWalk[idx] = {...lastWalk[idx], ...to};
+  notificationQueue.push({type: "albumMoved", data: old, data2: lastWalk[idx] });
+}
+
 const ALLOW_EMPTY_ALBUM_CREATED_SINCE=1000 * 60 * 60; // one hour
 async function albumExists(album: Album): Promise<boolean> {
   const p = join(imagesRoot, album.key);

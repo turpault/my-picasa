@@ -2,7 +2,7 @@ import {
   Album,
   AlbumChangeEvent,
   AlbumWithCount,
-  JOBNAMES
+  JOBNAMES,
 } from "../../shared/types/types";
 import { folder } from "../element-templates";
 import {
@@ -10,7 +10,7 @@ import {
   albumFromElement,
   elementFromAlbum,
   setIdForAlbum,
-  _$
+  _$,
 } from "../lib/dom";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
@@ -33,13 +33,12 @@ export async function makeAlbumList(
     if (lastHighlight && lastHighlight.is()) {
       lastHighlight.removeClass("highlight-list");
     }
-    lastHighlight = $(elementFromAlbum(album, elementPrefix)!);
+    lastHighlight = elementFromAlbum(album, elementPrefix);
     if (lastHighlight.is()) {
       lastHighlight.addClass("highlight-list");
       lastHighlight.get().scrollIntoViewIfNeeded(false);
     }
   });
-  let firstInit = true;
 
   appEvents.on("keyDown", ({ code, win }) => {
     if (win.isParent(container))
@@ -63,28 +62,33 @@ export async function makeAlbumList(
     return insertionPoint;
   }
   function addListeners(item: _$) {
-    item.on("click", function (ev): any {
-      const album = albumFromElement(item, elementPrefix)!;
-      events.emit("selected", { album });
-    }).on("dragover", (ev: any) => {
-      ev.preventDefault();
-    }).on("dragenter", (ev: any) => {
-      item.addClass("drop-area");
-      ev.preventDefault();
-    }).on("dragleave", (ev: any) => {
-      item.removeClass("drop-area");
-      ev.preventDefault();
-    }).on("drop", async (ev: any) => {
-      const selection = SelectionManager.get().selected();
-      const album = albumFromElement(item, elementPrefix)!;
-      const s = await getService();
-  
-      s.createJob(JOBNAMES.MOVE, {
-        source: selection,
-        destination: {album},
+    item
+      .on("click", function (ev): any {
+        const album = albumFromElement(item, elementPrefix)!;
+        events.emit("selected", { album });
+      })
+      .on("dragover", (ev: any) => {
+        ev.preventDefault();
+      })
+      .on("dragenter", (ev: any) => {
+        item.addClass("drop-area");
+        ev.preventDefault();
+      })
+      .on("dragleave", (ev: any) => {
+        item.removeClass("drop-area");
+        ev.preventDefault();
+      })
+      .on("drop", async (ev: any) => {
+        const selection = SelectionManager.get().selected();
+        const album = albumFromElement(item, elementPrefix)!;
+        const s = await getService();
+
+        s.createJob(JOBNAMES.MOVE, {
+          source: selection,
+          destination: { album },
+        });
+        SelectionManager.get().clear();
       });
-      SelectionManager.get().clear();
-    });
   }
   function addAlbum(album: AlbumWithCount) {
     const insert = insertionPoint(album);
@@ -118,24 +122,21 @@ export async function makeAlbumList(
     removeAlbum(album);
     addAlbum(album);
   }
-  async function refreshList() {
-    if (firstInit) {
-      firstInit = false;
-      events.emit("selected", { album: albums[0] });
-    }
-  }
-  let gotInitialList = false;
-  const s = await getService();
-  setTimeout(()=> {
+
+  // Delayed init
+  setTimeout(async () => {
+    let gotInitialList = false;
+    const s = await getService();
     s.on("albums", async (e: any) => {
       for (const a of e.payload as AlbumWithCount[]) {
         addAlbum(a);
       }
       gotInitialList = true;
+      events.emit("selected", { album: albums[0] });
     });
     s.monitorAlbums();
     s.on("albumEvent", async (e: any) => {
-      if(!gotInitialList) {
+      if (!gotInitialList) {
         return;
       }
       for (const event of e.payload as AlbumChangeEvent[]) {
@@ -146,13 +147,19 @@ export async function makeAlbumList(
           case "albumCountUpdated":
             updateAlbum(event.data);
             break;
-          case "albumDeleted":
+          case "albumMoved":
             removeAlbum(event.data);
+            addAlbum(event.data2!);
+            break;
+          case "albumAdded":
+            addAlbum(event.data);
+          case "albumCountUpdated":
+            // Don't do anything
+            break;
+
         }
       }
-      // reload list
-      refreshList();
     });
-  },100);
+  }, 100);
   return container;
 }

@@ -8,7 +8,7 @@ export interface SocketAdaptorInterface {
   on(
     action: string,
     callback: (payload: any, callback: Function) => void
-  ): void;
+  ): Function;
 
   // Emit a message out to the other end of the socket, and will receive the response via the callback
   emit(
