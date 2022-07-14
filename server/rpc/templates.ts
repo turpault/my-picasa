@@ -9,8 +9,8 @@ export class <<CLASS>> {
     this.socket_ = socket;
   }
 
-  public on(event: string, cb: Function):void {
-    this.socket_.on(event, cb);
+  public on(event: string, cb: Function): Function {
+    return this.socket_.on(event, cb);
   }
 
   // @ts-ignore

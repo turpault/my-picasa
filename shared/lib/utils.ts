@@ -46,30 +46,28 @@ export function cssSplitValue(v:string): {value: number, unit:string} {
     return { 'value':parseFloat(v), 'unit':"" }
 }
 
-const debounceFcts = new Map<Function, number>();
+const debounceFcts = new Map<Function | string, {f: Function, elapse: number}>();
 /**
  * Make sure that the function f is called at most every <delay> milliseconds
  * @param f
  * @param delay
  */
-export function debounce(f: Function, delay?: number) {
+export function debounce(f: Function, delay?: number, guid?: string, atStart?:boolean) {
   delay = delay ? delay : 1000;
-  if (debounceFcts.has(f)) {
-    // debounceFcts.set(f, Date.now() + delay);
+  const key = guid || f;
+  if (debounceFcts.has(key)) {
+    debounceFcts.get(key)!.f = f;
   } else {
-    debounceFcts.set(f, Date.now() + delay);
+    debounceFcts.set(f, {elapse: Date.now() + delay, f});
     (async () => {
-      while (true) {
-        const target = debounceFcts.get(f);
-        const now = Date.now();
-        if (!target || target <= now) {
-          debounceFcts.delete(f);
+        if(atStart) {
           f();
-          break;
-        } else {
-          await sleep((target - now + 100) / 1000);
         }
-      }
+        await sleep(delay / 1000);
+        if(!atStart) {
+          f();
+        }
+        debounceFcts.delete(key);      
     })();
   }
 }

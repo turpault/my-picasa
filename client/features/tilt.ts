@@ -1,17 +1,15 @@
+import { buildEmitter } from "../../shared/lib/event";
+import { isPicture } from "../../shared/lib/utils";
 import { ImageController } from "../components/image-controller";
 import { ToolRegistrar } from "../components/tools";
 import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
-import { isPicture, uuid } from "../../shared/lib/utils";
 import { ImagePanZoomController } from "../lib/panzoom";
-import { buildEmitter, Emitter } from "../../shared/lib/event";
-import { rotateRectangle } from "../../shared/lib/geometry";
-import { Vector } from "ts-2d-geometry";
 import { setupTiltPreview, ValueChangeEvent } from "./previews/tilt-preview";
 
-function sliderToValue(v: number) {
-  const value = v / 100;
+function sliderToValue(v: number | string) {
+  const value = parseFloat(v.toString()) / 100;
   return value;
 }
 
@@ -38,7 +36,8 @@ export function setupTilt(
     panZoomCtrl.recenter();
     panZoomCtrl.enable(false);
     preview.show(activeIndex, initialValue);
-    $(".rotation", container).val(valueToSlider(initialValue));
+    //console.info('Setting value', valueToSlider(initialValue));
+    //$(".rotation", container).val(valueToSlider(initialValue));
   }
 
   function hide(commit: boolean) {
@@ -88,16 +87,22 @@ export function setupTilt(
           <input type="range" min="-100" max="100" value="0" class="rotation slider">
         </div>
       </div>`);
+      $(".rotation", e).val(valueToSlider(args[1]));
       const clearFcts: Function[] = [];
       clearFcts.push(emitter.on("updated", (event) => {
         if (index === event.index) {
-          $(".rotation", e).val(valueToSlider(event.value));
+
+          if(event.origin !== 'control') {
+            console.info('Setting value', valueToSlider(event.value));
+            $(".rotation", e).val(valueToSlider(event.value));
+          }
           imageCtrl.updateOperation(index, this.build(event.value, 0));
           hide(true);
         }
       }));
       clearFcts.push(emitter.on("preview", (event) => {
         if (index === event.index) {
+          console.info('Setting value', valueToSlider(event.value));
           $(".rotation", e).val(valueToSlider(event.value));
         }
       }));
@@ -105,7 +110,7 @@ export function setupTilt(
         if(activeIndex === index) {
           emitter.emit("preview", { index, value: sliderToValue(this.val()) });
         } else {
-          emitter.emit("updated", { index, value: sliderToValue(this.val()) });
+          emitter.emit("updated", { index, value: sliderToValue(this.val()), origin: 'control' });
         }
       });
       return {ui: e.get()!, clearFcts: ()=>{ clearFcts.forEach(f=>f())}};

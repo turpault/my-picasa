@@ -10,7 +10,7 @@ export function setupAutocolor(
 ) {
   const name = "Autocolor";
   toolRegistrar.registerTool(name, {
-    filterName: "autocolor",
+  filterName: "autocolor",
     enable: (e) => isPicture(e),
     build: function () {
       return `${this.filterName}=1`;

@@ -28,7 +28,7 @@ async function init(port: number) {
   await makeThumbnailManager();
 
   await makeMetadata(
-    $(".metadatasidebar").get()!,
+    $(".metadatasidebar"),
     SelectionManager.get().events
   );
 

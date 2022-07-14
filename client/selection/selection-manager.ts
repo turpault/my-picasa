@@ -41,6 +41,14 @@ export class SelectionManager {
       });
     }
   }
+  toggle(key: AlbumEntry) {
+    this._debounce = new Date().getTime();
+    if (!this.isSelected(key)) {
+      this.select(key);
+    } else {
+      this.deselect(key);
+    }
+  }
   deselect(key: AlbumEntry) {
     this._debounce = new Date().getTime();
     if (this.isSelected(key)) {
@@ -58,7 +66,11 @@ export class SelectionManager {
   }
 
   clear() {
-    if (this._debounce + 500 > new Date().getTime()) return;
+    if (this._debounce + 500 > new Date().getTime()) 
+    {
+      //debugger;
+      //return;
+    }
     let l;
     while ((l = this.last())) {
       this.deselect(l);

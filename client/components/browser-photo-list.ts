@@ -1,21 +1,23 @@
 import { Point } from "ts-2d-geometry/dist";
-import { range, sleep } from "../../shared/lib/utils";
+import { debounce, lock, range, sleep } from "../../shared/lib/utils";
 import { Album, AlbumEntry, JOBNAMES } from "../../shared/types/types";
-import { AlbumDataSource } from "../album-data-source";
+import { AlbumIndexedDataSource } from "../album-data-source";
 import { getAlbumInfo } from "../folder-utils";
-import { $, albumFromElement, elementFromAlbum, elementFromEntry, setIdForAlbum, _$ } from "../lib/dom";
+import { $, albumFromElement, elementFromEntry, setIdForAlbum, _$ } from "../lib/dom";
 import { toggleStar } from "../lib/handles";
 import { getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
 import { AlbumListEventSource, AppEventSource } from "../uiTypes";
 import { animateStar } from "./animations";
+import { Button, message } from "./message";
+import { question } from "./question";
 import { t } from "./strings";
 import {
   makeNThumbnails,
   selectThumbnailsInRect,
   thumbnailData,
-  thumbnailsAround,
+  thumbnailsAround
 } from "./thumbnail";
 
 const extra = `
@@ -41,7 +43,7 @@ export async function makePhotoList(
   appEvents: AppEventSource,
   events: AlbumListEventSource
 ): Promise<_$> {
-  const datasource = new AlbumDataSource();
+  const datasource = new AlbumIndexedDataSource();
   let tabIsActive = false;
   let topIndex: number = -1;
   let bottomIndex: number = -1;
@@ -60,7 +62,7 @@ export async function makePhotoList(
 
   let running = false;
   let filter = "";
-  await datasource.walk(filter);
+  await datasource.init();
 
   // UI State events
   const off = [
@@ -76,9 +78,11 @@ export async function makePhotoList(
             animateStar(target);
           }
           break;
+          /*
         case "Enter":
           startGallery(filter);
           break;
+          */
         default:
       }
     }),
@@ -86,6 +90,7 @@ export async function makePhotoList(
       filter = event.filter;
     }),
     events.on("thumbnailDblClicked", async (event) => {
+      const s = await getService();
       const { entries } = await s.media(event.entry.album, filter);
       const initialIndex = entries.findIndex(
         (e: AlbumEntry) => e.name === event.entry.name
@@ -153,19 +158,26 @@ export async function makePhotoList(
           });
         }
       } else if (e.modifiers.multi) {
-        selectionManager.select(e.entry);
+        selectionManager.toggle(e.entry);
       } else {
         selectionManager.clear();
         selectionManager.select(e.entry);
       }
     }),
     appEvents.on("tabDeleted", ({ win }) => {
+      datasource.destroy();
       if ($(container).isParent(win)) {
         off.forEach((o) => o());
       }
     }),
   ];
-
+  datasource.emitter.on('invalidateAt', (event) => {
+    invalidateAt(event.index);
+  });
+  datasource.emitter.on('invalidateFrom', (event) => {
+    invalidateFrom(event.index);
+  });
+  await datasource.resync(filter);
   // UI events
   container.on("scroll", () => {
     updateHighlighted();
@@ -173,6 +185,11 @@ export async function makePhotoList(
   });
   container.on("mouseup", (e: MouseEvent) => {
     if (!dragging) {
+      // I'm not dragging. let's unselect things
+      const multi = e.metaKey;
+      if (!multi) {
+        SelectionManager.get().clear();
+      }
       return;
     }
     var rect = container.get().getBoundingClientRect();
@@ -186,13 +203,14 @@ export async function makePhotoList(
     selectThumbnailsInRect(container, newPos, dragStartPos);
     // Find all the elements intersecting with the area.
   });
-  $(container).on("mousedown", (e: MouseEvent) => {
+  container.on("mousedown", (e: MouseEvent) => {
     // save start position
     var rect = container.clientRect();
     dragStartPos.x = e.clientX - rect.x;
     dragStartPos.y = e.clientY - rect.y;
+    return false;
   });
-  $(container).on("mousemove", (e: MouseEvent) => {
+  container.on("mousemove", (e: MouseEvent) => {
     if (!(e.buttons & 1)) {
       return;
     }
@@ -221,54 +239,57 @@ export async function makePhotoList(
     });
   });
 
-  // Status change events
-  const s = await getService();
-
-  s.on("updateAlbumList", async () => {
-    await datasource.walk(filter);
-    /*
-    // refresh if one of the visible albums does not match the list
-    let initialIndex = datasource.albumIndexFromKey(
-      albumFromElement(displayed[0], elementPrefix)!.key
-    );
-    let repopulate = false;
-    for (const d of displayed) {
-      const album = albumFromElement(d, elementPrefix)!;
-      if (album.key != datasource.albumAtIndex(initialIndex).key) {
-        repopulate = true;
-        break;
-      }
-    }
-    if (repopulate) {
-      refresh(albumFromElement(displayed[0], elementPrefix)!);
-    }*/
-  });
-
-  s.on("albumChanged", async (e: { payload: Album[] }) => {
-    // save index
-    let idx = visibleIndex();
-    if (idx === -1) {
-      idx = 0;
-    }
-    let reflow = false;
-    for (const d of displayed) {
-      const album = albumFromElement(d, elementPrefix)!;
-      if (album && e.payload.find((a) => a.key === album.key)) {
-        refreshSingleAlbum(album);
-        reflow = true;
-      }
-    }
-    if (reflow) {
+  
+  function invalidateAt(index: number) {
+    const element = elementAtIndex(index);
+    if(element) {
+      populateElement(element, datasource.albumAtIndex(index), filter);
       doReflow |= REFLOW_FULL;
     }
-  });
+  }
+  function moveToPool(element: _$) {
+    pool.push(element);
+    element.remove();
+    const i = displayed.findIndex(e => e.get() === element.get());
+    if(i!==-1) {
+      displayed.splice(i, 1);
+    }
+  }
+  async function invalidateFrom(index: number) {
+    const l = await lock('updatePhotosAlbums');
+    for(const d of displayed.slice()) {
+      if(indexOf(d) >= index) {
+        moveToPool(d);
+        doReflow |= REFLOW_FULL;
+      }
+    }
+    l();
+    if(displayed.length === 0) {
+      rebuildViewStartingFrom(datasource.albumAtIndex(index));
+    }
+  }
 
   function visibleIndex(): number {
     const e = visibleElement();
     if (!e) return -1;
-    const album = albumFromElement(e, elementPrefix)!;
-    return datasource.albumIndexFromKey(album.key);
+    return indexOf(e);
+    //const album = albumFromElement(e, elementPrefix)!;
+    //return datasource.albumIndexFromKey(album.key);
   }
+
+  function elementAtIndex(index: number): _$ | undefined{
+    for(const d of displayed) {
+      if(d.attr("index") === index.toString()) {
+        return d;
+      }
+    }
+    return undefined;
+  }
+
+  function indexOf(d: _$): number {
+      return parseInt(d.attr("index"));
+  }
+
 
   function visibleElement(): _$ | null {
     if (displayed.length === 0) {
@@ -325,28 +346,44 @@ export async function makePhotoList(
     if (found) {
       const album = albumFromElement(found, elementPrefix);
       if (album) {
-        refreshViewStartingFrom(album);
+        rebuildViewStartingFrom(album);
       }
     }
   });
 
   window.requestAnimationFrame(addNewItemsIfNeededAndReschedule);
-  function addNewItemsIfNeededAndReschedule() {
+  async function addNewItemsIfNeededAndReschedule() {
     if (running) debugger;
     running = true;
-    addNewItemsIfNeeded()
-      .catch(() => console.error)
-      .finally(() => {
-        running = false;
-        window.requestAnimationFrame(addNewItemsIfNeededAndReschedule);
-      });
+    const l = await lock('updatePhotosAlbums');
+    try {
+      await addNewItemsIfNeeded();
+    } catch(e) {
+      console.error(e);
+    }    
+    running = false;
+    l();
+    window.requestAnimationFrame(addNewItemsIfNeededAndReschedule);
   }
   async function addNewItemsIfNeeded() {
     if (!tabIsActive) {
       return;
     }
-    if (displayed.length === 0) {
+    if(topIndex === -1) {
       return;
+    }
+    // Nothing to display, start at topIndex
+    if (displayed.length === 0) {
+      const album = datasource.albumAtIndex(topIndex);
+      const albumElement = getElement();
+      await populateElement(albumElement, album, filter);
+      $(albumElement).css("top", "0"); //index === 0 ? "0" : "100px");
+      albumElement.attr("index", topIndex.toString());
+      albumElement.css("opacity", "1");
+      container.append(albumElement);
+      container.get().scrollTo({ top: 0 });
+      displayed.push(albumElement);
+      updateHighlighted();      
     }
 
     running = true;
@@ -355,7 +392,7 @@ export async function makePhotoList(
       reflow();
       return;
     } else if (doRepopulate) {
-      const minDistancesAboveBelowFold = 10000;
+      const minDistancesAboveBelowFold = 1000;
 
       if (displayed.length > 7) {
         const prune = [];
@@ -391,9 +428,7 @@ export async function makePhotoList(
         }
         if (prune.length) {
           for (const elem of prune) {
-            displayed.splice(displayed.indexOf(elem), 1);
-            $(elem).remove();
-            pool.push(elem);
+            moveToPool(elem);
           }
           topIndex = parseInt(displayed[0].attr("index")!);
           bottomIndex = parseInt(
@@ -543,9 +578,13 @@ export async function makePhotoList(
         `<div class="album">
         <div class="header w3-bar w3-bar-item">
           <div class="name-container"><div class="name"/></div>
-          <button data-tooltip-below=${t("Delete Album")} class="trash-album w3-button" style="background-image: url(resources/images/icons/actions/trash-50.png)"></button>
-          <button data-tooltip-below=${t("Open in Finder")} class="open-in-finder w3-button" style="background-image: url(resources/images/icons/actions/finder-50.png)"></button>
-          <button data-tooltip-below=${t("Edit Album Name")} class="fa fa-pen edit-album-name"></button>
+          <button data-tooltip-below="${t("Delete Album")}" class="album-button trash-album w3-button" style="background-image: url(resources/images/icons/actions/trash-50.png)"></button>
+          <button data-tooltip-below="${t("Open in Finder")}" class="album-button open-in-finder w3-button" style="background-image: url(resources/images/icons/actions/finder-50.png)"></button>
+          <button data-tooltip-below="${t("Edit Album Name")}" class="album-button w3-button edit-album-name" style="background-image: url(resources/images/icons/actions/pen-50.png)"></button>
+          <span  style="display: inline-block; width: 10px;" class="album-button"></span>
+          <button data-tooltip-below="${t("Sort by Name")}" class="album-button w3-button sort-by-name" style="background-image: url(resources/images/icons/actions/sort-name-50.png)"></button>
+          <button data-tooltip-below="${t("Sort by Date")}" class="album-button w3-button sort-by-date" style="background-image: url(resources/images/icons/actions/sort-date-50.png)"></button>
+          <button data-tooltip-below="${t("Reverse Sort")}" class="album-button w3-button reverse-sort" style="background-image: url(resources/images/icons/actions/sort-reverse-50.png)"></button>
         </div>
         <div class="photos album-photos"></div>
       </div>
@@ -582,7 +621,15 @@ export async function makePhotoList(
         }
       });
 
-      $(".trash-album", e).on("click", async () => {});
+      $(".trash-album", e).on("click", async () => {
+        const album = albumFromElement(e, elementPrefix)!;
+        const res = await message(t(`Delete the album $1 ?| ${album.name}`), [Button.Ok, Button.Cancel]);
+        if(res === Button.Ok) {
+          const s = await getService();
+          s.createJob(JOBNAMES.DELETE_ALBUM, {source: album});
+        }
+      });
+
 
       $(".open-in-finder", e).on("click", async () => {
         const s = await getService();
@@ -590,10 +637,27 @@ export async function makePhotoList(
         s.openInFinder(album);
       });
 
-      e.on("drop", async (ev) => {
+      $(".sort-by-name", e).on("click", async () => {
+        const s = await getService();
+        const album = albumFromElement(e, elementPrefix)!;
+        s.sortAlbum(album, "name");
+      });
+      $(".sort-by-date", e).on("click", async () => {
+        const s = await getService();
+        const album = albumFromElement(e, elementPrefix)!;
+        s.sortAlbum(album, "date");
+      });
+      $(".reverse-sort", e).on("click", async () => {
+        const s = await getService();
+        const album = albumFromElement(e, elementPrefix)!;
+        s.sortAlbum(album, "reverse");
+      });
+
+      const photosContainer = $(".photos", e);
+      photosContainer.on("drop", async (ev) => {
         // Find the closest picture in the target album
         const album = albumFromElement(e, elementPrefix)!;
-        const closestEntry = thumbnailsAround(container, new Point(ev.clientX, ev.clientY), album);
+        const closestEntry = thumbnailsAround(photosContainer, new Point(ev.clientX, ev.clientY));
 
         const selection = SelectionManager.get().selected();
         if (album) {
@@ -606,32 +670,23 @@ export async function makePhotoList(
           SelectionManager.get().clear();
         }
       });
-      e.on("dragenter", (ev) => {
+      photosContainer.on("dragenter", (ev) => {
         e.addClass("album-drop-area");
         ev.preventDefault();
       });
-      e.on("dragleave", (ev) => {
+      photosContainer.on("dragleave", (ev) => {
         e.removeClass("album-drop-area");
         ev.preventDefault();
       });
-      e.on("dragover", async (ev: any) => {
+      photosContainer.on("dragover", async (ev: any) => {
         ev.preventDefault();
-        const album = albumFromElement(e, elementPrefix)!;
-        const closestEntry = thumbnailsAround(e, new Point(ev.clientX, ev.clientY), album);
+        debounce(async () => {
+        const closestEntry = thumbnailsAround(photosContainer, new Point(ev.clientX, ev.clientY));
         const target = elementFromEntry(closestEntry.entry, "thumb:");
         target.addClass('highlight-debug');
         await sleep(0.5);
         target.removeClass('highlight-debug');
-      });
-      e.on("click", async (ev: any) => {
-        const album = albumFromElement(e, elementPrefix)!;
-        if (album) {
-          ev.stopPropagation();
-          const multi = ev.metaKey;
-          if (!multi) {
-            SelectionManager.get().clear();
-          }
-        }
+        }, 100, 'dragover', true);
       });
       title.on("click", async (ev: any) => {
         if(title.attr("contenteditable") === "true") {
@@ -713,37 +768,22 @@ export async function makePhotoList(
     }
   }
 
-  async function refreshSingleAlbum(album: Album) {
-    const albumElement = elementFromAlbum(album, elementPrefix);
-    if(albumElement)
-      await populateElement(albumElement, album, filter);
-  }
-  async function refreshViewStartingFrom(album: Album) {
-    console.info(`Refresh from ${album.name}`);    
-    for (const e of displayed) {
-      e.remove();
-      pool.push(e);
+  async function rebuildViewStartingFrom(album: Album) {
+    const l = await lock('updatePhotosAlbums');
+    console.info(`Refresh from ${album.name}`);
+    for (const e of [...displayed]) {
+      moveToPool(e);
     }
-    displayed.splice(0, displayed.length);
     const index = datasource.albumIndexFromKey(album.key);
     topIndex = bottomIndex = index;
-    // pick from pool
-    const albumElement = getElement();
-    await populateElement(albumElement, album, filter);
-    $(albumElement).css("top", "0"); //index === 0 ? "0" : "100px");
-    albumElement.attr("index", index.toString());
-    albumElement.css("opacity", "1");
-    container.append(albumElement);
-    container.get().scrollTo({ top: 0 });
-    displayed.push(albumElement);
-    updateHighlighted();
-    console.info("Refreshed album, will reflow");
+    
     doReflow |= REFLOW_FULL;
     doRepopulate = true;
+    l();
   }
 
   events.on("selected", ({ album }) => {
-    refreshViewStartingFrom(album);
+    rebuildViewStartingFrom(album);
   });
 
   async function startGallery(filter: string) {
