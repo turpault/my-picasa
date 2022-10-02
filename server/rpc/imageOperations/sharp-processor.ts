@@ -1,20 +1,19 @@
 import { readFile } from "fs/promises";
+import sizeOf from "image-size";
 import { join } from "path";
+import sharp, { Sharp } from "sharp";
+import { promisify } from "util";
+import { rotateRectangle } from "../../../shared/lib/geometry";
+import { Queue } from "../../../shared/lib/queue";
 import {
   clipColor,
   decodeOperations,
   decodeRect,
-  fromHex,
-  toHex2,
-  uuid,
+  fromHex, toHex2,
+  uuid
 } from "../../../shared/lib/utils";
-import { rotateRectangle } from "../../../shared/lib/geometry";
 import { AlbumEntry, PicasaFileMeta } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
-import { promisify } from "util";
-import sizeOf from "image-size";
-import { Queue } from "../../../shared/lib/queue";
-import sharp, { Sharp } from "sharp";
 
 const s = promisify(sizeOf);
 
@@ -638,7 +637,7 @@ export async function buildImage(
   return buildImageQueue.add(async () => {
     const label = `Thumbnail for image ${entry.album.name} / ${
       entry.name
-    } / ${transformations} / ${extraOperations ? extraOperations[0] : "no op"}`;
+    } / ${transformations} / ${extraOperations ? JSON.stringify(extraOperations) : "no op"}`;
     console.time(label);
     console.info(label);
     try {

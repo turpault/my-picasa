@@ -1,9 +1,9 @@
-import { Album, AlbumEntry } from "../shared/types/types";
+import { Album, AlbumEntry, AlbumWithCount } from "../shared/types/types";
 import { getService } from "./rpc/connect";
 
 export async function filteredAlbums(
   filter: string
-): Promise<Album[]> {
+): Promise<AlbumWithCount[]> {
   const s = await getService();
   return s.folders(filter);
 }

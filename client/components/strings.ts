@@ -52,7 +52,7 @@ export function t(s: string) {
   if (!res) {
     if(lang !== "en") {
       str.add(`"${s}": {fr:"${s}"},`);
-      console.log(Array.from(str).join('\n'));
+      console.log('Missing strings', Array.from(str).join('\n'));
     }
     res = elements[0];
   }

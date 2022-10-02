@@ -18,7 +18,7 @@ let picasaMap: Map<string, PicasaFolderMeta> = new Map();
 let lastAccessPicasaMap: Map<string, number> = new Map();
 let dirtyPicasaSet: Set<string> = new Set();
 let faces: Map<string, string> = new Map();
-export async function picasaInitCleaner() {
+export async function picasaIniCleaner() {
   while (true) {
     const i = dirtyPicasaSet;
     dirtyPicasaSet = new Set();

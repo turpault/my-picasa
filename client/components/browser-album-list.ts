@@ -1,9 +1,5 @@
-import {
-  Album,
-  AlbumChangeEvent,
-  AlbumWithCount,
-  JOBNAMES,
-} from "../../shared/types/types";
+import { JOBNAMES } from "../../shared/types/types";
+import { AlbumIndexedDataSource } from "../album-data-source";
 import { folder } from "../element-templates";
 import {
   $,
@@ -14,7 +10,7 @@ import {
 } from "../lib/dom";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
-import { AlbumListEventSource, AppEventSource } from "../uiTypes";
+import { AppEventSource } from "../uiTypes";
 
 const elementPrefix = "albumlist:";
 const html = `<div class="w3-theme fill folder-pane">
@@ -23,12 +19,14 @@ const html = `<div class="w3-theme fill folder-pane">
 `;
 export async function makeAlbumList(
   appEvents: AppEventSource,
-  events: AlbumListEventSource
+  albumDataSource: AlbumIndexedDataSource
 ) {
+
   const container = $(html);
   let lastHighlight: any;
   let filter = "";
   const folders = $(".folders", container);
+  const events = albumDataSource.emitter;
   events.on("scrolled", ({ album }) => {
     if (lastHighlight && lastHighlight.is()) {
       lastHighlight.removeClass("highlight-list");
@@ -52,15 +50,28 @@ export async function makeAlbumList(
     filter = event.filter;
   });
 
-  // list population code
-  const albums: AlbumWithCount[] = [];
-  function insertionPoint(album: Album): number {
-    // todo: filtering
-    let insertionPoint = albums.findIndex(
-      (a) => a.name.toLowerCase() < album.name.toLowerCase()
-    );
-    return insertionPoint;
-  }
+  const albums: _$[] = [];
+  events.on("invalidateFrom", (event) => {
+    const wasEmpty = albums.length === 0;
+    const toRemove = albums.splice(event.index);
+    toRemove.forEach((elem) => elem.remove());
+    for (let idx = event.index; idx < albumDataSource.length(); idx++) {
+      const album = albumDataSource.albumAtIndex(idx);
+      const node = folder(album);
+      setIdForAlbum(node, album, elementPrefix);
+      addListeners(node);
+      albums.push(node);
+      folders.append(node);
+
+      if (wasEmpty && idx === 0) {
+        events.emit("selected", { album });
+      }
+    }
+  });
+  events.on("invalidateAt", (event) => {
+    // TODO
+  });
+
   function addListeners(item: _$) {
     item
       .on("click", function (ev): any {
@@ -90,76 +101,6 @@ export async function makeAlbumList(
         SelectionManager.get().clear();
       });
   }
-  function addAlbum(album: AlbumWithCount) {
-    const insert = insertionPoint(album);
-    const node = folder(album);
-    addListeners(node);
-    setIdForAlbum(node, album, elementPrefix);
-    if (insert === -1) {
-      // at end
-      folders.append(node);
-      albums.push(album);
-    } else {
-      const insertBeforeAlbum = albums[insert];
-      const sibling = elementFromAlbum(insertBeforeAlbum, elementPrefix);
-      if (!sibling.is()) {
-        throw new Error(
-          "Unknown album to insert before :" + insertBeforeAlbum.name
-        );
-      }
-      folders.insertBefore(node, sibling);
-      albums.splice(insert, 0, album);
-    }
-  }
-  function removeAlbum(album: Album) {
-    const idx = albums.findIndex((a) => a.key === album.key);
-    if (idx != -1) {
-      albums.splice(idx, 1);
-      elementFromAlbum(album, elementPrefix)!.remove();
-    }
-  }
-  function updateAlbum(album: AlbumWithCount) {
-    removeAlbum(album);
-    addAlbum(album);
-  }
 
-  // Delayed init
-  setTimeout(async () => {
-    let gotInitialList = false;
-    const s = await getService();
-    s.on("albums", async (e: any) => {
-      for (const a of e.payload as AlbumWithCount[]) {
-        addAlbum(a);
-      }
-      gotInitialList = true;
-      events.emit("selected", { album: albums[0] });
-    });
-    s.monitorAlbums();
-    s.on("albumEvent", async (e: any) => {
-      if (!gotInitialList) {
-        return;
-      }
-      for (const event of e.payload as AlbumChangeEvent[]) {
-        switch (event.type) {
-          case "albumDeleted":
-            removeAlbum(event.data);
-            break;
-          case "albumCountUpdated":
-            updateAlbum(event.data);
-            break;
-          case "albumMoved":
-            removeAlbum(event.data);
-            addAlbum(event.data2!);
-            break;
-          case "albumAdded":
-            addAlbum(event.data);
-          case "albumCountUpdated":
-            // Don't do anything
-            break;
-
-        }
-      }
-    });
-  }, 100);
   return container;
 }

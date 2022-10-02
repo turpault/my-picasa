@@ -23,7 +23,7 @@ const walkQueue = new Queue(3);
 const notificationQueue: AlbumChangeEvent[] = [];
 
 export async function monitorAlbums(): Promise<{}> {
-  await broadcast('albums', lastWalk);
+  notificationQueue.push({type: "albums", albums: lastWalk })
   return {};
 }
 
@@ -49,7 +49,7 @@ export async function updateLastWalkLoop() {
       addOrRefreshOrDeleteAlbum(a);
     });
     await walkQueue.drain();
-    sortByKey(lastWalk, "key");
+    sortByKey(lastWalk, "key", true);
     const deletedAlbums: AlbumWithCount[] = [];
     let startIndex = 0;
     for(const oldAlbum of old) {
@@ -88,7 +88,7 @@ export async function onRenamedAlbums(from: Album, to: Album) {
   const idx = lastWalk.findIndex((f) => f.key == from.key);
   const old = {...lastWalk[idx]};
   lastWalk[idx] = {...lastWalk[idx], ...to};
-  notificationQueue.push({type: "albumMoved", data: old, data2: lastWalk[idx] });
+  notificationQueue.push({type: "albumMoved", album: old, altAlbum: lastWalk[idx] });
 }
 
 const ALLOW_EMPTY_ALBUM_CREATED_SINCE=1000 * 60 * 60; // one hour
@@ -116,19 +116,19 @@ export async function addOrRefreshOrDeleteAlbum(album: Album) {
       const idx = lastWalk.findIndex((f) => f.key == album.key);
       if (idx >= 0) {
         const data = lastWalk.splice(idx, 1)[0];
-        notificationQueue.push({type: "albumDeleted", data});
+        notificationQueue.push({type: "albumDeleted", album: data});
       }
     } else {
       const count = (await mediaCount(album)).count;
       const idx = lastWalk.findIndex((f) => f.key == album.key);
       if(idx === -1) {
-        notificationQueue.push({type: "albumAdded", data: {...album, count}});
+        notificationQueue.push({type: "albumAdded", album: {...album, count}});
         lastWalk.push({...album, count});
-        sortByKey(lastWalk, "key");
+        sortByKey(lastWalk, "key", true);
       } else {
         if(count !== lastWalk[idx].count) {
           lastWalk[idx].count = count;
-          notificationQueue.push({type: "albumCountUpdated", data:{...album, count}});
+          notificationQueue.push({type: "albumCountUpdated", album:{...album, count}});
         }
       }
     }

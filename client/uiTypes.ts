@@ -37,6 +37,9 @@ export type ImageControllerEvent = {
 };
 
 export type AppEvent = {
+  ready: {
+    state: boolean
+  };
   tabChanged: {
     tab: _$;
     win: _$;
@@ -58,11 +61,18 @@ export type AppEvent = {
   show: { initialList: AlbumEntry[]; initialIndex: number };
   composite: { initialList: AlbumEntry[]; initialIndex: number };
 };
+
 export type AppEventSource = Emitter<AppEvent>;
 
 export type AlbumListEvent = {
   selected: { album: Album };
   scrolled: { album: Album };
+  invalidateFrom: {
+    index: number;
+  };
+  invalidateAt: {
+    index: number;
+  };
   thumbnailClicked: {
     modifiers: {
       range: boolean;
