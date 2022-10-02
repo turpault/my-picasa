@@ -10,7 +10,7 @@ import { encode } from "./rpc/imageOperations/sharp-processor";
 import { RPCInit } from "./rpc/index";
 import { asset } from "./rpc/routes/asset";
 import { thumbnail } from "./rpc/routes/thumbnail";
-import { picasaInitCleaner } from "./rpc/rpcFunctions/picasaIni";
+import { picasaIniCleaner } from "./rpc/rpcFunctions/picasaIni";
 import { startAlbumUpdateNotification, updateLastWalkLoop } from "./rpc/rpcFunctions/walker";
 import { startSentry } from "./sentry";
 import { busy, measureCPULoad } from "./utils/busy";
@@ -108,14 +108,8 @@ export async function start(p?: number) {
       p = getPort();
     }
     startSentry();
-    buildThumbs();
-    updateLastWalkLoop();
-    measureCPULoad();
-    picasaInitCleaner();
-    startLockMonitor();
-    startAlbumUpdateNotification();
     const server: FastifyInstance = Fastify({
-      logger: true,
+      //logger: true,
       maxParamLength: 32000,
       bodyLimit: 50 * 1024 * 1024,
     });
@@ -129,7 +123,6 @@ export async function start(p?: number) {
     await socketInit(server);
 
     server.addHook("preHandler", (request, reply, done) => {
-      console.info('request');
       busy();
       done();
     });
@@ -137,6 +130,14 @@ export async function start(p?: number) {
     setupRoutes(server);
     await server.listen(p, "localhost");
     console.info(`Ready to accept connections on port ${p}.`);
+
+    buildThumbs();
+    updateLastWalkLoop();
+    measureCPULoad();
+    picasaIniCleaner();
+    startLockMonitor();
+    startAlbumUpdateNotification();
+
   } catch (err) {
     console.error(err);
     process.exit(1);

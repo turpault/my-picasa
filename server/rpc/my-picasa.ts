@@ -12,6 +12,7 @@ import {
   setOptions,
   transform
 } from "./imageOperations/sharp-processor";
+import { clientException, clientLog } from "./rpcFunctions/clientLog";
 import { exifData } from "./rpcFunctions/exif";
 import { createFSJob, getJob } from "./rpcFunctions/fileJobs";
 import {
@@ -27,6 +28,7 @@ import {
   readPicasaIni,
   updatePicasaEntry
 } from "./rpcFunctions/picasaIni";
+import { clientReady } from "./rpcFunctions/ready";
 import { folders, monitorAlbums } from "./rpcFunctions/walker";
 import { ServiceMap } from "./rpcHandler";
 
@@ -150,6 +152,18 @@ export const MyPicasa: ServiceMap = {
     imageInfo: {
       handler: imageInfo,
       arguments: ["entry:object"],
+    },
+    log: {
+      handler: clientLog,
+      arguments: ["event:string", "data:object"],
+    },
+    exception: {
+      handler: clientException,
+      arguments: ["message:string", "file:string", "line:number", "col:number", "error:object"],
+    },
+    ready: {
+      handler: clientReady,
+      arguments: [],
     }
   },
 };

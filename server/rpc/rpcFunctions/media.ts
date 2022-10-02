@@ -105,7 +105,7 @@ export async function sortAlbum(album: Album, order: string): Promise<void> {
       break;
   }
   broadcast("albumEvent", [
-    { type: "albumOrderUpdated", data: album },
+    { type: "albumOrderUpdated", album: album },
   ] as AlbumChangeEvent[]);
 }
 

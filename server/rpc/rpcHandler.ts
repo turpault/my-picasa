@@ -168,7 +168,7 @@ export function registerServices(
               2,
               true
             ).slice(0, 200)})`;
-            console.time(label);
+            //console.time(label);
             const response = await serviceFunc.handler.bind(socket)(
               ...convertedArguments
             );
@@ -181,7 +181,7 @@ export function registerServices(
             callback(errMessage);
           } finally {
             busy();
-            console.timeEnd(label);
+            //console.timeEnd(label);
           }
         }
       );

@@ -3,7 +3,13 @@ import { debounce, lock, range, sleep } from "../../shared/lib/utils";
 import { Album, AlbumEntry, JOBNAMES } from "../../shared/types/types";
 import { AlbumIndexedDataSource } from "../album-data-source";
 import { getAlbumInfo } from "../folder-utils";
-import { $, albumFromElement, elementFromEntry, setIdForAlbum, _$ } from "../lib/dom";
+import {
+  $,
+  albumFromElement,
+  elementFromEntry,
+  setIdForAlbum,
+  _$,
+} from "../lib/dom";
 import { toggleStar } from "../lib/handles";
 import { getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
@@ -11,13 +17,12 @@ import { SelectionManager } from "../selection/selection-manager";
 import { AlbumListEventSource, AppEventSource } from "../uiTypes";
 import { animateStar } from "./animations";
 import { Button, message } from "./message";
-import { question } from "./question";
 import { t } from "./strings";
 import {
   makeNThumbnails,
   selectThumbnailsInRect,
   thumbnailData,
-  thumbnailsAround
+  thumbnailsAround,
 } from "./thumbnail";
 
 const extra = `
@@ -41,10 +46,11 @@ const html = `<div class="w3-theme images-area">
 
 export async function makePhotoList(
   appEvents: AppEventSource,
-  events: AlbumListEventSource
+  dataSource: AlbumIndexedDataSource
 ): Promise<_$> {
-  const datasource = new AlbumIndexedDataSource();
+  appEvents.emit("ready", { state: false });
   let tabIsActive = false;
+  let ready = false;
   let topIndex: number = -1;
   let bottomIndex: number = -1;
   const pool: _$[] = [];
@@ -62,7 +68,7 @@ export async function makePhotoList(
 
   let running = false;
   let filter = "";
-  await datasource.init();
+  const events = dataSource.emitter;
 
   // UI State events
   const off = [
@@ -78,7 +84,7 @@ export async function makePhotoList(
             animateStar(target);
           }
           break;
-          /*
+        /*
         case "Enter":
           startGallery(filter);
           break;
@@ -113,19 +119,19 @@ export async function makePhotoList(
           // Multi album range selection
           // Which one is the first ?
           if (
-            datasource.albumIndexFromKey(from.album.key) >
-            datasource.albumIndexFromKey(to.album.key)
+            dataSource.albumIndexFromKey(from.album.key) >
+            dataSource.albumIndexFromKey(to.album.key)
           ) {
             // swap
             const _a = from;
             from = to;
             to = _a;
           }
-          const fromAlbumIndex = datasource.albumIndexFromKey(from.album.key);
-          const toAlbumIndex = datasource.albumIndexFromKey(to.album.key);
+          const fromAlbumIndex = dataSource.albumIndexFromKey(from.album.key);
+          const toAlbumIndex = dataSource.albumIndexFromKey(to.album.key);
 
           for (const idx of range(fromAlbumIndex, toAlbumIndex)) {
-            const album = datasource.albumAtIndex(idx);
+            const album = dataSource.albumAtIndex(idx);
             getAlbumInfo(album, filter, true).then((data) => {
               const sels = data.assets;
               if (idx === fromAlbumIndex) {
@@ -165,19 +171,17 @@ export async function makePhotoList(
       }
     }),
     appEvents.on("tabDeleted", ({ win }) => {
-      datasource.destroy();
       if ($(container).isParent(win)) {
         off.forEach((o) => o());
       }
     }),
   ];
-  datasource.emitter.on('invalidateAt', (event) => {
+  dataSource.emitter.on("invalidateAt", (event) => {
     invalidateAt(event.index);
   });
-  datasource.emitter.on('invalidateFrom', (event) => {
+  dataSource.emitter.on("invalidateFrom", (event) => {
     invalidateFrom(event.index);
   });
-  await datasource.resync(filter);
   // UI events
   container.on("scroll", () => {
     updateHighlighted();
@@ -239,34 +243,35 @@ export async function makePhotoList(
     });
   });
 
-  
   function invalidateAt(index: number) {
     const element = elementAtIndex(index);
-    if(element) {
-      populateElement(element, datasource.albumAtIndex(index), filter);
+    if (element) {
+      populateElement(element, dataSource.albumAtIndex(index), filter);
       doReflow |= REFLOW_FULL;
     }
   }
   function moveToPool(element: _$) {
     pool.push(element);
     element.remove();
-    const i = displayed.findIndex(e => e.get() === element.get());
-    if(i!==-1) {
+    const i = displayed.findIndex((e) => e.get() === element.get());
+    if (i !== -1) {
       displayed.splice(i, 1);
     }
   }
   async function invalidateFrom(index: number) {
-    const l = await lock('updatePhotosAlbums');
-    for(const d of displayed.slice()) {
-      if(indexOf(d) >= index) {
+    if (displayed.length === 0) {
+      // Nothing to invalidate, nothing is displayed
+      return;
+    }
+
+    const l = await lock("updatePhotosAlbums");
+    for (const d of displayed.slice()) {
+      if (indexOf(d) >= index) {
         moveToPool(d);
         doReflow |= REFLOW_FULL;
       }
     }
     l();
-    if(displayed.length === 0) {
-      rebuildViewStartingFrom(datasource.albumAtIndex(index));
-    }
   }
 
   function visibleIndex(): number {
@@ -277,9 +282,9 @@ export async function makePhotoList(
     //return datasource.albumIndexFromKey(album.key);
   }
 
-  function elementAtIndex(index: number): _$ | undefined{
-    for(const d of displayed) {
-      if(d.attr("index") === index.toString()) {
+  function elementAtIndex(index: number): _$ | undefined {
+    for (const d of displayed) {
+      if (d.attr("index") === index.toString()) {
         return d;
       }
     }
@@ -287,9 +292,8 @@ export async function makePhotoList(
   }
 
   function indexOf(d: _$): number {
-      return parseInt(d.attr("index"));
+    return parseInt(d.attr("index"));
   }
-
 
   function visibleElement(): _$ | null {
     if (displayed.length === 0) {
@@ -351,16 +355,16 @@ export async function makePhotoList(
     }
   });
 
-  window.requestAnimationFrame(addNewItemsIfNeededAndReschedule);
+  addNewItemsIfNeededAndReschedule();
   async function addNewItemsIfNeededAndReschedule() {
     if (running) debugger;
     running = true;
-    const l = await lock('updatePhotosAlbums');
+    const l = await lock("updatePhotosAlbums");
     try {
       await addNewItemsIfNeeded();
-    } catch(e) {
+    } catch (e) {
       console.error(e);
-    }    
+    }
     running = false;
     l();
     window.requestAnimationFrame(addNewItemsIfNeededAndReschedule);
@@ -369,12 +373,12 @@ export async function makePhotoList(
     if (!tabIsActive) {
       return;
     }
-    if(topIndex === -1) {
+    if (topIndex === -1) {
       return;
     }
     // Nothing to display, start at topIndex
     if (displayed.length === 0) {
-      const album = datasource.albumAtIndex(topIndex);
+      const album = dataSource.albumAtIndex(topIndex);
       const albumElement = getElement();
       await populateElement(albumElement, album, filter);
       $(albumElement).css("top", "0"); //index === 0 ? "0" : "100px");
@@ -383,7 +387,7 @@ export async function makePhotoList(
       container.append(albumElement);
       container.get().scrollTo({ top: 0 });
       displayed.push(albumElement);
-      updateHighlighted();      
+      updateHighlighted();
     }
 
     running = true;
@@ -468,6 +472,11 @@ export async function makePhotoList(
         // Nothing happened, we will repopulate when scrolling only
         doRepopulate = false;
       }
+    }
+    if (!ready) {
+      ready = true;
+      console.info("Ready");
+      appEvents.emit("ready", { state: true });
     }
   }
 
@@ -567,7 +576,9 @@ export async function makePhotoList(
     const p: Promise<void>[] = [];
     const children = element.children();
     for (const name of keys) {
-      p.push(thumbnailData(children[--idx], { album, name }, info.picasa[name]));
+      p.push(
+        thumbnailData(children[--idx], { album, name }, info.picasa[name])
+      );
     }
     await Promise.allSettled(p);
   }
@@ -578,13 +589,25 @@ export async function makePhotoList(
         `<div class="album">
         <div class="header w3-bar w3-bar-item">
           <div class="name-container"><div class="name"/></div>
-          <button data-tooltip-below="${t("Delete Album")}" class="album-button trash-album w3-button" style="background-image: url(resources/images/icons/actions/trash-50.png)"></button>
-          <button data-tooltip-below="${t("Open in Finder")}" class="album-button open-in-finder w3-button" style="background-image: url(resources/images/icons/actions/finder-50.png)"></button>
-          <button data-tooltip-below="${t("Edit Album Name")}" class="album-button w3-button edit-album-name" style="background-image: url(resources/images/icons/actions/pen-50.png)"></button>
+          <button data-tooltip-below="${t(
+            "Delete Album"
+          )}" class="album-button trash-album w3-button" style="background-image: url(resources/images/icons/actions/trash-50.png)"></button>
+          <button data-tooltip-below="${t(
+            "Open in Finder"
+          )}" class="album-button open-in-finder w3-button" style="background-image: url(resources/images/icons/actions/finder-50.png)"></button>
+          <button data-tooltip-below="${t(
+            "Edit Album Name"
+          )}" class="album-button w3-button edit-album-name" style="background-image: url(resources/images/icons/actions/pen-50.png)"></button>
           <span  style="display: inline-block; width: 10px;" class="album-button"></span>
-          <button data-tooltip-below="${t("Sort by Name")}" class="album-button w3-button sort-by-name" style="background-image: url(resources/images/icons/actions/sort-name-50.png)"></button>
-          <button data-tooltip-below="${t("Sort by Date")}" class="album-button w3-button sort-by-date" style="background-image: url(resources/images/icons/actions/sort-date-50.png)"></button>
-          <button data-tooltip-below="${t("Reverse Sort")}" class="album-button w3-button reverse-sort" style="background-image: url(resources/images/icons/actions/sort-reverse-50.png)"></button>
+          <button data-tooltip-below="${t(
+            "Sort by Name"
+          )}" class="album-button w3-button sort-by-name" style="background-image: url(resources/images/icons/actions/sort-name-50.png)"></button>
+          <button data-tooltip-below="${t(
+            "Sort by Date"
+          )}" class="album-button w3-button sort-by-date" style="background-image: url(resources/images/icons/actions/sort-date-50.png)"></button>
+          <button data-tooltip-below="${t(
+            "Reverse Sort"
+          )}" class="album-button w3-button reverse-sort" style="background-image: url(resources/images/icons/actions/sort-reverse-50.png)"></button>
         </div>
         <div class="photos album-photos"></div>
       </div>
@@ -593,7 +616,7 @@ export async function makePhotoList(
       const title = $(".name", e);
       title.on("blur", async () => {
         title.attr("contenteditable", "false");
-        title.removeClass('name-is-focused');
+        title.removeClass("name-is-focused");
         const newName = title.innerHTML();
         const album = albumFromElement(e, elementPrefix)!;
 
@@ -604,10 +627,10 @@ export async function makePhotoList(
         });
       });
       title.on("focus", async () => {
-        title.addClass('name-is-focused');
+        title.addClass("name-is-focused");
       });
       title.on("keydown", (ev: KeyboardEvent) => {
-        if(ev.code === "Enter") {
+        if (ev.code === "Enter") {
           ev.preventDefault();
           $(".edit-album-name", e).get().focus();
         }
@@ -623,13 +646,15 @@ export async function makePhotoList(
 
       $(".trash-album", e).on("click", async () => {
         const album = albumFromElement(e, elementPrefix)!;
-        const res = await message(t(`Delete the album $1 ?| ${album.name}`), [Button.Ok, Button.Cancel]);
-        if(res === Button.Ok) {
+        const res = await message(t(`Delete the album $1 ?| ${album.name}`), [
+          Button.Ok,
+          Button.Cancel,
+        ]);
+        if (res === Button.Ok) {
           const s = await getService();
-          s.createJob(JOBNAMES.DELETE_ALBUM, {source: album});
+          s.createJob(JOBNAMES.DELETE_ALBUM, { source: album });
         }
       });
-
 
       $(".open-in-finder", e).on("click", async () => {
         const s = await getService();
@@ -657,7 +682,10 @@ export async function makePhotoList(
       photosContainer.on("drop", async (ev) => {
         // Find the closest picture in the target album
         const album = albumFromElement(e, elementPrefix)!;
-        const closestEntry = thumbnailsAround(photosContainer, new Point(ev.clientX, ev.clientY));
+        const closestEntry = thumbnailsAround(
+          photosContainer,
+          new Point(ev.clientX, ev.clientY)
+        );
 
         const selection = SelectionManager.get().selected();
         if (album) {
@@ -665,7 +693,11 @@ export async function makePhotoList(
 
           s.createJob(JOBNAMES.MOVE, {
             source: selection,
-            destination: {album, at: closestEntry.entry, before: closestEntry.leftOf},
+            destination: {
+              album,
+              at: closestEntry.entry,
+              before: closestEntry.leftOf,
+            },
           });
           SelectionManager.get().clear();
         }
@@ -680,16 +712,24 @@ export async function makePhotoList(
       });
       photosContainer.on("dragover", async (ev: any) => {
         ev.preventDefault();
-        debounce(async () => {
-        const closestEntry = thumbnailsAround(photosContainer, new Point(ev.clientX, ev.clientY));
-        const target = elementFromEntry(closestEntry.entry, "thumb:");
-        target.addClass('highlight-debug');
-        await sleep(0.5);
-        target.removeClass('highlight-debug');
-        }, 100, 'dragover', true);
+        debounce(
+          async () => {
+            const closestEntry = thumbnailsAround(
+              photosContainer,
+              new Point(ev.clientX, ev.clientY)
+            );
+            const target = elementFromEntry(closestEntry.entry, "thumb:");
+            target.addClass("highlight-debug");
+            await sleep(0.5);
+            target.removeClass("highlight-debug");
+          },
+          100,
+          "dragover",
+          true
+        );
       });
       title.on("click", async (ev: any) => {
-        if(title.attr("contenteditable") === "true") {
+        if (title.attr("contenteditable") === "true") {
           return;
         }
         const album = albumFromElement(e, elementPrefix)!;
@@ -707,7 +747,7 @@ export async function makePhotoList(
         }
       });
       title.on("dblclick", async (ev: any) => {
-        if(title.attr("contenteditable") === "true") {
+        if (title.attr("contenteditable") === "true") {
           return;
         }
         const album = albumFromElement(e, elementPrefix)!;
@@ -737,7 +777,7 @@ export async function makePhotoList(
     if (topIndex > 0) {
       topIndex--;
       const albumElement = getElement();
-      const album = datasource.albumAtIndex(topIndex);
+      const album = dataSource.albumAtIndex(topIndex);
       await populateElement(albumElement, album, filter);
       $(albumElement).css({ top: `0px`, opacity: 0 });
       albumElement.attr("index", topIndex.toString());
@@ -753,10 +793,10 @@ export async function makePhotoList(
   }
 
   async function addAtBottom() {
-    if (bottomIndex < datasource.length() - 1) {
+    if (bottomIndex < dataSource.length() - 1) {
       bottomIndex++;
       const albumElement = getElement();
-      const album = datasource.albumAtIndex(bottomIndex);
+      const album = dataSource.albumAtIndex(bottomIndex);
       await populateElement(albumElement, album, filter);
       $(albumElement).css({ top: `0px`, opacity: 0 });
       albumElement.attr("index", bottomIndex.toString());
@@ -769,14 +809,17 @@ export async function makePhotoList(
   }
 
   async function rebuildViewStartingFrom(album: Album) {
-    const l = await lock('updatePhotosAlbums');
+    if (!album) {
+      return;
+    }
+    const l = await lock("updatePhotosAlbums");
     console.info(`Refresh from ${album.name}`);
     for (const e of [...displayed]) {
       moveToPool(e);
     }
-    const index = datasource.albumIndexFromKey(album.key);
+    const index = dataSource.albumIndexFromKey(album.key);
     topIndex = bottomIndex = index;
-    
+
     doReflow |= REFLOW_FULL;
     doRepopulate = true;
     l();

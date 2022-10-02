@@ -8,8 +8,9 @@ export async function sleep(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));
 }
 
-export function sortByKey<T>(array: T[], key: keyof T) {
-  array.sort((a, b) => (a[key] < b[key] ? -1 : (a[key] > b[key] ? 1 : 0)));
+export function sortByKey<T>(array: T[], key: keyof T, reverse ?: boolean) {
+  const m = reverse ? -1 : 1;
+  array.sort((a, b) => (a[key] < b[key] ? -1*m : (a[key] > b[key] ? 1*m : 0)));
 }
 
 export function alphaSorter(caseSensitive: boolean = true): (a: string, b: string) => number {

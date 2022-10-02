@@ -1,5 +1,6 @@
 import { buildEmitter } from "../../shared/lib/event";
 import {} from "../../shared/types/types";
+import { AlbumIndexedDataSource } from "../album-data-source";
 import { $, _$ } from "../lib/dom";
 import { getService } from "../rpc/connect";
 import { AlbumListEvent, AppEventSource } from "../uiTypes";
@@ -18,20 +19,20 @@ const tabHtml = `<div class="tab-button browser-tab">
 </div>`;
 
 export async function makeBrowser(
-  emitter: AppEventSource
+  emitter: AppEventSource,
+  albumDataSource: AlbumIndexedDataSource
+
 ): Promise<{ win: _$; tab: _$, tool: _$ }> {
   const win = $(html);
 
-  const albumEmitter = buildEmitter<AlbumListEvent>();
-
-  win.append(await makeAlbumList(emitter, albumEmitter));
-  win.append(await makePhotoList(emitter, albumEmitter));
-  const tool = await makeButtons(emitter, albumEmitter);
+  win.append(await makeAlbumList(emitter, albumDataSource));
+  win.append(await makePhotoList(emitter, albumDataSource));
+  const tool = await makeButtons(emitter, albumDataSource.emitter);
 
   const tab = $(tabHtml);
   // Status change events
   const filter = $(".filterAlbum", tab).on("input", () => {
-    albumEmitter.emit("filterChanged", { filter: filter.val() });
+    albumDataSource.emitter.emit("filterChanged", { filter: filter.val() });
   });
   $(".new-album-button", tab).on("click", async () => {
     const newAlbum = await question(
@@ -44,6 +45,5 @@ export async function makeBrowser(
     }
   });
 
-  albumEmitter.emit("ready", {});
   return { win, tab, tool };
 }

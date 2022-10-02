@@ -85,11 +85,12 @@ export type Album = {
 };
 export type AlbumWithCount = Album & { count: number};
 
-export type AlbumChangeType = "albumDeleted" | "albumAdded" | "albumCountUpdated" | "albumMoved" | "albumOrderUpdated";
+export type AlbumChangeType = "albums" | "albumDeleted" | "albumAdded" | "albumCountUpdated" | "albumMoved" | "albumOrderUpdated";
 export type AlbumChangeEvent = {
   type: AlbumChangeType,
-  data: AlbumWithCount;
-  data2?: AlbumWithCount;
+  album?: AlbumWithCount;
+  albums?: AlbumWithCount[];
+  altAlbum?: AlbumWithCount;
 }
 
 export type AlbumEntry = {

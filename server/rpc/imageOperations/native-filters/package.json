@@ -1,0 +1,17 @@
+{
+  "name": "native-filters",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "author": "",
+  "license": "ISC",
+
+  "private": true,
+  "gypfile": true,
+  "scripts": {
+    "start": "node index.js sample.png"
+  },
+  "dependencies": {
+  	"nan": "*"
+  }
+}
