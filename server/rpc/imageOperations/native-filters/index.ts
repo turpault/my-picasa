@@ -9,7 +9,7 @@ async function readLUTFile(file: string): Promise<{ width: Number, data: Number[
   const lines = contents.split('\n');
   const res = {
     width: 0,
-    data: [[]] as Number[][],
+    data: [] as Number[][],
     title: ''
   };
   for (const line of lines) {
