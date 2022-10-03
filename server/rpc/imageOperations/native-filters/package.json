@@ -5,13 +5,19 @@
   "main": "index.js",
   "author": "",
   "license": "ISC",
-
   "private": true,
   "gypfile": true,
   "scripts": {
-    "start": "node index.js sample.png"
+    "start": "ts-node index.ts",
+    "configure": "node-gyp configure",
+    "build": "node-gyp build"
   },
   "dependencies": {
-  	"nan": "*"
+    "nan": "*"
+  },
+  "devDependencies": {
+    "node-gyp": "^9.1.0",
+    "sharp": "^0.29.2",
+    "ts-node": "^10.9.1"
   }
 }
