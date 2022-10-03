@@ -1,4 +1,4 @@
-export const imagesRoot = "/Volumes/1TB USB/Photos";
+export const imagesRoot = process.env.PICISA_PICTURE_FOLDER || "/Volumes/1TB USB/Photos";
 //export const imagesRoot = "/Volumes/Photos/Photos";
 
 export const defaultNewFolderRoot = "2022";

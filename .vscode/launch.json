@@ -5,7 +5,18 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Start favorite to iPhoto",      
+      "name": "Run Current TS file",
+      "program": "${file}",
+      "request": "launch",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "cwd": "${fileDirname}",
+      "runtimeExecutable": "${fileDirname}/node_modules/.bin/ts-node",
+      "type": "node"
+    },
+    {
+      "name": "Start favorite to iPhoto",
       "request": "launch",
       "runtimeArgs": [
         "run-script",
@@ -23,7 +34,7 @@
       "request": "launch",
       "args": [
         "-r",
-        "ts-node/register"        
+        "ts-node/register"
       ],
       "skipFiles": [
         "<node_internals>/**"
@@ -37,7 +48,7 @@
       "skipFiles": [
         "<node_internals>/**"
       ],
-      "type": "pwa-node"
+      "type": "node"
     },
   ]
 }
