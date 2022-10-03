@@ -41,7 +41,7 @@ typedef struct
 
 size_t index_from_pos(Vec3 point, size_t data_size)
 {
-  return size_t((((point.z) * (data_size)) + (point.y)) * (data_size) + point.x);
+  return size_t((((point.z) * double(data_size)) + (point.y)) * double(data_size) + point.x);
 }
 
 Pixel color_from_vec(const std::vector<double> &col)
@@ -68,9 +68,9 @@ Pixel compute_pixel_value(
   // Small trilinear interpolation with the LUT values around that color
 
   Vec3 pos_in_lut_matrix = {
-      .x = pixel.r * (lut_data_size - 1),
-      .y = pixel.g * (lut_data_size - 1),
-      .z = pixel.b * (lut_data_size - 1),
+      .x = pixel.r * double(lut_data_size - 1),
+      .y = pixel.g * double(lut_data_size - 1),
+      .z = pixel.b * double(lut_data_size - 1),
   };
   Vec3 delta = {
       .x = pos_in_lut_matrix.x - floor(pos_in_lut_matrix.x),
@@ -174,9 +174,9 @@ void apply_lut_impl(size_t pixel_width, unsigned char *pixels, size_t len, size_
     };
     auto updated = compute_pixel_value(pix, lut_size, lut_data);
 
-    pixels[i] = int(updated.r * 256.0);
-    pixels[i + 1] = int(updated.g * 256.0);
-    pixels[i + 2] = int(updated.b * 256.0);
+    pixels[i] = floor(updated.r * 256.0);
+    pixels[i + 1] = floor(updated.g * 256.0);
+    pixels[i + 2] = floor(updated.b * 256.0);
   }
 }
 
@@ -201,14 +201,17 @@ void applyLUT(const Napi::CallbackInfo &info)
 
   auto lut_data = info[2].As<Napi::Array>();
   std::vector<std::vector<double>> lut;
-  lut.reserve(lut_data.Length());
-  printf("Arg2 : %d\n", lut_data.Length());
+  auto lutLength = lut_data.Length();
+  lut.reserve(lutLength);
+  printf("Arg2 : %d\n", lutLength);
 
-  for (size_t i = 0; i < lut_data.Length(); i++)
+  for (size_t i = 0; i < lutLength; i++)
   {
     auto lut_row = lut_data.Get(i).Unwrap().As<Napi::Array>();
     std::vector<double> row;
-    for (size_t j = 0; j < lut_size; j++)
+    size_t lut_width = 3; // Assume 3D Lut
+    row.reserve(lut_width);
+    for (size_t j = 0; j < lut_width; j++)
     {
       row.push_back(lut_row.Get(j).Unwrap().ToNumber().Unwrap().DoubleValue());
     }
