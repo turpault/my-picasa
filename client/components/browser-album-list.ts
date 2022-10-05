@@ -31,11 +31,11 @@ export async function makeAlbumList(
   const folders = $(".folders", container);
   const events = albumDataSource.emitter;
   events.on("scrolled", ({ album }) => {
-    if (lastHighlight && lastHighlight.is()) {
+    if (lastHighlight && lastHighlight.exists()) {
       lastHighlight.removeClass("highlight-list");
     }
     lastHighlight = elementFromAlbum(album, elementPrefix);
-    if (lastHighlight.is()) {
+    if (lastHighlight.exists()) {
       lastHighlight.addClass("highlight-list");
       lastHighlight.get().scrollIntoViewIfNeeded(false);
     }

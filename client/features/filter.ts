@@ -32,30 +32,56 @@ export function setupFilters(
     },
     activate: async function (index: number, args?: string[]) {
       if (!args) {
-        imageController.addOperation(this.build(`All:${group}`));
+        imageController.addOperation(this.build(filterList[0]));
       }
       return true;
     },
-    buildUI: function (index: number, args: string[]) {
+    buildUI: function (index: number, args: string[], context: string) {
       const e = toolHeader(name, index, imageController, toolRegistrar);
-      e.append(`
-      <div>
+      const ctrl = $(`
         <div class="tool-control tool-filter">
           <label>Filter</label>
-          
-          <select class="filter-list">
-            ${['All', ...filterList.sort()].map(filter => `<option value="${filter}">${filter}</option>`).join('\n')}
-          </select>
+          <div class="filter-buttons">
+          </div>
         </div>
-      </div>`);
-      const update = () => {
-        const filter = $(".filter-list", e).val();
-        imageController.updateOperation(
-          index,
-          this.build(filter)
-        );
-      };
-      $(".filter-list", e).on("change", update).val(args[1]);
+      `);
+      e.append(ctrl);
+      const lst = $('.filter-buttons', ctrl);
+
+      for (const filter of filterList.sort()) {
+        const btn = $(`<button filter="${filter}" class="filter-apply-btn">${filter}</button>`);
+        btn.on('click', () => {
+          imageController.updateOperation(
+            index,
+            this.build(filter)
+          );
+        });
+        lst.append(btn);
+        btn.addRemoveClass('filter-apply-btn-active', args[1] === filter);
+      }
+
+      getService().then(async s => {
+        const copy = await s.cloneContext(context);
+        await s.execute(copy, [
+          ["resize", 200, 200, { fit: "cover", kernel: "nearest" }],
+        ]);
+        for (const filter of filterList.sort()) {
+          const btn = $(`[filter="${filter}"]`, lst);
+          const dup = await s.cloneContext(copy);
+          await s.transform(dup, this.build(filter));
+          const encoded = await s.encode(dup, 'image/jpeg', 'base64url');
+
+          btn.css({
+            "background-image": `url("${encoded.data}")`,
+          });
+          btn.attr('data-tooltip-below-image-contents', "test " + filter);
+          btn.get().style.setProperty('--image', `url("${encoded.data}")`);
+
+          await s.destroyContext(dup);
+        }
+        await s.destroyContext(copy);
+      });
+
       return { ui: e.get()! };
     },
   });

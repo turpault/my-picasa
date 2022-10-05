@@ -71,7 +71,8 @@ export class ToolRegistrar {
     filterName: string,
     index: number,
     args: string[],
-    ctrl: ImageController
+    ctrl: ImageController,
+    context: string
   ): { ui: HTMLElement; clearFct?: Function } {
     const tool = Object.values(this.tools).filter(
       (t) => t.filterName === filterName
@@ -80,7 +81,7 @@ export class ToolRegistrar {
       const e = toolHeader(filterName, index, ctrl, this);
       return { ui: e.get()! };
     }
-    return tool.buildUI(index, args);
+    return tool.buildUI(index, args, context);
   }
 
   tool(name: string): Tool {
@@ -122,7 +123,7 @@ export function make(e: _$, ctrl: ImageController): ToolRegistrar {
     const activeTools = ctrl.operationList().map(decodeOperation);
     let toolCount = 0;
     for (const { name, args } of activeTools) {
-      const toolUi = registrar.makeUiForTool(name, toolCount++, args, ctrl);
+      const toolUi = registrar.makeUiForTool(name, toolCount++, args, ctrl, context);
       clearList.push(toolUi.clearFct);
       if (toolUi.ui)
         newControls.get().insertBefore(toolUi.ui, newControls.get().firstChild);

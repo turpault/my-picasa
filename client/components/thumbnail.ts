@@ -54,7 +54,7 @@ export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
         return false;
       });
   }*/
-  const img=$(".th", e);
+  const img = $(".th", e);
   img.on("click", (ev: any) => {
     const entry = albumEntryFromElement(e, elementPrefix);
     if (entry) {
@@ -153,17 +153,17 @@ SelectionManager.get().events.on("added", ({ key }) => {
   // Element might be not displayed
   try {
     const e = elementFromEntry(key, elementPrefix);
-    if(e.is())
+    if (e.exists())
       e.addClass("selected");
-  } catch (e) {}
+  } catch (e) { }
 });
 SelectionManager.get().events.on("removed", ({ key }) => {
   // Element might be not displayed
   try {
     const e = elementFromEntry(key, elementPrefix);
-    if(e.is())
+    if (e.exists())
       e.removeClass("selected");
-  } catch (e) {}
+  } catch (e) { }
 });
 
 export async function thumbnailData(
@@ -184,7 +184,7 @@ export async function thumbnailData(
   thumb.attr("src", thumbnailUrl(entry, "th-medium", true));
   const label = entry.name;
   let dateTime = '';
-  if(picasaData.dateTaken) {
+  if (picasaData.dateTaken) {
     dateTime = new Date(picasaData.dateTaken).toLocaleString();
   }
   e.attr("data-tooltip-above-image", label);
@@ -204,7 +204,7 @@ export function selectThumbnailsInRect(
 ) {
   var rect = container.clientRect();
   for (const e of container.all(".browser-thumbnail")) {
-    if(e.get()!.offsetParent === null) {
+    if (e.get()!.offsetParent === null) {
       continue; // Element is not displayed
     }
     const r = e.clientRect();
@@ -224,46 +224,46 @@ export function selectThumbnailsInRect(
     }
   }
 }
-export function thumbnailsAround(  container: _$,
-  p: Point):{entry: AlbumEntry, leftOf :boolean } {
-    function distanceTo(p: Point, r:Rectangle): { distance: number, leftOf: boolean} {
-      // Over an existing one
-      if(p.y>r.topLeft.y && p.y<r.bottomRight.y &&p.x>r.topLeft.x && p.x<r.bottomRight.x) {
-        return { distance: 0, leftOf: true};
-      }
-      
-      const midPoint = new Point((r.bottomRight.x + r.topLeft.x)/2,(r.bottomRight.y + r.topLeft.y)/2);
-      let xDelta = p.x - midPoint.x;
-      let yDelta = (p.y - midPoint.y) * 10000;
-      const d = Math.pow(xDelta, 2) + Math.pow(yDelta, 2);
-      return { distance: d, leftOf: p.x < r.bottomRight.x};
+export function thumbnailsAround(container: _$,
+  p: Point): { entry: AlbumEntry, leftOf: boolean } {
+  function distanceTo(p: Point, r: Rectangle): { distance: number, leftOf: boolean } {
+    // Over an existing one
+    if (p.y > r.topLeft.y && p.y < r.bottomRight.y && p.x > r.topLeft.x && p.x < r.bottomRight.x) {
+      return { distance: 0, leftOf: true };
     }
-    //var rect = container.clientRect();
-    //let candidate:AlbumEntry | undefined;
-    let d: number = Number.MAX_SAFE_INTEGER;
-    const distances:{entry:AlbumEntry, d:{ distance: number, leftOf: boolean}  }[] = [];
-    for (const e of container.children()) {
-      if(e.get()!.offsetParent === null) {
-        continue; // Element is not displayed
-      }
-      if(!e.id()) {
-        continue; // in the pool
-      }
-      const r = e.clientRect();
-      //r.x -= rect.x;
-      //r.y -= rect.y;     
-      const entry = albumEntryFromElement(e, elementPrefix)!;
-      const dist = {entry, d:distanceTo(p, new Rectangle(new Point(r.x, r.y), new Point(r.x+r.width, r.y+r.height)))};
-      if(dist.d.distance === 0) {
-        // Overlapping, shortcut
-        return { entry: dist.entry, leftOf: dist.d.leftOf};
-      }
-      distances.push(dist);
-    }
-    distances.sort((a,b)=> a.d.distance-b.d.distance);
 
-    return { entry: distances[0].entry, leftOf: distances[0].d.leftOf};
+    const midPoint = new Point((r.bottomRight.x + r.topLeft.x) / 2, (r.bottomRight.y + r.topLeft.y) / 2);
+    let xDelta = p.x - midPoint.x;
+    let yDelta = (p.y - midPoint.y) * 10000;
+    const d = Math.pow(xDelta, 2) + Math.pow(yDelta, 2);
+    return { distance: d, leftOf: p.x < r.bottomRight.x };
   }
+  //var rect = container.clientRect();
+  //let candidate:AlbumEntry | undefined;
+  let d: number = Number.MAX_SAFE_INTEGER;
+  const distances: { entry: AlbumEntry, d: { distance: number, leftOf: boolean } }[] = [];
+  for (const e of container.children()) {
+    if (e.get()!.offsetParent === null) {
+      continue; // Element is not displayed
+    }
+    if (!e.id()) {
+      continue; // in the pool
+    }
+    const r = e.clientRect();
+    //r.x -= rect.x;
+    //r.y -= rect.y;     
+    const entry = albumEntryFromElement(e, elementPrefix)!;
+    const dist = { entry, d: distanceTo(p, new Rectangle(new Point(r.x, r.y), new Point(r.x + r.width, r.y + r.height))) };
+    if (dist.d.distance === 0) {
+      // Overlapping, shortcut
+      return { entry: dist.entry, leftOf: dist.d.leftOf };
+    }
+    distances.push(dist);
+  }
+  distances.sort((a, b) => a.d.distance - b.d.distance);
+
+  return { entry: distances[0].entry, leftOf: distances[0].d.leftOf };
+}
 export function makeNThumbnails(
   domElement: _$,
   count: number,
@@ -281,11 +281,11 @@ export function makeNThumbnails(
   }*/
   let i = 0;
   for (const e of domElement.children()) {
-    if(i++ < count) {
-      e.css("display", "");  
+    if (i++ < count) {
+      e.css("display", "");
     } else {
       e.id("");
-      e.css("display" , "none");
+      e.css("display", "none");
     }
   }
 }

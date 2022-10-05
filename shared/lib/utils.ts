@@ -303,11 +303,11 @@ export function lockedLocks(): string[] {
 }
 
 export function valuesOfEnum<T>(e: T): any[] {
-  return Object.values(e).filter(v => !isNaN(Number(v)));
+  return Object.values(e as any).filter(v => !isNaN(Number(v)));
 }
 
 export function keysOfEnum<T>(e: T): (keyof T)[] {
-  return Object.keys(e) as unknown as (keyof T)[];
+  return Object.keys(e as any) as unknown as (keyof T)[];
 }
 
 export function startLockMonitor() {

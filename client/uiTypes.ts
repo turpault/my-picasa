@@ -3,7 +3,7 @@ import { Emitter } from "./lib/event";
 import { Album, AlbumEntry } from "./types/types";
 
 type iconFct = (context: string) => Promise<boolean>;
-type activateFct = (index: number, args?:string[]) => Promise<boolean>;
+type activateFct = (index: number, args?: string[]) => Promise<boolean>;
 type entryFct = (e: AlbumEntry) => boolean;
 
 export type Tool = {
@@ -12,12 +12,12 @@ export type Tool = {
   editable?: boolean;
   icon: iconFct;
   build: Function;
-  buildUI: (index: number, args: string[]) => {ui: HTMLElement, clearFct?: Function};
+  buildUI: (index: number, args: string[], context: string) => { ui: HTMLElement, clearFct?: Function };
   activate: activateFct;
 };
 
 export type PanZoomEvent = {
-  pan: {x: number; y: number};
+  pan: { x: number; y: number };
   zoom: { scale: number };
 };
 

@@ -16,13 +16,18 @@ export async function makeImageStrip(
   const maxPic = Math.max(selector.list().indexOf(selector.active()), 15);
   const btns: _$[] = [];
   const prefix = uuid();
+  const s = await getService();
+
+  const clearFct: Function[] = [];
 
   Promise.allSettled(
     entries.map((entry) => thumbnailUrl(entry, "th-small"))
   ).then((results) => {
     for (const idx of range(0, selector.list().length - 1)) {
+      const id = idFromAlbumEntry(entries[idx], prefix);
+      console.info('Button id:', id);
       const b = $(
-        `<button id="${idFromAlbumEntry(entries[idx], prefix)}" class="w3-button strip-btn" loading="lazy" style="background-image: url(${(results[idx] as any).value
+        `<button id="${id}" class="w3-button strip-btn" loading="lazy" style="background-image: url(${(results[idx] as any).value
         })"></button>`
       );
       b.on("click", () => {
@@ -44,24 +49,24 @@ export async function makeImageStrip(
     }
   });
 
-
-  selector.event.on('changed', (event) => {
+  clearFct.push(selector.event.on('changed', (event) => {
     const active = elementFromEntry(event, prefix);
     for (const btn of btns) {
       btn.addRemoveClass('active-strip-btn', active.get() === btn.get());
     }
-  });
+  }));
 
-  const s = await getService();
-  s.on(
+  clearFct.push(s.on(
     "picasaFileMetaChanged",
     async (e: { payload: { entry: AlbumEntry; picasa: PicasaFileMeta } }) => {
       const changed = elementFromEntry(e.payload.entry, prefix);
-      if (changed.alive()) {
+      console.info('Changed event for id', idFromAlbumEntry(e.payload.entry, prefix), changed.exists());
+      if (changed.exists()) {
         changed.css({
-          "background-image": `url(${thumbnailUrl(e.payload.entry, "th-small")})`
+          "background-image": `url("${thumbnailUrl(e.payload.entry, "th-small")}")`
         });
       }
     }
-  );
+  ));
+  return () => clearFct.map(f => f());
 }

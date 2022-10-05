@@ -140,22 +140,22 @@ export async function makeEditorPage(
         entries,
         entries[initialIndex]
       );
-      makeImageStrip($(".image-strip", tool).get()!, activeManager);
+      refreshMetadataFct(entries[initialIndex], [entries[initialIndex]]);
 
       imageController.init(activeManager.active() as AlbumEntryPicasa);
-
-      activeManager.event.on("changed", (entry) => {
-        imageController.display(entry as AlbumEntryPicasa);
-        tabEvent.emit("rename", { name: entry.name });
-        refreshMetadataFct(entry, [entry]);
-      });
-      imageController.events.on("idle", () => {
-        $(".busy-spinner", editor).css("display", "none");
-      });
-      imageController.events.on("busy", () => {
-        $(".busy-spinner", editor).css("display", "block");
-      });
+      ;
       const off = [
+        imageController.events.on("idle", () => {
+          $(".busy-spinner", editor).css("display", "none");
+        }),
+        imageController.events.on("busy", () => {
+          $(".busy-spinner", editor).css("display", "block");
+        }),
+        activeManager.event.on("changed", (entry) => {
+          imageController.display(entry as AlbumEntryPicasa);
+          tabEvent.emit("rename", { name: entry.name });
+          refreshMetadataFct(entry, [entry]);
+        }),
         appEvents.on("keyDown", async ({ code, win }) => {
           if (win.get() === editor.get()) {
             switch (code) {
