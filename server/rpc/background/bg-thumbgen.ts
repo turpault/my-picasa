@@ -28,15 +28,15 @@ export async function buildThumbs() {
     const albums = await folders("");
     let hasCreatedThumb = false;
     for (const album of albums.reverse()) {
-      if(hasCreatedThumb) {
+      if (hasCreatedThumb) {
         await sleep(1);
       } else {
         await sleep(0.1);
       }
-      let m: {entries: AlbumEntry[]};
+      let m: { entries: AlbumEntry[] };
       try {
         m = await media(album, "");
-      } catch(e) {
+      } catch (e) {
         // Yuck folder is gone...
         continue;
       }
@@ -55,7 +55,7 @@ export async function buildThumbs() {
           // All size except large ones
           ThumbnailSizeVals.filter((f) => !f.includes("large")).map((size) =>
             stat(thumbnailPathFromEntryAndSize(picture, size))
-              .catch((e) => { hasCreatedThumb = true; readOrMakeThumbnail(picture, size)})
+              .catch((e) => { hasCreatedThumb = true; return readOrMakeThumbnail(picture, size); })
               .catch((e) => {
                 console.error(
                   `An error occured while creating a thumbnail for ${picture.album.key}/${picture.name} : ${e}`

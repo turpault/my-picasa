@@ -8,22 +8,22 @@ export async function sleep(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));
 }
 
-export function sortByKey<T>(array: T[], key: keyof T, reverse ?: boolean) {
+export function sortByKey<T>(array: T[], key: keyof T, reverse?: boolean) {
   const m = reverse ? -1 : 1;
-  array.sort((a, b) => (a[key] < b[key] ? -1*m : (a[key] > b[key] ? 1*m : 0)));
+  array.sort((a, b) => (a[key] < b[key] ? -1 * m : (a[key] > b[key] ? 1 * m : 0)));
 }
 
 export function alphaSorter(caseSensitive: boolean = true): (a: string, b: string) => number {
-  if(caseSensitive)
-  return (a:string,b:string) => {
-    return a < b ? -1 : a === b ? 0 : 1;
-  };
+  if (caseSensitive)
+    return (a: string, b: string) => {
+      return a < b ? -1 : a === b ? 0 : 1;
+    };
   else
-  return (a:string,b:string) => {
-    const la = a.toLowerCase();
-    const lb = b.toLowerCase();
-    return la < lb ? -1 : la === lb ? 0 : 1;
-  };
+    return (a: string, b: string) => {
+      const la = a.toLowerCase();
+      const lb = b.toLowerCase();
+      return la < lb ? -1 : la === lb ? 0 : 1;
+    };
 }
 
 export function uuid(): string {
@@ -33,42 +33,42 @@ export function uuid(): string {
 }
 
 export function fixedEncodeURIComponent(str: string): string {
-  return encodeURIComponent(str).replace(/[!'()*]/g, function(c) {
+  return encodeURIComponent(str).replace(/[!'()*]/g, function (c) {
     return '%' + c.charCodeAt(0).toString(16);
   });
 }
 
-export function cssSplitValue(v:string): {value: number, unit:string} {
-    if (typeof v === 'string' && v !== ""){
-        var split = v.match(/^([-.\d]+(?:\.\d+)?)(.*)$/)!;
-        if(split.length >2)
-          return {'value':parseFloat(split[1].trim()),  'unit':split[2].trim()!};
-    }
-    return { 'value':parseFloat(v), 'unit':"" }
+export function cssSplitValue(v: string): { value: number, unit: string } {
+  if (typeof v === 'string' && v !== "") {
+    var split = v.match(/^([-.\d]+(?:\.\d+)?)(.*)$/)!;
+    if (split.length > 2)
+      return { 'value': parseFloat(split[1].trim()), 'unit': split[2].trim()! };
+  }
+  return { 'value': parseFloat(v), 'unit': "" }
 }
 
-const debounceFcts = new Map<Function | string, {f: Function, elapse: number}>();
+const debounceFcts = new Map<Function | string, { f: Function, elapse: number }>();
 /**
  * Make sure that the function f is called at most every <delay> milliseconds
  * @param f
  * @param delay
  */
-export function debounce(f: Function, delay?: number, guid?: string, atStart?:boolean) {
+export function debounce(f: Function, delay?: number, guid?: string, atStart?: boolean) {
   delay = delay ? delay : 1000;
   const key = guid || f;
   if (debounceFcts.has(key)) {
     debounceFcts.get(key)!.f = f;
   } else {
-    debounceFcts.set(f, {elapse: Date.now() + delay, f});
+    debounceFcts.set(f, { elapse: Date.now() + delay, f });
     (async () => {
-        if(atStart) {
-          f();
-        }
-        await sleep(delay / 1000);
-        if(!atStart) {
-          f();
-        }
-        debounceFcts.delete(key);      
+      if (atStart) {
+        f();
+      }
+      await sleep(delay / 1000);
+      if (!atStart) {
+        f();
+      }
+      debounceFcts.delete(key);
     })();
   }
 }
@@ -114,7 +114,7 @@ export function rectanglesIntersect(
 /**
  * Rectangle expressed as a set of 0->1 values
  */
-export type RectRange =  { left: number; top: number; right: number; bottom: number };
+export type RectRange = { left: number; top: number; right: number; bottom: number };
 
 /*
 # Picasa uses a special string format to store crop boxes of
@@ -243,7 +243,7 @@ class Mutex {
     this.lockDate = new Date();
     const p = new Promise<void>((resolve) => {
       _resolve = () => {
-        if((Date.now() - this.lockDate.getTime()) > 1000) {
+        if ((Date.now() - this.lockDate.getTime()) > 1000) {
           //debugger;
         }
         this.lockDate = new Date();
@@ -268,11 +268,11 @@ const locks: Map<string, Mutex> = new Map();
 
 function checkForVeryLongLocks() {
   const now = new Date();
-  const table = Array.from(locks.entries()).filter(([name, mutex]) => mutex.locked()).map(([name, mutex])=> ({
+  const table = Array.from(locks.entries()).filter(([name, mutex]) => mutex.locked()).map(([name, mutex]) => ({
     name,
     duration: now.getTime() - mutex.lockDate.getTime()
   })).filter(l => l.duration > 1000);
-  if(table.length > 0) {
+  if (table.length > 0) {
     console.warn("These locks are taking longer than expected");
     console.table(table);
   }
@@ -303,7 +303,7 @@ export function lockedLocks(): string[] {
 }
 
 export function valuesOfEnum<T>(e: T): any[] {
-  return Object.values(e).filter(v=>!isNaN(Number(v)));
+  return Object.values(e).filter(v => !isNaN(Number(v)));
 }
 
 export function keysOfEnum<T>(e: T): (keyof T)[] {
@@ -312,4 +312,17 @@ export function keysOfEnum<T>(e: T): (keyof T)[] {
 
 export function startLockMonitor() {
   setInterval(checkForVeryLongLocks, 10000);
+}
+
+export function escapeXml(unsafe: string): string {
+  return unsafe.replace(/[<>&'"]/g, (c: string) => {
+    switch (c) {
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '&': return '&amp;';
+      case '\'': return '&apos;';
+      case '"': return '&quot;';
+    }
+    return '';
+  });
 }

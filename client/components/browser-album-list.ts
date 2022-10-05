@@ -11,6 +11,7 @@ import {
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
+import { makeButtons } from "./browser-photo-list-buttons";
 
 const elementPrefix = "albumlist:";
 const html = `<div class="w3-theme fill folder-pane">
@@ -23,6 +24,8 @@ export async function makeAlbumList(
 ) {
 
   const container = $(html);
+  container.append(await makeButtons(appEvents, albumDataSource.emitter));
+
   let lastHighlight: any;
   let filter = "";
   const folders = $(".folders", container);

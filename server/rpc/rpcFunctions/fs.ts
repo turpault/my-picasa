@@ -19,7 +19,7 @@ export async function writeFileContents(
 
 export async function folder(
   folder: string
-): Promise<{ name: string; kind: string }[]> {
+): Promise<{ name: string; kind: "directory" | "file" }[]> {
   const p = join(imagesRoot, folder);
   const data = await readdir(p);
   const stats = await Promise.allSettled(

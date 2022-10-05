@@ -47,8 +47,6 @@ async function init(port: number) {
   await makeJobList($(".jobs").get());
   await makeThumbnailManager();
 
-  await makeMetadata($(".metadatasidebar"), SelectionManager.get().events);
-
   makeTabs(emitter);
   makeHotkeys(emitter);
 
@@ -56,16 +54,16 @@ async function init(port: number) {
 
   emitter.on("show", async ({ initialList, initialIndex }) => {
     const { win, tab } = await makeGallery(initialIndex, initialList, emitter);
-    makeTab(win, tab, tool);
+    makeTab(win, tab);
   });
 
   emitter.on("edit", async ({ initialList, initialIndex }) => {
-    const { win, tab, tool } = await makeEditorPage(
+    const { win, tab } = await makeEditorPage(
       initialIndex,
       initialList,
       emitter
     );
-    makeTab(win, tab, tool);
+    makeTab(win, tab);
   });
 
   emitter.on("composite", async ({ initialList, initialIndex }) => {
@@ -73,11 +71,11 @@ async function init(port: number) {
       emitter,
       initialList as AlbumEntry[]
     );
-    makeTab(win, tab, tool);
+    makeTab(win, tab);
   });
 
   const { win, tab, tool } = await makeBrowser(emitter, dataSource);
-  makeTab(win, tab, tool);
+  makeTab(win, tab);
 
   selectTab(win);
   await dataSource.init();

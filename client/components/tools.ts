@@ -98,7 +98,7 @@ export class ToolRegistrar {
 }
 
 export function make(e: _$, ctrl: ImageController): ToolRegistrar {
-  const registrar = new ToolRegistrar($(".actions", e));
+  const registrar = new ToolRegistrar($(".effects", e));
 
   const history = $(".history", e);
   const description = $(".description", e);
@@ -118,14 +118,21 @@ export function make(e: _$, ctrl: ImageController): ToolRegistrar {
       const fct = clearList.pop();
       if (fct) fct();
     }
-    history.empty();
+    const newControls = $('<div/>');
     const activeTools = ctrl.operationList().map(decodeOperation);
     let toolCount = 0;
     for (const { name, args } of activeTools) {
       const toolUi = registrar.makeUiForTool(name, toolCount++, args, ctrl);
       clearList.push(toolUi.clearFct);
       if (toolUi.ui)
-        history.get().insertBefore(toolUi.ui, history.get().firstChild);
+        newControls.get().insertBefore(toolUi.ui, newControls.get().firstChild);
+    }
+    if (newControls.innerHTML() !== history.innerHTML()) {
+      history.empty();
+      for (const c of newControls.children()) {
+        c.remove();
+        history.append(c);
+      }
     }
   });
   registrar.events.on("added", async ({ tool }) => {

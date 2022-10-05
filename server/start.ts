@@ -6,6 +6,7 @@ import { lockedLocks, startLockMonitor } from "../shared/lib/utils";
 import { SocketAdaptorInterface } from "../shared/socket/socketAdaptorInterface";
 import { WsAdaptor } from "../shared/socket/wsAdaptor";
 import { buildThumbs } from "./rpc/background/bg-thumbgen";
+import { parseLUTs } from "./rpc/imageOperations/imageFilters";
 import { encode } from "./rpc/imageOperations/sharp-processor";
 import { RPCInit } from "./rpc/index";
 import { asset } from "./rpc/routes/asset";
@@ -28,11 +29,11 @@ function socketAdaptorInit(serverClient: any): SocketAdaptorInterface {
 
 export function socketInit(httpServer: FastifyInstance) {
 
-  httpServer.get('/cmd', {websocket: true}, (connection, req) => {
+  httpServer.get('/cmd', { websocket: true }, (connection, req) => {
     console.info("[socket]: Client has connected...");
     const socket = socketAdaptorInit(connection.socket);
     addSocket(socket);
-    socket.onDisconnect(()=>removeSocket(socket));
+    socket.onDisconnect(() => removeSocket(socket));
 
     RPCInit(socket, {});
 
@@ -137,6 +138,7 @@ export async function start(p?: number) {
     picasaIniCleaner();
     startLockMonitor();
     startAlbumUpdateNotification();
+    parseLUTs();
 
   } catch (err) {
     console.error(err);

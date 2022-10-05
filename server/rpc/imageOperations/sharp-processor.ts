@@ -1,7 +1,7 @@
 import { readFile } from "fs/promises";
 import sizeOf from "image-size";
 import { join } from "path";
-import sharp, { Sharp } from "sharp";
+import sharp, { OverlayOptions, Sharp } from "sharp";
 import { promisify } from "util";
 import { rotateRectangle } from "../../../shared/lib/geometry";
 import { Queue } from "../../../shared/lib/queue";
@@ -9,11 +9,13 @@ import {
   clipColor,
   decodeOperations,
   decodeRect,
+  escapeXml,
   fromHex, toHex2,
   uuid
 } from "../../../shared/lib/utils";
 import { AlbumEntry, PicasaFileMeta } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
+import { applyAllFilters, applyFilter } from "./imageFilters";
 
 const s = promisify(sizeOf);
 
@@ -128,7 +130,7 @@ export async function transform(
   const operations = decodeOperations(transformation);
   for (const { name, args } of operations) {
     let j = getContext(context);
-    switch (name) {
+    switch (name.split(':')[0]) {
       case "sepia":
         j = j.recomb([
           [0.3588, 0.7044, 0.1368],
@@ -338,6 +340,71 @@ export async function transform(
         j = j.composite(layers);
 
         break;
+      case "filter": {
+        const filter = args[1] || "All";
+        const tileSize = 400;
+
+        if (filter.startsWith("All:")) {
+          const group = filter.split(':').pop();
+          j.resize(tileSize - 10, tileSize - 10);
+          const r = await j.raw().toBuffer({ resolveWithObject: true });
+          const pixelSize = r.info.channels as 3 | 4;
+          console.time('applyAllFilters');
+          const filtered = await applyAllFilters(r.data, r.info.channels, group);
+          console.timeEnd('applyAllFilters');
+          // create a tapestry with all the resulting data
+          console.time('composite');
+          const tapestryDimension = Math.ceil(Math.sqrt(filtered.length));
+
+          j = sharp({
+            create: {
+              width: tileSize * tapestryDimension,
+              /** Number of pixels high. */
+              height: tileSize * tapestryDimension,
+              /** Number of bands e.g. 3 for RGB, 4 for RGBA */
+              channels: pixelSize,
+              /** Parsed by the [color](https://www.npmjs.org/package/color) module to extract values for red, green, blue and alpha. */
+              background: "#ffffff",
+            },
+          });
+          const layers: OverlayOptions[] = [];
+          filtered.forEach((img, index) => {
+            const posX = (index % tapestryDimension) * tileSize;
+            const posY = Math.floor(index / tapestryDimension) * tileSize;
+            const layer: OverlayOptions = {
+              raw: {
+                width: tileSize - 10,
+                height: tileSize - 10,
+                channels: pixelSize
+              },
+              input: img.filtered,
+              top: posY + 5,
+              left: posX + 5,
+            };
+            layers.push(layer);
+            const txtSvg =
+              `<svg width="${tileSize}" height="${tileSize}"><text x="50%" y="80%" text-anchor="middle" dominant-baseline="middle" font-size="35" fill="#101010">${escapeXml(filtered[index].name)}</text></svg>`;
+            layers.push({ input: Buffer.from(txtSvg), top: posY, left: posX });
+            const txtSvgOutline =
+              `<svg width="${tileSize}" height="${tileSize}"><text x="50%" y="80%" text-anchor="middle" dominant-baseline="middle" font-size="37" fill="#FFFFFF">${escapeXml(filtered[index].name)}</text></svg>`;
+            layers.push({ input: Buffer.from(txtSvgOutline), top: posY, left: posX });
+          });
+          j = j.composite(layers);
+          console.time('endComposite');
+        } else {
+          const r = await j.raw().toBuffer({ resolveWithObject: true });
+          const pixelSize = r.info.channels as 3 | 4;
+          await applyFilter(r.data, r.info.channels, filter);
+          j = sharp(r.data, {
+            raw: {
+              width: r.info.width,
+              height: r.info.height,
+              channels: pixelSize,
+            }
+          })
+        }
+        break;
+      }
       case "autocolor":
         /*const dominantColor = await j.clone()
           .resize(5, 5, { position: sharp.strategy.attention })
@@ -358,10 +425,10 @@ export async function transform(
           const scale = 255 / (max - min);
           return [scale, -min * scale];
         };
-
+    
         const blurred = await commitContext(await j.clone().blur(5));
         const stats = await blurred.stats();
-
+    
         // For each channel, get the min/max values
         {
           let copy = j.clone();
@@ -427,9 +494,8 @@ export async function transform(
             h / 3
           )}" width="${Math.floor(w * 0.8)}"> <text x="0" y="${Math.floor(
             h / 5
-          )}" font-size="${Math.floor(w / 20)}" fill="#000000">${
-            o.caption
-          }</text> </svg>`;
+          )}" font-size="${Math.floor(w / 20)}" fill="#000000">${o.caption
+            }</text> </svg>`;
           layers.push({ input: Buffer.from(txtSvg), gravity: "south" });
         }
         newImage = newImage.composite(layers);
@@ -635,9 +701,8 @@ export async function buildImage(
   extraOperations: any[] | undefined
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
   return buildImageQueue.add(async () => {
-    const label = `Thumbnail for image ${entry.album.name} / ${
-      entry.name
-    } / ${transformations} / ${extraOperations ? JSON.stringify(extraOperations) : "no op"}`;
+    const label = `Thumbnail for image ${entry.album.name} / ${entry.name
+      } / ${transformations} / ${extraOperations ? JSON.stringify(extraOperations) : "no op"}`;
     console.time(label);
     console.info(label);
     try {

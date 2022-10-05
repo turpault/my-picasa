@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/camelcase */
 import { Exceptions } from "../../shared/types/exceptions";
 import { undo, undoList } from "../utils/undo";
+import { getFilterGroups, getFilterList } from "./imageOperations/imageFilters";
 import { imageInfo } from "./imageOperations/info";
 import {
   buildContext,
@@ -163,6 +164,14 @@ export const MyPicasa: ServiceMap = {
     },
     ready: {
       handler: clientReady,
+      arguments: [],
+    },
+    getFilterList: {
+      handler: getFilterList,
+      arguments: ["group:string"],
+    },
+    getFilterGroups: {
+      handler: getFilterGroups,
       arguments: [],
     }
   },

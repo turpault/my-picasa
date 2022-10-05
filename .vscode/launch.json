@@ -13,7 +13,8 @@
       ],
       "cwd": "${fileDirname}",
       "runtimeExecutable": "${fileDirname}/node_modules/.bin/ts-node",
-      "type": "node"
+      "type": "node",
+      "console": "integratedTerminal"
     },
     {
       "name": "Start favorite to iPhoto",

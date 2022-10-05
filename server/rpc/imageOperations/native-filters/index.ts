@@ -1,4 +1,3 @@
-import { time, timeEnd } from "console";
 import { readFile } from "fs/promises";
 import sharp from "sharp";
 const { applyLUT } = require('./build/Release/lut3d');
@@ -29,7 +28,7 @@ async function readLUTFile(file: string): Promise<{ width: Number, data: Number[
 async function run(): Promise<void> {
   console.time('decode');
   const fileData = await readFile(
-    'test/moi.jpeg'
+    'test/original.jpeg'
   );
   const lut = await readLUTFile('test/Arabica 12.CUBE');
   const s = sharp(fileData, {
@@ -43,7 +42,7 @@ async function run(): Promise<void> {
   const data = await updated.data;
   console.timeEnd('decode');
   console.time('process');
-  applyLUT(data, lut.width, lut.data);
+  applyLUT(data, 3, lut.width, lut.data);
   console.timeEnd('process');
 
   console.time('encode');

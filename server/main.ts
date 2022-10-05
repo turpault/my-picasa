@@ -3,6 +3,7 @@ import { join } from "path";
 import { sleep } from "../shared/lib/utils";
 import { clientEmitter } from "./rpc/rpcFunctions/ready";
 import { getPort, start } from "./start";
+
 async function createSplash(): Promise<BrowserWindow> {
   const win = new BrowserWindow({
     width: 600,
