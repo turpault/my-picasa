@@ -2,6 +2,8 @@
 #include <vector>
 #include <math.h>
 
+#define debug(...)
+
 typedef struct
 {
   double x;
@@ -39,7 +41,7 @@ typedef struct
   Pixel c111;
 } Colors;
 
-size_t index_from_pos(Vec3 point, size_t data_size)
+size_t index_from_pos(const Vec3 &point, const size_t &data_size)
 {
   return size_t((((point.z) * double(data_size)) + (point.y)) * double(data_size) + point.x);
 }
@@ -54,71 +56,85 @@ Pixel color_from_vec(const std::vector<double> &col)
   return res;
 }
 
-double interpolate(double start, double end, double ratio)
+inline double interpolate(const double &start, const double &end, const double &ratio)
 {
   return (end - start) * ratio + start;
 }
 
 Pixel compute_pixel_value(
-    Pixel &pixel,
-    size_t lut_data_size,
+    const Pixel &pixel,
+    const size_t &lut_data_size,
     const std::vector<std::vector<double>> &lut_data)
 {
   // Get LUT values around the selected pixel color
   // Small trilinear interpolation with the LUT values around that color
+  debug("Source (r=%.2f, g=%.2f, b=%.2f)\n", pixel.r, pixel.g, pixel.b);
 
   Vec3 pos_in_lut_matrix = {
       .x = pixel.r * double(lut_data_size - 1),
       .y = pixel.g * double(lut_data_size - 1),
       .z = pixel.b * double(lut_data_size - 1),
   };
+
+  debug("Matrix pos (x=%2.2f, y=%2.2f, z=%2.2f)\n", pos_in_lut_matrix.x, pos_in_lut_matrix.y, pos_in_lut_matrix.z);
+
   Vec3 delta = {
       .x = pos_in_lut_matrix.x - floor(pos_in_lut_matrix.x),
       .y = pos_in_lut_matrix.y - floor(pos_in_lut_matrix.y),
       .z = pos_in_lut_matrix.z - floor(pos_in_lut_matrix.z),
   };
 
+  debug("Delta pos (x=%2.2f, y=%2.2f, z=%2.2f)\n", delta.x, delta.y, delta.z);
+
   // get the 8 points around
+  auto xf = floor(pos_in_lut_matrix.x);
+  auto xc = ceil(pos_in_lut_matrix.x);
+  auto yf = floor(pos_in_lut_matrix.y);
+  auto yc = ceil(pos_in_lut_matrix.y);
+  auto zf = floor(pos_in_lut_matrix.z);
+  auto zc = ceil(pos_in_lut_matrix.z);
+  debug("Points (xf=%2.2f, yf=%2.2f, zf=%2.2f)\n", xf, yf, zf);
+
   Points points{
       .c000 = {
-          .x = floor(pos_in_lut_matrix.x),
-          .y = floor(pos_in_lut_matrix.y),
-          .z = floor(pos_in_lut_matrix.z),
+          .x = xf,
+          .y = yf,
+          .z = zf,
       },
       .c100 = {
-          .x = ceil(pos_in_lut_matrix.x),
-          .y = floor(pos_in_lut_matrix.y),
-          .z = floor(pos_in_lut_matrix.z),
+          .x = xc,
+          .y = yf,
+          .z = zf,
       },
       .c010 = {
-          .x = floor(pos_in_lut_matrix.x),
-          .y = ceil(pos_in_lut_matrix.y),
-          .z = floor(pos_in_lut_matrix.z),
+          .x = xf,
+          .y = yc,
+          .z = zf,
       },
       .c110 = {
-          .x = ceil(pos_in_lut_matrix.x),
-          .y = ceil(pos_in_lut_matrix.y),
-          .z = floor(pos_in_lut_matrix.z),
+          .x = xc,
+          .y = yc,
+          .z = zf,
       },
       .c001 = {
-          .x = floor(pos_in_lut_matrix.x),
-          .y = floor(pos_in_lut_matrix.y),
-          .z = ceil(pos_in_lut_matrix.z),
+          .x = xf,
+          .y = yf,
+          .z = zc,
       },
       .c101 = {
-          .x = ceil(pos_in_lut_matrix.x),
-          .y = floor(pos_in_lut_matrix.y),
-          .z = ceil(pos_in_lut_matrix.z),
+          .x = xc,
+          .y = yf,
+          .z = zc,
       },
       .c011 = {
-          .x = floor(pos_in_lut_matrix.x),
-          .y = ceil(pos_in_lut_matrix.y),
-          .z = ceil(pos_in_lut_matrix.z),
+          .x = xf,
+          .y = yc,
+          .z = zc,
       },
       .c111 = {
-          .x = ceil(pos_in_lut_matrix.x),
-          .y = ceil(pos_in_lut_matrix.y),
-          .z = ceil(pos_in_lut_matrix.z),
+          .x = xc,
+          .y = yc,
+          .z = zc,
       },
   };
 
@@ -158,6 +174,8 @@ Pixel compute_pixel_value(
   auto bj2 = interpolate(bi1b, bi2b, delta.y);
   auto b = interpolate(bj1, bj2, delta.z);
 
+  debug("Final (r=%.2f, g=%.2f, b=%.2f)\n", r, g, b);
+
   return {r, g, b};
 }
 
@@ -168,15 +186,15 @@ void apply_lut_impl(size_t pixel_width, unsigned char *pixels, size_t len, size_
   for (size_t i = 0; i < len; i += pixel_width)
   {
     Pixel pix = {
-        .r = double(pixels[i]) / 256.0,
-        .g = double(pixels[i + 1]) / 256.0,
-        .b = double(pixels[i + 2]) / 256.0,
+        .r = double(pixels[i]) / 255.0,
+        .g = double(pixels[i + 1]) / 255.0,
+        .b = double(pixels[i + 2]) / 255.0,
     };
     auto updated = compute_pixel_value(pix, lut_size, lut_data);
 
-    pixels[i] = floor(updated.r * 256.0);
-    pixels[i + 1] = floor(updated.g * 256.0);
-    pixels[i + 2] = floor(updated.b * 256.0);
+    pixels[i] = floor(updated.r * 255);
+    pixels[i + 1] = floor(updated.g * 255);
+    pixels[i + 2] = floor(updated.b * 255);
   }
 }
 
@@ -188,22 +206,19 @@ void applyLUT(const Napi::CallbackInfo &info)
 {
   // void *argp = NULL;
   // Napi::Env env = info.Env();
-  auto now = clock();
-  printf("Getting params... \n");
 
   auto pixelsBuffer = info[0].As<Napi::Buffer<unsigned char>>();
   auto pixels = pixelsBuffer.Data();
   auto length = pixelsBuffer.Length();
-  printf("Arg0 : %p (%lu)\n", pixels, length);
 
-  size_t lut_size = info[1].ToNumber().Unwrap().Int32Value();
-  printf("Arg1 : %lu\n", lut_size);
+  size_t pixel_size = info[1].ToNumber().Unwrap().Int32Value();
 
-  auto lut_data = info[2].As<Napi::Array>();
+  size_t lut_size = info[2].ToNumber().Unwrap().Int32Value();
+
+  auto lut_data = info[3].As<Napi::Array>();
   std::vector<std::vector<double>> lut;
   auto lutLength = lut_data.Length();
   lut.reserve(lutLength);
-  printf("Arg2 : %d\n", lutLength);
 
   for (size_t i = 0; i < lutLength; i++)
   {
@@ -217,10 +232,8 @@ void applyLUT(const Napi::CallbackInfo &info)
     }
     lut.push_back(row);
   }
-  printf("Converting... %ld\n", clock() - now);
   // pixels[0] = 'Q';
-  apply_lut_impl(3, pixels, length, lut_size, lut);
-  printf("Done... %ld\n", clock() - now);
+  apply_lut_impl(pixel_size, pixels, length, lut_size, lut);
 }
 
 Napi::Object Lut3D(Napi::Env env, Napi::Object exports)

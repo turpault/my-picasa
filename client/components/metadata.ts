@@ -4,47 +4,30 @@ import { SelectionEventSource } from "../selection/selection-manager";
 import { AlbumEntry } from "../../shared/types/types";
 import L from "leaflet";
 import { t } from "./strings";
-const section:{[k:string]:any} = {
-  "Make": ()=>t("Make"),
-  "Model": ()=>t("Model"),
-  "ISO": ()=>t("ISO"),
-  "ExposureTime": ()=>t("Exposure Time"),
-  "FNumber": ()=>t("F-Number"),
-  "DateTimeOriginal": ()=>t("Original Date"),
-  "ExifImageHeight": ()=>t("Height (pixels)"),
-  "ExifImageWidth": ()=>t("Width (pixels)")
+const section: { [k: string]: any } = {
+  "Make": () => t("Make"),
+  "Model": () => t("Model"),
+  "ISO": () => t("ISO"),
+  "ExposureTime": () => t("Exposure Time"),
+  "FNumber": () => t("F-Number"),
+  "DateTimeOriginal": () => t("Original Date"),
+  "ExifImageHeight": () => t("Height (pixels)"),
+  "ExifImageWidth": () => t("Width (pixels)")
 };
 const metaHTML = ` <div>
-<div class="w3-bar-item w3-white meta-title">${t("File")}</div>
-<div class="file"></div>
-<div class="w3-bar-item w3-white meta-title">${t("Map")}</div>
+<div class="metadata"></div>
 <div class="map"></div>
-<div class="w3-bar-item w3-white meta-title">${t("Metadata")}</div>
-<div class="metadata w3-bar-item"></div>
 </div>
 `;
 export function makeMetadata(
-  e: _$,
-  selectionEvent: SelectionEventSource
+  e: _$
 ) {
   const metasidebar = $(metaHTML);
   e.append(metasidebar);
   const map = $(".map", metasidebar);
-  const file = $(".file", metasidebar);
   const meta = $(".metadata", metasidebar);
   let mapLeaflet: any;
   let marker: any;
-
-  const open = $(".openmetasidebar");
-  let openedMeta = false;
-  open.on("click", () => {
-    openedMeta=!openedMeta;
-    $(".workarea").addRemoveClass('crontract-metadata', openedMeta)
-    e.addRemoveClass('expand-metadata', openedMeta)
-    if (mapLeaflet) {
-      mapLeaflet.invalidateSize();
-    }
-  });
 
   function hideMap() {
     map.css("display", "none");
@@ -82,17 +65,15 @@ export function makeMetadata(
     marker.setLatLng([lat, long]);
   }
 
-  function refreshMetadata(latest: AlbumEntry, selection: AlbumEntry[]) {
-    file.empty();
-
-    selection.forEach((sel) =>
-      file.append(`<li class="meta-file-entry">${sel.name}</li>`)
+  function refreshMetadata(latest: AlbumEntry | undefined, selection: AlbumEntry[]) {
+    meta.empty();
+    selection.forEach((sel, idx) =>
+      meta.append(`<div><div class="exif-name">File #${idx}</div><div class="exif-value">${sel.name}</div></div>`)
     );
 
-    meta.empty();
     hideMap();
 
-    if (selection.length === 1) {
+    if (latest && selection.length === 1) {
       getFileExifData(latest).then((data) => {
         const {
           GPSLatitude,
@@ -120,14 +101,12 @@ export function makeMetadata(
                 val = v < 1 ? `1/${Math.round(1 / v)} s` : `${v} s`;
               }
               meta.append(
-                `<div><div class="w3-tag">${section[idx]()}</div><div>${val}</div></div>`
+                `<div><div class="exif-name">${t(section[idx]())}</div><div class="exif-value">${val}</div></div>`
               );
             }
         }
       });
     }
   }
-  selectionEvent.on("added", (event) => {
-    refreshMetadata(event.key, event.selection);
-  });
+  return refreshMetadata;
 }

@@ -53,7 +53,7 @@ export class _$ {
     listener: (this: _$, ev: HTMLElementEventMap[K]) => any,
     options?: boolean | AddEventListenerOptions
   ): _$ {
-    this.get().addEventListener(type, (...args)=>{listener.call(this, ...args);}, options);
+    this.get().addEventListener(type, (...args) => { listener.call(this, ...args); }, options);
     return this;
   }
   get(): HTMLElement {
@@ -90,9 +90,9 @@ export class _$ {
   text(value?: any) {
     const nodes = this.get().childNodes;
     let found = false;
-    for(var i = 0; i < nodes.length; i++){
+    for (var i = 0; i < nodes.length; i++) {
       // Check for a text node
-      if(nodes[i].nodeType === 3){
+      if (nodes[i].nodeType === 3) {
         if (arguments.length === 0) {
           return nodes[i].textContent;
         }
@@ -101,27 +101,27 @@ export class _$ {
         break;
       }
     };
-    if(!found) {
+    if (!found) {
       if (arguments.length === 0) {
         return "";
       }
-      
+
       this.get().appendChild(document.createTextNode(value));
     }
 
     return this;
   }
-  innerHTML(html?:string) {
-    if(html === undefined) {
+  innerHTML(html?: string) {
+    if (html === undefined) {
       return this.get()!.innerHTML;
     }
     this.get()!.innerHTML = html;
     return this;
   }
-  cssDelta(name: string , value: number, priority?: string): _$ | string {
+  cssDelta(name: string, value: number, priority?: string): _$ | string {
     let current = this.css(name);
     const c = cssSplitValue(current);
-    if(isNaN(c.value)) {
+    if (isNaN(c.value)) {
       throw new Error("Not a parsable value");
     }
     return this.css(name, `${c.value! + value}${c.unit}`, priority);
@@ -133,7 +133,7 @@ export class _$ {
   css(name: string | object, value?: any, priority?: string): _$ | string {
     if (value !== undefined) {
       if (typeof name == "string") {
-        if(Array.isArray(value)) {
+        if (Array.isArray(value)) {
           return this.css(name, ...(value as [value: any, priority?: string]));
         } else {
           this.get().style.setProperty(name, value as string, priority);
@@ -173,6 +173,9 @@ export class _$ {
     }
 
     return this;
+  }
+  hasClass(name: string): boolean {
+    return this._e?.classList.contains(name) || false;
   }
   addRemoveClass(name: string, condition: boolean) {
     if (condition) {
@@ -239,7 +242,7 @@ export class _$ {
     return this;
   }
   parent(): _$ | null {
-    return this.get().parentElement && new _$(this.get().parentElement!) ;
+    return this.get().parentElement && new _$(this.get().parentElement!);
   }
   visible(): boolean {
     return this.get().offsetParent !== null;
@@ -293,7 +296,7 @@ export class _$ {
     });
     return this;
   }
-  
+
   private resolve(
     e: Element | HTMLElement | string | _$,
     from: HTMLElement | null | _$
@@ -331,7 +334,7 @@ export class _$ {
       if (bySelector) {
         return bySelector as HTMLElement;
       }
-    } catch (err) {}
+    } catch (err) { }
     const n = document.createElement("div");
     n.innerHTML = e;
     if (n.children.length === 1) {
@@ -382,7 +385,7 @@ function albumFromId(id: string): Album | null {
   if (valid === "album") return { key, name };
   return null;
 }
-function idFromAlbum(a: Album, qualifier:string): string {
+function idFromAlbum(a: Album, qualifier: string): string {
   return `${qualifier}|album|${a.key}|${a.name}`;
 }
 

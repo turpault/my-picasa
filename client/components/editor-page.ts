@@ -25,22 +25,31 @@ import { ImageController } from "./image-controller";
 import { makeImageStrip } from "./image-strip";
 import { deleteTabWin, makeGenericTab, TabEvent } from "./tabs";
 import { make as makeTools } from "./tools";
+import { t } from "./strings";
+import { makeMetadata } from "./metadata";
+import { setupFilters } from "../features/filter";
+import { getService } from "../rpc/connect";
 
 const editHTML = `
 <div class="fill">
   <div class="fill w3-bar-block tools">
-    <div class="w3-bar-item editor-image-block">Description</div>
-    <div>
+    <div class="collapsible w3-bar-item editor-image-block">${t("Description")}</div>
+    <div class="collapsable">
       <input
         class="description w3-input"
         style="background: none"
         type="text"
+        placeholder="${t("No description")}"
       />
     </div>
-    <div class="w3-bar-item editor-image-block">Actions</div>
-    <div class="actions"></div>
-    <div class="w3-bar-item editor-image-block">History</div>
-    <div class="history w3-bar-item"></div>
+    <div class="collapsible editor-image-block">${t("Effects")}</div>
+    <div class="collapsable effects"></div>
+    <div class="collapsible editor-image-block">${t("Changes")}</div>
+    <div class="collapsable history"></div>
+    <div class="collapsible editor-image-block">${t("Album")}</div>
+    <div class="collapsable album-contents"></div>
+    <div class="collapsible editor-image-block">${t("Metadata")}</div>
+    <div class="collapsable metadata"></div>
   </div>
 
   <div class="image-container">
@@ -59,14 +68,6 @@ const editHTML = `
 const toolsHTML = `
 <div class="editor-bottom-tools">
   <div class="image-strip">
-      <button
-        class="previous-image fa fa-arrow-left editor-navigation-button"
-        style="position: absolute; left: 0; top: 0"
-      ></button>
-      <button
-        class="next-image fa fa-arrow-right editor-navigation-button"
-        style="position: absolute; right: 0; top: 0"
-      ></button>
       <div class="image-strip-thumbs"></div>
     </div>
     <div class="zoom-strip">  
@@ -86,6 +87,21 @@ export async function makeEditorPage(
   const video = $(".edited-video", editor);
   const imageContainer = $(".image-container", editor);
   const tool = $(toolsHTML);
+
+  const collapsibleItems = editor.all('.collapsible');
+  for (const collapsible of collapsibleItems) {
+    collapsible.on('click', () => {
+      const collapse = !collapsible.hasClass("collapsed");
+
+      collapsible.addRemoveClass("collapsed", collapse);
+      const content = collapsible.get().nextElementSibling! as HTMLElement;
+      $(content).addRemoveClass("collapsable-collapsed", collapse);
+    })
+  }
+
+  const metadata = $('.metadata', editor);
+  const album = $('.album-contents', editor);
+  album.append(tool);
 
   const tabEvent = buildEmitter<TabEvent>();
   const tab = makeGenericTab(tabEvent);
@@ -110,6 +126,13 @@ export async function makeEditorPage(
       setupMirror(imageController, toolRegistrar);
       setupBlur(imageController, toolRegistrar);
       setupSharpen(imageController, toolRegistrar);
+      const s = await getService();
+      const groups = await s.getFilterGroups();
+      for (const group of groups) {
+        setupFilters(imageController, toolRegistrar, group);
+      }
+
+      const refreshMetadataFct = makeMetadata(metadata);
 
       const entries = await buildAlbumEntryEx(initialList);
 
@@ -121,8 +144,10 @@ export async function makeEditorPage(
 
       imageController.init(activeManager.active() as AlbumEntryPicasa);
 
-      activeManager.event.on("changed", (event) => {
-        imageController.display(event as AlbumEntryPicasa);
+      activeManager.event.on("changed", (entry) => {
+        imageController.display(entry as AlbumEntryPicasa);
+        tabEvent.emit("rename", { name: entry.name });
+        refreshMetadataFct(entry, [entry]);
       });
       imageController.events.on("idle", () => {
         $(".busy-spinner", editor).css("display", "none");
@@ -132,7 +157,7 @@ export async function makeEditorPage(
       });
       const off = [
         appEvents.on("keyDown", async ({ code, win }) => {
-          if(win.get() === editor.get()) {
+          if (win.get() === editor.get()) {
             switch (code) {
               case "Space":
                 const target = await toggleStar([activeManager.active()]);
@@ -163,10 +188,7 @@ export async function makeEditorPage(
         z.val(zoom.scale * 10);
       });
 
-      activeManager.event.on("changed", (entry) => {
-        tabEvent.emit("rename", { name: entry.name });
-      });
     }
   });
-  return { win: editor, tab, tool };
+  return { win: editor, tab, tool: $('<div/>') };
 }

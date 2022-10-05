@@ -1,41 +1,54 @@
-import { range } from "../../shared/lib/utils";
+import { range, uuid } from "../../shared/lib/utils";
 import { AlbumEntry, PicasaFileMeta } from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
-import { $ } from "../lib/dom";
+import { $, elementFromEntry, idFromAlbumEntry, _$ } from "../lib/dom";
 import { getService } from "../rpc/connect";
 import { ActiveImageManager } from "../selection/active-manager";
+import { t } from "./strings";
 
-function nameToId(prefix: string, n: string) {
-  return prefix + "_" + n.replace(/[^a-z0-9A-Z_]/g, "");
-}
 export async function makeImageStrip(
   e: HTMLElement,
   selector: ActiveImageManager
 ) {
-  $(".previous-image", e).on("click", () => {
-    selector.selectPrevious();
-  });
-  $(".next-image", e).on("click", () => {
-    selector.selectNext();
-  });
   const picList = $(".image-strip-thumbs", e);
   const entries = selector.list();
+
+  const maxPic = Math.max(selector.list().indexOf(selector.active()), 15);
+  const btns: _$[] = [];
+  const prefix = uuid();
+
   Promise.allSettled(
     entries.map((entry) => thumbnailUrl(entry, "th-small"))
   ).then((results) => {
     for (const idx of range(0, selector.list().length - 1)) {
       const b = $(
-        `<button id="${nameToId(
-          "th",
-          entries[idx].name
-        )}" class="w3-button strip-btn" loading="lazy" style="background-image: url(${
-          (results[idx] as any).value
+        `<button id="${idFromAlbumEntry(entries[idx], prefix)}" class="w3-button strip-btn" loading="lazy" style="background-image: url(${(results[idx] as any).value
         })"></button>`
       );
       b.on("click", () => {
         selector.select(entries[idx]);
       });
+      b.addRemoveClass('hidden-strip-btn', idx > maxPic);
+      btns.push(b);
       picList.append(b);
+    }
+    if (maxPic < selector.list().length) {
+      const more = $(`<button class="w3-button strip-btn">${t("More...")}</button>`);
+      picList.append(more);
+      more.on('click', () => {
+        for (const btn of btns) {
+          btn.addRemoveClass('hidden-strip-btn', false);
+        }
+        more.addClass('hidden-strip-btn');
+      });
+    }
+  });
+
+
+  selector.event.on('changed', (event) => {
+    const active = elementFromEntry(event, prefix);
+    for (const btn of btns) {
+      btn.addRemoveClass('active-strip-btn', active.get() === btn.get());
     }
   });
 
@@ -43,13 +56,12 @@ export async function makeImageStrip(
   s.on(
     "picasaFileMetaChanged",
     async (e: { payload: { entry: AlbumEntry; picasa: PicasaFileMeta } }) => {
-      // Is there a thumbnail with that data ?
-      // TODO Update matching thumbnail
+      const changed = elementFromEntry(e.payload.entry, prefix);
+      if (changed.alive()) {
+        changed.css({
+          "background-image": `url(${thumbnailUrl(e.payload.entry, "th-small")})`
+        });
+      }
     }
   );
-
-  selector.event.on("changed", (event: { name: string }) => {
-    const e = $(`#${nameToId("th", event.name)}`);
-    if (e.is()) e.get().scrollIntoView();
-  });
 }

@@ -1,5 +1,5 @@
 import { buildEmitter } from "../../shared/lib/event";
-import {} from "../../shared/types/types";
+import { } from "../../shared/types/types";
 import { AlbumIndexedDataSource } from "../album-data-source";
 import { $, _$ } from "../lib/dom";
 import { getService } from "../rpc/connect";
@@ -27,7 +27,6 @@ export async function makeBrowser(
 
   win.append(await makeAlbumList(emitter, albumDataSource));
   win.append(await makePhotoList(emitter, albumDataSource));
-  const tool = await makeButtons(emitter, albumDataSource.emitter);
 
   const tab = $(tabHtml);
   // Status change events
@@ -45,5 +44,5 @@ export async function makeBrowser(
     }
   });
 
-  return { win, tab, tool };
+  return { win, tab, tool: $('<div/>') };
 }

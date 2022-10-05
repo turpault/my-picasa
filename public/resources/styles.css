@@ -29,6 +29,24 @@
 .album-drop-area {
   background: darkkhaki;
 }
+.collapsible::before {
+  content: '▾ ';
+  font-size: 25px;
+}
+.collapsed::before {
+  content: '▸ '
+}
+.collapsable {
+  overflow: hidden;
+  max-height: 1000px;
+  transition: max-height 0.2s ease-out;
+}
+
+.collapsable-collapsed {
+  max-height: 0;
+  /* height: 0; */
+}
+
 
 .crontract-metadata {
   right: 227px !important;
@@ -99,18 +117,23 @@
   /* background-repeat: no-repeat; */
 }
 .editor-bottom-tools {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
+  /* position: absolute; */
+  /* left: 0; */
+  /* right: 0; */
+  /* top: 0; */
   /* bottom: 0px; */
-  height: 65px;
-  overflow: hidden;background: #f3f3f3;
+  /* height: 65px; */
+  /* overflow: hidden; */
+  /* background: #f3f3f3; */
+  display: block;
+  width: 100%;
 }
 .zoom-strip {
-  display: inline-block;
-  width: 150px;
-  position: absolute;right: 50%;height: 100%;
+  /* display: inline-block; */
+  width: 100%;
+  /* position: absolute; */
+  /* right: 50%; */
+  /* height: 100%; */
   padding: 10px;
   /* vertical-align: middle; */
 }
@@ -174,12 +197,27 @@ background: #e3e3e3;}
   height: 50px;
 }
 .editor-image-block {
-  background-color: #f3f3f3;
+  background-color: #ddd;
+  cursor: pointer;
+  font-weight: bold;
+  padding: 4px !important;
 }
+.meta-title {
+  padding: 0px !important;
+}
+.exif-name {
+  padding-left: 10px;
+  display: inline-block;
+}
+.exif-value {
+  float: right;
+  padding-right: 10px;
+}
+
 .main-tab-bar {
   border-top: 3px lightgray solid;
   position: absolute;
-  top: 65px;
+  top: 0px;
   left:0;
   right:0;
   height:50px;
@@ -209,10 +247,10 @@ background: #e3e3e3;}
   /* position: absolute; */
 }
 .map {
-  width: 200px;
-  height: 200px;
+  width: 285px;
+  height: 284px;
   display: inline-block;
-  margin: 10px;
+  margin: 7px;
 }
 .meta {
   display: inline-block;
@@ -229,40 +267,43 @@ background: #e3e3e3;}
 }
 
 .image-strip {
-  position: absolute;
+  /* position: absolute; */
   /* text-align: center; */
-  left: 50%;
-  right: 0;
-  top: 5px;
-  bottom: 10px;
+  /* left: 50%; */
+  /* right: 0; */
+  /* top: 5px; */
+  /* bottom: 10px; */
   /* width: 300px; */
   /* margin-left: 0px; */
-  white-space: nowrap;
+  /* white-space: nowrap; */
+  width: 100%;
   /* vertical-align: top; */
+  /* overflow-y: scroll; */
 }
 
 .image-strip-thumbs {
   /* width: 300px; */
-  /* width: 100%; */
-  left: 50px;
-  right: 50px;
-  top: 0;
-  position: absolute;
-  overflow-x: scroll;
-  white-space: nowrap;
-  /* padding-left: 100px; */
+  width: 100%;
+  /* left: 50px; */
+  /* right: 50px; */
+  /* top: 0; */
+  /* position: absolute; */
+  /* overflow-x: scroll; */
+  /* white-space: nowrap; */
+  padding-left: 16px;
   /* padding-right: 100px; */
 }
 .image-strip-thumbs > button,
 .image-strip > button {
-  height: 50px;
-  width: 50px;
+  height: 60px;
+  width: 60px;
   background-position: center;
   background-repeat: no-repeat;
   margin: 3px;
   /* border: -21px; */
   border: none;
   background-color: #f3f3f3;
+  outline: none;
 }
 
 .tools {
@@ -282,11 +323,11 @@ background: #e3e3e3;}
 }
 
 .tool-box {
-  background-color: #939393;
+  /* background-color: #939393; */
   padding: 4px;
 }
 .tool-button {
-  /* line-height: 57px; */
+  line-height: 90px;
   width: 65px;
   height: 90px;
   text-align: center;
@@ -345,7 +386,7 @@ background: #e3e3e3;}
 }
 .history > * {
   border: solid 1px;
-  margin-top: 8px;
+  /* margin-top: 8px; */
 }
 
 .draggable {
@@ -370,23 +411,28 @@ background: #e3e3e3;}
   position: absolute;
   right: 0px;
   left: 0;
-  top: 0;
-  height: 65px;
+  bottom: 0;
+  height: 200px;
+  padding: 16px;
+  border-top: 1px solid;
   /* overflow: hidden; */
-  background: #f3f3f3;
+  /* background: #f3f3f3; */
   }
 .zoom-photo-list {
-  width: 200px;
-  padding-top: 10px;padding-right: 20px;
-  height: 65px;/* float: right; */right: 0;
+  width: 100%;
+  /* padding-top: 10px; */
+  /* padding-right: 20px; */
+  height: 65px;
+  /* float: right; */
+  right: 0;
   top: 0;
-  position: absolute;
+  /* position: absolute; */
 }
 .buttons {
   width: auto;
   right: 230px;
   top: 10px;
-  position: absolute;
+  /* position: absolute; */
   /* width: 0px; */
   text-align: center;
   padding-left: 10px;
@@ -450,25 +496,6 @@ font-style: italic;font-weight: bold;
 #undo {
   width: auto;
   right: 0;
-}
-
-.metadatasidebar {
-  width: 227px;
-  right: -227px;
-  overflow-y: scroll;
-  background-color: lightgrey;
-  padding-top: 38px;
-  padding: 10px;
-  top: 115px;
-  position:
-  absolute;
-  bottom:0;
-  /* transition: right 1s ease-in; */
-}
-
-.closemetasidebar {
-  font-size: 22px;
-  top: 0;
 }
 
 .crop {
@@ -567,6 +594,12 @@ font-style: italic;font-weight: bold;
 .folders {
   user-select: none;
   -webkit-user-select: none; /* Safari */
+  top: 0;
+  bottom: 200px;
+  position: absolute;
+  overflow: scroll;
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 
 .images {
@@ -620,11 +653,28 @@ font-style: italic;font-weight: bold;
   cursor: pointer;
 }
 
+.album-contents {
+  width:100%;
+  overflow-y: scroll;
+}
+
+.hidden-strip-btn {
+  display: none;
+}
+
+.filter-list {
+  width: 100%;
+}
+.active-strip-btn {
+  /* border: 2px solid red !important; */
+  outline: -webkit-focus-ring-color auto 1px !important;
+}
+
 .album {
   position: absolute;
-  display: inline;
+  /* display: inline; */
   width: 100%;
-  padding-top: 0px;
+  padding: 0px !important;
 }
 
 .album-photos {
@@ -730,7 +780,7 @@ font-style: italic;font-weight: bold;
 .workarea {
   position: absolute;
   left: 0;
-  top: 115px;
+  top: 50px;
   right: 0;
   bottom: 0;
   /* transition: right 1s ease-in; */
