@@ -62,10 +62,10 @@ export class _$ {
     }
     return this._e;
   }
-  is(): boolean {
+  exists(): boolean {
     return !!this._e;
   }
-  alive(): _$ {
+  proxy(): _$ {
     if (this._e) {
       return this;
     }

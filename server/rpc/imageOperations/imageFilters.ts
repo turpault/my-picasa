@@ -33,9 +33,12 @@ export async function parseLUTs() {
             await crawl(join(f, content.name));
           } else if (content.name.toLocaleLowerCase().endsWith('.cube')) {
             const p = join(relative(filtersFolder, f), content.name);
-            if (!allFilters[p]) {
-              allFilters[p] = await read3DLUTFile(p);
+            const lut = await read3DLUTFile(p);
+            let title = lut.title;
+            while (allFilters[title] && allFilters[title].path !== lut.path) {
+              title = title + ' (1)';
             }
+            allFilters[title] = lut;
           }
         }
       }
@@ -55,7 +58,7 @@ export function getFilterGroups(): string[] {
 }
 
 export function getFilterList(group?: string): string[] {
-  return Object.values(allFilters).filter(f => !group || f.group === group).map(f => f.title);
+  return Object.keys(allFilters).filter(f => !group || allFilters[f].group === group);
 }
 
 async function read3DLUT(title: string): Promise<LUT3D> {
@@ -64,7 +67,7 @@ async function read3DLUT(title: string): Promise<LUT3D> {
     const f = getFilterList(title.split(':').pop());
     title = f[Math.floor(f.length * Math.random())];
   }
-  const filter = Object.values(allFilters).find(f => f.title === title);
+  const filter = allFilters[title];
   if (!filter) {
     throw new Error(`Filter ${title} not found`);
   }
@@ -73,9 +76,6 @@ async function read3DLUT(title: string): Promise<LUT3D> {
 
 
 async function read3DLUTFile(path: string): Promise<LUT3D> {
-  if (allFilters[path]) {
-    return allFilters[path];
-  }
   const fileData = await readFile(join(imagesRoot, filtersFolder, path));
   const contents = fileData.toString('utf-8');
   const lines = contents.split('\n');

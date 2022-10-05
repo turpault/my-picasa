@@ -31,7 +31,7 @@ export class ImageController {
     this.events = buildEmitter<ImageControllerEvent>();
     this.zoomController = panZoomCtrl;
     this.q = new Queue(1);
-    this.q.event.on("drain", () => {});
+    this.q.event.on("drain", () => { });
     this.filters = "";
     this.mute = -1;
     this.caption = "";
@@ -40,6 +40,7 @@ export class ImageController {
       this.recenter();
 
       this.events.emit("idle", {});
+      console.info('Liveview Update', this.liveContext);
       this.events.emit("liveViewUpdated", {
         context: this.liveContext,
         entry: this.entry,
@@ -53,12 +54,12 @@ export class ImageController {
     return (this.filters || "").split(";").filter((v) => v);
   }
   operations(): string {
-    if(this.mute !== -1) {
+    if (this.mute !== -1) {
       return this.operationList().slice(0, this.mute).join(';');
     }
     return this.filters || "";
   }
-  muteAt(indexToMute:number) {
+  muteAt(indexToMute: number) {
     this.mute = indexToMute;
     this.update();
   }
@@ -98,13 +99,13 @@ export class ImageController {
     this.caption = data.caption || "";
     if (isPicture(this.entry)) {
       this.image.attr("src", thumbnailUrl(this.entry, "th-large"));
-      this.image.css({display : ""});
-      this.video.css({display : "none"});
+      this.image.css({ display: "" });
+      this.video.css({ display: "none" });
       this.context = await buildContext(this.entry);
     }
     if (isVideo(this.entry)) {
-      this.image.css({display : "none"});
-      this.video.css({display : ""});
+      this.image.css({ display: "none" });
+      this.video.css({ display: "" });
     }
 
     this.update();
@@ -121,7 +122,7 @@ export class ImageController {
 
         const data = await encodeToURL(this.liveContext, "image/jpeg");
         preLoadImage(data).then(() => {
-          this.image.attr("src" , data);
+          this.image.attr("src", data);
           //this.image.style.display = "none";
         }).catch(e => {
           // Might fails as it's quite asynchronous
@@ -209,6 +210,6 @@ export class ImageController {
   private zoomController?: ImagePanZoomController;
   private q: Queue;
   private parent: _$;
-  private mute:number;
+  private mute: number;
   events: Emitter<ImageControllerEvent>;
 }
