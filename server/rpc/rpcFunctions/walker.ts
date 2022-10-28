@@ -3,7 +3,7 @@ import { stat } from "fs/promises";
 import { join, relative } from "path";
 import { Queue } from "../../../shared/lib/queue";
 import {
-  alphaSorter, lock, sleep,
+  alphaSorter, sleep,
   sortByKey
 } from "../../../shared/lib/utils";
 import {
@@ -13,7 +13,7 @@ import { imagesRoot } from "../../utils/constants";
 import { broadcast } from "../../utils/socketList";
 import { assetsInAlbum, mediaCount } from "./media";
 import {
-  fullTextSearch
+  albumInFilter, getFaces
 } from "./picasaIni";
 
 let lastWalk: AlbumWithCount[] = [];
@@ -136,15 +136,28 @@ export async function addOrRefreshOrDeleteAlbum(album: Album) {
 }
 
 export async function folders(filter: string): Promise<Album[]> {
+  let w = [...lastWalk as Album[]];
   if (filter) {
     const filtered: Album[] = [];
     for (const album of lastWalk) {
-      if ((await fullTextSearch(album, filter)).length > 0)
+      if ((await albumInFilter(album, filter)).length > 0)
         filtered.push(album);
     }
-    return filtered;
+    w = filtered;
+  
+  // Create 'fake' albums with the faces
+  const faces = Array.from(getFaces());
+  const names = faces.reduce((prev, face) => prev.add(face[1].name), new Set<string>());
+  
+  for(const name of names) {
+    w.push({
+      name,
+      key: `face:${name}`
+    });
   }
-  return lastWalk!;
+}
+
+  return w;
 }
 
 

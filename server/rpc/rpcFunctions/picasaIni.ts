@@ -1,7 +1,7 @@
 import { readFile, stat, writeFile } from "fs/promises";
 import { join } from "path";
 import ini from "../../../shared/lib/ini";
-import { lock, sleep } from "../../../shared/lib/utils";
+import { lock, removeDiacritics, sleep } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
@@ -11,13 +11,12 @@ import {
 import { imagesRoot, PICASA } from "../../utils/constants";
 import { broadcast } from "../../utils/socketList";
 import { rate } from "../../utils/stats";
-import { exifDataAndStats } from "./exif";
-import { folder } from "./fs";
+import { media } from "./media";
 
 let picasaMap: Map<string, PicasaFolderMeta> = new Map();
 let lastAccessPicasaMap: Map<string, number> = new Map();
 let dirtyPicasaSet: Set<string> = new Set();
-let faces: Map<string, string> = new Map();
+let faces: Map<string, {name: string; email:string; something: string}> = new Map();
 export async function picasaIniCleaner() {
   while (true) {
     const i = dirtyPicasaSet;
@@ -66,11 +65,12 @@ export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
     picasaMap.set(album.key, i);
     if (i.Contacts2) {
       // includes a map of faces/ids
-      for (const [id, name] of Object.entries(
+      for (const [id, value] of Object.entries(
         i.Contacts2 as { [key: string]: string }
       )) {
         if (!faces.has(id)) {
-          faces.set(id, name);
+          const [name, email, something] = value.split(';');
+          faces.set(id, {name, email, something});
         }
       }
     }
@@ -82,25 +82,31 @@ export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
   return res;
 }
 
-export async function fullTextSearch(
+export async function albumInFilter(
   album: Album,
-  filter: string
+  normalizedFilter: string
 ): Promise<AlbumEntry[]> {
+
+  if(removeDiacritics(album.name).toLowerCase().includes(normalizedFilter)) {
+    return (await media(album)).entries;
+  }
+  return [];
+
   let data = { ...(await readPicasaIni(album)) };
 
   const faceIds: string[] = [];
   for (const [id, val] of faces.entries()) {
-    if (val.toLowerCase().includes(filter)) {
+    if (val.name.toLowerCase().includes(normalizedFilter)) {
       faceIds.push(id);
     }
   }
   const res: AlbumEntry[] = [];
   Object.entries(data).forEach(([name, picasaEntry]) => {
-    if (name.toLowerCase().includes(filter)) {
+    if (name.toLowerCase().includes(normalizedFilter)) {
       res.push({ album, name });
       return;
     }
-    if (album.name.toLowerCase().includes(filter)) {
+    if (album.name.toLowerCase().includes(normalizedFilter)) {
       res.push({ album, name });
       return;
     }
@@ -139,6 +145,10 @@ export async function touchPicasaEntry(entry: AlbumEntry) {
     picasa[entry.name] = {} as PicasaFileMeta;
     writePicasaIni(entry.album, picasa);
   }
+}
+
+export function getFaces() {
+  return faces;
 }
 
 export async function updatePicasaEntry(

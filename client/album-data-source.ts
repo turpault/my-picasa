@@ -74,6 +74,9 @@ export class AlbumIndexedDataSource {
     if (this.unreg) this.unreg();
   }
 
+  async filter(filter: string) {
+    this.resync(filter);
+  }
   async resync(filter: string) {
     const lst = await filteredAlbums(filter);
     this.albums = lst;

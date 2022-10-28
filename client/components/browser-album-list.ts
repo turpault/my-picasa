@@ -51,6 +51,7 @@ export async function makeAlbumList(
 
   events.on("filterChanged", (event) => {
     filter = event.filter;
+    albumDataSource.filter(filter);
   });
 
   const albums: _$[] = [];

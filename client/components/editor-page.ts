@@ -43,13 +43,14 @@ const editHTML = `
       />
     </div>
     <div class="collapsible editor-image-block">${t("Effects")}</div>
-    <div class="collapsable effects"></div>
-    <div class="collapsible editor-image-block">${t("Changes")}</div>
-    <div class="collapsable history"></div>
-    <div class="collapsible editor-image-block">${t("Album")}</div>
-    <div class="collapsable album-contents"></div>
-    <div class="collapsible editor-image-block">${t("Metadata")}</div>
-    <div class="collapsable metadata"></div>
+    <div class="collapsable">
+      <div class="effects"></div>
+      <div class="history"></div>
+    </div>
+    <div class="collapsible collapsed editor-image-block">${t("Album")}</div>
+    <div class="collapsable collapsable-collapsed album-contents"></div>
+    <div class="collapsible collapsed editor-image-block">${t("Metadata")}</div>
+    <div class="collapsable collapsable-collapsed metadata"></div>
   </div>
 
   <div class="image-container">
@@ -126,11 +127,7 @@ export async function makeEditorPage(
       setupMirror(imageController, toolRegistrar);
       setupBlur(imageController, toolRegistrar);
       setupSharpen(imageController, toolRegistrar);
-      const s = await getService();
-      const groups = await s.getFilterGroups();
-      for (const group of groups) {
-        setupFilters(imageController, toolRegistrar, group);
-      }
+      setupFilters(imageController, toolRegistrar);
 
       const refreshMetadataFct = makeMetadata(metadata);
 
@@ -141,9 +138,10 @@ export async function makeEditorPage(
         entries[initialIndex]
       );
       refreshMetadataFct(entries[initialIndex], [entries[initialIndex]]);
+      makeImageStrip($('.image-strip', tool),activeManager );
 
       imageController.init(activeManager.active() as AlbumEntryPicasa);
-      ;
+      
       const off = [
         imageController.events.on("idle", () => {
           $(".busy-spinner", editor).css("display", "none");

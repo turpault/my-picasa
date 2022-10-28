@@ -10,11 +10,10 @@ export async function filteredAlbums(
 
 export async function albumContents(
   fh: Album,
-  filter: string
 ): Promise<{
   entries: AlbumEntry[];
 }> {
   const service = await getService();
-  const { entries } = await service.media(fh, filter);
+  const { entries } = await service.media(fh);
   return { entries };
 }

@@ -97,7 +97,7 @@ export async function makePhotoList(
     }),
     events.on("thumbnailDblClicked", async (event) => {
       const s = await getService();
-      const { entries } = await s.media(event.entry.album, filter);
+      const { entries } = await s.media(event.entry.album);
       const initialIndex = entries.findIndex(
         (e: AlbumEntry) => e.name === event.entry.name
       );
@@ -132,7 +132,7 @@ export async function makePhotoList(
 
           for (const idx of range(fromAlbumIndex, toAlbumIndex)) {
             const album = dataSource.albumAtIndex(idx);
-            getAlbumInfo(album, filter, true).then((data) => {
+            getAlbumInfo(album, true).then((data) => {
               const sels = data.assets;
               if (idx === fromAlbumIndex) {
                 sels.splice(
@@ -152,7 +152,7 @@ export async function makePhotoList(
             });
           }
         } else {
-          getAlbumInfo(from.album, filter, true).then((data) => {
+          getAlbumInfo(from.album, true).then((data) => {
             const sels = data.assets;
             const start = sels.findIndex((e) => e.name === from!.name);
             const end = sels.findIndex((e) => e.name === to.name);
@@ -568,7 +568,7 @@ export async function makePhotoList(
   ) {
     title.innerHTML(album.name);
 
-    const info = await getAlbumInfo(album, filter, true /* use settings */);
+    const info = await getAlbumInfo(album, true /* use settings */);
     makeNThumbnails(element, info.assets.length, events);
 
     const keys = info.assets.map((p) => p.name).reverse();
@@ -737,7 +737,6 @@ export async function makePhotoList(
           ev.preventDefault();
           const info = await getAlbumInfo(
             album,
-            filter,
             true /* use settings */
           );
           const selection = SelectionManager.get();
@@ -829,7 +828,7 @@ export async function makePhotoList(
     rebuildViewStartingFrom(album);
   });
 
-  async function startGallery(filter: string) {
+  async function startGallery() {
     let initialList: AlbumEntry[] = [];
     let initialIndex = 0;
     if (SelectionManager.get().selected().length > 0) {
@@ -839,7 +838,7 @@ export async function makePhotoList(
       const v = visibleElement();
       const album = albumFromElement(v!, elementPrefix)!;
       const s = await getService();
-      const assets = (await s.media(album, filter)).entries;
+      const assets = (await s.media(album)).entries;
       initialList = assets;
     }
 

@@ -78,7 +78,7 @@ export async function exportAllFavoritesJob(job: Job): Promise<Album[]> {
   for (const album of albums) {
     q.add(async () => {
       const p = await readPicasaIni(album);
-      const m = await media(album, "");
+      const m = await media(album);
 
       for (const entry of m.entries) {
         if (p[entry.name].star) {

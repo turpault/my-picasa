@@ -24,6 +24,7 @@ export type PanZoomEvent = {
 export type ImageControllerEvent = {
   updated: {
     context: string;
+    liveContext: string;
     caption: string;
     filters: string;
   };

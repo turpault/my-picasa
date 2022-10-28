@@ -26,6 +26,10 @@ export function alphaSorter(caseSensitive: boolean = true): (a: string, b: strin
     };
 }
 
+export function removeDiacritics(from:string):string {
+  return from.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 export function uuid(): string {
   return (
     new Date().getTime().toString(36) + Math.random().toString(36).slice(2)

@@ -92,7 +92,7 @@ export const MyPicasa: ServiceMap = {
     },
     media: {
       handler: media,
-      arguments: ["album:object", "filter:string"],
+      arguments: ["album:object"],
     },
     mediaCount: {
       handler: mediaCount,

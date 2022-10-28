@@ -172,7 +172,18 @@
   background-color: #f3f3f3;
   color: black;
   border-top: 3px solid black !important;
-  /* border-bottom: 4px solid black; */
+  border-bottom: 3px solid black !important;
+  border-left: 3px solid black !important;
+  border-right: 3px solid black !important;
+  border-radius: 10px;
+  font-weight: bold;
+}
+
+.tab-button-highlight {
+  background-color: #f3f3f3;
+  color: black;
+  border-top: 3px solid black !important;
+  border-bottom: 3px solid #f3f3f3 !important;
   border-left: 3px solid black !important;
   border-right: 3px solid black !important;
   /* border-radius: 10px; */
@@ -217,10 +228,12 @@ body {
 }
 
 .editor-image-block {
-  background-color: #ddd;
+  /* background-color: #ddd; */
   cursor: pointer;
   font-weight: bold;
   padding: 4px !important;
+  background: linear-gradient(271deg, rgba(243, 243, 243, 1) 0%, rgba(204, 204, 204, 1) 100%);
+  /* box-shadow: -4px 8px 8px rgb(0 0 0 / 10%), -8px 16px 16px rgb(0 0 0 / 10%), -16px 32px 32px rgb(0 0 0 / 15%), -32px 64px 64px rgb(0 0 0 / 25%); */
 }
 
 .meta-title {
@@ -344,7 +357,7 @@ body {
   position: absolute;
   width: 300px;
   overflow-y: scroll;
-  background-color: lightgray;
+  background-color: #f3f3f3;
 }
 
 .tools label {
@@ -420,7 +433,7 @@ body {
 }
 
 .history>* {
-  border: solid 1px;
+  /* border: solid 1px; */
   /* margin-top: 8px; */
 }
 
@@ -480,7 +493,7 @@ body {
 .buttons>button {
   margin: 2px;
   width: 39px;
-  height: 32px;
+  height: 39px;
   padding-left: 10px;
   padding-right: 10px;
   /* display: block; */
@@ -529,6 +542,8 @@ body {
 .filterAlbum {
   border: none;
   padding: 11px 16px;
+  outline: none;
+  background-color: transparent;
 }
 
 .new-album-button {
@@ -664,6 +679,7 @@ body {
   overflow: scroll;
   padding-top: 10px;
   padding-bottom: 10px;
+  width: 100%;
 }
 
 .images {
@@ -730,6 +746,15 @@ body {
 
 .filter-list {
   width: 100%;
+}
+
+.filter-groups {
+  width: 100%;
+  background-color: #d3d3d3;
+  border: none;
+  font-size: larger;
+  outline-offset: 0px;
+  outline: none;
 }
 
 .filter-apply-btn-active {
@@ -858,12 +883,20 @@ body {
 .tab-button {
   height: 47px;
   /* color: black; */
-  /* border-bottom: 2px solid black; */
-  border-top: 3px solid #f3f3f3;
+  border-bottom: 3px solid black;
+  border-top: 3px solid transparent;
   border-left: 3px solid transparent;
   border-right: 3px solid transparent;
+  background: linear-gradient(0.06deg, rgba(243, 243, 243, 1) 0%, 
+                                      rgba(239, 239, 239, 1) 29.62%, 
+                                      rgba(234, 234, 234, 1) 58.47%, 
+                                      rgba(215, 215, 215, 1) 86.92%, 
+                                      rgba(204, 204, 204, 1) 100%);
+  box-shadow:-4px 8px 8px rgba(0,0,0,0.1), -8px 16px 16px rgba(0,0,0,0.1), -16px 32px 32px rgba(0,0,0,0.15), -32px 64px 64px rgba(0,0,0,0.25);
+  border-radius: 10px 10px 0 0;
   /* position: relative; */
   /* bottom: 0; */
+  width: 230px;
 }
 
 .remove-tab {
@@ -1033,7 +1066,7 @@ body {
   /* padding: 3px; */
   margin-top: -309px;
   color: #333;
-  background-color: #ffff0059;
+  background-color: #333;
   /* transition: all 0.15s ease; */
   padding: 10px;
   color: #333;
@@ -1043,7 +1076,7 @@ body {
 }
 
 [data-tooltip-below-image-contents]:hover:after {
-  opacity: 0.9;
+  opacity: 1;
   z-index: 10000;
 }
 

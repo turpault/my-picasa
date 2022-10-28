@@ -62,10 +62,9 @@ export function getFilterList(group?: string): string[] {
 }
 
 async function read3DLUT(title: string): Promise<LUT3D> {
-  const filters = await getFilterList();
-  if (title.startsWith("any:")) {
-    const f = getFilterList(title.split(':').pop());
-    title = f[Math.floor(f.length * Math.random())];
+  if (title.startsWith("any")) {
+    const f = getFilterList(getFilterGroups()[0]);
+    title = f[0];
   }
   const filter = allFilters[title];
   if (!filter) {

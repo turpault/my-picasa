@@ -43,7 +43,6 @@ export async function buildAlbumEntryEx(
 
 export async function getAlbumInfo(
   album: Album,
-  filter: string,
   useSettings: boolean = false
 ): Promise<AlbumInfo> {
   let settings: Settings = {
@@ -60,7 +59,7 @@ export async function getAlbumInfo(
     settings = getSettings();
   }
   // Gettings contents might change the picasa data
-  const contents = await albumContents(album, filter);
+  const contents = await albumContents(album);
   const picasa = await readPicasaIni(album);
   let entries = contents.entries;
 
