@@ -382,12 +382,12 @@ export async function transform(
               left: posX + 5,
             };
             layers.push(layer);
-            const txtSvg =
+            /*const txtSvg =
               `<svg width="${tileSize}" height="${tileSize}"><text x="50%" y="80%" text-anchor="middle" dominant-baseline="middle" font-size="35" fill="#101010">${escapeXml(filtered[index].name)}</text></svg>`;
             layers.push({ input: Buffer.from(txtSvg), top: posY, left: posX });
             const txtSvgOutline =
               `<svg width="${tileSize}" height="${tileSize}"><text x="50%" y="80%" text-anchor="middle" dominant-baseline="middle" font-size="37" fill="#FFFFFF">${escapeXml(filtered[index].name)}</text></svg>`;
-            layers.push({ input: Buffer.from(txtSvgOutline), top: posY, left: posX });
+            layers.push({ input: Buffer.from(txtSvgOutline), top: posY, left: posX });*/
           });
           j = j.composite(layers);
           console.time('endComposite');

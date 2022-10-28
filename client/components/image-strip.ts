@@ -7,7 +7,7 @@ import { ActiveImageManager } from "../selection/active-manager";
 import { t } from "./strings";
 
 export async function makeImageStrip(
-  e: HTMLElement,
+  e: _$,
   selector: ActiveImageManager
 ) {
   const picList = $(".image-strip-thumbs", e);

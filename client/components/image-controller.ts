@@ -115,7 +115,8 @@ export class ImageController {
     if (isPicture(this.entry)) {
       if (await this.rebuildContext()) {
         this.events.emit("updated", {
-          context: this.liveContext,
+          context: this.context,
+          liveContext: this.liveContext,
           caption: this.caption,
           filters: this.filters,
         });

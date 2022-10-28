@@ -5,12 +5,11 @@ import {
   Album,
   AlbumChangeEvent,
   AlbumEntry,
-  PicasaFolderMeta,
+  PicasaFolderMeta
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { broadcast } from "../../utils/socketList";
 import { exifDataAndStats } from "./exif";
-import { folder } from "./fs";
 import { readPicasaIni, updatePicasaEntry } from "./picasaIni";
 
 export async function setRank(entry: AlbumEntry, rank: Number): Promise<void> {
@@ -45,7 +44,7 @@ async function assignRanks(
 
 export async function sortAlbum(album: Album, order: string): Promise<void> {
   const i = await readPicasaIni(album);
-  const entries = (await media(album, "")).entries;
+  const entries = (await media(album)).entries;
 
   switch (order) {
     case "reverse":
@@ -138,8 +137,7 @@ export async function assetsInAlbum(
 
 
 export async function media(
-  album: Album,
-  filter: string
+  album: Album
 ): Promise<{ entries: AlbumEntry[] }> {
   let [picasa, assets] = await Promise.all([
     readPicasaIni(album),
@@ -147,13 +145,6 @@ export async function media(
   ]);
 
   let entries = assets.entries;
-  if (filter) {
-    entries = entries.filter(
-      (asset) =>
-        asset.album.name.toLowerCase().includes(filter.toLowerCase()) ||
-        asset.name.toLowerCase().includes(filter.toLowerCase())
-    );
-  }
   for (const entry of entries) {
     if (isPicture(entry)) {
       if (!picasa[entry.name] || !picasa[entry.name].dateTaken) {

@@ -35,7 +35,7 @@ export async function buildThumbs() {
       }
       let m: { entries: AlbumEntry[] };
       try {
-        m = await media(album, "");
+        m = await media(album);
       } catch (e) {
         // Yuck folder is gone...
         continue;

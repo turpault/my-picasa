@@ -43,12 +43,12 @@ export function selectTab(_tab: _$) {
     }
   }
   for (const e of tabElements) {
-    e.tab.removeClass("highlight");
+    e.tab.removeClass("tab-button-highlight");
     e.win.css("z-index", 0);
   }
   const last = tabElements[tabElements.length - 1];
 
-  last.tab.addClass("highlight");
+  last.tab.addClass("tab-button-highlight");
   last.win.css("z-index", 1);
   emitter.emit("tabChanged", last);
 }
