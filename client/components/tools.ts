@@ -14,9 +14,10 @@ import { Tool } from "../uiTypes";
 import { ImageController } from "./image-controller";
 import { t } from "./strings";
 
-async function toolIconForTool(context: string, tool: Tool): Promise<string> {
+export const GENERAL_TOOL_TAB = 'General';
+async function toolIconForTool(context: string, original: string, tool: Tool): Promise<string> {
   const copy = await cloneContext(context);
-  await tool.icon(copy);
+  await tool.icon(copy, original);
   const res = await encode(copy, "image/jpeg", "base64url");
   await destroyContext(copy);
   return res.data as string;
@@ -28,42 +29,104 @@ type ToolRegistrarEvents = {
 };
 
 export class ToolRegistrar {
-  constructor(toolListElement: _$) {
+  private pages: { [pageName: string]: string[] } = {};
+  private currentPage: string = '';
+  private buttonList: _$;
+  private groupList: _$;
+  private toolButtons: { [name: string]: any };
+  constructor(toolListElement: _$, toolHeader: _$) {
     this.tools = {};
     this.toolButtons = {};
     this.toolListElement = toolListElement;
+    this.toolListHeader = toolHeader;
     this.events = buildEmitter<ToolRegistrarEvents>();
+    const ctrl = $(`
+    <div class="tool-control tool-filter">
+      <select class="filter-groups">
+      </select>
+      <div class="filter-buttons">          
+      </div>
+    </div>
+  `);
+    this.toolListElement.append(ctrl);
+    this.buttonList = $('.filter-buttons', ctrl);
+    this.groupList = $(".filter-groups", ctrl);
+    this.groupList.on('change', () => {
+      this.currentPage = this.groupList.val();
+      this.refreshButtons();
+    });
   }
   events: Emitter<ToolRegistrarEvents>;
-  private toolButtons: { [name: string]: any };
-  registerTool(toolName: string, tool: Tool) {
+  registerTool(toolName: string, page: string, tool: Tool) {
     this.tools[toolName] = tool;
-
+    const newPage = !this.pages[page];
+    if (newPage) {
+      this.pages[page] = [toolName];
+    } else {
+      this.pages[page].push(toolName);
+    }
     const elem = $(
       `<div class="w3-button tool-button"><label>${t(toolName)}</label></div>`
     );
     this.toolButtons[toolName] = elem;
-    elem.on("click", () => this.events.emit("added", { tool }));
-    this.toolListElement.append(elem);
+    elem.on("click", () => {
+      this.events.emit("added", { tool: this.tools[toolName] });
+    });
+
+    if (newPage) {
+      // Refresh tool list
+      this.refreshToolPages();
+    }
   }
 
-  async refreshToolIcons(context: string, entry: AlbumEntry) {
+  private refreshToolPages() {
+    //this.toolListHeader.empty();
+
+    this.groupList.empty();
+    Object.keys(this.pages).forEach((page) => {
+      this.groupList.append(
+        `<option ${page === this.currentPage ? "selected" : ""
+        } value="${page}">${page}</option>`
+      );
+    });
+  }
+
+  getPages() {
+    return this.pages;
+  }
+
+  selectPage(page: string = GENERAL_TOOL_TAB) {
+    this.currentPage = page;
+    this.refreshButtons();
+  }
+
+  private refreshButtons() {
+    this.buttonList.empty();
+    for (const toolName of this.pages[this.currentPage]) {
+      this.buttonList.append(this.toolButtons[toolName]);
+    }
+  }
+
+  async refreshToolIcons(context: string, original: string, entry: AlbumEntry) {
     // Initial copy, resized
     const copy = await cloneContext(context);
     await execute(copy, [
       ["resize", 60, 60, { fit: "cover", kernel: "nearest" }],
     ]);
     await commit(copy);
+
+
     await Promise.allSettled(
-      Object.entries(this.tools).map(async ([toolName, tool]) => {
-        const data = await toolIconForTool(copy, tool);
-        const target = this.toolButtons[toolName];
+      Object.entries(this.tools).map(async ([name, tool]) => {
+        const data = await toolIconForTool(copy, original, tool);
+        const target = this.toolButtons[name];
         target.css({
           "background-image": `url(${data})`,
           display: tool.enable(entry) ? "" : "none",
         });
       })
     );
+    console.info('Destroy copy', copy);
     destroyContext(copy);
   }
 
@@ -96,10 +159,11 @@ export class ToolRegistrar {
     [name: string]: Tool;
   };
   private toolListElement: _$;
+  private toolListHeader: _$;
 }
 
 export function make(e: _$, ctrl: ImageController): ToolRegistrar {
-  const registrar = new ToolRegistrar($(".effects", e));
+  const registrar = new ToolRegistrar($(".effects", e), $(".effects-title", e));
 
   const history = $(".history", e);
   const description = $(".description", e);
@@ -107,9 +171,9 @@ export function make(e: _$, ctrl: ImageController): ToolRegistrar {
     ctrl.updateCaption(description.val());
   });
 
-  ctrl.events.on("liveViewUpdated", ({ context, entry }) => {
+  ctrl.events.on("liveViewUpdated", ({ context, original, entry }) => {
     // Refresh the icons
-    registrar.refreshToolIcons(context, entry);
+    registrar.refreshToolIcons(context, original, entry);
   });
   const clearList: (Function | undefined)[] = [];
   ctrl.events.on("updated", ({ context, caption, filters }) => {
@@ -138,6 +202,15 @@ export function make(e: _$, ctrl: ImageController): ToolRegistrar {
   });
   registrar.events.on("added", async ({ tool }) => {
     const activeTools = ctrl.operationList().map(decodeOperation);
+    if (!tool.multiple) {
+      // Go through the current list, and find if this tool was already applied
+      const activeTools = ctrl.operationList().map(decodeOperation);
+      const found = activeTools.findIndex(t => t.name === tool.filterName);
+      if (found !== -1) {
+        tool.activate(found, activeTools[found].args);
+        return;
+      }
+    }
     const toolCount = activeTools.length;
     if (tool.editable) {
       ctrl.muteAt(toolCount);

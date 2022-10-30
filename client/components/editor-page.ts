@@ -24,7 +24,7 @@ import { animateStar } from "./animations";
 import { ImageController } from "./image-controller";
 import { makeImageStrip } from "./image-strip";
 import { deleteTabWin, makeGenericTab, TabEvent } from "./tabs";
-import { make as makeTools } from "./tools";
+import { GENERAL_TOOL_TAB, make as makeTools } from "./tools";
 import { t } from "./strings";
 import { makeMetadata } from "./metadata";
 import { setupFilters } from "../features/filter";
@@ -42,7 +42,7 @@ const editHTML = `
         placeholder="${t("No description")}"
       />
     </div>
-    <div class="collapsible editor-image-block">${t("Effects")}</div>
+    <div class="collapsible editor-image-block">${t("Effects")}<span class="effects-title"></span></div>
     <div class="collapsable">
       <div class="effects"></div>
       <div class="history"></div>
@@ -129,6 +129,7 @@ export async function makeEditorPage(
       setupSharpen(imageController, toolRegistrar);
       setupFilters(imageController, toolRegistrar);
 
+      toolRegistrar.selectPage(GENERAL_TOOL_TAB);
       const refreshMetadataFct = makeMetadata(metadata);
 
       const entries = await buildAlbumEntryEx(initialList);
@@ -138,10 +139,10 @@ export async function makeEditorPage(
         entries[initialIndex]
       );
       refreshMetadataFct(entries[initialIndex], [entries[initialIndex]]);
-      makeImageStrip($('.image-strip', tool),activeManager );
+      makeImageStrip($('.image-strip', tool), activeManager);
 
       imageController.init(activeManager.active() as AlbumEntryPicasa);
-      
+
       const off = [
         imageController.events.on("idle", () => {
           $(".busy-spinner", editor).css("display", "none");

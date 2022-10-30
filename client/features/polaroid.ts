@@ -1,5 +1,5 @@
 import { ImageController } from "../components/image-controller";
-import { ToolRegistrar } from "../components/tools";
+import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
 import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
 import { $ } from "../lib/dom";
@@ -10,7 +10,8 @@ export function setupPolaroid(
   toolRegistrar: ToolRegistrar
 ) {
   const name = "Polaroid";
-  toolRegistrar.registerTool(name, {
+  toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
+    multiple: true,
     filterName: name,
     enable: (e) => isPicture(e),
     build: function (angle: number, bgcolor: string) {
@@ -54,7 +55,7 @@ export function setupPolaroid(
 
       $(".colorpicker", e).on("change", update);
       $(".angle", e).on("change", update);
-      return {ui: e.get()!};
+      return { ui: e.get()! };
     },
   });
 }

@@ -40,9 +40,9 @@ export class ImageController {
       this.recenter();
 
       this.events.emit("idle", {});
-      console.info('Liveview Update', this.liveContext);
       this.events.emit("liveViewUpdated", {
         context: this.liveContext,
+        original: this.context,
         entry: this.entry,
       });
     });
@@ -98,10 +98,10 @@ export class ImageController {
     this.filters = data.filters || "";
     this.caption = data.caption || "";
     if (isPicture(this.entry)) {
+      this.context = await buildContext(this.entry);
       this.image.attr("src", thumbnailUrl(this.entry, "th-large"));
       this.image.css({ display: "" });
       this.video.css({ display: "none" });
-      this.context = await buildContext(this.entry);
     }
     if (isVideo(this.entry)) {
       this.image.css({ display: "none" });

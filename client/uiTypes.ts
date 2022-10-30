@@ -2,7 +2,7 @@ import { _$ } from "./lib/dom";
 import { Emitter } from "./lib/event";
 import { Album, AlbumEntry } from "./types/types";
 
-type iconFct = (context: string) => Promise<boolean>;
+type iconFct = (context: string, original: string) => Promise<boolean>;
 type activateFct = (index: number, args?: string[]) => Promise<boolean>;
 type entryFct = (e: AlbumEntry) => boolean;
 
@@ -14,6 +14,7 @@ export type Tool = {
   build: Function;
   buildUI: (index: number, args: string[], context: string) => { ui: HTMLElement, clearFct?: Function };
   activate: activateFct;
+  multiple: boolean;
 };
 
 export type PanZoomEvent = {
@@ -30,6 +31,7 @@ export type ImageControllerEvent = {
   };
   liveViewUpdated: {
     context: string;
+    original: string;
     entry: AlbumEntry;
   };
   idle: {};
