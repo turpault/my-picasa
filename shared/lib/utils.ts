@@ -10,23 +10,28 @@ export async function sleep(delay: number) {
 
 export function sortByKey<T>(array: T[], key: keyof T, reverse?: boolean) {
   const m = reverse ? -1 : 1;
-  array.sort((a, b) => (a[key] < b[key] ? -1 * m : (a[key] > b[key] ? 1 * m : 0)));
+  array.sort(alphaSorter<T>(false, reverse));
 }
 
-export function alphaSorter(caseSensitive: boolean = true): (a: string, b: string) => number {
+export function alphaSorter<T>(caseSensitive: boolean = true, reverse: boolean = false): (a: T, b: T) => number {
+  const m = reverse ? -1 : 1;
   if (caseSensitive)
-    return (a: string, b: string) => {
-      return a < b ? -1 : a === b ? 0 : 1;
+    return (_a: T, _b: T) => {
+      const a = removeDiacritics(`${_a}`);
+      const b = removeDiacritics(`${_b}`);
+      return m * (a < b ? -1 : a === b ? 0 : 1);
     };
   else
-    return (a: string, b: string) => {
+    return (_a: T, _b: T) => {
+      const a = removeDiacritics(`${_a}`);
+      const b = removeDiacritics(`${_b}`);
       const la = a.toLowerCase();
       const lb = b.toLowerCase();
-      return la < lb ? -1 : la === lb ? 0 : 1;
+      return m * (la < lb ? -1 : la === lb ? 0 : 1);
     };
 }
 
-export function removeDiacritics(from:string):string {
+export function removeDiacritics(from: string): string {
   return from.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 

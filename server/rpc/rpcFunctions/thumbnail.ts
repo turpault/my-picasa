@@ -1,6 +1,5 @@
 import { readFile, stat, writeFile } from "fs/promises";
 import { extname } from "path";
-import { Queue } from "../../../shared/lib/queue";
 import { lock } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
@@ -9,15 +8,7 @@ import {
 } from "../../../shared/types/types";
 import { dec, inc } from "../../utils/stats";
 import {
-  buildContext,
-  buildImage,
-  commit,
-  destroyContext,
-  dimensionsFromFile,
-  encode,
-  execute,
-  setOptions,
-  transform
+  buildImage, dimensionsFromFile
 } from "../imageOperations/sharp-processor";
 import { createGif } from "../videoOperations/gif";
 import { readPicasaIni, updatePicasaEntry } from "./picasaIni";

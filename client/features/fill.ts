@@ -1,5 +1,5 @@
 import { ImageController } from "../components/image-controller";
-import { ToolRegistrar } from "../components/tools";
+import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
 import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
 import { $ } from "../lib/dom";
@@ -10,7 +10,8 @@ export function setupFill(
   toolRegistrar: ToolRegistrar
 ) {
   const name = "Extra Light";
-  toolRegistrar.registerTool(name, {
+  toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
+    multiple: false,
     filterName: "fill",
     enable: (e) => isPicture(e),
     build: function (amount: number) {
@@ -42,7 +43,7 @@ export function setupFill(
       $(".amount", e).val(parseFloat(args[1]) * 50);
 
       $(".amount", e).on("change", update);
-      return {ui: e.get()!};
+      return { ui: e.get()! };
     },
   });
 }

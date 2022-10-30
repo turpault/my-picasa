@@ -1,5 +1,5 @@
 import { ImageController } from "../components/image-controller";
-import { ToolRegistrar } from "../components/tools";
+import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
 import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
 import { $ } from "../lib/dom";
@@ -10,7 +10,8 @@ export function setupContrast(
   toolRegistrar: ToolRegistrar
 ) {
   const name = "Contrast";
-  toolRegistrar.registerTool(name, {
+  toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
+    multiple: false,
     filterName: "contrast",
     enable: (e) => isPicture(e),
     build: function (amount: number) {
@@ -42,7 +43,7 @@ export function setupContrast(
       $(".amount", e).val(parseInt(args[1] || "0"));
 
       $(".amount", e).on("change", update);
-      return {ui: e.get()!};
+      return { ui: e.get()! };
     },
   });
 }

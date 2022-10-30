@@ -1,5 +1,5 @@
 import { ImageController } from "../components/image-controller";
-import { ToolRegistrar } from "../components/tools";
+import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
 import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
 import { $ } from "../lib/dom";
@@ -10,7 +10,8 @@ export function setupRotate(
   toolRegistrar: ToolRegistrar
 ) {
   const name = "Rotate";
-  toolRegistrar.registerTool(name, {
+  toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
+    multiple: true,
     filterName: "rotate",
     enable: (e) => isPicture(e),
     build: function (angle: number) {
@@ -50,7 +51,7 @@ export function setupRotate(
       $(".rotate-invert", e)
         .on("click", () => update(2))
         .css("border", current === 2 ? "solid 1px" : "");
-      return {ui: e.get()!};
+      return { ui: e.get()! };
     },
   });
 }

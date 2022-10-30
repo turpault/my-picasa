@@ -1,5 +1,5 @@
 import { ImageController } from "../components/image-controller";
-import { ToolRegistrar } from "../components/tools";
+import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
 import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
 import { isPicture } from "../../shared/lib/utils";
@@ -9,8 +9,9 @@ export function setupAutocolor(
   toolRegistrar: ToolRegistrar
 ) {
   const name = "Autocolor";
-  toolRegistrar.registerTool(name, {
-  filterName: "autocolor",
+  toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
+    multiple: false,
+    filterName: "autocolor",
     enable: (e) => isPicture(e),
     build: function () {
       return `${this.filterName}=1`;
@@ -27,7 +28,7 @@ export function setupAutocolor(
     },
     buildUI: function (index: number, args: string[]) {
       const e = toolHeader(name, index, imageController, toolRegistrar);
-      return {ui: e.get()!};
+      return { ui: e.get()! };
     },
   });
 }

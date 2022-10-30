@@ -1,7 +1,7 @@
 import { buildEmitter } from "../../shared/lib/event";
 import { isPicture } from "../../shared/lib/utils";
 import { ImageController } from "../components/image-controller";
-import { ToolRegistrar } from "../components/tools";
+import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
 import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
@@ -26,7 +26,7 @@ export function setupTilt(
 ) {
   const name = "Tilt";
   let activeIndex: number = -1;
-  let _deactivate: ((commit: boolean)=>void) | undefined;
+  let _deactivate: ((commit: boolean) => void) | undefined;
   const emitter = buildEmitter<ValueChangeEvent>();
 
   const preview = setupTiltPreview(container, emitter, panZoomCtrl);
@@ -44,16 +44,17 @@ export function setupTilt(
     activeIndex = -1;
     panZoomCtrl.enable(true);
     preview.hide();
-    if(_deactivate) {
+    if (_deactivate) {
       _deactivate(commit);
       _deactivate = undefined;
     }
   }
   emitter.on("cancel", () => {
-        hide(false);
-      });
+    hide(false);
+  });
 
-  toolRegistrar.registerTool(name, {
+  toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
+    multiple: false,
     filterName: "tilt",
     enable: (e) => isPicture(e),
     icon: async function (context) {
@@ -68,7 +69,7 @@ export function setupTilt(
         imageCtrl.addOperation(this.build(initialValue, 0));
       }
       show(index, initialValue);
-      return new Promise<boolean>((resolve)=> {
+      return new Promise<boolean>((resolve) => {
         _deactivate = resolve;
       });
     },
@@ -92,7 +93,7 @@ export function setupTilt(
       clearFcts.push(emitter.on("updated", (event) => {
         if (index === event.index) {
 
-          if(event.origin !== 'control') {
+          if (event.origin !== 'control') {
             console.info('Setting value', valueToSlider(event.value));
             $(".rotation", e).val(valueToSlider(event.value));
           }
@@ -107,13 +108,13 @@ export function setupTilt(
         }
       }));
       $(".rotation", e).on("change", function () {
-        if(activeIndex === index) {
+        if (activeIndex === index) {
           emitter.emit("preview", { index, value: sliderToValue(this.val()) });
         } else {
           emitter.emit("updated", { index, value: sliderToValue(this.val()), origin: 'control' });
         }
       });
-      return {ui: e.get()!, clearFcts: ()=>{ clearFcts.forEach(f=>f())}};
+      return { ui: e.get()!, clearFcts: () => { clearFcts.forEach(f => f()) } };
     },
   });
 }

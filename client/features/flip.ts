@@ -1,5 +1,5 @@
 import { ImageController } from "../components/image-controller";
-import { ToolRegistrar } from "../components/tools";
+import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
 import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
 import { isPicture } from "../../shared/lib/utils";
@@ -9,7 +9,8 @@ export function setupFlip(
   toolRegistrar: ToolRegistrar
 ) {
   const name = "Flip";
-  toolRegistrar.registerTool(name, {
+  toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
+    multiple: false,
     filterName: "flip",
     enable: (e) => isPicture(e),
     build: function () {
@@ -27,7 +28,7 @@ export function setupFlip(
     },
     buildUI: function (index: number, args: string[]) {
       const e = toolHeader(name, index, imageController, toolRegistrar);
-      return {ui: e.get()!};
+      return { ui: e.get()! };
     },
   });
 }

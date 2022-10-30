@@ -25,7 +25,7 @@ const options = new Map<string, PicasaFileMeta>();
 function getContext(context: string): Sharp {
   const j = contexts.get(context);
   if (!j) {
-    throw new Error("context not found");
+    throw new Error(`context ${context} not found`);
   }
   return j;
 }
@@ -75,6 +75,8 @@ export async function cloneContext(context: string): Promise<string> {
   const j = getContext(context);
   const contextId = uuid();
   setContext(contextId, j.clone());
+  console.info('Created context', contextId);
+
   return contextId;
 }
 
@@ -341,7 +343,7 @@ export async function transform(
 
         break;
       case "filter": {
-        const filter = args[1] || "All";
+        const filter = name.split(':')[1] || "All";
         const tileSize = 400;
 
         if (filter.startsWith("All:")) {
@@ -597,6 +599,7 @@ export async function setOptions(
 }
 
 export async function destroyContext(context: string): Promise<void> {
+  console.info('Destroying context', context);
   contexts.delete(context);
 }
 

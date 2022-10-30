@@ -1,5 +1,5 @@
 import { ImageController } from "../components/image-controller";
-import { ToolRegistrar } from "../components/tools";
+import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
 import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
 import { $ } from "../lib/dom";
@@ -10,7 +10,8 @@ export function setupBrightness(
   toolRegistrar: ToolRegistrar
 ) {
   const name = "Brightness";
-  toolRegistrar.registerTool(name, {
+  toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
+    multiple: true,
     filterName: "finetune2",
     enable: (e) => isPicture(e),
     build: function (
@@ -20,12 +21,11 @@ export function setupBrightness(
       colorTemp: string,
       amount: number
     ) {
-      return `${
-        this.filterName
-      }=1,${brightness},${highlights},${shadows},${colorTemp.replace(
-        "#",
-        ""
-      )},${amount}`;
+      return `${this.filterName
+        }=1,${brightness},${highlights},${shadows},${colorTemp.replace(
+          "#",
+          ""
+        )},${amount}`;
     },
     icon: async function (context) {
       await transform(context, this.build(0.5, 0, 0, "#ffffff", 0));
@@ -81,7 +81,7 @@ export function setupBrightness(
       $(".shadows", e).on("change", update);
       $(".colorpicker", e).on("change", update);
       $(".amount", e).on("change", update);
-      return {ui: e.get()!};
+      return { ui: e.get()! };
     },
   });
 }

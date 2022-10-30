@@ -25,7 +25,6 @@ export async function makeImageStrip(
   ).then((results) => {
     for (const idx of range(0, selector.list().length - 1)) {
       const id = idFromAlbumEntry(entries[idx], prefix);
-      console.info('Button id:', id);
       const b = $(
         `<button id="${id}" class="w3-button strip-btn" loading="lazy" style="background-image: url(${(results[idx] as any).value
         })"></button>`

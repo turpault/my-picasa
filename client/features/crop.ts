@@ -1,6 +1,6 @@
 import { decodeRect, encodeRect, isPicture, RectRange } from "../../shared/lib/utils";
 import { ImageController } from "../components/image-controller";
-import { ToolRegistrar } from "../components/tools";
+import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
 import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
@@ -20,12 +20,12 @@ export function setupCrop(
   const preview = setupCropPreview(container, emitter, panZoomCtrl);
 
   let activeIndex: number = -1;
-  let _deactivate: ((commit: boolean)=>void) | undefined;
+  let _deactivate: ((commit: boolean) => void) | undefined;
 
   function show(index: number, initialValue: RectRange) {
     activeIndex = index;
     panZoomCtrl.recenter();
-    panZoomCtrl.enable(false);    
+    panZoomCtrl.enable(false);
     preview.show(activeIndex, initialValue);
   }
 
@@ -33,7 +33,7 @@ export function setupCrop(
     activeIndex = -1;
     panZoomCtrl.enable(true);
     preview.hide();
-    if(_deactivate) {
+    if (_deactivate) {
       _deactivate(commit);
       _deactivate = undefined;
     }
@@ -43,7 +43,8 @@ export function setupCrop(
     hide(false);
   });
 
-  toolRegistrar.registerTool(name, {
+  toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
+    multiple: false,
     filterName: "crop64",
     enable: (e) => isPicture(e),
     icon: async function (context) {
@@ -53,17 +54,17 @@ export function setupCrop(
     },
     editable: true,
     activate: async function (index: number, args?: string[]) {
-      let initialValue = args ? decodeRect(args[1]) : {left: 0.1, right:0.9, top: 0.1, bottom: 0.9};
+      let initialValue = args ? decodeRect(args[1]) : { left: 0.1, right: 0.9, top: 0.1, bottom: 0.9 };
       if (!args) {
         imageController.addOperation(this.build(initialValue));
-      }         
+      }
       show(index, initialValue);
 
-      return new Promise<boolean>((resolve)=> {
+      return new Promise<boolean>((resolve) => {
         _deactivate = resolve;
       });
     },
-    build: function (rect: {left: number, top: number, right: number, bottom: number}) {
+    build: function (rect: { left: number, top: number, right: number, bottom: number }) {
       return `${this.filterName}=1,${encodeRect(rect)}`;
     },
     buildUI: function (index: number, args: string[]) {
@@ -114,8 +115,8 @@ export function setupCrop(
         }
       }
       function controlsChanged() {
-        if(activeIndex === index) {
-          emitter.emit("preview", { index, value: rectFromControls()});
+        if (activeIndex === index) {
+          emitter.emit("preview", { index, value: rectFromControls() });
         } else {
           emitter.emit("updated", { index, value: rectFromControls() });
         }
@@ -125,7 +126,7 @@ export function setupCrop(
       $(".crop-right", e).on("change", controlsChanged).val(decoded.right * 100);
       $(".crop-top", e).on("change", controlsChanged).val(decoded.top * 100);
       $(".crop-bottom", e).on("change", controlsChanged).val(decoded.bottom * 100);
-      return {ui: e.get()!, clearFcts: ()=>{ clearFcts.forEach(f=>f())}};
+      return { ui: e.get()!, clearFcts: () => { clearFcts.forEach(f => f()) } };
     },
   });
 }
