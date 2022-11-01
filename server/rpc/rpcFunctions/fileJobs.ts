@@ -18,7 +18,7 @@ import { exportAllFavoritesJob } from "./fileJob-export-favorites";
 import { setRank } from "./media";
 import { readPicasaEntry, readPicasaIni, updatePicasaEntry } from "./picasaIni";
 import { copyThumbnails } from "./thumbnailCache";
-import { onRenamedAlbums, refreshAlbums } from "./walker";
+import { onRenamedAlbums, refreshAlbumKeys, refreshAlbums } from "./walker";
 
 const jobs: Job[] = [];
 type MultiMoveJobArguments = {source: AlbumEntry, destination: Album, rank: Number}[];
@@ -60,7 +60,7 @@ export async function createFSJob(
     .then(async (updatedAlbums: Album[]) => {
       broadcast("jobFinished", job);
       if (updatedAlbums.length) {
-        refreshAlbums(updatedAlbums);
+        refreshAlbumKeys(updatedAlbums.map(a=>a.key));
       }
     })
     .catch((err: Error) => {

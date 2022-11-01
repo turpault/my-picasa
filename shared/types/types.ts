@@ -2,6 +2,8 @@ export type PartialRecord<K extends keyof any, T> = {
   [P in K]?: T;
 };
 
+export type PicasaSection = { [name: string]: string };
+
 export type extraFields =
   | `cached:filters:${ThumbnailSize}`
   | `cached:dimensions:${ThumbnailSize}`;
@@ -54,7 +56,7 @@ export enum JOBNAMES {
   DELETE_ALBUM = "Delete Album",
   RESTORE_ALBUM = "Restore Album",
   RENAME_ALBUM = "Rename Album",
-  EXPORT_TO_IPHOTO = "Export To Photo App"
+  EXPORT_TO_IPHOTO = "Export To Photo App",
 }
 
 export const ThumbnailSizeVals = ["th-small", "th-medium", "th-large"] as const;
@@ -67,9 +69,13 @@ export type ImageFileMeta = {
   transform: string | undefined;
 };
 
-export type PicasaFolderMeta = {
-  [name: string]: PicasaFileMeta;
-};
+export type PicasaFolderMeta =
+  | {
+      [name: string]: PicasaFileMeta;
+    }
+  | {
+      [name: string]: PicasaSection;
+    };
 
 export type ActiveImageEvent = {
   changed: AlbumEntry;
@@ -83,22 +89,33 @@ export type Album = {
   name: string;
   key: string;
 };
-export type AlbumWithCount = Album & { count: number};
 
-export type AlbumChangeType = "albums" | "albumDeleted" | "albumAdded" | "albumCountUpdated" | "albumMoved" | "albumOrderUpdated";
+export type FaceAlbum = Album & {};
+
+
+export type AlbumWithData = Album & { shortcut?: string; count: number };
+
+export type AlbumChangeType =
+  | "albums"
+  | "albumDeleted"
+  | "albumAdded"
+  | "albumInfoUpdated"
+  | "albumMoved"
+  | "albumOrderUpdated"
+  | "shortcutsUpdated";
 export type AlbumChangeEvent = {
-  type: AlbumChangeType,
-  album?: AlbumWithCount;
-  albums?: AlbumWithCount[];
-  altAlbum?: AlbumWithCount;
-}
+  type: AlbumChangeType;
+  album?: AlbumWithData;
+  albums?: AlbumWithData[];
+  altAlbum?: AlbumWithData;
+};
 
 export type AlbumEntry = {
   name: string;
   album: Album;
 };
 export type AlbumEntryWithMetadata = AlbumEntry & {
-  meta: ImageFileMeta
+  meta: ImageFileMeta;
 };
 
 export type AlbumEntryPicasa = AlbumEntry & {
@@ -125,18 +142,18 @@ export const pictureExtensions = [
 ];
 export const videoExtensions = ["mp4", "mov", "m4v"];
 export enum Filetype {
-  Picture="image",
-  Video="video"
-} ;
-
-export enum Orientation  {
-  PORTRAIT,
-  PAYSAGE
+  Picture = "image",
+  Video = "video",
 }
 
-export enum Format  {
+export enum Orientation {
+  PORTRAIT,
+  PAYSAGE,
+}
+
+export enum Format {
   F10x8,
   F6x4,
   F5x5,
-  F16x9
+  F16x9,
 }

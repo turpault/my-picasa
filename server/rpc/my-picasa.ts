@@ -25,8 +25,10 @@ import {
 } from "./rpcFunctions/fs";
 import { media, mediaCount, setRank, sortAlbum } from "./rpcFunctions/media";
 import {
+  getShortcuts,
   readPicasaEntry,
   readPicasaIni,
+  setAlbumShortcut,
   updatePicasaEntry
 } from "./rpcFunctions/picasaIni";
 import { clientReady } from "./rpcFunctions/ready";
@@ -173,6 +175,14 @@ export const MyPicasa: ServiceMap = {
     getFilterGroups: {
       handler: getFilterGroups,
       arguments: [],
+    },
+    setAlbumShortcut: {
+      handler: setAlbumShortcut,
+      arguments: ["album:object", "shortcut:string"],
+    },
+    getShortcuts: {
+      handler: getShortcuts,
+      arguments:[]
     }
   },
 };
