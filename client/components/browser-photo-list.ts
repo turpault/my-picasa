@@ -1,6 +1,6 @@
 import { Point } from "ts-2d-geometry/dist";
 import { debounce, lock, range, sleep } from "../../shared/lib/utils";
-import { Album, AlbumEntry, JOBNAMES } from "../../shared/types/types";
+import { Album, AlbumEntry, AlbumEntryWithMetadata, AlbumWithData, JOBNAMES } from "../../shared/types/types";
 import { AlbumIndexedDataSource } from "../album-data-source";
 import { getAlbumInfo } from "../folder-utils";
 import {
@@ -264,7 +264,7 @@ export async function makePhotoList(
       return;
     }
 
-    const l = await lock("updatePhotosAlbums");
+    const l = await lock("invalidateFrom");
     for (const d of displayed.slice()) {
       if (indexOf(d) >= index) {
         moveToPool(d);
@@ -359,7 +359,7 @@ export async function makePhotoList(
   async function addNewItemsIfNeededAndReschedule() {
     if (running) debugger;
     running = true;
-    const l = await lock("updatePhotosAlbums");
+    const l = await lock("addNewItemsIfNeededAndReschedule");
     try {
       await addNewItemsIfNeeded();
     } catch (e) {
@@ -582,6 +582,13 @@ export async function makePhotoList(
     }
     await Promise.allSettled(p);
   }
+  function updateElement(e:_$, album:AlbumWithData) {
+    if(album.shortcut) {
+      $('.select-shortcut', e).val(album.shortcut);
+    } else {
+    $('.select-shortcut', e).val('');
+    }
+  }
 
   function getElement(): _$ {
     if (pool.length === 0) {
@@ -608,6 +615,11 @@ export async function makePhotoList(
           <button data-tooltip-below="${t(
             "Reverse Sort"
           )}" class="album-button w3-button reverse-sort" style="background-image: url(resources/images/icons/actions/sort-reverse-50.png)"></button>
+          <select data-tooltip-below="${t(
+            "Select shortcut for this folder"
+          )}" class="album-button w3-button select-shortcut select-no-arrow" style="background-image: url(resources/images/icons/actions/finger-50.png)">
+          <option value="">${t("")}</option>
+          ${["1", "2", "3", "4", "5", "6", "7", "8", "9"].map(v=>`<option value="${v}">${v}</option>`).join('')}</select>
         </div>
         <div class="photos album-photos"></div>
       </div>
@@ -676,6 +688,11 @@ export async function makePhotoList(
         const s = await getService();
         const album = albumFromElement(e, elementPrefix)!;
         s.sortAlbum(album, "reverse");
+      });
+      $(".select-shortcut", e).on("change", async () => {
+        const s = await getService();
+        const album = albumFromElement(e, elementPrefix)!;
+        s.setAlbumShortcut(album, $(".select-shortcut", e).val());
       });
 
       const photosContainer = $(".photos", e);
@@ -761,7 +778,7 @@ export async function makePhotoList(
     const e = pool.pop()!;
     return e;
   }
-  async function populateElement(e: _$, album: Album, filter: string) {
+  async function populateElement(e: _$, album: AlbumWithData, filter: string) {
     await albumWithThumbnails(
       album,
       filter,
@@ -770,6 +787,7 @@ export async function makePhotoList(
       events
     );
     setIdForAlbum(e, album, elementPrefix);
+    updateElement(e, album);
   }
 
   async function addAtTop() {
@@ -811,7 +829,7 @@ export async function makePhotoList(
     if (!album) {
       return;
     }
-    const l = await lock("updatePhotosAlbums");
+    const l = await lock("rebuildViewStartingFrom");
     console.info(`Refresh from ${album.name}`);
     for (const e of [...displayed]) {
       moveToPool(e);

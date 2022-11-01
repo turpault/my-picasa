@@ -1,9 +1,9 @@
 import { ImageController } from "./components/image-controller";
 import { ToolRegistrar } from "./components/tools";
 import { $, _$ } from "./lib/dom";
-import { AlbumWithCount } from "./types/types";
+import { AlbumWithData } from "./types/types";
 
-export function folder(f: AlbumWithCount): _$ {
+export function folder(f: AlbumWithData): _$ {
   const e = $(`<li><div class="browser-list-text">${f.name}</div><span class="browser-list-count">(${f.count})</span></li>`);
   return e;
 }

@@ -10,21 +10,21 @@ export async function sleep(delay: number) {
 
 export function sortByKey<T>(array: T[], key: keyof T, reverse?: boolean) {
   const m = reverse ? -1 : 1;
-  array.sort(alphaSorter<T>(false, reverse));
+  array.sort(alphaSorter(false, reverse, key as string));
 }
 
-export function alphaSorter<T>(caseSensitive: boolean = true, reverse: boolean = false): (a: T, b: T) => number {
+export function alphaSorter(caseSensitive: boolean = true, reverse: boolean = false, key?: string): (a:any, b:any) => number {
   const m = reverse ? -1 : 1;
   if (caseSensitive)
-    return (_a: T, _b: T) => {
-      const a = removeDiacritics(`${_a}`);
-      const b = removeDiacritics(`${_b}`);
+    return (_a, _b) => {
+      const a = removeDiacritics(`${key?_a[key]:_a}`);
+      const b = removeDiacritics(`${key?_b[key]:_b}`);
       return m * (a < b ? -1 : a === b ? 0 : 1);
     };
   else
-    return (_a: T, _b: T) => {
-      const a = removeDiacritics(`${_a}`);
-      const b = removeDiacritics(`${_b}`);
+    return (_a, _b) => {
+      const a = removeDiacritics(`${key?_a[key]:_a}`);
+      const b = removeDiacritics(`${key?_b[key]:_b}`);
       const la = a.toLowerCase();
       const lb = b.toLowerCase();
       return m * (la < lb ? -1 : la === lb ? 0 : 1);
@@ -282,7 +282,7 @@ function checkForVeryLongLocks() {
     duration: now.getTime() - mutex.lockDate.getTime()
   })).filter(l => l.duration > 1000);
   if (table.length > 0) {
-    console.warn("These locks are taking longer than expected");
+    console.warn("These locks are taking longer than expected", JSON.stringify(table));
     console.table(table);
   }
 }
@@ -295,6 +295,11 @@ function pruneLocks() {
     }
   }
   checkForVeryLongLocks();
+}
+
+export function differs(a: any, b:any) {
+  return Object.getOwnPropertyNames(a).find(p => a[p] !== b[p]) ||
+  Object.getOwnPropertyNames(b).find(p => a[p] !== b[p])
 }
 
 export async function lock(label: string): Promise<Function> {

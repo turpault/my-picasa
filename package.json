@@ -38,7 +38,7 @@
     "deploy": "osascript -e 'do shell script \"rm -rf /Applications/picisa.app ; cp -Rf  picisa-darwin-x64/picisa.app /Applications/\" with administrator privileges'",
     "clean": "rimraf dist",
     "reset": "rimraf node_modules dist",
-    "start": "run-p start:*",
+    "start": "PICISA_PICTURE_FOLDER=/Volumes/1TB\\ USB/Photos run-p start:*",
     "start:webpack": "webpack --watch --progress --mode development",
     "start:tsc-server": "tsc-watch -p tsconfig-server.json",
     "start:server": "nodemon --watch ./dist/server --watch ./dist/shared dist/server/index.js",

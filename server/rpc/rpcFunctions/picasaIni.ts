@@ -6,17 +6,21 @@ import {
   Album,
   AlbumEntry,
   PicasaFileMeta,
-  PicasaFolderMeta
+  PicasaFolderMeta,
+  PicasaSection
 } from "../../../shared/types/types";
 import { imagesRoot, PICASA } from "../../utils/constants";
 import { broadcast } from "../../utils/socketList";
 import { rate } from "../../utils/stats";
 import { media } from "./media";
+import { addOrRefreshOrDeleteAlbum } from "./walker";
 
-let picasaMap: Map<string, PicasaFolderMeta> = new Map();
-let lastAccessPicasaMap: Map<string, number> = new Map();
-let dirtyPicasaSet: Set<string> = new Set();
-let faces: Map<string, {name: string; email:string; something: string}> = new Map();
+let picasaMap = new Map<string, PicasaFolderMeta>();
+let lastAccessPicasaMap = new Map<string, number>();
+let dirtyPicasaSet =  new Set<string>();
+let faces = new Map<string, {name: string; email:string; something: string}>();
+let shortcuts: {[shotcut:string]: Album} = {};
+const GRACE_DELAY = 120000;
 export async function picasaIniCleaner() {
   while (true) {
     const i = dirtyPicasaSet;
@@ -29,7 +33,7 @@ export async function picasaIniCleaner() {
     });
     picasaMap.forEach((value, key) => {
       const lastAccess = lastAccessPicasaMap.get(key);
-      if(!lastAccess || (Date.now() - lastAccess) > 5000) {
+      if(!lastAccess || (Date.now() - lastAccess) > GRACE_DELAY) {
         picasaMap.delete(key);
         lastAccessPicasaMap.delete(key);
       }
@@ -37,14 +41,13 @@ export async function picasaIniCleaner() {
     await sleep(10);
   }
 }
-
 export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
   lastAccessPicasaMap.set(album.key, Date.now());
   if (picasaMap.has(album.key)) {
     return picasaMap.get(album.key)!;
   }
   rate("readPicasa");
-  const l = await lock("readPicasaIni:" + album.key);
+  const l = await lock(`readPicasaIni: ${album.key}`);
   if (picasaMap.has(album.key)) {
     l();
     return picasaMap.get(album.key)!;
@@ -73,6 +76,9 @@ export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
           faces.set(id, {name, email, something});
         }
       }
+    }
+    if(i.shortcut !== undefined) {
+      shortcuts[i.shortcut] =  album;
     }
   } catch (e: any) {
     picasaMap.set(album.key, {});
@@ -139,6 +145,15 @@ export async function readPicasaEntry(
   return picasa[entry.name];
 }
 
+export async function readPicasaSection(
+  album: Album,
+  section: string= "Picasa"
+): Promise<PicasaSection> {
+  const picasa = await readPicasaIni(album);
+  picasa[section] = picasa[section] || {};
+  return picasa[section] as PicasaSection;
+}
+
 export async function touchPicasaEntry(entry: AlbumEntry) {
   const picasa = await readPicasaIni(entry.album);
   if (picasa[entry.name] === undefined) {
@@ -149,6 +164,38 @@ export async function touchPicasaEntry(entry: AlbumEntry) {
 
 export function getFaces() {
   return faces;
+}
+
+export async function setAlbumShortcut(album: Album, shortcut: string) {
+  const section = await readPicasaSection(album);
+  if(section.shortcut) {
+    delete shortcuts[section.shortcut];
+  }
+  if(shortcut && shortcuts[shortcut]) {
+    setAlbumShortcut(shortcuts[shortcut], '');
+  }
+  if(shortcut) {
+    shortcuts[shortcut] = album;
+  }
+  broadcast('albumEvent', [{type: "shortcutsUpdated"}]);
+  return updatePicasa(album, 'shortcut', shortcut);
+}
+
+export function getShortcuts() {
+  return shortcuts;
+}
+
+export async function updatePicasa(
+  album: Album,
+  field: string,
+  value: string,
+  group: string = "Picasa",
+) {
+  const picasa = await readPicasaIni(album);
+  const section = picasa[group] = (picasa[group] || {}) as PicasaSection;
+  section[field] = value;
+  addOrRefreshOrDeleteAlbum(album);
+  return writePicasaIni(album, picasa);
 }
 
 export async function updatePicasaEntry(
