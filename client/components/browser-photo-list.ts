@@ -20,6 +20,7 @@ import { Button, message } from "./message";
 import { t } from "./strings";
 import {
   makeNThumbnails,
+  makeThumbnailManager,
   selectThumbnailsInRect,
   thumbnailData,
   thumbnailsAround,
@@ -44,9 +45,12 @@ const html = `<div class="w3-theme images-area">
 </div>
 `;
 
+const thumbElementPrefix = "thumb:";
+
 export async function makePhotoList(
   appEvents: AppEventSource,
-  dataSource: AlbumIndexedDataSource
+  dataSource: AlbumIndexedDataSource,
+  selectionManager:SelectionManager
 ): Promise<_$> {
   appEvents.emit("ready", { state: false });
   let tabIsActive = false;
@@ -57,6 +61,8 @@ export async function makePhotoList(
   const displayed: _$[] = [];
   const photoList = $(html);
   const container = $(".images", photoList);
+  // Bind thumbnails display with selection
+  makeThumbnailManager(thumbElementPrefix, selectionManager);
 
   const dragElement = $(".dragregion", photoList);
   const dragStartPos = { x: 0, y: 0 };
@@ -79,8 +85,8 @@ export async function makePhotoList(
       if (!tabIsActive) return;
       switch (code) {
         case "Space":
-          if (SelectionManager.get().selected().length > 0) {
-            const target = await toggleStar(SelectionManager.get().selected());
+          if (selectionManager.selected().length > 0) {
+            const target = await toggleStar(selectionManager.selected());
             animateStar(target);
           }
           break;
@@ -109,7 +115,6 @@ export async function makePhotoList(
     }),
 
     events.on("thumbnailClicked", (e) => {
-      const selectionManager = SelectionManager.get();
       let from = selectionManager.last();
       if (e.modifiers.range && from !== undefined) {
         // All the elements between this and the last
@@ -187,12 +192,12 @@ export async function makePhotoList(
     updateHighlighted();
     doRepopulate = true;
   });
-  container.on("mouseup", (e: MouseEvent) => {
+  container.on("click", (e: MouseEvent) => {
     if (!dragging) {
       // I'm not dragging. let's unselect things
       const multi = e.metaKey;
       if (!multi) {
-        SelectionManager.get().clear();
+        selectionManager.clear();
       }
       return;
     }
@@ -202,9 +207,9 @@ export async function makePhotoList(
     dragElement.css({ display: "none" });
     const newPos = { x: e.clientX - rect.x, y: e.clientY - rect.y };
     if (!e.metaKey) {
-      SelectionManager.get().clear();
+      selectionManager.clear();
     }
-    selectThumbnailsInRect(container, newPos, dragStartPos);
+    selectThumbnailsInRect(container, newPos, dragStartPos, selectionManager, thumbElementPrefix);
     // Find all the elements intersecting with the area.
   });
   container.on("mousedown", (e: MouseEvent) => {
@@ -378,6 +383,7 @@ export async function makePhotoList(
     }
     // Nothing to display, start at topIndex
     if (displayed.length === 0) {
+      if(dataSource.length() > 0) {
       const album = dataSource.albumAtIndex(topIndex);
       const albumElement = getElement();
       await populateElement(albumElement, album, filter);
@@ -388,6 +394,7 @@ export async function makePhotoList(
       container.get().scrollTo({ top: 0 });
       displayed.push(albumElement);
       updateHighlighted();
+      }
     }
 
     running = true;
@@ -569,7 +576,7 @@ export async function makePhotoList(
     title.innerHTML(album.name);
 
     const info = await getAlbumInfo(album, true /* use settings */);
-    makeNThumbnails(element, info.assets.length, events);
+    makeNThumbnails(element, info.assets.length, events, selectionManager, thumbElementPrefix);
 
     const keys = info.assets.map((p) => p.name).reverse();
     let idx = keys.length;
@@ -577,7 +584,7 @@ export async function makePhotoList(
     const children = element.children();
     for (const name of keys) {
       p.push(
-        thumbnailData(children[--idx], { album, name }, info.picasa[name])
+        thumbnailData(children[--idx], { album, name }, info.picasa[name], selectionManager, thumbElementPrefix)
       );
     }
     await Promise.allSettled(p);
@@ -701,10 +708,10 @@ export async function makePhotoList(
         const album = albumFromElement(e, elementPrefix)!;
         const closestEntry = thumbnailsAround(
           photosContainer,
-          new Point(ev.clientX, ev.clientY)
+          new Point(ev.clientX, ev.clientY), thumbElementPrefix
         );
 
-        const selection = SelectionManager.get().selected();
+        const selection = selectionManager.selected();
         if (album) {
           const s = await getService();
 
@@ -716,7 +723,7 @@ export async function makePhotoList(
               before: closestEntry.leftOf,
             },
           });
-          SelectionManager.get().clear();
+          selectionManager.clear();
         }
       });
       photosContainer.on("dragenter", (ev) => {
@@ -733,7 +740,7 @@ export async function makePhotoList(
           async () => {
             const closestEntry = thumbnailsAround(
               photosContainer,
-              new Point(ev.clientX, ev.clientY)
+              new Point(ev.clientX, ev.clientY), thumbElementPrefix
             );
             const target = elementFromEntry(closestEntry.entry, "thumb:");
             target.addClass("highlight-debug");
@@ -756,10 +763,9 @@ export async function makePhotoList(
             album,
             true /* use settings */
           );
-          const selection = SelectionManager.get();
           const multi = ev.metaKey;
-          if (!multi) selection.clear();
-          for (const e of info.assets) selection.select(e);
+          if (!multi) selectionManager.clear();
+          for (const e of info.assets) selectionManager.select(e);
         }
       });
       title.on("dblclick", async (ev: any) => {
@@ -849,9 +855,9 @@ export async function makePhotoList(
   async function startGallery() {
     let initialList: AlbumEntry[] = [];
     let initialIndex = 0;
-    if (SelectionManager.get().selected().length > 0) {
+    if (selectionManager.selected().length > 0) {
       initialIndex = 0;
-      initialList = SelectionManager.get().selected();
+      initialList = selectionManager.selected();
     } else {
       const v = visibleElement();
       const album = albumFromElement(v!, elementPrefix)!;

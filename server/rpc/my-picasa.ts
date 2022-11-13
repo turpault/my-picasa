@@ -19,6 +19,7 @@ import { createFSJob, getJob } from "./rpcFunctions/fileJobs";
 import {
   folder,
   makeAlbum,
+  openAlbumEntryInFinder,
   openAlbumInFinder,
   readFileContents,
   writeFileContents
@@ -28,6 +29,7 @@ import {
   getShortcuts,
   readPicasaEntry,
   readPicasaIni,
+  rotate,
   setAlbumShortcut,
   updatePicasaEntry
 } from "./rpcFunctions/picasaIni";
@@ -144,6 +146,10 @@ export const MyPicasa: ServiceMap = {
       handler: openAlbumInFinder,
       arguments: ["album:object"],
     },
+    openEntryInFinder: {
+      handler: openAlbumEntryInFinder,
+      arguments: ["entry:object"],
+    },
     undoList: {
       handler: undoList,
       arguments: [],
@@ -183,6 +189,10 @@ export const MyPicasa: ServiceMap = {
     getShortcuts: {
       handler: getShortcuts,
       arguments:[]
+    },
+    rotate: {
+      handler: rotate,
+      arguments:["entries:object", "direction:string"]
     }
   },
 };

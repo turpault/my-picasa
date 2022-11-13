@@ -5,12 +5,13 @@ import { $, _$ } from "../lib/dom";
 import { AlbumEntry } from "../../shared/types/types";
 import { AppEventSource } from "../uiTypes";
 import { deleteTabWin, makeGenericTab, TabEvent } from "./tabs";
+import { SelectionManager } from "../selection/selection-manager";
 
 export async function makeGallery(
   initialIndex: number,
   initialList: AlbumEntry[],
   appEvents: AppEventSource
-): Promise<{ win: _$; tab: _$ }> {
+): Promise<{ win: _$; tab: _$, selectionManager:SelectionManager }> {
   const thumbs = initialList.map((asset) => thumbnailUrl(asset));
   const urls = initialList.map((asset) => assetUrl(asset));
   const e = $(`
@@ -115,5 +116,5 @@ export async function makeGallery(
   }
   const tabEvent = buildEmitter<TabEvent>();
   tabEvent.emit("rename", { name: "Gallery" });
-  return { win: e, tab: makeGenericTab(tabEvent) };
+  return { win: e, tab: makeGenericTab(tabEvent), selectionManager: new SelectionManager() };
 }

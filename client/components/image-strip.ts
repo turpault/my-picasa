@@ -1,5 +1,5 @@
 import { range, uuid } from "../../shared/lib/utils";
-import { AlbumEntry, PicasaFileMeta } from "../../shared/types/types";
+import { AlbumEntry, AlbumEntryPicasa, PicasaFileMeta } from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
 import { $, elementFromEntry, idFromAlbumEntry, _$ } from "../lib/dom";
 import { getService } from "../rpc/connect";
@@ -57,12 +57,12 @@ export async function makeImageStrip(
 
   clearFct.push(s.on(
     "picasaFileMetaChanged",
-    async (e: { payload: { entry: AlbumEntry; picasa: PicasaFileMeta } }) => {
-      const changed = elementFromEntry(e.payload.entry, prefix);
-      console.info('Changed event for id', idFromAlbumEntry(e.payload.entry, prefix), changed.exists());
+    async (e: { payload: AlbumEntryPicasa }) => {
+      const changed = elementFromEntry(e.payload, prefix);
+      console.info('Changed event for id', idFromAlbumEntry(e.payload, prefix), changed.exists());
       if (changed.exists()) {
         changed.css({
-          "background-image": `url("${thumbnailUrl(e.payload.entry, "th-small")}")`
+          "background-image": `url("${thumbnailUrl(e.payload, "th-small")}")`
         });
       }
     }

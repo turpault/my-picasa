@@ -16,9 +16,10 @@ import { addToUndo, registerUndoProvider } from "../../utils/undo";
 import { exportToFolder } from "../imageOperations/export";
 import { exportAllFavoritesJob } from "./fileJob-export-favorites";
 import { setRank } from "./media";
+import { openWithFinder } from "./osascripts";
 import { readPicasaEntry, readPicasaIni, updatePicasaEntry } from "./picasaIni";
 import { copyThumbnails } from "./thumbnailCache";
-import { onRenamedAlbums, refreshAlbumKeys, refreshAlbums } from "./walker";
+import { addOrRefreshOrDeleteAlbum, onRenamedAlbums, refreshAlbumKeys, refreshAlbums } from "./walker";
 
 const jobs: Job[] = [];
 type MultiMoveJobArguments = {source: AlbumEntry, destination: Album, rank: Number}[];
@@ -150,7 +151,7 @@ async function copyJob(job: Job): Promise<Album[]> {
   job.status = "started";
   const updatedAlbums: Album[] = [];
   const source = job.data.source as AlbumEntry[];
-  const dest = job.data.destination as Album;
+  const dest = job.data.destination as Album;  
   const steps = source.length;
   job.progress.start = steps;
   job.progress.remaining = steps;
@@ -439,7 +440,6 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
         else {
           broadcast('albumEvent', [{type: "albumOrderUpdated", data:s.source.album}]);
         }
-
       } catch (e: any) {
         job.errors.push(e.message as string);
       } finally {
@@ -465,14 +465,16 @@ async function exportJob(job: Job): Promise<Album[]> {
   job.status = "started";
 
   const source = job.data.source as AlbumEntry[];
+  const destination = job.data.destination;
   const steps = source.length;
   job.progress.start = steps;
   job.progress.remaining = steps;
   job.changed();
-  const targetFolder = join(
+  const targetFolder = destination ? join(imagesRoot, destination.key) : join(
     exportsRoot,
     "exports-" + new Date().toLocaleString().replace(/\//g, "-")
   );
+  job.name = ('Exporting to ' + (destination ? destination.name : targetFolder));
   await mkdir(targetFolder, { recursive: true });
   for (const src of source) {
     try {
@@ -487,7 +489,11 @@ async function exportJob(job: Job): Promise<Album[]> {
   job.status = "finished";
   job.changed();
 
-  openExplorer(targetFolder);
+  if(!destination) {
+    openWithFinder(targetFolder, true);
+  } else {
+    addOrRefreshOrDeleteAlbum(destination);
+  }
   return [];
 }
 

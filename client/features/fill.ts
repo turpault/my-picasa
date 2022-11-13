@@ -11,14 +11,17 @@ export function setupFill(
 ) {
   const name = "Extra Light";
   toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
-    multiple: false,
+    multipleFamily: name,
     filterName: "fill",
     enable: (e) => isPicture(e),
     build: function (amount: number) {
-      return `${this.filterName}=1,${amount}`;
+      return {
+        name: this.filterName,
+        args:['1', amount.toString()]
+      }
     },
     icon: async function (context) {
-      await transform(context, this.build(2));
+      await transform(context, [this.build(2)]);
       return true;
     },
     activate: async function (index: number, args?: string[]) {

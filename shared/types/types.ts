@@ -56,7 +56,7 @@ export enum JOBNAMES {
   DELETE_ALBUM = "Delete Album",
   RESTORE_ALBUM = "Restore Album",
   RENAME_ALBUM = "Rename Album",
-  EXPORT_TO_IPHOTO = "Export To Photo App",
+  EXPORT_TO_IPHOTO = "Export...",
 }
 
 export const ThumbnailSizeVals = ["th-small", "th-medium", "th-large"] as const;

@@ -29,7 +29,7 @@ function pruneExtraData(fileName: string) {
 
 async function allPhotosInPhotoApp(): Promise<string[]> {
   async function read(stream: any) {
-    const chunks = [];
+    const chunks:Buffer[] = [];
     for await (const chunk of stream) chunks.push(chunk);
     return Buffer.concat(chunks).toString("utf8");
   }
@@ -43,17 +43,19 @@ async function allPhotosInPhotoApp(): Promise<string[]> {
   return list.split("\n").map(pruneExtraData);
 }
 export async function exportAllFavoritesJob(job: Job): Promise<Album[]> {
-  const parsingImages = allPhotosInPhotoApp();
+  //const parsingImages = allPhotosInPhotoApp();
+  job.progress.remaining = job.progress.start = 1;
+  job.changed();
   await waitUntilWalk();
   job.status = "started";
 
-  const allPics = await parsingImages;
   // Job with no parameters
   const albums = await folders("");
 
   job.progress.remaining = job.progress.start = albums.length;
   job.changed();
 
+  //const allPics = await parsingImages;
   const missingPicturePath: string[] = [];
 
   const targetFolder = join(
@@ -63,14 +65,7 @@ export async function exportAllFavoritesJob(job: Job): Promise<Album[]> {
   await mkdir(targetFolder, { recursive: true });
 
   const q = new Queue(3);
-  q.event.on("changed", (event) => {
-    job.progress.remaining = event.waiting + event.progress;
-    job.progress.start = event.done + event.progress + event.waiting;
-    job.changed();
-  });
   q.event.on("drain", async () => {
-    job.progress.remaining = 1;
-    job.changed();
     await copyInPhotoApp(missingPicturePath);
     job.progress.remaining = 0;
     job.changed();
@@ -83,9 +78,9 @@ export async function exportAllFavoritesJob(job: Job): Promise<Album[]> {
       for (const entry of m.entries) {
         if (p[entry.name].star) {
           const targetPictureFileName = entry.album.name + "-" + entry.name;
-          if (allPics.includes(pruneExtraData(targetPictureFileName))) {
+          /*if (allPics.includes(pruneExtraData(targetPictureFileName))) {
             continue;
-          }
+          }*/
           q.add(async () => {
             // Create target file name
             const targetFileName = join(targetFolder, targetPictureFileName);
@@ -131,17 +126,15 @@ export async function exportAllFavoritesJob(job: Job): Promise<Album[]> {
               await utimes(targetFileName, albumNameToDate(entry.album.name), albumNameToDate(entry.album.name));
               missingPicturePath.push(targetFileName);
             }
+            job.progress.remaining--;
+            job.changed();
           });
         }
       }
     });
   }
   async function copyInPhotoApp(files: string[]) {
-    const osascript = importScript(files);
-    await writeFile("/tmp/importScript", osascript);
-    return new Promise((resolve) =>
-      spawn("osascript", ["/tmp/importScript"]).on("close", resolve)
-    );
+    importScript(files);
   }
   return [];
 }

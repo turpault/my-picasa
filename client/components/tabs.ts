@@ -2,7 +2,7 @@ import { undoStep } from "../../shared/types/types";
 import { $, _$ } from "../lib/dom";
 import { Emitter } from "../lib/event";
 import { getService } from "../rpc/connect";
-import { AppEventSource } from "../uiTypes";
+import { AppEventSource, TabContext } from "../uiTypes";
 
 const genericTab = `<a class="w3-button tab-button"><span class="label"></span><span class="remove-tab">&times;</span></a>`;
 const genericTools = `<a class="w3-button tab-button">Close</a>`;
@@ -27,11 +27,22 @@ export function makeGenericTab(tabEvent: TabEventEmitter): _$ {
 }
 
 let tabs: _$;
-let tabElements: { tab: _$; win: _$ }[] = [];
+let tabElements: { tab: _$; win: _$, context: TabContext }[] = [];
 let emitter: AppEventSource;
-export async function makeTabs(_emitter: AppEventSource) {
+export  function makeTabs(_emitter: AppEventSource) {
   emitter = _emitter;
-  tabs = $(".tabs");
+  const html = $(`
+  <div class="fill">
+    <div class="w3-bar main-tab-bar">
+      <span class="tabs">
+      </span>
+    </div>
+    <div class="workarea">
+    </div>
+  </div>
+`);
+  tabs = $(".tabs", html);
+  return html;
 }
 
 export function selectTab(_tab: _$) {
@@ -79,19 +90,22 @@ export function deleteTabWin(_win: _$) {
   selectTab(last.tab);
 }
 
-export function makeTab(win: _$, tab: _$) {
+export function makeTab(win: _$, tab: _$, context: TabContext) {
   tabs.append(tab);
   tab.on("click", () => {
     selectTab(tab);
   });
 
   $(".workarea").append(win);
-  tabElements.push({ tab, win });
+  tabElements.push({ tab, win, context });
   selectTab(tab);
 
-  emitter.emit("tabDisplayed", { tab, win });
+  emitter.emit("tabDisplayed", { tab, win, context });
 }
 
 export function activeTab() {
   return tabElements[tabElements.length - 1];
+}
+export function activeTabContext() {
+  return tabElements[tabElements.length - 1].context;
 }

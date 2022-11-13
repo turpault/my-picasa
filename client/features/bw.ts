@@ -10,14 +10,17 @@ export function setupBW(
 ) {
   const name = "Greyscale";
   toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
-    multiple: false,
+    multipleFamily: name,
     filterName: "bw",
     enable: (e) => isPicture(e),
     build: function () {
-      return `${this.filterName}=1`;
+      return {
+        name: this.filterName,
+        args:['1']
+      }
     },
     icon: async function (context) {
-      await transform(context, this.build());
+      await transform(context, [this.build()]);
       return true;
     },
     activate: async function (index: number, args?: string[]) {

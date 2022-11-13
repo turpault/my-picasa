@@ -17,14 +17,15 @@ export function setupFilters(
       const filterList = await s.getFilterList(group);
       for (const filter of [...filterList]) {
         toolRegistrar.registerTool(filter, group, {
-          multiple: false,
+          multipleFamily: name,
           filterName: `filter:${filter}`,
           enable: (e) => isPicture(e),
+          preview: true,
           build: function () {
-            return `${this.filterName}=1,${name}`;
+            return {name: this.filterName, args:['1', name]};
           },
           icon: async function (context) {
-            await transform(context, this.build());
+            await transform(context, [this.build()]);
             return true;
           },
           activate: async function (index: number, args?: string[]) {

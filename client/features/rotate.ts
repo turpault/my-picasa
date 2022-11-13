@@ -11,14 +11,17 @@ export function setupRotate(
 ) {
   const name = "Rotate";
   toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
-    multiple: true,
+    multipleFamily: name,
     filterName: "rotate",
     enable: (e) => isPicture(e),
     build: function (angle: number) {
-      return `${this.filterName}=1,${angle}`;
+      return {
+        name: this.filterName,
+        args:['1', angle.toString()]
+      }
     },
     icon: async function (context) {
-      await transform(context, this.build(1));
+      await transform(context, [this.build(1)]);
       return true;
     },
     activate: async function (index: number, args?: string[]) {

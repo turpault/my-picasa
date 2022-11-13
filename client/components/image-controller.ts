@@ -1,6 +1,6 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
 import { Queue } from "../../shared/lib/queue";
-import { isPicture, isVideo } from "../../shared/lib/utils";
+import { decodeOperations, encodeOperations, isPicture, isVideo, PicasaFilter } from "../../shared/lib/utils";
 import { AlbumEntryPicasa } from "../../shared/types/types";
 import {
   assetUrl,
@@ -10,9 +10,9 @@ import {
   encodeToURL,
   setOptions,
   thumbnailUrl,
-  transform,
+  transform
 } from "../imageProcess/client";
-import { $, preLoadImage, _$ } from "../lib/dom";
+import { preLoadImage, _$ } from "../lib/dom";
 import { ImagePanZoomController } from "../lib/panzoom";
 import { getService } from "../rpc/connect";
 import { ImageControllerEvent } from "../uiTypes";
@@ -32,32 +32,34 @@ export class ImageController {
     this.zoomController = panZoomCtrl;
     this.q = new Queue(1);
     this.q.event.on("drain", () => { });
-    this.filters = "";
+    this.filters = [];
     this.mute = -1;
     this.caption = "";
-    this.image.on("load", () => {
-      this.image.css("display", "");
-      this.recenter();
-
-      this.events.emit("idle", {});
-      this.events.emit("liveViewUpdated", {
-        context: this.liveContext,
-        original: this.context,
-        entry: this.entry,
-      });
-    });
     this.parent = this.image.parent()!;
     new ResizeObserver(() => this.recenter()).observe(this.parent.get()!);
   }
 
-  operationList(): string[] {
-    return (this.filters || "").split(";").filter((v) => v);
+  operationList(): PicasaFilter[] {
+    return this.filters;
   }
-  operations(): string {
+
+  private loaded() {
+    this.image.css("display", "");
+    this.recenter();
+
+    this.events.emit("idle", {});
+    this.events.emit("liveViewUpdated", {
+      context: this.liveContext,
+      original: this.context,
+      entry: this.entry,
+    });
+  }
+
+  operations(): PicasaFilter[] {
     if (this.mute !== -1) {
-      return this.operationList().slice(0, this.mute).join(';');
+      return this.operationList().slice(0, this.mute);
     }
-    return this.filters || "";
+    return this.operationList();
   }
   muteAt(indexToMute: number) {
     this.mute = indexToMute;
@@ -95,13 +97,17 @@ export class ImageController {
     this.entry = albumEntry;
 
     const data = this.entry.picasa;
-    this.filters = data.filters || "";
+    this.filters = data.filters? decodeOperations(data.filters) : [];
     this.caption = data.caption || "";
     if (isPicture(this.entry)) {
       this.context = await buildContext(this.entry);
-      this.image.attr("src", thumbnailUrl(this.entry, "th-large"));
-      this.image.css({ display: "" });
-      this.video.css({ display: "none" });
+      const url = thumbnailUrl(this.entry, "th-large");
+      preLoadImage(url).then(() => {
+        this.image.attr("src", url);
+        this.image.css({ display: "" });
+        this.video.css({ display: "none" });          
+        this.loaded();
+      });    
     }
     if (isVideo(this.entry)) {
       this.image.css({ display: "none" });
@@ -109,6 +115,26 @@ export class ImageController {
     }
 
     this.update();
+  }
+
+  async preview(operation: PicasaFilter | null) {
+    this.previewOperation = operation;
+    if(this.liveContext) {
+      if(!operation) {
+        const url = await encodeToURL(this.liveContext, "image/jpeg");
+        this.image.attr("src", url);
+      } else {
+        const clone = await cloneContext(this.liveContext);
+        await transform(clone, [operation]);
+        const url = await encodeToURL(clone, "image/jpeg");
+        preLoadImage(url).then(() =>{
+          if(this.previewOperation === operation) {
+            this.image.attr("src", url);
+          }
+          destroyContext(clone);
+        });
+      }
+    }
   }
 
   async update() {
@@ -124,7 +150,7 @@ export class ImageController {
         const data = await encodeToURL(this.liveContext, "image/jpeg");
         preLoadImage(data).then(() => {
           this.image.attr("src", data);
-          //this.image.style.display = "none";
+          this.loaded();
         }).catch(e => {
           // Might fails as it's quite asynchronous
         });
@@ -140,10 +166,8 @@ export class ImageController {
     }
   }
 
-  async addOperation(expression: string) {
-    const lst = this.operationList();
-    lst.push(expression);
-    this.filters = lst.join(";");
+  async addOperation(operation: PicasaFilter) {
+    this.filters.push(operation);
     await Promise.all([this.saveFilterInfo(), this.update()]);
   }
 
@@ -153,40 +177,32 @@ export class ImageController {
   }
 
   async deleteOperation(idx: number) {
-    const lst = this.operationList();
-    lst.splice(idx, 1);
-    this.filters = lst.join(";");
+    this.filters.splice(idx, 1);
     await Promise.all([this.saveFilterInfo(), this.update()]);
   }
   async moveDown(idx: number) {
-    const lst = this.operationList();
-    if (idx < lst.length - 1) {
-      const op = lst.splice(idx, 1)[0];
-      lst.splice(idx + 1, 0, op);
-      this.filters = lst.join(";");
+    if (idx < this.filters.length - 1) {
+      const op = this.filters.splice(idx, 1)[0];
+      this.filters.splice(idx + 1, 0, op);
       await Promise.all([this.saveFilterInfo(), this.update()]);
     }
   }
   async moveUp(idx: number) {
     if (idx > 0) {
-      const lst = this.operationList();
-      const op = lst.splice(idx, 1)[0];
-      lst.splice(idx - 1, 0, op);
-      this.filters = lst.join(";");
+      const op = this.filters.splice(idx, 1)[0];
+      this.filters.splice(idx - 1, 0, op);
       await Promise.all([this.saveFilterInfo(), this.update()]);
     }
   }
 
-  async updateOperation(idx: number, op: string) {
-    const lst = this.operationList();
-    lst[idx] = op;
-    this.filters = lst.join(";");
+  async updateOperation(idx: number, op: PicasaFilter) {
+    this.filters[idx] = op;
     await Promise.all([this.saveFilterInfo(), this.update()]);
   }
 
   async saveFilterInfo() {
     const s = await getService();
-    await s.updatePicasaEntry(this.entry, "filters", this.filters);
+    await s.updatePicasaEntry(this.entry, "filters", encodeOperations(this.filters));
   }
 
   async saveCaption() {
@@ -206,11 +222,12 @@ export class ImageController {
   private entry: AlbumEntryPicasa;
   private context: string;
   private liveContext: string;
-  private filters: string;
+  private filters: PicasaFilter[];
   private caption: string;
   private zoomController?: ImagePanZoomController;
   private q: Queue;
   private parent: _$;
   private mute: number;
+  private previewOperation: PicasaFilter | null = null;
   events: Emitter<ImageControllerEvent>;
 }

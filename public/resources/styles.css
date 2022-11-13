@@ -25,12 +25,12 @@
 .selected img { }
 .highlight { background-color: rgb(243, 243, 243); color: black; border-radius: 10px; font-weight: bold; border-width: 3px !important; border-style: solid !important; border-color: black !important; }
 .tab-button-highlight { background-color: rgb(243, 243, 243); color: black; font-weight: bold; border-width: 3px !important; border-style: solid !important; border-color: black black rgb(243, 243, 243) !important; }
-.highlight-list { color: black; border-right: 11px solid black; background: lightgray; }
+.highlight-list {color: black;border-right: 11px solid black;background: lightgray;}
 html, body { margin: 0px; height: 100%; overflow: hidden; font-family: system-ui; font-size: small; background: rgb(227, 227, 227); }
 .full-container { height: 30rem; width: 100%; }
 .fill { top: 0px; left: 0px; height: 100%; width: 100%; position: absolute; }
 .tabs { height: 50px; }
-.editor-image-block { cursor: pointer; font-weight: bold; background: linear-gradient(271deg, rgb(243, 243, 243) 0%, rgb(204, 204, 204) 100%); padding: 4px !important; }
+.editor-image-block {cursor: pointer;font-weight: bold;background: linear-gradient(271deg, rgb(243, 243, 243) 0%, rgb(204, 204, 204) 100%);padding: 4px !important;position: relative;}
 .meta-title { padding: 0px !important; }
 .exif-name { padding-left: 10px; display: inline-block; }
 .exif-value { float: right; padding-right: 10px; }
@@ -45,7 +45,7 @@ html, body { margin: 0px; height: 100%; overflow: hidden; font-family: system-ui
 .image-strip { width: 100%; }
 .image-strip-thumbs { width: 100%; padding-left: 16px; }
 .image-strip-thumbs > button, .image-strip > button { height: 60px; width: 60px; background-position: center center; background-repeat: no-repeat; margin: 3px; border: none; background-color: rgb(243, 243, 243); outline: none; }
-.tools { left: 0px; top: 0px; height: 100%; position: absolute; width: 300px; overflow-y: scroll; background-color: rgb(243, 243, 243); }
+.tools {left: 0px;top: 0px;height: 100%;position: absolute;width: 320px;overflow-y: scroll;background-color: rgb(243, 243, 243);}
 .tools label { margin-left: 9px; }
 .tool-box { padding: 4px; }
 .tool-button { line-height: 90px; width: 65px; height: 90px; text-align: center; position: relative; background-position: center top; background-repeat: no-repeat; background-size: contain; margin: 5px; }
@@ -57,10 +57,10 @@ html, body { margin: 0px; height: 100%; overflow: hidden; font-family: system-ui
 .history > * { }
 .draggable { position: absolute; z-index: 9; }
 .drop-area { background-color: lightgreen; }
-.image-container { position: absolute; inset: 0px 0px 0px 300px; overflow: hidden; background-color: rgb(243, 243, 243) !important; }
-.bottom-list-tools { position: absolute; right: 0px; left: 0px; bottom: 0px; height: 200px; padding: 16px; border-top: 1px solid; }
-.zoom-photo-list { width: 100%; height: 65px; right: 0px; top: 0px; }
-.buttons { width: auto; right: 230px; top: 10px; text-align: center; padding-left: 10px; }
+.image-container {position: absolute;inset: 0px 0px 0px 320px;overflow: hidden;background-color: rgb(243, 243, 243) !important;}
+.bottom-list-tools {position: absolute;right: 0px;left: 0px;bottom: 0px;height: 65px;/* padding: 16px; */border-top: 1px solid;}
+.zoom-photo-list {width: 114px;height: 65px;right: 0px;position: absolute;top: 0px;padding-top: 14px;padding-right: 10px;display: inline-block;}
+.buttons {position: absolute;/* width: auto; *//* right: 230px; */top: 10px;text-align: center;/* padding-left: 10px; */}
 .buttons > button { margin: 2px; width: 39px; height: 39px; padding-left: 10px; padding-right: 10px; background-position: center center; background-repeat: no-repeat; background-size: contain; }
 .w3-tag { font-size: smaller; }
 .album-button {float: right;opacity: 0;height: 28px;width: 28px;background-size: contain;background-repeat: no-repeat;margin-top: 4px;background-color: rgba(0, 0, 0, 0);}
@@ -83,8 +83,22 @@ html, body { margin: 0px; height: 100%; overflow: hidden; font-family: system-ui
 .disabled { filter: opacity(0.5); pointer-events: none !important; }
 .override-pointer-active { pointer-events: all; }
 .folder-pane { background-color: rgb(243, 243, 243); color: rgb(80, 80, 80); font-family: sans-serif; overflow: hidden scroll; width: 300px; }
-.folders li { white-space: nowrap; list-style-type: none; cursor: pointer; font-size: 12px; line-height: 14px; padding-top: 4px; padding-bottom: 4px; }
-.folders { user-select: none; top: 0px; bottom: 200px; position: absolute; overflow: scroll; padding-top: 10px; padding-bottom: 10px; width: 100%; }
+.folders li { position: relative; white-space: nowrap; list-style-type: none; cursor: pointer; font-size: 12px; line-height: 14px; padding-top: 4px; padding-bottom: 4px; }
+.folders li[separator] { border-top:15px solid black; }
+.folders li[separator] {
+  border-top: 15px solid black;
+  position: relative;
+}
+.folders li[separator]::before {
+  content: attr(separator);
+  color: white;
+  position: absolute;
+  top: -15px;
+}
+.folders .highlight-list span {
+  right: 3px;
+}
+.folders {user-select: none;top: 0px;bottom: 0;position: absolute;overflow: scroll;padding-top: 10px;padding-bottom: 10px;width: 100%;}
 .images { overflow-y: scroll; inset: 0px; position: absolute; }
 :root split-me { --divider-thickness: 0.2rem; --phantom-divider-thickness: 1.75rem; --divider-color: gray; --divider-length: 100%; }
 .slidecontainer { width: 100%; }
@@ -113,10 +127,10 @@ html, body { margin: 0px; height: 100%; overflow: hidden; font-family: system-ui
 .remove-tab { padding-left: 10px; position: absolute; right: 16px; line-height: 25px; font-size: 20px; }
 .tab-button .remove { padding-left: 10px; }
 .workarea { position: absolute; inset: 50px 0px 0px; }
-.jobs { position: fixed; z-index: 100; display: none; bottom: 10px; font-weight: lighter; background-color: rgb(72, 172, 72); width: 200px; color: black; right: 74px; }
+.jobs {position: fixed;z-index: 100;display: none;top: 10px;font-weight: lighter;background-color: rgb(72, 172, 72);min-width: 200px;color: black;right: 74px;}
 .job { font-weight: bold; color: black; padding: 5px; }
 .dragregion { position: absolute; border: 4px dotted blue; pointer-events: none; }
-.images-area { position: absolute; inset: 0px 0px 0px 300px; }
+.images-area {position: absolute;inset: 0px 0px 0px 300px;background-color: #f3f3f3;}
 .okcancel { right: 0px; width: 100%; text-align: right; padding: 20px; }
 .question { width: 100%; }
 .label { font-size: 14px; line-height: 25px; }
@@ -127,6 +141,36 @@ html, body { margin: 0px; height: 100%; overflow: hidden; font-family: system-ui
 [data-tooltip]:hover::before { opacity: 1; background: yellow; }
 [data-tooltip-below]::before { position: absolute; content: attr(data-tooltip-below); pointer-events: none; margin-right: 9px; margin-left: -55px; margin-top: 25px; opacity: 0; background: rgb(255, 255, 183); transition: all 0.15s ease 0s; padding: 10px; color: rgb(51, 51, 51); border-radius: 10px; box-shadow: silver 2px 2px 1px; }
 [data-tooltip-below]:hover::before { opacity: 1; z-index: 10000; transition-delay: 1s; }
+[data-tooltip-above]::before {
+  position: absolute;
+  content: attr(data-tooltip-above);
+  pointer-events: none;
+  margin-right: 9px;
+  margin-left: -25px;
+  margin-top: -70px;
+  opacity: 0;
+  background: #434343;
+  transition: all 0.15s ease 0s;
+  padding: 10px;
+  color: rgb(51, 51, 51);
+  color: white;
+  border-radius: 10px;
+  box-shadow: silver 2px 2px 1px;
+}
+[data-tooltip-above]:hover::before, [data-tooltip-above]:hover::after { opacity: 1; z-index: 10000; transition-delay: 1s; display:block;}
+[data-tooltip-above]::after {
+  content: "";
+  position:absolute;
+  pointer-events: none;
+  transition: all 0.15s ease 0s;
+  margin-left:-5px; 
+  margin-top: -21px;
+  top:50%;
+  transform:translateY(-50%);
+  border: 10px solid #434343;
+  border-color: #434343  transparent transparent  transparent;
+  opacity: 0;
+}
 [data-tooltip-below-image-contents]::after { position: absolute; content: ""; background-image: var(--image, ""); background-repeat: no-repeat; background-position: 10px 10px; pointer-events: none; text-align: center; width: 220px; height: 220px; left: 46px; font-size: x-small; font-weight: bold; opacity: 0; transition: all 0.15s ease 0s; margin-top: -309px; background-color: rgb(51, 51, 51); padding: 10px; color: rgb(51, 51, 51); border-radius: 10px; box-shadow: silver 2px 2px 1px; }
 [data-tooltip-below-image-contents]:hover::after { opacity: 1; z-index: 10000; }
 [data-tooltip-below-image]::after { position: absolute; content: attr(data-tooltip-below-image); pointer-events: none; text-align: center; bottom: 0px; width: 100%; font-size: x-small; font-weight: bold; opacity: 0; background: linear-gradient(rgba(243, 243, 243, 0), rgb(243, 243, 243)); transition: all 0.15s ease 0s; padding: 3px; color: rgb(51, 51, 51); }
@@ -203,4 +247,80 @@ html, body { margin: 0px; height: 100%; overflow: hidden; font-family: system-ui
   text-indent: -10px;
   text-align-last: right;
   font-weight: bolder;
+}
+
+.tabs-container {
+  position: absolute;
+  left:0;
+  top:0;
+  right:0;
+  bottom: 65px;
+}
+.buttons-container {
+  position: absolute;
+  left:0;
+  right:0;
+  bottom: 0;
+  height: 60px;
+}
+.button-separator {
+  width: 20px;
+  display:inline-block;
+}
+.selection-thumbs {
+  width: 280px;
+  position: absolute;
+  left: 10px;
+  top: 1px;
+  height: 57px;
+  margin: 3px;
+  overflow-y: scroll;
+  border: 1px solid black;
+  border-radius: 3px;
+  user-select: none;
+  line-height: 0;
+}
+.selection-thumb {
+  width: 20px;
+  height: 20px;
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+  display: inline-block;
+  margin: 1px;
+  /* margin: 0; */
+  /* line-height: 0; */
+}
+.selection-thumb-count {
+  /* word-break: keep-all; */
+  white-space: nowrap;
+  position: absolute;
+  right: 1px;
+  bottom: 5px;
+  font-size: 10px;
+  background-color: #e3e3e3;
+  font-weight: bold;
+  /* outline: aqua; */
+}
+
+.hidden {
+  display: none;
+}
+
+.undo-last-operation {
+  float: right;
+  position: absolute;
+  right: 29px;
+  top: 12px;
+  margin: auto;
+  border-radius: 4px;
+  appearance: none;
+  outline: none;
+  background: none;
+}
+.effects-title {
+  position: absolute;
+  width: 100%;
+  top: 0;
+  height: 100%;
 }

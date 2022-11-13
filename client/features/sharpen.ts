@@ -11,14 +11,18 @@ export function setupSharpen(
 ) {
   const name = "Sharpen";
   toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
-    multiple: false,
+    multipleFamily: name,
     filterName: "sharpen",
     enable: (e) => isPicture(e),
     build: function (amount: number) {
-      return `${this.filterName}=1,${amount}`;
+      return {
+        name: this.filterName,
+        args:['1', amount.toString()]
+      }
+
     },
     icon: async function (context) {
-      await transform(context, this.build(10));
+      await transform(context, [this.build(10)]);
       return true;
     },
     activate: async function (index: number, args?: string[]) {

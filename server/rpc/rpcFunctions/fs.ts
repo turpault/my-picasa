@@ -1,8 +1,9 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "fs/promises";
 import { join } from "path";
-import { Album } from "../../../shared/types/types";
+import { Album, AlbumEntry } from "../../../shared/types/types";
 import { openExplorer } from "../../open";
 import { defaultNewFolderRoot, imagesRoot } from "../../utils/constants";
+import { openWithFinder } from "./osascripts";
 import { addOrRefreshOrDeleteAlbum } from "./walker";
 
 export async function readFileContents(file: string): Promise<string> {
@@ -48,5 +49,10 @@ export async function makeAlbum(name: string): Promise<Album> {
 
 export async function openAlbumInFinder(album: Album) {
   const p = join(imagesRoot, album.key);
-  openExplorer(p);
+  openWithFinder(p);
+}
+
+export async function openAlbumEntryInFinder(entry: AlbumEntry) {
+  const p = join(imagesRoot, entry.album.key, entry.name);
+  openWithFinder(p);
 }

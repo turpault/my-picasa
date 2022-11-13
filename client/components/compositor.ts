@@ -5,6 +5,7 @@ import { AlbumEntry, AlbumEntryWithMetadata, Format, Orientation } from "../../s
 import { thumbnailUrl } from "../imageProcess/client";
 import { $, idFromAlbumEntry, _$ } from "../lib/dom";
 import { getService } from "../rpc/connect";
+import { SelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
 import { makeChoiceList, makeMultiselectImageList } from "./controls/multiselect";
 import { makeGenericTab, TabEvent } from "./tabs";
@@ -335,7 +336,7 @@ const LayoutLabels:{[key in Layout]: string } = {
 
 export async function makeCompositorPage(
   appEvents: AppEventSource, selectedImages: AlbumEntry[]
-): Promise<{ win: _$; tab: _$ }> {
+) {
   const e = $(editHTML);
   const montageImages = selectedImages;
   const mosaic = $(".montage",e);
@@ -346,7 +347,7 @@ export async function makeCompositorPage(
   let layout:Layout = Layout.MOSAIC;
   let orientation:Orientation = Orientation.PAYSAGE;
   const compositionList: CompositedImages = imgs.map(img=> ({...img, key: idFromAlbumEntry(img, "select"), label:"", image:thumbnailUrl(img, "th-small"), selected: true}));
-
+  const selectionManager = new SelectionManager(selectedImages);
   const parameters = $(".composition-parameters", e);
   function redraw() {
     if(erase) {
@@ -439,5 +440,5 @@ export async function makeCompositorPage(
   const tabEvent = buildEmitter<TabEvent>();
   const tab = makeGenericTab(tabEvent);
   tabEvent.emit("rename", { name: "Compositor" });
-  return { win: e, tab };
+  return { win: e, tab, selectionManager };
 }

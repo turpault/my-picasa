@@ -23,7 +23,6 @@ const allFilters: {
 }
 
 export async function parseLUTs() {
-  const l = await lock('parseLUTs');
   try {
     if (Object.keys(allFilters).length === 0) {
       async function crawl(f: string) {
@@ -47,7 +46,6 @@ export async function parseLUTs() {
   } catch (e) {
     console.error(e);
   }
-  l();
   await sleep(3600);
   parseLUTs();
 }
