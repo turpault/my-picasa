@@ -1,6 +1,6 @@
 import { JOBNAMES } from "../../shared/types/types";
 import { AlbumIndexedDataSource } from "../album-data-source";
-import { folder } from "../element-templates";
+import { folder, folderData } from "../element-templates";
 import {
   $,
   albumFromElement,
@@ -20,11 +20,12 @@ const html = `<div class="w3-theme fill folder-pane">
 `;
 export async function makeAlbumList(
   appEvents: AppEventSource,
-  albumDataSource: AlbumIndexedDataSource
+  albumDataSource: AlbumIndexedDataSource,
+  selectionManager: SelectionManager
 ) {
 
   const container = $(html);
-  container.append(await makeButtons(appEvents, albumDataSource.emitter));
+  await makeButtons(appEvents);
 
   let lastHighlight: any;
   let filter = "";
@@ -51,7 +52,7 @@ export async function makeAlbumList(
 
   events.on("filterChanged", (event) => {
     filter = event.filter;
-    albumDataSource.filter(filter);
+    albumDataSource.setFilter(filter);
   });
 
   const albums: _$[] = [];
@@ -61,7 +62,9 @@ export async function makeAlbumList(
     toRemove.forEach((elem) => elem.remove());
     for (let idx = event.index; idx < albumDataSource.length(); idx++) {
       const album = albumDataSource.albumAtIndex(idx);
-      const node = folder(album);
+      const node = folder();
+      folderData(node, album);
+      node.attr('separator', album.yearSep || null);
       setIdForAlbum(node, album, elementPrefix);
       addListeners(node);
       albums.push(node);
@@ -73,7 +76,11 @@ export async function makeAlbumList(
     }
   });
   events.on("invalidateAt", (event) => {
-    // TODO
+    const album = albumDataSource.albumAtIndex(event.index);
+    const toUpdate = elementFromAlbum(album, elementPrefix);
+    if(toUpdate) {
+      folderData(toUpdate, album);
+    }
   });
 
   function addListeners(item: _$) {
@@ -94,7 +101,7 @@ export async function makeAlbumList(
         ev.preventDefault();
       })
       .on("drop", async (ev: any) => {
-        const selection = SelectionManager.get().selected();
+        const selection = selectionManager.selected();
         const album = albumFromElement(item, elementPrefix)!;
         const s = await getService();
 
@@ -102,7 +109,7 @@ export async function makeAlbumList(
           source: selection,
           destination: { album },
         });
-        SelectionManager.get().clear();
+        selectionManager.clear();
       });
   }
 

@@ -7,17 +7,9 @@ export type SelectionEvent = {
 };
 
 export type SelectionEventSource = Emitter<SelectionEvent>;
-
-let singleton: SelectionManager;
 export class SelectionManager {
-  static get(): SelectionManager {
-    if (!singleton) {
-      singleton = new SelectionManager();
-    }
-    return singleton;
-  }
-  private constructor() {
-    this._selection = [];
+  constructor(selection: AlbumEntry[] = []) {
+    this._selection = selection;
     this._debounce = 0;
     this.events = buildEmitter<SelectionEvent>();
   }

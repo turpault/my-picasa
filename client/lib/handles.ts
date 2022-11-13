@@ -7,7 +7,7 @@ export async function toggleStar(entries: AlbumEntry[]): Promise<boolean> {
   const service = await getService();
 
   await Promise.all(
-    entries.map((entry) => service.updatePicasaEntry(entry, "star", target))
+    entries.map((entry) => service.updatePicasaEntry(entry, "star", target ? true : null))
   );
   return target;
 }

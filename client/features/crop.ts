@@ -44,12 +44,12 @@ export function setupCrop(
   });
 
   toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
-    multiple: false,
+    multipleFamily: null,
     filterName: "crop64",
     enable: (e) => isPicture(e),
     icon: async function (context) {
       // Crop at 50%
-      await transform(context, this.build(0.25, 0.25, 0.75, 0.75));
+      await transform(context, [this.build(0.25, 0.25, 0.75, 0.75)]);
       return true;
     },
     editable: true,
@@ -65,7 +65,10 @@ export function setupCrop(
       });
     },
     build: function (rect: { left: number, top: number, right: number, bottom: number }) {
-      return `${this.filterName}=1,${encodeRect(rect)}`;
+      return {
+        name: this.filterName,
+        args:['1', encodeRect(rect)]
+      }
     },
     buildUI: function (index: number, args: string[]) {
       const e = toolHeader(name, index, imageController, toolRegistrar);

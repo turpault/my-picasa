@@ -3,10 +3,15 @@ import { ToolRegistrar } from "./components/tools";
 import { $, _$ } from "./lib/dom";
 import { AlbumWithData } from "./types/types";
 
-export function folder(f: AlbumWithData): _$ {
-  const e = $(`<li><div class="browser-list-text">${f.name}</div><span class="browser-list-count">(${f.count})</span></li>`);
+export function folder(): _$ {
+  const e = $(`<li><div class="browser-list-text"></div><span class="browser-list-count"></span></li>`);
   return e;
 }
+export function folderData(e: _$, album:AlbumWithData) {
+  $('.browser-list-text',e).text(`${album.shortcut ? String.fromCharCode(0x245F + parseInt(album.shortcut))+' ':''}${album.name}`);
+  $('.browser-list-count', e).text(`(${album.count})`);
+}
+
 
 export function toolHeader(
   name: string,

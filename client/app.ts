@@ -2,19 +2,17 @@ import { $ } from "../client/lib/dom";
 import { buildEmitter } from "../shared/lib/event";
 import { AlbumIndexedDataSource } from "./album-data-source";
 import { makeBrowser } from "./components/browser";
+import { makeButtons } from "./components/browser-photo-list-buttons";
 import { makeCompositorPage } from "./components/compositor";
 import { makeEditorPage } from "./components/editor-page";
 import { consoleOverload } from "./components/error-utils";
 import { makeGallery } from "./components/gallery";
 import { makeHotkeys } from "./components/hotkey";
 import { makeJobList } from "./components/joblist";
-import { makeMetadata } from "./components/metadata";
 import { initClientSentry } from "./components/sentry";
 import { makeTab, makeTabs, selectTab } from "./components/tabs";
-import { makeThumbnailManager } from "./components/thumbnail";
 import { makeSettings } from "./lib/settings";
 import { getService, setServicePort } from "./rpc/connect";
-import { SelectionManager } from "./selection/selection-manager";
 import { AlbumEntry } from "./types/types";
 import { AppEvent } from "./uiTypes";
 
@@ -45,37 +43,40 @@ async function init(port: number) {
 
   await makeSettings();
   await makeJobList($(".jobs").get());
-  await makeThumbnailManager();
 
-  makeTabs(emitter);
+  $('.tabs-container').append(makeTabs(emitter));
+  $('.buttons-container').append(makeButtons(emitter));
+  
   makeHotkeys(emitter);
+
 
   //makeContextMenu();
 
   emitter.on("show", async ({ initialList, initialIndex }) => {
-    const { win, tab } = await makeGallery(initialIndex, initialList, emitter);
-    makeTab(win, tab);
+    const { win, tab, selectionManager } = await makeGallery(initialIndex, initialList, emitter);
+    makeTab(win, tab, { kind: 'Gallery', selectionManager});
   });
 
   emitter.on("edit", async ({ initialList, initialIndex }) => {
-    const { win, tab } = await makeEditorPage(
+    const { win, tab, selectionManager } = await makeEditorPage(
       initialIndex,
       initialList,
       emitter
     );
-    makeTab(win, tab);
+    makeTab(win, tab, { kind: 'Editor', selectionManager});
   });
 
   emitter.on("composite", async ({ initialList, initialIndex }) => {
-    const { win, tab } = await makeCompositorPage(
+    const { win, tab, selectionManager } = await makeCompositorPage(
       emitter,
       initialList as AlbumEntry[]
     );
-    makeTab(win, tab);
+    makeTab(win, tab, { kind: 'Composition', selectionManager});
   });
 
-  const { win, tab, tool } = await makeBrowser(emitter, dataSource);
-  makeTab(win, tab);
+  const { win, tab, selectionManager } = await makeBrowser(emitter, dataSource);
+  makeTab(win, tab, { kind: 'Browser', selectionManager});
+  makeButtons(emitter);
 
   selectTab(win);
   await dataSource.init();

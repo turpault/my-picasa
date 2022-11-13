@@ -1,4 +1,4 @@
-import { decodeOperation } from "../../shared/lib/utils";
+import { decodeOperation, PicasaFilter, sleep } from "../../shared/lib/utils";
 import { AlbumEntry } from "../../shared/types/types";
 import { toolHeader } from "../element-templates";
 import {
@@ -14,8 +14,12 @@ import { Tool } from "../uiTypes";
 import { ImageController } from "./image-controller";
 import { t } from "./strings";
 
-export const GENERAL_TOOL_TAB = 'General';
-async function toolIconForTool(context: string, original: string, tool: Tool): Promise<string> {
+export const GENERAL_TOOL_TAB = "General";
+async function toolIconForTool(
+  context: string,
+  original: string,
+  tool: Tool
+): Promise<string> {
   const copy = await cloneContext(context);
   await tool.icon(copy, original);
   const res = await encode(copy, "image/jpeg", "base64url");
@@ -26,19 +30,20 @@ async function toolIconForTool(context: string, original: string, tool: Tool): P
 type ToolRegistrarEvents = {
   added: { tool: Tool };
   activate: { index: number; tool: Tool };
+  preview: { operation: PicasaFilter | null };
 };
 
 export class ToolRegistrar {
   private pages: { [pageName: string]: string[] } = {};
-  private currentPage: string = '';
+  private currentPage: string = "";
   private buttonList: _$;
   private groupList: _$;
   private toolButtons: { [name: string]: any };
-  constructor(toolListElement: _$, toolHeader: _$) {
+  private activeEntry: AlbumEntry | undefined;
+  constructor(toolListElement: _$) {
     this.tools = {};
     this.toolButtons = {};
     this.toolListElement = toolListElement;
-    this.toolListHeader = toolHeader;
     this.events = buildEmitter<ToolRegistrarEvents>();
     const ctrl = $(`
     <div class="tool-control tool-filter">
@@ -49,9 +54,9 @@ export class ToolRegistrar {
     </div>
   `);
     this.toolListElement.append(ctrl);
-    this.buttonList = $('.filter-buttons', ctrl);
+    this.buttonList = $(".filter-buttons", ctrl);
     this.groupList = $(".filter-groups", ctrl);
-    this.groupList.on('change', () => {
+    this.groupList.on("change", () => {
       this.currentPage = this.groupList.val();
       this.refreshButtons();
     });
@@ -72,6 +77,16 @@ export class ToolRegistrar {
     elem.on("click", () => {
       this.events.emit("added", { tool: this.tools[toolName] });
     });
+    elem.on("mouseenter", () => {
+      if (this.tools[toolName].preview) {
+        this.events.emit("preview", {
+          operation: this.tools[toolName].build(),
+        });
+      }
+    });
+    elem.on("mouseleave", () => {
+      this.events.emit("preview", { operation: null });
+    });
 
     if (newPage) {
       // Refresh tool list
@@ -85,7 +100,8 @@ export class ToolRegistrar {
     this.groupList.empty();
     Object.keys(this.pages).forEach((page) => {
       this.groupList.append(
-        `<option ${page === this.currentPage ? "selected" : ""
+        `<option ${
+          page === this.currentPage ? "selected" : ""
         } value="${page}">${page}</option>`
       );
     });
@@ -108,6 +124,7 @@ export class ToolRegistrar {
   }
 
   async refreshToolIcons(context: string, original: string, entry: AlbumEntry) {
+    this.activeEntry = entry;
     // Initial copy, resized
     const copy = await cloneContext(context);
     await execute(copy, [
@@ -115,21 +132,51 @@ export class ToolRegistrar {
     ]);
     await commit(copy);
 
-
+    // First get the active tab tools
+    const page = this.currentPage;
     await Promise.allSettled(
-      Object.entries(this.tools).map(async ([name, tool]) => {
-        const data = await toolIconForTool(copy, original, tool);
-        const target = this.toolButtons[name];
-        target.css({
-          "background-image": `url(${data})`,
-          display: tool.enable(entry) ? "" : "none",
-        });
-      })
+      Object.entries(this.tools)
+        .filter(([name]) => this.pages[page].includes(name))
+        .map(async ([name, tool]) => {
+          const data = await toolIconForTool(copy, original, tool);
+          const target = this.toolButtons[name];
+          target.css({
+            "background-image": `url(${data})`,
+            display: tool.enable(entry) ? "" : "none",
+          });
+        })
     );
-    console.info('Destroy copy', copy);
-    destroyContext(copy);
+
+    // Wait until the other tool icons are built
+    sleep(1).then(async () => {
+      for (const [name, tool] of Object.entries(this.tools)) {
+        if (!this.activeEntry || this.activeEntry.name !== entry.name) {
+          // No need to continue, as the active image changed
+          continue;
+        }
+        if (!this.pages[page].includes(name)) {
+          const data = await toolIconForTool(copy, original, tool);
+          const target = this.toolButtons[name];
+          target.css({
+            "background-image": `url(${data})`,
+            display: tool.enable(entry) ? "" : "none",
+          });
+        }
+      }
+      destroyContext(copy);
+    });
   }
 
+  toolNameForFilter(filter:string): string | null {
+    const res = Object.entries(this.tools).find(
+      ([_name, tool]) => tool.filterName === filter
+    );
+    if(res) {
+      return res[0];
+    }
+    return null;
+
+  }
   makeUiForTool(
     filterName: string,
     index: number,
@@ -159,11 +206,11 @@ export class ToolRegistrar {
     [name: string]: Tool;
   };
   private toolListElement: _$;
-  private toolListHeader: _$;
 }
 
 export function make(e: _$, ctrl: ImageController): ToolRegistrar {
-  const registrar = new ToolRegistrar($(".effects", e), $(".effects-title", e));
+  const title = $(".effects-title", e);
+  const registrar = new ToolRegistrar($(".effects", e));
 
   const history = $(".history", e);
   const description = $(".description", e);
@@ -183,11 +230,24 @@ export function make(e: _$, ctrl: ImageController): ToolRegistrar {
       const fct = clearList.pop();
       if (fct) fct();
     }
-    const newControls = $('<div/>');
-    const activeTools = ctrl.operationList().map(decodeOperation);
+    title.empty();
+    if(filters.length >0){
+      title.append($(`<button class='undo-last-operation'>${t('Cancel') + ' ' + registrar.toolNameForFilter(filters.slice(-1)[0].name)}</button>`).on('click', (e) => {
+        ctrl.deleteOperation(filters.length-1);
+        e.stopPropagation();
+      }));
+    }
+    const newControls = $("<div/>");
+    const activeTools = filters;
     let toolCount = 0;
-    for (const { name, args } of activeTools) {
-      const toolUi = registrar.makeUiForTool(name, toolCount++, args, ctrl, context);
+    for (const { name: name, args } of activeTools) {
+      const toolUi = registrar.makeUiForTool(
+        name,
+        toolCount++,
+        args,
+        ctrl,
+        context
+      );
       clearList.push(toolUi.clearFct);
       if (toolUi.ui)
         newControls.get().insertBefore(toolUi.ui, newControls.get().firstChild);
@@ -200,15 +260,25 @@ export function make(e: _$, ctrl: ImageController): ToolRegistrar {
       }
     }
   });
+  registrar.events.on("preview", async ({ operation }) => {
+    ctrl.preview(operation);
+  });
   registrar.events.on("added", async ({ tool }) => {
-    const activeTools = ctrl.operationList().map(decodeOperation);
-    if (!tool.multiple) {
+    const activeTools = ctrl.operationList();
+    if (!tool.multipleFamily) {
       // Go through the current list, and find if this tool was already applied
-      const activeTools = ctrl.operationList().map(decodeOperation);
-      const found = activeTools.findIndex(t => t.name === tool.filterName);
+      const activeTools = ctrl.operationList();
+      const found = activeTools.findIndex(
+        (t) => registrar.tool(t.name).multipleFamily === tool.multipleFamily
+      );
       if (found !== -1) {
-        tool.activate(found, activeTools[found].args);
-        return;
+        if (activeTools[found].name === tool.filterName) {
+          // Actually the same filter, replace its args
+          tool.activate(found, activeTools[found].args);
+          return;
+        } else {
+          ctrl.deleteOperation(found);
+        }
       }
     }
     const toolCount = activeTools.length;
@@ -225,10 +295,7 @@ export function make(e: _$, ctrl: ImageController): ToolRegistrar {
   });
   registrar.events.on("activate", async ({ index, tool }) => {
     ctrl.muteAt(index);
-    await tool.activate(
-      index,
-      decodeOperation(ctrl.operationList()[index]).args
-    );
+    await tool.activate(index, ctrl.operationList()[index].args);
     ctrl.muteAt(-1);
   });
   return registrar;

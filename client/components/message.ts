@@ -1,11 +1,15 @@
 import { resolve } from "path";
 import { $ } from "../lib/dom";
 
-export enum Button  {
-  Ok="Ok", Cancel="Cancel"
-};
+export enum Button {
+  Ok = "Ok",
+  Cancel = "Cancel",
+}
 
-export async function message(message: string, buttons: Button[] = [Button.Ok]): Promise<Button> {
+export async function message(
+  message: string,
+  buttons: Button[] = [Button.Ok]
+): Promise<Button> {
   const q = $(`<div class="messagebox w3-modal">
   <div class="w3-modal-content">
     <div class="w3-container">
@@ -21,9 +25,17 @@ export async function message(message: string, buttons: Button[] = [Button.Ok]):
   $(document.body).append(q);
 
   return new Promise<Button>((resolve) => {
-    buttons.forEach(button => qs.append($(`<a class="button-${button} w3-button ${button === Button.Ok ? "w3-green":""}>${button}</a>`).on('click', ()=> {
-      q.remove();
-      resolve(button);
-    })));
+    buttons.forEach((button) => {
+      qs.append(
+        $(
+          `<a class="button-${button} w3-button ${
+            button === Button.Ok ? "w3-green" : ""
+          }">${button}</a>`
+        ).on("click", () => {
+          q.remove();
+          resolve(button);
+        })
+      );
+    });
   });
 }

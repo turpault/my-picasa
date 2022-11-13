@@ -157,23 +157,22 @@ export async function addOrRefreshOrDeleteAlbum(album: Album | undefined) {
             type: "albumInfoUpdated",
             album: updated,
           });
-          Object.assign(lastWalk[idx], updated);
+          lastWalk[idx] = updated;
         }
       }
     }
   }
 }
 
-export async function folders(filter: string): Promise<Album[]> {
-  let w = [...(lastWalk as Album[])];
+export async function folders(filter: string): Promise<AlbumWithData[]> {
+  let w = [...(lastWalk as AlbumWithData[])];
   if (filter) {
-    const filtered: Album[] = [];
+    const filtered: AlbumWithData[] = [];
     for (const album of lastWalk) {
       if ((await albumInFilter(album, filter)).length > 0) filtered.push(album);
     }
     w = filtered;
   }
-
   return w;
 }
 
@@ -200,7 +199,7 @@ async function walk(
   const m = await assetsInAlbum(album);
 
   // depth down first
-  for (const child of m.folders.sort(alphaSorter(false)).reverse()) {
+  for (const child of m.folders.sort(alphaSorter(false, [true])).reverse()) {
     walkQueue.add<Album[]>(() => walk(child, join(path, child), cb));
   }
 

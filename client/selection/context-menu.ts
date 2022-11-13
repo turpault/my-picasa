@@ -4,26 +4,26 @@ import { getService } from "../rpc/connect";
 import { Album, JOBNAMES } from "../../shared/types/types";
 import { SelectionManager } from "./selection-manager";
 
-export function makeDropDownContextMenu() {
+export function makeDropDownContextMenu(selectionManager:SelectionManager) {
   document.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     const menu = $(`<div class="context-menu">
     </div>`);
-    if (SelectionManager.get().selected().length) {
+    if (selectionManager.selected().length) {
       menu.append(
         $(
           `<div>Move ${
-            SelectionManager.get().selected().length
+            selectionManager.selected().length
           } photos in a new Album...`
-        ).on("click", moveSelectionInNewAlbum)
+        ).on("click", ()=>moveSelectionInNewAlbum(selectionManager))
       );
       menu.append(
         $(
-          `<div>Duplicate ${SelectionManager.get().selected().length} photos`
-        ).on("click", duplicateSelection)
+          `<div>Duplicate ${selectionManager.selected().length} photos`
+        ).on("click", ()=>duplicateSelection(selectionManager))
       );
       menu.append(
-        $(`<div>Delete ${SelectionManager.get().selected().length} photos`).on(
+        $(`<div>Delete ${selectionManager.selected().length} photos`).on(
           "click",
           deleteSelection
         )
@@ -39,7 +39,7 @@ export function makeDropDownContextMenu() {
   });
 }
 
-async function moveSelectionInNewAlbum() {
+async function moveSelectionInNewAlbum(selectionManager:SelectionManager) {
   const newAlbum = await question(
     "New album name",
     "Please type the new album name"
@@ -48,17 +48,17 @@ async function moveSelectionInNewAlbum() {
     const s = await getService();
     const a: Album = await s.makeAlbum(newAlbum);
     s.createJob(JOBNAMES.MOVE, {
-      source: SelectionManager.get().selected(),
+      source: selectionManager.selected(),
       destination: a,
     });
-    SelectionManager.get().clear();
+    selectionManager.clear();
   }
 }
 
-async function duplicateSelection() {
+async function duplicateSelection(selectionManager:SelectionManager) {
   const s = await getService();
   s.createJob(JOBNAMES.DUPLICATE, {
-    source: SelectionManager.get().selected(),
+    source: selectionManager.selected(),
   });
 }
 

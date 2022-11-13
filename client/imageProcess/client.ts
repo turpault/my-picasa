@@ -1,4 +1,4 @@
-import { fixedEncodeURIComponent, uuid } from "../../shared/lib/utils";
+import { encodeOperations, fixedEncodeURIComponent, PicasaFilter, uuid } from "../../shared/lib/utils";
 import { AlbumEntry, ThumbnailSize } from "../../shared/types/types";
 import { getService, getServicePort } from "../rpc/connect";
 
@@ -34,10 +34,10 @@ export async function setOptions(
 
 export async function transform(
   context: string,
-  transformation: string
+  transformation: PicasaFilter[]
 ): Promise<string> {
   const c = await getService();
-  await c.transform(context, transformation);
+  await c.transform(context, encodeOperations(transformation));
   return context;
 }
 

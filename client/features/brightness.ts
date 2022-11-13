@@ -11,7 +11,7 @@ export function setupBrightness(
 ) {
   const name = "Brightness";
   toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
-    multiple: true,
+    multipleFamily: name,
     filterName: "finetune2",
     enable: (e) => isPicture(e),
     build: function (
@@ -21,14 +21,20 @@ export function setupBrightness(
       colorTemp: string,
       amount: number
     ) {
-      return `${this.filterName
-        }=1,${brightness},${highlights},${shadows},${colorTemp.replace(
-          "#",
-          ""
-        )},${amount}`;
+      return {
+        name: this.filterName,
+        args: [
+          "1",
+          brightness.toString(),
+          highlights.toString(),
+          shadows.toString(),
+          colorTemp.replace("#", ""),
+          amount.toString(),
+        ],
+      };
     },
     icon: async function (context) {
-      await transform(context, this.build(0.5, 0, 0, "#ffffff", 0));
+      await transform(context, [this.build(0.5, 0, 0, "#ffffff", 0)]);
       return true;
     },
     activate: async function (index: number, args?: string[]) {

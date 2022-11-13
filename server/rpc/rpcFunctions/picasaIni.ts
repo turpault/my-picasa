@@ -1,10 +1,11 @@
 import { readFile, stat, writeFile } from "fs/promises";
 import { join } from "path";
 import ini from "../../../shared/lib/ini";
-import { lock, removeDiacritics, sleep } from "../../../shared/lib/utils";
+import { decodeOperations, encodeOperations, lock, removeDiacritics, sleep } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
+  AlbumEntryPicasa,
   PicasaFileMeta,
   PicasaFolderMeta,
   PicasaSection
@@ -65,7 +66,7 @@ export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
       encoding: "utf8",
     });
     const i = ini.parse(iniData);
-    picasaMap.set(album.key, i);
+    // Read&fix data
     if (i.Contacts2) {
       // includes a map of faces/ids
       for (const [id, value] of Object.entries(
@@ -77,9 +78,15 @@ export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
         }
       }
     }
-    if(i.shortcut !== undefined) {
-      shortcuts[i.shortcut] =  album;
+    if(i.Picasa && i.Picasa.name && i.Picasa.name !== album.name) {
+      i.Picasa.name = album.name;
     }
+    if(i?.Picasa.shortcut !== undefined && !shortcuts[i.Picasa.shortcut]) {
+      shortcuts[i.Picasa.shortcut] =  album;
+      broadcast('shortcutsUpdated', {});
+    }
+
+    picasaMap.set(album.key, i);
   } catch (e: any) {
     picasaMap.set(album.key, {});
   }
@@ -170,30 +177,66 @@ export async function setAlbumShortcut(album: Album, shortcut: string) {
   const section = await readPicasaSection(album);
   if(section.shortcut) {
     delete shortcuts[section.shortcut];
+    broadcast('shortcutsUpdated', {});
   }
   if(shortcut && shortcuts[shortcut]) {
     setAlbumShortcut(shortcuts[shortcut], '');
   }
   if(shortcut) {
     shortcuts[shortcut] = album;
+    broadcast('shortcutsUpdated', {});
   }
-  broadcast('albumEvent', [{type: "shortcutsUpdated"}]);
-  return updatePicasa(album, 'shortcut', shortcut);
+  addOrRefreshOrDeleteAlbum(album);
+  return updatePicasa(album, 'shortcut', shortcut ? shortcut : null);
 }
 
 export function getShortcuts() {
   return shortcuts;
 }
 
+export async function rotate(
+  entries: AlbumEntry[],
+  direction: string
+) {
+  const increment = {
+    left: 1,
+    right: 3
+  }[direction] || 0;
+  for(const entry of entries) {
+    const picasa = await readPicasaEntry(entry);
+    const operations = decodeOperations(picasa.filters || '');
+    const idx = operations.findIndex(o => o.name === 'rotate');
+    let initialValue = 0;
+    if(idx !== -1) {
+      initialValue = parseInt(operations[idx].args[1]);
+    }
+    initialValue+=increment;
+    const newCommand = {name: 'rotate', args: ['1', initialValue.toString()]};
+    if(idx!==-1) {
+      if(initialValue%4 === 0) {
+        operations.splice(idx,1);
+      } else {
+        operations[idx] = newCommand;
+      }
+    } else{
+      operations.push(newCommand);
+    }
+    updatePicasaEntry(entry, 'filters', encodeOperations(operations));
+  }
+}
 export async function updatePicasa(
   album: Album,
   field: string,
-  value: string,
+  value: string | null,
   group: string = "Picasa",
 ) {
   const picasa = await readPicasaIni(album);
   const section = picasa[group] = (picasa[group] || {}) as PicasaSection;
-  section[field] = value;
+  if(value !== null) {
+    section[field] = value;
+  } else {
+    delete section[field];
+  }
   addOrRefreshOrDeleteAlbum(album);
   return writePicasaIni(album, picasa);
 }
@@ -216,7 +259,7 @@ export async function updatePicasaEntry(
       delete picasa[entry.name];
     }
   } else {
-    if (value !== undefined) {
+    if (value !== undefined && value !== null) {
       picasa[entry.name][field as keyof PicasaFileMeta] = value.toString() as never;
     } else {
       delete picasa[entry.name][field as keyof PicasaFileMeta];
@@ -224,7 +267,7 @@ export async function updatePicasaEntry(
   }
 
   if (["filters", "caption", "text", "rotate", "star"].includes(field)) {
-    broadcast("picasaFileMetaChanged", { entry, picasa: picasa[entry.name] });
+    broadcast("picasaFileMetaChanged", { ...entry, picasa: picasa[entry.name] } as AlbumEntryPicasa);
   }
   return writePicasaIni(entry.album, picasa);
 }

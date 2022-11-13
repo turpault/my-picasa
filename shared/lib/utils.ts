@@ -1,33 +1,46 @@
-import {
-  AlbumEntry,
-  pictureExtensions,
-  videoExtensions
-} from "../types/types";
+import { Album, AlbumEntry, pictureExtensions, videoExtensions } from "../types/types";
 
 export async function sleep(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));
 }
 
-export function sortByKey<T>(array: T[], key: keyof T, reverse?: boolean) {
+export function sortByKey<T>(array: T[], keys:(keyof T)[], reverse?: boolean[]) {
   const m = reverse ? -1 : 1;
-  array.sort(alphaSorter(false, reverse, key as string));
+  array.sort(alphaSorter(false, reverse, keys  as string[]));
 }
 
-export function alphaSorter(caseSensitive: boolean = true, reverse: boolean = false, key?: string): (a:any, b:any) => number {
-  const m = reverse ? -1 : 1;
+export function alphaSorter(
+  caseSensitive: boolean = true,
+  reverse: boolean[] = [],
+  keys: (string | undefined)[] = [undefined]
+): (a: any, b: any) => number {
   if (caseSensitive)
     return (_a, _b) => {
-      const a = removeDiacritics(`${key?_a[key]:_a}`);
-      const b = removeDiacritics(`${key?_b[key]:_b}`);
-      return m * (a < b ? -1 : a === b ? 0 : 1);
+      for (const [idx, key] of keys.entries()) {
+        const m = reverse[idx] ? -1 : 1;
+        const a = removeDiacritics(`${key ? _a[key] : _a}`);
+        const b = removeDiacritics(`${key ? _b[key] : _b}`);
+        if (a === b) {
+          continue;
+        }
+        return m * (a < b ? -1 : 1);
+      }
+      return 0;
     };
   else
     return (_a, _b) => {
-      const a = removeDiacritics(`${key?_a[key]:_a}`);
-      const b = removeDiacritics(`${key?_b[key]:_b}`);
-      const la = a.toLowerCase();
-      const lb = b.toLowerCase();
-      return m * (la < lb ? -1 : la === lb ? 0 : 1);
+      for (const [idx, key] of keys.entries()) {
+        const m = reverse[idx] ? -1 : 1;
+        const a = removeDiacritics(`${key ? _a[key] : _a}`);
+        const b = removeDiacritics(`${key ? _b[key] : _b}`);
+        const la = a.toLowerCase();
+        const lb = b.toLowerCase();
+        if (la === lb) {
+          continue;
+        }
+        return m * (la < lb ? -1 : 1);
+      }
+      return 0;
     };
 }
 
@@ -43,26 +56,34 @@ export function uuid(): string {
 
 export function fixedEncodeURIComponent(str: string): string {
   return encodeURIComponent(str).replace(/[!'()*]/g, function (c) {
-    return '%' + c.charCodeAt(0).toString(16);
+    return "%" + c.charCodeAt(0).toString(16);
   });
 }
 
-export function cssSplitValue(v: string): { value: number, unit: string } {
-  if (typeof v === 'string' && v !== "") {
+export function cssSplitValue(v: string): { value: number; unit: string } {
+  if (typeof v === "string" && v !== "") {
     var split = v.match(/^([-.\d]+(?:\.\d+)?)(.*)$/)!;
     if (split.length > 2)
-      return { 'value': parseFloat(split[1].trim()), 'unit': split[2].trim()! };
+      return { value: parseFloat(split[1].trim()), unit: split[2].trim()! };
   }
-  return { 'value': parseFloat(v), 'unit': "" }
+  return { value: parseFloat(v), unit: "" };
 }
 
-const debounceFcts = new Map<Function | string, { f: Function, elapse: number }>();
+const debounceFcts = new Map<
+  Function | string,
+  { f: Function; elapse: number }
+>();
 /**
  * Make sure that the function f is called at most every <delay> milliseconds
  * @param f
  * @param delay
  */
-export function debounce(f: Function, delay?: number, guid?: string, atStart?: boolean) {
+export function debounce(
+  f: Function,
+  delay?: number,
+  guid?: string,
+  atStart?: boolean
+) {
   delay = delay ? delay : 1000;
   const key = guid || f;
   if (debounceFcts.has(key)) {
@@ -123,7 +144,12 @@ export function rectanglesIntersect(
 /**
  * Rectangle expressed as a set of 0->1 values
  */
-export type RectRange = { left: number; top: number; right: number; bottom: number };
+export type RectRange = {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+};
 
 /*
 # Picasa uses a special string format to store crop boxes of
@@ -148,9 +174,7 @@ export type RectRange = { left: number; top: number; right: number; bottom: numb
 # parseInt("5941",16)/65536 //0.3486480712890625 - right (measured from left)
 # parseInt("8507",16)/65536 //0.5196380615234375 - bottom (measured from top)
 */
-export function decodeRect(
-  rect: string
-): RectRange {
+export function decodeRect(rect: string): RectRange {
   if (!rect) {
     throw new Error("No Rect");
   }
@@ -168,6 +192,11 @@ export function decodeRect(
   }
   throw new Error("Invalid Rect");
 }
+
+export function getOperationList(filters:string): string[] {
+  return (filters || "").split(";").filter((v) => v);
+}
+
 
 export function fromHex(hex: string): number[] {
   return hex.match(/.{1,2}/g)!.map((v) => parseInt(v, 16));
@@ -197,9 +226,26 @@ export function encodeRect(rect: RectRange): string {
   );
 }
 
-export function decodeOperations(
-  operations: string
-): { name: string; args: string[] }[] {
+export type PicasaFilter = {
+  name: string;
+  args: string[];
+};
+
+export function albumInFilter(
+  album: Album,
+  normalizedFilter: string
+): boolean {
+  if(removeDiacritics(album.name).toLowerCase().includes(normalizedFilter)) {
+    return true;
+  }
+  return false;
+}
+
+export function encodeOperations(operations: PicasaFilter[]):string  {
+  return operations.map(operation => `${operation.name}=${operation.args.join(',')}`).join(';');
+}
+
+export function decodeOperations(operations: string): PicasaFilter[] {
   const cmds = operations.split(";").filter((v) => v);
   const res: { name: string; args: string[] }[] = [];
   for (const cmd of cmds) {
@@ -208,14 +254,9 @@ export function decodeOperations(
   return res;
 }
 
-export function decodeOperation(
-  operation: string
-): {
-  name: string;
-  args: string[];
-} {
+export function decodeOperation(operation: string): PicasaFilter {
   const [name, argsList] = operation.split("=");
-  return { name, args: argsList ? argsList.split(",") : [] };
+  return { name: name, args: argsList ? argsList.split(",") : [] };
 }
 
 export function flattenObject(ob: any) {
@@ -252,7 +293,7 @@ class Mutex {
     this.lockDate = new Date();
     const p = new Promise<void>((resolve) => {
       _resolve = () => {
-        if ((Date.now() - this.lockDate.getTime()) > 1000) {
+        if (Date.now() - this.lockDate.getTime() > 1000) {
           //debugger;
         }
         this.lockDate = new Date();
@@ -277,12 +318,18 @@ const locks: Map<string, Mutex> = new Map();
 
 function checkForVeryLongLocks() {
   const now = new Date();
-  const table = Array.from(locks.entries()).filter(([name, mutex]) => mutex.locked()).map(([name, mutex]) => ({
-    name,
-    duration: now.getTime() - mutex.lockDate.getTime()
-  })).filter(l => l.duration > 1000);
+  const table = Array.from(locks.entries())
+    .filter(([name, mutex]) => mutex.locked())
+    .map(([name, mutex]) => ({
+      name,
+      duration: now.getTime() - mutex.lockDate.getTime(),
+    }))
+    .filter((l) => l.duration > 1000);
   if (table.length > 0) {
-    console.warn("These locks are taking longer than expected", JSON.stringify(table));
+    console.warn(
+      "These locks are taking longer than expected",
+      JSON.stringify(table)
+    );
     console.table(table);
   }
 }
@@ -297,9 +344,11 @@ function pruneLocks() {
   checkForVeryLongLocks();
 }
 
-export function differs(a: any, b:any) {
-  return Object.getOwnPropertyNames(a).find(p => a[p] !== b[p]) ||
-  Object.getOwnPropertyNames(b).find(p => a[p] !== b[p])
+export function differs(a: any, b: any) {
+  return (
+    Object.getOwnPropertyNames(a).find((p) => a[p] !== b[p]) ||
+    Object.getOwnPropertyNames(b).find((p) => a[p] !== b[p])
+  );
 }
 
 export async function lock(label: string): Promise<Function> {
@@ -317,11 +366,11 @@ export function lockedLocks(): string[] {
 }
 
 export function valuesOfEnum<T>(e: T): any[] {
-  return Object.values(e as any).filter(v => !isNaN(Number(v)));
+  return Object.values(e as any).filter((v) => !isNaN(Number(v)));
 }
 
 export function keysOfEnum<T>(e: T): (keyof T)[] {
-  return Object.keys(e as any) as unknown as (keyof T)[];
+  return (Object.keys(e as any) as unknown) as (keyof T)[];
 }
 
 export function startLockMonitor() {
@@ -331,12 +380,17 @@ export function startLockMonitor() {
 export function escapeXml(unsafe: string): string {
   return unsafe.replace(/[<>&'"]/g, (c: string) => {
     switch (c) {
-      case '<': return '&lt;';
-      case '>': return '&gt;';
-      case '&': return '&amp;';
-      case '\'': return '&apos;';
-      case '"': return '&quot;';
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case "&":
+        return "&amp;";
+      case "'":
+        return "&apos;";
+      case '"':
+        return "&quot;";
     }
-    return '';
+    return "";
   });
 }

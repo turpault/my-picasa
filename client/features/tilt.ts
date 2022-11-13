@@ -54,12 +54,12 @@ export function setupTilt(
   });
 
   toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
-    multiple: false,
+    multipleFamily: null,
     filterName: "tilt",
     enable: (e) => isPicture(e),
     icon: async function (context) {
       // Tilt 45
-      await transform(context, this.build(0.1, 0));
+      await transform(context, [this.build()]);
       return true;
     },
     editable: true,
@@ -73,8 +73,11 @@ export function setupTilt(
         _deactivate = resolve;
       });
     },
-    build: function (angle: number, zoom: number) {
-      return `${this.filterName}=1,${angle},${zoom})}`;
+    build: function (angle: number = 0.1, zoom: number = 0) {
+      return {
+        name: this.filterName,
+        args:['1', angle.toString(), zoom.toString()]
+      }
     },
     buildUI: function (index: number, args: string[]) {
       const e = toolHeader(name, index, imageCtrl, toolRegistrar);

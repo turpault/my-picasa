@@ -1,5 +1,5 @@
 import { buildEmitter } from "../../shared/lib/event";
-import { AlbumEntry, AlbumEntryPicasa } from "../../shared/types/types";
+import { AlbumEntry, AlbumEntryPicasa, PicasaFileMeta } from "../../shared/types/types";
 import { setupAutocolor } from "../features/autocolor";
 import { setupBlur } from "../features/blur";
 import { setupBrightness } from "../features/brightness";
@@ -29,12 +29,13 @@ import { t } from "./strings";
 import { makeMetadata } from "./metadata";
 import { setupFilters } from "../features/filter";
 import { getService } from "../rpc/connect";
+import { SelectionManager } from "../selection/selection-manager";
 
 const editHTML = `
 <div class="fill">
   <div class="fill w3-bar-block tools">
-    <div class="collapsible w3-bar-item editor-image-block">${t("Description")}</div>
-    <div class="collapsable">
+    <div style="display:none" class="collapsible w3-bar-item editor-image-block">${t("Description")}</div>
+    <div style="display:none" class="collapsable">
       <input
         class="description w3-input"
         style="background: none"
@@ -42,7 +43,7 @@ const editHTML = `
         placeholder="${t("No description")}"
       />
     </div>
-    <div class="collapsible editor-image-block">${t("Effects")}<span class="effects-title"></span></div>
+    <div class="collapsible editor-image-block">${t("Effects")}<div class="effects-title"></div></div>
     <div class="collapsable">
       <div class="effects"></div>
       <div class="history"></div>
@@ -81,9 +82,10 @@ export async function makeEditorPage(
   initialIndex: number,
   initialList: AlbumEntry[],
   appEvents: AppEventSource
-): Promise<{ win: _$; tab: _$, tool: _$ }> {
+) {
   const editor = $(editHTML);
-
+  const selectionManager = new SelectionManager([initialList[initialIndex]]);
+  
   const image = $(".edited-image", editor);
   const video = $(".edited-video", editor);
   const imageContainer = $(".image-container", editor);
@@ -133,6 +135,7 @@ export async function makeEditorPage(
       const refreshMetadataFct = makeMetadata(metadata);
 
       const entries = await buildAlbumEntryEx(initialList);
+      const s = await getService();
 
       const activeManager = new ActiveImageManager(
         entries,
@@ -154,6 +157,8 @@ export async function makeEditorPage(
           imageController.display(entry as AlbumEntryPicasa);
           tabEvent.emit("rename", { name: entry.name });
           refreshMetadataFct(entry, [entry]);
+          selectionManager.clear();
+          selectionManager.select(entry);
         }),
         appEvents.on("keyDown", async ({ code, win }) => {
           if (win.get() === editor.get()) {
@@ -178,6 +183,14 @@ export async function makeEditorPage(
             off.forEach((o) => o());
           }
         }),
+        s.on(
+          "picasaFileMetaChanged",
+          async (e: { payload: AlbumEntryPicasa }) => {
+            if(e.payload.album.key === activeManager.active().album.key && e.payload.name === activeManager.active().name) {
+              imageController.display(e.payload);
+            }
+          }
+        )
       ];
       const z = $(".zoom-ctrl", tool);
       z.on("input", () => {
@@ -189,5 +202,5 @@ export async function makeEditorPage(
 
     }
   });
-  return { win: editor, tab, tool: $('<div/>') };
+  return { win: editor, tab, selectionManager };
 }

@@ -1,6 +1,6 @@
 import { Rectangle, Point } from "ts-2d-geometry";
 import { rectanglesIntersect } from "../../shared/lib/utils";
-import { Album, AlbumEntry, PicasaFileMeta } from "../../shared/types/types";
+import { Album, AlbumEntry, AlbumEntryPicasa, PicasaFileMeta } from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
 import {
   $,
@@ -14,10 +14,9 @@ import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
 import { AlbumListEventSource } from "../uiTypes";
 
-const elementPrefix = "thumb:";
-const imagePrefix = "thumbimg:";
 
-export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
+function buildThumbnail(events: AlbumListEventSource, selectionManager: SelectionManager, elementPrefix: string): HTMLElement {
+  const imagePrefix = 'img:'+elementPrefix;
   const e = $(
     `<div class="thumbnail thumbnail-size">
     <img draggable="true" class="th browser-thumbnail" loading="lazy"> <img class="star" src="resources/images/star.svg">
@@ -45,7 +44,7 @@ export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
         }
         const p = (await s.readPicasaEntry(entry)) as PicasaFileMeta;
         const rank = parseInt(p.rank || "0");
-        const selection = SelectionManager.get().selected();
+        const selection = selectionManager.selected();
         s.createJob(JOBNAMES.MOVE, {
           source: selection,
           destination: entry.album,
@@ -73,7 +72,7 @@ export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
   img.on("dragstart", (ev: any) => {
     const entry = albumEntryFromElement(e, elementPrefix);
     if (entry) {
-      SelectionManager.get().select(entry);
+      selectionManager.select(entry);
       ev.dataTransfer.effectAllowed = "move";
       ev.dataTransfer.setData("text/html", "");
     }
@@ -115,15 +114,15 @@ export function buildThumbnail(events: AlbumListEventSource): HTMLElement {
   return e.get();
 }
 
-export async function makeThumbnailManager() {
+export async function makeThumbnailManager(elementPrefix: string, selectionManager: SelectionManager) {
   const s = await getService();
   s.on(
     "picasaFileMetaChanged",
-    async (e: { payload: { entry: AlbumEntry; picasa: PicasaFileMeta } }) => {
+    async (e: { payload: AlbumEntryPicasa }) => {
       // Is there a thumbnail with that data ?
-      const elem = elementFromEntry(e.payload.entry, elementPrefix);
+      const elem = elementFromEntry(e.payload, elementPrefix);
       if (elem) {
-        thumbnailData(elem, e.payload.entry, e.payload.picasa);
+        thumbnailData(elem, e.payload, e.payload.picasa, selectionManager, elementPrefix);
       }
     }
   );
@@ -148,8 +147,8 @@ export async function makeThumbnailManager() {
   const settings = getSettings();
   thumbnailRule.style.width = `${settings.iconSize}px`;
   thumbnailRule.style.height = `${settings.iconSize}px`;
-}
-SelectionManager.get().events.on("added", ({ key }) => {
+
+selectionManager.events.on("added", ({ key }) => {
   // Element might be not displayed
   try {
     const e = elementFromEntry(key, elementPrefix);
@@ -157,7 +156,7 @@ SelectionManager.get().events.on("added", ({ key }) => {
       e.addClass("selected");
   } catch (e) { }
 });
-SelectionManager.get().events.on("removed", ({ key }) => {
+selectionManager.events.on("removed", ({ key }) => {
   // Element might be not displayed
   try {
     const e = elementFromEntry(key, elementPrefix);
@@ -165,18 +164,21 @@ SelectionManager.get().events.on("removed", ({ key }) => {
       e.removeClass("selected");
   } catch (e) { }
 });
-
+}
 export async function thumbnailData(
   e: _$,
   entry: AlbumEntry,
-  picasaData: PicasaFileMeta
+  picasaData: PicasaFileMeta,
+  selectionManager: SelectionManager,
+  elementPrefix:string
 ) {
   const thumb = $("img", e);
+  const imagePrefix = 'img:'+ elementPrefix;
 
   setIdForEntry(e, entry, elementPrefix);
   setIdForEntry(thumb, entry, imagePrefix);
 
-  if (SelectionManager.get().isSelected(entry)) {
+  if (selectionManager.isSelected(entry)) {
     $(e).addClass("selected");
   } else {
     $(e).removeClass("selected");
@@ -200,7 +202,9 @@ export async function thumbnailData(
 export function selectThumbnailsInRect(
   container: _$,
   p1: { x: number; y: number },
-  p2: { x: number; y: number }
+  p2: { x: number; y: number },
+  selectionManager: SelectionManager,
+  elementPrefix: string
 ) {
   var rect = container.clientRect();
   for (const e of container.all(".browser-thumbnail")) {
@@ -219,13 +223,13 @@ export function selectThumbnailsInRect(
         }
       )
     ) {
-      const entry = albumEntryFromElement(e, imagePrefix);
-      if (entry) SelectionManager.get().select(entry);
+      const entry = albumEntryFromElement(e, elementPrefix);
+      if (entry) selectionManager.select(entry);
     }
   }
 }
 export function thumbnailsAround(container: _$,
-  p: Point): { entry: AlbumEntry, leftOf: boolean } {
+  p: Point, elementPrefix:string): { entry: AlbumEntry, leftOf: boolean } {
   function distanceTo(p: Point, r: Rectangle): { distance: number, leftOf: boolean } {
     // Over an existing one
     if (p.y > r.topLeft.y && p.y < r.bottomRight.y && p.x > r.topLeft.x && p.x < r.bottomRight.x) {
@@ -267,10 +271,12 @@ export function thumbnailsAround(container: _$,
 export function makeNThumbnails(
   domElement: _$,
   count: number,
-  events: AlbumListEventSource
+  events: AlbumListEventSource,
+  selectionManager: SelectionManager,
+  elementPrefix:string
 ) {
   while (domElement.get().children.length < count) {
-    domElement.append(buildThumbnail(events));
+    domElement.append(buildThumbnail(events,selectionManager, elementPrefix));
   }
   /*for (const i of domElement.all(".img")) {
     i.attr("src", "");

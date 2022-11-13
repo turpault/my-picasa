@@ -1,4 +1,4 @@
-import { sortByKey } from "../shared/lib/utils";
+import { albumInFilter, removeDiacritics, sortByKey } from "../shared/lib/utils";
 import {
   Album,
   AlbumChangeEvent,
@@ -14,6 +14,8 @@ export type AlbumSortOrder = "ReverseDate" | "ForwardDate";
 export class AlbumIndexedDataSource {
   constructor() {
     this.albums = [];
+    this.allAlbums = [];
+    this.filter = null;
     this.shortcuts = {};
     this.sort = "ReverseDate";
     const albumEmitter = buildEmitter<AlbumListEvent>();
@@ -26,42 +28,48 @@ export class AlbumIndexedDataSource {
     return new Promise<void>((resolve) => {
       s.monitorAlbums();
       let gotEvent = false;
+      s.on("shortcutsUpdated", async () => {
+        this.shortcuts = await s.getShortcuts();
+      });
       this.unreg = s.on("albumEvent", async (e: any) => {
         let invalidationsFrom = [],
           invalidationsTo = [];
         for (const event of e.payload as AlbumChangeEvent[]) {
-          if(!gotEvent && event.type !=="albums") {
+          if (!gotEvent && event.type !== "albums") {
             continue;
           }
           switch (event.type) {
-            case "shortcutsUpdated": 
-            this.shortcuts = await s.getShortcuts();
-            break;
             case "albums":
-              gotEvent = true;
-              this.albums = event.albums!;
-              this.sortFolders();
-              invalidationsFrom.push(0);
-              resolve();
+              {
+                gotEvent = true;
+                this.allAlbums = event.albums!;
+                this.sortFolders();
+                invalidationsFrom.push(0);
+                resolve();
+              }
               break;
             case "albumDeleted":
               invalidationsFrom.push(this.removeAlbum(event.album!));
               break;
             case "albumInfoUpdated":
-              const albumIdx = this.updatedAlbum(event.album!);
-              if(albumIdx) {
-                invalidationsFrom.push(albumIdx);
-                invalidationsTo.push(albumIdx);
+              {
+                const up = this.updatedAlbum(event.album!);
+                if (up) {
+                  invalidationsFrom.push(up.idx);
+                  invalidationsTo.push(up.idx2);
+                }
               }
               break;
             case "albumOrderUpdated":
               invalidationsFrom.push(this.updatedAlbum(event.album!));
               break;
             case "albumMoved":
-              const up = this.movedAlbum(event.album!, event.altAlbum!);
-              if (up) {
-                invalidationsFrom.push(up.idx);
-                invalidationsTo.push(up.idx2);
+              {
+                const up = this.movedAlbum(event.album!, event.altAlbum!);
+                if (up) {
+                  invalidationsFrom.push(up.idx);
+                  invalidationsTo.push(up.idx2);
+                }
               }
               break;
             case "albumAdded":
@@ -72,7 +80,7 @@ export class AlbumIndexedDataSource {
           (v) => v !== undefined
         ) as number[];
         const to = invalidationsTo.filter((v) => v !== undefined) as number[];
-        if (from.length === 1 && to.length === 1 && from[0] === to[0]) {
+        if (Math.min(...from) === Math.min(...to) && Math.max(...from) === Math.max(...to)) {
           this.emitter.emit("invalidateAt", { index: from[0] });
         } else {
           this.emitter.emit("invalidateFrom", {
@@ -86,24 +94,19 @@ export class AlbumIndexedDataSource {
     if (this.unreg) this.unreg();
   }
 
-  async filter(filter: string) {
-    this.resync(filter);
-  }
-  
-  async resync(filter: string) {
-    const lst = await filteredAlbums(filter);
-    this.albums = lst;
+  async setFilter(filter: string) {
+    this.filter = removeDiacritics(filter.toLowerCase());
     this.sortFolders();
-    this, this.emitter.emit("invalidateFrom", { index: 0 });
+    this.emitter.emit("invalidateFrom", { index: 0 });
   }
 
   private addAlbum(album: AlbumWithData) {
     // Find at which index the album should be added
-    let index = this.albums.findIndex((a) => a.key === album.key);
+    let index = this.allAlbums.findIndex((a) => a.key === album.key);
     if (index !== -1) {
       return;
     }
-    this.albums.push(album);
+    this.allAlbums.push(album);
     this.sortFolders();
     // find where the album is, and invalidate from that point
     index = this.albums.findIndex((a) => a.key === album.key);
@@ -114,13 +117,16 @@ export class AlbumIndexedDataSource {
   }
 
   private movedAlbum(from: AlbumWithData, to: AlbumWithData) {
-    const idx = this.albums.findIndex((a) => a.key === from.key);
-    if (idx !== -1) {
-      this.albums.splice(idx, 1);
-      this.albums.push(to);
+    const idxAll = this.allAlbums.findIndex((a) => a.key === from.key);
+    if (idxAll !== -1) {
+      const idx = this.albums.findIndex((a) => a.key === from.key);
+      this.allAlbums.splice(idx, 1);
+      this.allAlbums.push(to);
       this.sortFolders();
-      const idx2 = this.albums.findIndex((a) => a.key === to.key);
-      return { idx, idx2 };
+      if(idx) {
+        const idx2 = this.albums.findIndex((a) => a.key === to.key);
+        return { idx, idx2 };
+      }
     }
     return;
   }
@@ -134,22 +140,31 @@ export class AlbumIndexedDataSource {
     return;
   }
   private updatedAlbum(album: AlbumWithData) {
-    const idx = this.albums.findIndex((a) => a.key === album.key);
-    if (idx !== -1) {
-      this.albums[idx] = album;
-      this.emitter.emit("invalidateAt", {
-        index: this.albums.findIndex((a) => a.key === album.key),
-      });
-      return idx;
-    }
-    return;
+    return this.movedAlbum(album, album);
   }
 
-  albumAtIndex(index: number): AlbumWithData {
-    if (index > this.albums.length) {
+  albumAtIndex(index: number): AlbumWithData & { yearSep: string } {
+    if (index >= this.albums.length) {
       throw new Error("out of bounds");
     }
-    return this.albums[index];
+    let yearSep = "";
+    const kind = (album: AlbumWithData) => {
+      return album.shortcut ? "Shortcut" : "Album";
+    };
+    const k = kind(this.albums[index]);
+    if (index === 0) {
+      yearSep = k;
+    } else {
+      if (k !== kind(this.albums[index - 1])) {
+        yearSep = k;
+      } else if (!this.albums[index].shortcut) {
+        const year = this.albums[index].name.slice(0, 4);
+        if (this.albums[index - 1].name.slice(0, 4) !== year) {
+          yearSep = year;
+        }
+      }
+    }
+    return { ...this.albums[index], yearSep };
   }
 
   albumIndexFromKey(key: string): number {
@@ -161,11 +176,18 @@ export class AlbumIndexedDataSource {
   }
 
   private sortFolders() {
-    sortByKey(this.albums, "name", this.sort.includes("Reverse"));
+    this.albums = this.allAlbums.filter(a => this.filter === null ? true : albumInFilter(a, this.filter));
+    sortByKey(
+      this.albums,
+      ["shortcut", "name"],
+      [false, this.sort.includes("Reverse")]
+    );
   }
 
   private albums: AlbumWithData[];
-  public shortcuts: {[shortcut: string]: Album};
+  private allAlbums: AlbumWithData[];
+  private filter: string | null;
+  public shortcuts: { [shortcut: string]: Album };
   public emitter: Emitter<AlbumListEvent>;
   private sort: AlbumSortOrder;
   private unreg: Function | undefined;

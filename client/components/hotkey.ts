@@ -19,6 +19,11 @@ export function makeHotkeys(emitter: AppEventSource) {
     ev.preventDefault();
     emitter.emit("keyDown", {
       code: ev.code,
+      key: ev.key,
+      meta: ev.metaKey,
+      ctrl: ev.ctrlKey,
+      shift: ev.shiftKey,
+      alt: ev.altKey,
       win: _activeTab.win,
     });
   });

@@ -460,6 +460,7 @@ export async function transform(
 
         const angle = parseFloat(args[1]);
         let c = j.clone();
+        const text = decodeURIComponent(args[2]);
         const metadata = await c.metadata();
         const w = metadata.width!;
         const h = metadata.height!;
@@ -490,13 +491,12 @@ export async function transform(
             raw: info,
           },
         ];
-        const o = options.get(context);
-        if (o && o.caption) {
+        if (text) {
           const txtSvg = `<svg height="${Math.floor(
             h / 3
           )}" width="${Math.floor(w * 0.8)}"> <text x="0" y="${Math.floor(
             h / 5
-          )}" font-size="${Math.floor(w / 20)}" fill="#000000">${o.caption
+          )}" font-size="${Math.floor(w / 20)}" fill="#000000">${text
             }</text> </svg>`;
           layers.push({ input: Buffer.from(txtSvg), gravity: "south" });
         }

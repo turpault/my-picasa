@@ -11,18 +11,21 @@ export function setupPolaroid(
 ) {
   const name = "Polaroid";
   toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
-    multiple: true,
+    multipleFamily: name,
     filterName: name,
     enable: (e) => isPicture(e),
-    build: function (angle: number, bgcolor: string) {
-      return `${this.filterName}=1,${angle},${bgcolor.replace("#", "")}`;
+    build: function (angle: number, bgcolor: string, text: string) {
+      return {
+        name: this.filterName,
+        args:['1', angle.toString(), bgcolor.replace("#", ""), encodeURIComponent(text)]
+      }
     },
     icon: async function (context) {
-      await transform(context, this.build(10, "#ffffff"));
+      await transform(context, [this.build(10, "#ffffff", 'preview')]);
       return true;
     },
     activate: async function () {
-      imageController.addOperation(this.build(10, "#000000"));
+      imageController.addOperation(this.build(10, "#000000", ''));
       return true;
     },
     buildUI: function (index: number, args: string[]) {
@@ -36,13 +39,18 @@ export function setupPolaroid(
           <label >Background</label>
           <input type="color" class="colorpicker" value="#ffffff">      
         </div>
+        <div class="tool-control">
+          <label>Text</label>
+          <input class="tool-text" value="">      
+        </div>
       <div>
     </div>
     </div>`);
       const update = () => {
         const color = $(".colorpicker", e).val();
         const angle = $(".angle", e).val();
-        imageController.updateOperation(index, this.build(angle, color));
+        const text = $(".tool-text", e).val();
+        imageController.updateOperation(index, this.build(angle, color, text));
       };
       // Convert argb to rgb
       const cols = fromHex(args[2]);
@@ -52,9 +60,11 @@ export function setupPolaroid(
       }
       $(".colorpicker", e).val("#" + rgb);
       $(".angle", e).val(parseInt(args[1]));
+      $(".tool-text", e).val(decodeURIComponent(args[2]));
 
       $(".colorpicker", e).on("change", update);
       $(".angle", e).on("change", update);
+      $(".tool-text", e).on("change", update);
       return { ui: e.get()! };
     },
   });

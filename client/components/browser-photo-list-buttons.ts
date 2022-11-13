@@ -1,38 +1,44 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
 import {
   Album,
+  AlbumEntry,
   JOBNAMES,
   PicasaFileMeta,
+  PicasaFolderMeta,
   undoStep,
 } from "../../shared/types/types";
+import { thumbnailUrl } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
 import {
   getSettings,
   getSettingsEmitter,
+  Settings,
   updateFilterByStar,
   updateFilterByVideos,
   updateIconSize,
 } from "../lib/settings";
+import { debounce } from "../../shared/lib/utils";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
-import { AlbumListEventSource, AppEventSource } from "../uiTypes";
+import { AppEventSource } from "../uiTypes";
 import { DropListEvents, makeDropList } from "./controls/dropdown";
 import { question } from "./question";
 import { t } from "./strings";
+import { activeTabContext } from "./tabs";
+import { toggleStar } from "../lib/handles";
+import { animateStar } from "./animations";
 const html = `<div class="bottom-list-tools">
+<div class="w3-bar buttons">
+</div>
+<div class="selection-thumbs">
+</div>
 <div class="zoom-photo-list">
   <label>${t("Icon Size")}</label>
   <input type="range" min="75" max="250" class="photos-zoom-ctrl slider">
 </div>
-<div class="w3-bar buttons">
-</div>
 </div>`;
 
-export async function makeButtons(
-  appEvents: AppEventSource,
-  _events: AlbumListEventSource
-): Promise<_$> {
-  const s = await getService();
+export function makeButtons(appEvents: AppEventSource): _$ {
   const container = $(html);
   const buttons = $(".buttons", container);
   const zoomController = $(".photos-zoom-ctrl", container);
@@ -44,192 +50,223 @@ export async function makeButtons(
     if (event.field === "iconSize") zoomController.val(event.iconSize);
   });
   zoomController.val(getSettings().iconSize);
+  const state: {
+    settings: Settings,
+    tabKind:string;
+    selection: AlbumEntry[],
+    picasa: PicasaFolderMeta;
+    undo: undoStep[]
+  } = {
+    settings: getSettings(),
+    selection: [],
+    picasa: {},
+    tabKind: '',
+    undo: []
+  }
 
-  type Actions = {
-    enable: {
-      enabled: boolean;
-    };
-    tooltip: {
-      text: string;
-    };
-  };
-  const actions: {
-    name: string;
-    icon: string;
-    element?: _$;
-    type?: "button" | "dropdown" | "sep";
-    click?: (ev: MouseEvent) => any;
-    displayed?: (element: _$, actions: Emitter<Actions>) => any;
-    dropdownReady?: (emitter: Emitter<DropListEvents>) => any;
-    needSelection: boolean;
-  }[] = [
+  const actions: (
+    | {
+        name: string;
+        icon: string;
+        element?: _$;
+        type?: "button" | "dropdown";
+        click?: (ev: MouseEvent) => any;
+        tooltip?: ()=> string;
+        visible?: ()=>boolean;
+        enabled?: ()=>boolean;
+        highlight?: ()=>boolean;
+        dropdownReady?: (emitter: Emitter<DropListEvents>) => any;        
+      }
+    | { element?: _$; click?: (ev: MouseEvent) => any; type: "sep" }
+  )[] = [
     {
-      name: t("Export Favorites"),
+      name: t("Export All Favorites"),
       icon: "resources/images/icons/actions/export-favorites-50.png",
-      needSelection: false,
+      visible: ()=> state.tabKind === 'Browser',
       click: async (ev: MouseEvent) => {
+        const s = await getService();
         s.createJob(JOBNAMES.EXPORT_TO_IPHOTO, {});
       },
     },
     {
-      name: t("Undo"),
-      icon: "resources/images/icons/actions/undo-50.png",
-      needSelection: false,
-      displayed: async (_element, actions) => {
+      name: t("Export selection to folder"),
+      icon: "resources/images/icons/actions/export-50.png",
+      visible: ()=> state.tabKind === 'Browser',
+      enabled: () => state.selection.length > 0,
+      click: async (ev: MouseEvent) => {
+        if(state.selection.length >0) {
         const s = await getService();
-        s.on("undoChanged", undoChanged);
-
-        async function undoChanged() {
-          const undo = ((await s.undoList()) as undoStep[]).reverse()[0];
-          if (undo) {
-            actions.emit("enable", { enabled: true });
-            actions.emit("tooltip", { text: t("Undo") + ' ' + t(undo.description) });
-          } else {
-            actions.emit("enable", { enabled: false });
-          }
-        }
-        await undoChanged();
-      },
-      click: async (_ev: MouseEvent) => {
-        const s = await getService();
-        const undo = ((await s.undoList()) as undoStep[]).reverse()[0];
-        s.undo(undo.uuid);
+        s.createJob(JOBNAMES.EXPORT, {
+          source: state.selection,
+        });
+      }
       },
     },
     {
+      name: t("Export displayed image to folder"),
+      icon: "resources/images/icons/actions/export-50.png",
+      enabled: () => state.selection.length > 0,
+      visible: ()=> state.tabKind === 'Editor',
+      click: async (ev: MouseEvent) => {
+        if(state.selection.length >0) {
+        const s = await getService();
+        s.createJob(JOBNAMES.EXPORT, {
+          source: state.selection,
+        });
+      }
+      },
+    },
+    { type: "sep" },
+
+    {
       name: t("View starred only"),
       icon: "resources/images/icons/actions/filter-star-50.png",
-      needSelection: false,
-      displayed: (element: _$) => {
-        function updateSettings() {
-          const settings = getSettings();
-          element.addRemoveClass("highlight", settings.filters.star);
-        }
-        updateSettings();
-        getSettingsEmitter().on("changed", updateSettings);
-      },
+      highlight: () => state.settings.filters.star,
+      visible: ()=>state.tabKind === 'Browser',
       click: async (ev: MouseEvent) => {
-        updateFilterByStar(!getSettings().filters.star);
+        updateFilterByStar(!state.settings.filters.star);
       },
     },
     {
       name: t("View videos only"),
       icon: "resources/images/icons/actions/filter-video-50.png",
-      needSelection: false,
-      displayed: (element: _$) => {
-        function updateSettings() {
-          const settings = getSettings();
-          element.addRemoveClass("highlight", settings.filters.video);
-        }
-        updateSettings();
-        getSettingsEmitter().on("changed", updateSettings);
-      },
+      highlight: () => state.settings.filters.video,
+      visible: ()=>state.tabKind === 'Browser',
       click: async (ev: MouseEvent) => {
-        updateFilterByVideos(!getSettings().filters.video);
+        updateFilterByVideos(!state.settings.filters.video);
       },
     },
     {
-      name: "sep",
-      type: "sep",
-      icon: "",
-      needSelection: false
+      type: "sep"
     },
     {
-      name: t("Open in Finder"),
-      icon: "resources/images/icons/actions/finder-50.png",
-      needSelection: true,
-      click: (ev: MouseEvent) => {
-        const firstSelection = SelectionManager.get().selected()[0];
-        if (firstSelection) s.openInFinder(firstSelection.album);
-      },
-    },
-    {
-      name: t("Export to folder"),
-      icon: "resources/images/icons/actions/export-50.png",
-      needSelection: true,
-      click: (ev: MouseEvent) => {
-        s.createJob(JOBNAMES.EXPORT, {
-          source: SelectionManager.get().selected(),
-        });
-      },
-    },
-    {
-      name: t("Duplicate"),
+      name: t("Clone Selection"),
       icon: "resources/images/icons/actions/duplicate-50.png",
-      needSelection: true,
-      click: (ev: MouseEvent) => {
+      visible: ()=> state.tabKind === 'Browser',
+      click: async (ev: MouseEvent) => {
+        const s = await getService();
         s.createJob(JOBNAMES.DUPLICATE, {
-          source: SelectionManager.get().selected(),
+          source: state.selection,
         });
       },
     },
     {
-      name: t("Move to new Album"),
+      name: t("Move selection to new Album"),
       icon: "resources/images/icons/actions/move-to-new-album-50.png",
-      needSelection: true,
+      enabled: () => state.selection.length > 0,
+      visible: ()=> state.tabKind === 'Browser',
       click: (ev: MouseEvent) => {
         question("New album name", "Please type the new album name").then(
-          (newAlbum) => {
+          async (newAlbum) => {
             if (newAlbum) {
+              const s = await getService();
               s.makeAlbum(newAlbum).then((album: Album) => {
                 s.createJob(JOBNAMES.MOVE, {
-                  source: SelectionManager.get().selected(),
+                  source: state.selection,
                   destination: { album },
                 });
-                SelectionManager.get().clear();
               });
             }
           }
         );
       },
     },
-
     {
-      name: t("Rotate"),
-      icon: "resources/images/icons/actions/rotate-50.png",
-      needSelection: true,
+      name: t("Add/Remove favorite"),
+      icon: "resources/images/icons/actions/favorites-50.png",
+      enabled: () => state.selection.length > 0,
+      highlight: ()=> state.selection.length > 0 ? !!state.picasa[state.selection[0].name]?.star : false,
       click: async (ev: MouseEvent) => {
-        for (const e of SelectionManager.get().selected()) {
-          const p = (await s.readPicasaEntry(e)) as PicasaFileMeta;
-          if (p.filters) {
-            p.filters += ";";
-          } else {
-            p.filters = "";
-          }
-          // TODO: Ugly
-          p.filters += "rotate=1,1";
-          s.updatePicasaEntry(e, "filters", p.filters);
-        }
+        const target = await toggleStar(state.selection);
+        animateStar(target);
+      },
+    },
+    {
+      name: t("Rotate Selected Left"),
+      icon: "resources/images/icons/actions/rotate-left-50.png",
+      enabled: () => state.selection.length > 0,
+      click: async (ev: MouseEvent) => {
+        const s = await getService();
+        s.rotate(state.selection, 'left');
+      },
+    },
+    {
+      name: t("Rotate Selected Right"),
+      icon: "resources/images/icons/actions/rotate-right-50.png",
+      enabled: () => state.selection.length > 0,
+      click: async (ev: MouseEvent) => {
+        const s = await getService();
+        s.rotate(state.selection, 'right');
       },
     },
 
+
     {
-      name: t("Composition"),
+      name: t("Create Composition"),
       icon: "resources/images/icons/actions/composition-50.png",
-      needSelection: true,
+      enabled: () => state.selection.length > 0,
+      visible: ()=> state.tabKind === 'Browser',
       click: (ev: MouseEvent) => {
         appEvents.emit("composite", {
-          initialList: SelectionManager.get().selected(),
+          initialList: state.selection,
           initialIndex: 0,
         });
       },
     },
     {
+      name: t("Create Slideshow"),
+      icon: "resources/images/icons/actions/slideshow-50.png",
+      enabled: () => state.selection.length > 0,
+      visible: () => false,
+      click: (ev: MouseEvent) => {
+        appEvents.emit("composite", {
+          initialList: state.selection,
+          initialIndex: 0,
+        });
+      },
+    },
+    { type: "sep" },
+    {
+      name: t("Undo"),
+      icon: "resources/images/icons/actions/undo-50.png",
+      enabled: () => state.undo.length >0,
+      visible: ()=> state.tabKind === 'Browser',
+      tooltip: ()=> state.undo.length > 0 ? `${t("Undo")} ${ t(state.undo[0].description)}` : t('Nothing to undo'),
+      click: async (_ev: MouseEvent) => {
+        const s = await getService();
+        const undo = state.undo[0];
+        s.undo(undo.uuid);
+      },
+    },
+    { type: "sep" },
+    {
+      name: t("Open in Finder"),
+      icon: "resources/images/icons/actions/finder-50.png",
+      enabled: () => state.selection.length > 0,
+      visible: ()=> state.tabKind === 'Browser' || state.tabKind === 'Editor',
+      click: async (ev: MouseEvent) => {
+        const s = await getService();
+        const firstSelection = state.selection[0];
+        if (firstSelection) s.openEntryInFinder(firstSelection);
+      },
+    },    
+    {
       name: t("Delete"),
       icon: "resources/images/icons/actions/trash-50.png",
-      needSelection: true,
-      click: (ev: MouseEvent) => {
+      enabled: () => state.selection.length > 0,
+      visible: ()=> state.tabKind === 'Browser',
+      click: async (ev: MouseEvent) => {
+        const s = await getService();
         s.createJob(JOBNAMES.DELETE, {
-          source: SelectionManager.get().selected(),
+          source: state.selection,
         });
-        SelectionManager.get().clear();
       },
     },
   ];
   for (const action of actions) {
     switch (action.type) {
       case "sep":
-        action.element = $(`<span style="width:20px"/>`);
+        action.element = $(`<span class="button-separator"/>`);
         break;
       case "dropdown":
         const { element, emitter } = makeDropList("", [], 0);
@@ -243,35 +280,61 @@ export async function makeButtons(
 
       case "button":
       case undefined:
-        action.element = $(`<button data-tooltip-below="${action.name}"
-      class="w3-button" style="background-image: url(${action.icon})"></button>`);
+        action.element = $(`<button data-tooltip-above="${action.name}"
+      class="w3-button bottom-bar-button" style="background-image: url(${action.icon})"></button>`);
         break;
     }
-    if (action.click) action.element.on("click", action.click);
-    if (action.displayed) {
-      const em = buildEmitter<Actions>();
-      em.on("enable", (ev) => {
-        action.element!.addRemoveClass("disabled", !ev.enabled);
-      });
-      em.on("tooltip", (ev) => {
-        action.element!.attr("data-tooltip-below", ev.text);
-      });
-      action.displayed(action.element, em);
-    }
+    if (action.click) action.element.on("click", action.click);   
     buttons.append(action.element);
   }
-  function enable() {
-    const hasSelection = SelectionManager.get().selected().length != 0;
+
+  async function refreshState() {
+    const s = await getService();
+    const oldSelection =state.selection;
+    state.settings = getSettings();
+    state.selection = activeTabContext().selectionManager.selected();
+    state.tabKind = activeTabContext().kind;
+    state.undo = ((await s.undoList()) as undoStep[]).reverse();
+    state.picasa = state.selection.length > 0 ? await s.readPicasaIni(state.selection[0].album) : {};
+
     for (const action of actions) {
-      action.element!.removeClass("disabled");
-      if (action.needSelection === true) {
-        if (!hasSelection) {
-          action.element!.addClass("disabled");
-        }
+      if (action.type !== "sep") {
+        action.element!.addRemoveClass("disabled", !!action.enabled && !action.enabled() );
+        action.element!.addRemoveClass("highlight", !!action.highlight && action.highlight() );
+        action.element!.addRemoveClass("hidden", !!action.visible && !action.visible() );
+        if(action.tooltip)
+          action.element!.attr("data-tooltip-above", action.tooltip());
       }
     }
+    function selectionHash(entries: AlbumEntry[]) {
+      return entries.map(e=>e.name).sort().join();
+    }
+    if(selectionHash(oldSelection) !== selectionHash(state.selection)) {
+    const lst = $(".selection-thumbs", container);
+    lst.empty();
+    state.selection.forEach((entry) => {
+      lst.append(
+        `<div class="selection-thumb" style="background-image: url(${thumbnailUrl(entry, "th-small")})"/>`
+      );
+    });
+    lst.append(
+      `<span class="selection-thumb-count">${
+        state.selection.length.toString() +
+        " " +
+        t("photos selected")
+      }</span>`
+    );
+    }
+
   }
-  enable();
-  SelectionManager.get().events.on("*", enable);
+  getSettingsEmitter().on("changed", refreshState);
+  appEvents.on('tabDisplayed', ({context})=>{
+    context.selectionManager.events.on('*', ()=>debounce(refreshState, 200));
+  });
+  getService().then(s => {
+    s.on("undoChanged", refreshState);
+    s.on("picasaFileMetaChanged", refreshState);
+  });
+  appEvents.on("tabChanged", refreshState);
   return container;
 }
