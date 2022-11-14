@@ -7,6 +7,7 @@ import { $, _$ } from "../lib/dom";
 import { buildEmitter } from "../../shared/lib/event";
 import { ImagePanZoomController } from "../lib/panzoom";
 import { setupCropPreview, ValueChangeEvent } from "./previews/crop-preview";
+import { t } from "../components/strings";
 
 export function setupCrop(
   container: _$,
@@ -14,7 +15,7 @@ export function setupCrop(
   imageController: ImageController,
   toolRegistrar: ToolRegistrar
 ) {
-  const name = "Crop";
+  const name = t("Crop");
 
   const emitter = buildEmitter<ValueChangeEvent>();
   const preview = setupCropPreview(container, emitter, panZoomCtrl);
@@ -49,7 +50,7 @@ export function setupCrop(
     enable: (e) => isPicture(e),
     icon: async function (context) {
       // Crop at 50%
-      await transform(context, [this.build(0.25, 0.25, 0.75, 0.75)]);
+      await transform(context, [this.build({left:0.25, top:0.25, right:0.75, bottom:0.75})]);
       return true;
     },
     editable: true,

@@ -40,9 +40,33 @@ const stringTable: { [key: string]: any } = {
   ISO: { fr: "ISO" },
   "Exposure Time": { fr: "Temps d'exposition" },
   "F-Number": { fr: "Ouverture (F-Number)" },
-  "Sort by Name": {fr:"Trier par nom"},
-"Sort by Date": {fr:"Trier par date"},
-"Reverse Sort": {fr:"Inverser le tri"},
+  "Sort by Name": { fr: "Trier par nom" },
+  "Sort by Date": { fr: "Trier par date" },
+  "Reverse Sort": { fr: "Inverser le tri" },
+  "No description": { fr: "Aucune description" },
+  Effects: { fr: "Effets" },
+  Album: { fr: "Album" },
+  "Export All Favorites": { fr: "Exporter les préférées" },
+  "Export selection to folder": { fr: "Exporter la sélection" },
+  "Export displayed image to folder": { fr: "Exporter l'image affichée" },
+  "Clone Selection": { fr: "Cloner la selection" },
+  "Move selection to new Album": {
+    fr: "Déplacer la selection vers un nouvel album",
+  },
+  "Add/Remove favorite": { fr: "Ajouter/Enlever des préférées" },
+  "Rotate Selected Left": { fr: "Tourner l'image a gauche" },
+  "Rotate Selected Right": { fr: "Tourner l'image a droite" },
+  "Create Composition": { fr: "Créer une composition" },
+  "Create Slideshow": { fr: "Créer une animation" },
+  "Nothing to undo": { fr: "Rien a annuler" },
+  "Select shortcut for this folder": {
+    fr: "Sélectionner le raccourci pour cet album",
+  },
+  Description: { fr: "Description" },
+  "photos selected": { fr: "photos sélectionnées" },
+  "More...": { fr: "Plus..." },
+  "Do you want to delete $1 files": { fr: "Voulez-vous effacer $1 fichiers" },
+  "Delete $1 files...": { fr: "Effacer $1 fichier..." },
 };
 const lang = window.navigator.language.split("-")[0];
 let str = new Set<string>();
@@ -50,9 +74,9 @@ export function t(s: string) {
   const elements = s.split("|");
   let res = stringTable[elements[0]]?.[lang];
   if (!res) {
-    if(lang !== "en") {
+    if (lang !== "en") {
       str.add(`"${s}": {fr:"${s}"},`);
-      console.log('Missing strings', Array.from(str).join('\n'));
+      console.log("Missing strings", Array.from(str).join("\n"));
     }
     res = elements[0];
   }

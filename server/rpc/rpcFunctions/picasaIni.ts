@@ -81,13 +81,14 @@ export async function readPicasaIni(album: Album): Promise<PicasaFolderMeta> {
     if(i.Picasa && i.Picasa.name && i.Picasa.name !== album.name) {
       i.Picasa.name = album.name;
     }
-    if(i?.Picasa.shortcut !== undefined && !shortcuts[i.Picasa.shortcut]) {
+    if(i?.Picasa?.shortcut !== undefined && !shortcuts[i.Picasa.shortcut]) {
       shortcuts[i.Picasa.shortcut] =  album;
       broadcast('shortcutsUpdated', {});
     }
 
     picasaMap.set(album.key, i);
   } catch (e: any) {
+    console.error(`Error reading .ini file: ${e.message}`);
     picasaMap.set(album.key, {});
   }
   l();
@@ -266,7 +267,7 @@ export async function updatePicasaEntry(
     }
   }
 
-  if (["filters", "caption", "text", "rotate", "star"].includes(field)) {
+  if (["filters", "caption", "rotate", "star"].includes(field)) {
     broadcast("picasaFileMetaChanged", { ...entry, picasa: picasa[entry.name] } as AlbumEntryPicasa);
   }
   return writePicasaIni(entry.album, picasa);

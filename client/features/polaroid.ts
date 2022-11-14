@@ -4,12 +4,13 @@ import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
 import { $ } from "../lib/dom";
 import { fromHex, isPicture, toHex2 } from "../../shared/lib/utils";
+import { t } from "../components/strings";
 
 export function setupPolaroid(
   imageController: ImageController,
   toolRegistrar: ToolRegistrar
 ) {
-  const name = "Polaroid";
+  const name = t("Polaroid");
   toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
     multipleFamily: name,
     filterName: name,
@@ -60,7 +61,7 @@ export function setupPolaroid(
       }
       $(".colorpicker", e).val("#" + rgb);
       $(".angle", e).val(parseInt(args[1]));
-      $(".tool-text", e).val(decodeURIComponent(args[2]));
+      $(".tool-text", e).val(decodeURIComponent(args[3]));
 
       $(".colorpicker", e).on("change", update);
       $(".angle", e).on("change", update);

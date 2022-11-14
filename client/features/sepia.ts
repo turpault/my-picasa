@@ -3,12 +3,13 @@ import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
 import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
 import { isPicture } from "../../shared/lib/utils";
+import { t } from "../components/strings";
 
 export function setupSepia(
   imageController: ImageController,
   toolRegistrar: ToolRegistrar
 ) {
-  const name = "Sepia";
+  const name = t("Sepia");
   toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
     multipleFamily: name,
     filterName: "sepia",

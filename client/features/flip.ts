@@ -3,12 +3,13 @@ import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
 import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
 import { isPicture } from "../../shared/lib/utils";
+import { t } from "../components/strings";
 
 export function setupFlip(
   imageController: ImageController,
   toolRegistrar: ToolRegistrar
 ) {
-  const name = "Flip";
+  const name = t("Flip");
   toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
     multipleFamily: name,
     filterName: "flip",

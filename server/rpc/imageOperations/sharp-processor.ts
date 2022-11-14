@@ -75,8 +75,6 @@ export async function cloneContext(context: string): Promise<string> {
   const j = getContext(context);
   const contextId = uuid();
   setContext(contextId, j.clone());
-  console.info('Created context', contextId);
-
   return contextId;
 }
 
@@ -599,7 +597,6 @@ export async function setOptions(
 }
 
 export async function destroyContext(context: string): Promise<void> {
-  console.info('Destroying context', context);
   contexts.delete(context);
 }
 

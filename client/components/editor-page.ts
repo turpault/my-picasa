@@ -187,7 +187,7 @@ export async function makeEditorPage(
           "picasaFileMetaChanged",
           async (e: { payload: AlbumEntryPicasa }) => {
             if(e.payload.album.key === activeManager.active().album.key && e.payload.name === activeManager.active().name) {
-              imageController.display(e.payload);
+              imageController.update(e.payload);
             }
           }
         )

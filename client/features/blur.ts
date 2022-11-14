@@ -4,12 +4,13 @@ import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
 import { $ } from "../lib/dom";
 import { isPicture } from "../../shared/lib/utils";
+import { t } from "../components/strings";
 
 export function setupBlur(
   imageController: ImageController,
   toolRegistrar: ToolRegistrar
 ) {
-  const name = "Blur";
+  const name = t("Blur");
   toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
     multipleFamily: name,
     filterName: "blur",
