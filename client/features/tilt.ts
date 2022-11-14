@@ -1,6 +1,7 @@
 import { buildEmitter } from "../../shared/lib/event";
 import { isPicture } from "../../shared/lib/utils";
 import { ImageController } from "../components/image-controller";
+import { t } from "../components/strings";
 import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
 import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
@@ -24,7 +25,7 @@ export function setupTilt(
   imageCtrl: ImageController,
   toolRegistrar: ToolRegistrar
 ) {
-  const name = "Tilt";
+  const name = t("Tilt");
   let activeIndex: number = -1;
   let _deactivate: ((commit: boolean) => void) | undefined;
   const emitter = buildEmitter<ValueChangeEvent>();

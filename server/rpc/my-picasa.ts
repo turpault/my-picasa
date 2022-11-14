@@ -120,7 +120,7 @@ export const MyPicasa: ServiceMap = {
     },
     setRank: {
       handler: setRank,
-      arguments: ["entry:string", "rank:number"],
+      arguments: ["entry:string", "rank:integer"],
     },
     readPicasaIni: {
       handler: readPicasaIni,
@@ -168,7 +168,7 @@ export const MyPicasa: ServiceMap = {
     },
     exception: {
       handler: clientException,
-      arguments: ["message:string", "file:string", "line:number", "col:number", "error:object"],
+      arguments: ["message:string", "file:string", "line:integer", "col:integer", "error:object"],
     },
     ready: {
       handler: clientReady,

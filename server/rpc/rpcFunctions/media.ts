@@ -149,11 +149,13 @@ export async function media(
     if (isPicture(entry)) {
       if (!picasa[entry.name] || !picasa[entry.name].dateTaken) {
         const exif = await exifDataAndStats(entry);
-        if (exif.tags.DateTimeOriginal)
+        // dates, in fallback order
+        const pictureDate = exif.tags.DateTimeOriginal || (exif.tags.CreateDate && new Date(exif.tags.CreateDate)) || (exif.tags.ModifyDate && new Date(exif.tags.ModifyDate));
+        if (pictureDate)
           updatePicasaEntry(
             entry,
             "dateTaken",
-            exif.tags.DateTimeOriginal.toISOString()
+            pictureDate.toISOString()
           );
         else if (exif.stats) {
           // Default to file creation time

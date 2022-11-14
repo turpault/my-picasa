@@ -71,7 +71,7 @@ export class ToolRegistrar {
       this.pages[page].push(toolName);
     }
     const elem = $(
-      `<div class="w3-button tool-button"><label>${t(toolName)}</label></div>`
+      `<div class="w3-button tool-button"><label>${toolName}</label></div>`
     );
     this.toolButtons[toolName] = elem;
     elem.on("click", () => {

@@ -22,7 +22,7 @@ const encode = (obj, opt) => {
   const separator = opt.whitespace ? " = " : "=";
 
   for (const k of Object.keys(obj)) {
-    const val = obj[k];
+    let val = obj[k];
     if (val && typeof val === "boolean" && val) {
       if (val) {
         val = "yes";

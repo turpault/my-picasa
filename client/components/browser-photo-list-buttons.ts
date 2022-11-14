@@ -32,6 +32,10 @@ const html = `<div class="bottom-list-tools">
 </div>
 <div class="selection-thumbs">
 </div>
+<div class="brightness-photo-list">
+  <label>${t("Brightness")}</label>
+  <input type="range" min="0" max="20" class="photos-brightness-ctrl slider">
+</div>
 <div class="zoom-photo-list">
   <label>${t("Icon Size")}</label>
   <input type="range" min="75" max="250" class="photos-zoom-ctrl slider">

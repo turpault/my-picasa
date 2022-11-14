@@ -625,7 +625,7 @@ export async function makePhotoList(
           <select data-tooltip-below="${t(
             "Select shortcut for this folder"
           )}" class="album-button w3-button select-shortcut select-no-arrow" style="background-image: url(resources/images/icons/actions/finger-50.png)">
-          <option value="">${t("")}</option>
+          <option value=""></option>
           ${["1", "2", "3", "4", "5", "6", "7", "8", "9"].map(v=>`<option value="${v}">${v}</option>`).join('')}</select>
         </div>
         <div class="photos album-photos"></div>

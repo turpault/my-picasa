@@ -18,7 +18,7 @@ export function setupCropPreview(
 ) {
   let currentValue: RectRange;
   let activeIndex: number = -1;
-  const elem = $(`<div class="crop">
+  const elem = $(`<div class="crop hidden">
   <div draggable class="crop-top-left crop-corner"></div>
   <div draggable class="crop-top-right crop-corner"></div>
   <div draggable class="crop-bottom-left crop-corner"></div>
@@ -61,7 +61,7 @@ export function setupCropPreview(
     </button>
   </span>
 </div>`);
-  const draw = $('<div class="draw"></div>');
+  const draw = $('<div class="draw hidden"></div>');
   $(container).append(elem);
   $(container).append(draw);
 
@@ -79,7 +79,6 @@ export function setupCropPreview(
   };
   let mode: modes = "4x3";
   let orientation: "paysage" | "portrait" = "paysage";
-  elem.css({ display: "none" });
 
   const corners: {
     handle: _$;
@@ -476,12 +475,14 @@ export function setupCropPreview(
       mode = closestPair[0];
       orientation = closestPair[2];
       moveCornersFromValue(initialValue);
-      elem.css({ display: "block" });
+      elem.removeClass('hidden');
+      draw.removeClass('hidden');
       observer.observe(elem.parentElement()!);
     },
     hide: () => {
       activeIndex = -1;
-      elem.css({ display: "none" });
+      elem.addClass('hidden');
+      draw.addClass('hidden');
       observer.unobserve(elem.parentElement()!);
     },
   };

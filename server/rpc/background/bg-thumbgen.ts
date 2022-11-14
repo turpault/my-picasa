@@ -1,6 +1,5 @@
 import { bouncingBall } from "cli-spinners";
 import { watch } from "fs";
-import { stat } from "fs/promises";
 import Spinnies from "spinnies";
 import { isMediaUrl, sleep } from "../../../shared/lib/utils";
 import { AlbumEntry, ThumbnailSizeVals } from "../../../shared/types/types";
@@ -8,8 +7,7 @@ import { isIdle } from "../../utils/busy";
 import { imagesRoot } from "../../utils/constants";
 import { imageInfo } from "../imageOperations/info";
 import { media } from "../rpcFunctions/media";
-import { readOrMakeThumbnail } from "../rpcFunctions/thumbnail";
-import { thumbnailPathFromEntryAndSize } from "../rpcFunctions/thumbnailCache";
+import { makeThumbnail } from "../rpcFunctions/thumbnail";
 import { folders } from "../rpcFunctions/walker";
 
 export async function buildThumbs() {
@@ -53,17 +51,8 @@ export async function buildThumbs() {
         await imageInfo(picture);
         await Promise.all(
           // All size except large ones
-          ThumbnailSizeVals.filter((f) => !f.includes("large")).map((size) =>
-            stat(thumbnailPathFromEntryAndSize(picture, size))
-              .catch((e) => { hasCreatedThumb = true; return readOrMakeThumbnail(picture, size); })
-              .catch((e) => {
-                console.error(
-                  `An error occured while creating a thumbnail for ${picture.album.key}/${picture.name} : ${e}`
-                );
-                return;
-              })
-          )
-        );
+          ThumbnailSizeVals.filter((f) => !f.includes("large")).map((size) =>makeThumbnail(picture, size))
+        );          
       }
     }
     spinner.succeed(spinnerName, {

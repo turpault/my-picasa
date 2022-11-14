@@ -4,6 +4,7 @@ import { uuid, valuesOfEnum } from "../../shared/lib/utils";
 import { AlbumEntry, AlbumEntryWithMetadata, Format, Orientation } from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
 import { $, idFromAlbumEntry, _$ } from "../lib/dom";
+import { ImagePanZoomController } from "../lib/panzoom";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
@@ -29,7 +30,7 @@ enum Layout  {
 
 const editHTML = `
 <div class="fill">
-  <div class="composition-sidebar w3-theme w3-sidebar">
+  <div class="composition-sidebar w3-theme">
     <div class="w3-bar-block composition-parameter-block composition-parameters">
       <div class="composition-parameters-title">Composition Parameters</div>
     </div>
@@ -314,8 +315,7 @@ function rebuildMosaic(container: _$, list:AlbumEntryWithMetadata[], method: Lay
         deleteResizable = undefined;
       }
     }
-  }
-
+  }  
 }
 
 const OrientationLabels:{[key in Orientation]: string } = {
@@ -346,6 +346,7 @@ export async function makeCompositorPage(
   let format:Format = Format.F10x8;
   let layout:Layout = Layout.MOSAIC;
   let orientation:Orientation = Orientation.PAYSAGE;
+  const zoomController = new ImagePanZoomController(mosaic);
   const compositionList: CompositedImages = imgs.map(img=> ({...img, key: idFromAlbumEntry(img, "select"), label:"", image:thumbnailUrl(img, "th-small"), selected: true}));
   const selectionManager = new SelectionManager(selectedImages);
   const parameters = $(".composition-parameters", e);
@@ -356,6 +357,7 @@ export async function makeCompositorPage(
     const r = rebuildMosaic(mosaic, compositionList, layout, orientation, format);
     reflow = r.reflow;
     erase = r.erase;
+    zoomController.recenter();
   }
 
   const orientationDropdown = makeChoiceList("Orientation", valuesOfEnum(Orientation).map(k => ({
