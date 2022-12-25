@@ -138,6 +138,21 @@ const isQuoted = (val) =>
   (val.charAt(0) === '"' && val.slice(-1) === '"') ||
   (val.charAt(0) === "'" && val.slice(-1) === "'");
 
+
+const regBackslash = /\\/g;
+const unsafe = (val) => {
+  let val2 = (val || "").trim();
+  if (isQuoted(val2)) {
+    val2 = val2.substr(1, val2.length - 2);
+  }
+  val2 = val2.replace(regBackslash, '');
+  /*const val3 = unsafe2(val);
+  if(val3 !== val2) {
+    console.error('Needs parsing !!!', val, val2, ' -> ', val3);
+  }*/
+  return val2;
+}
+
 const safe = (val) =>
   typeof val !== "string" ||
   val.match(/[=\r\n]/) ||
@@ -147,12 +162,11 @@ const safe = (val) =>
     ? JSON.stringify(val)
     : val.replace(/#/g, "\\#");
 
-const unsafe = (val, doUnesc) => {
+const unsafe2 = (val, doUnesc) => {
   val = (val || "").trim();
   if (isQuoted(val)) {
     // remove the single quotes before calling JSON.parse
     if (val.charAt(0) === "'") val = val.substr(1, val.length - 2);
-
     try {
       val = JSON.parse(val);
     } catch (_) {}

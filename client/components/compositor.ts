@@ -346,7 +346,7 @@ export async function makeCompositorPage(
   let format:Format = Format.F10x8;
   let layout:Layout = Layout.MOSAIC;
   let orientation:Orientation = Orientation.PAYSAGE;
-  const zoomController = new ImagePanZoomController(mosaic);
+  //const zoomController = new ImagePanZoomController(mosaic);
   const compositionList: CompositedImages = imgs.map(img=> ({...img, key: idFromAlbumEntry(img, "select"), label:"", image:thumbnailUrl(img, "th-small"), selected: true}));
   const selectionManager = new SelectionManager(selectedImages);
   const parameters = $(".composition-parameters", e);
@@ -356,8 +356,10 @@ export async function makeCompositorPage(
     }
     const r = rebuildMosaic(mosaic, compositionList, layout, orientation, format);
     reflow = r.reflow;
-    erase = r.erase;
-    zoomController.recenter();
+    erase = r.erase;    
+  }
+
+  function recenter() {
   }
 
   const orientationDropdown = makeChoiceList("Orientation", valuesOfEnum(Orientation).map(k => ({

@@ -6,22 +6,24 @@ import { alphaSorter, differs, sleep } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumChangeEvent,
+  AlbumEntry,
+  AlbumKinds,
   AlbumWithData,
-  FaceAlbum
+  idFromKey,
+  keyFromID
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { broadcast } from "../../utils/socketList";
-import { assetsInAlbum, mediaCount } from "./media";
-import { albumInFilter, getFaces, readPicasaSection } from "./picasaIni";
+import { assetsInFolderAlbum, media, mediaCount } from "./media";
+import { albumInFilter, getFaceAlbums, getFaceData, getFaces, getShortcuts, readAlbumIni, readShortcut, setPicasaAlbumShortcut } from "./picasaIni";
 
 let lastWalk: AlbumWithData[] = [];
-const walkQueue = new Queue(3);
+const walkQueue = new Queue(10);
 
 const notificationQueue: AlbumChangeEvent[] = [];
 
-export async function monitorAlbums(): Promise<{}> {
-  notificationQueue.push({ type: "albums", albums: lastWalk });
-  return {};
+export function queueNotification(event: AlbumChangeEvent) {
+  notificationQueue.push(event);
 }
 
 export async function startAlbumUpdateNotification() {
@@ -100,7 +102,7 @@ export async function onRenamedAlbums(from: Album, to: Album) {
   const idx = lastWalk.findIndex((f) => f.key == from.key);
   const old = { ...lastWalk[idx] };
   lastWalk[idx] = { ...lastWalk[idx], ...to };
-  notificationQueue.push({
+  queueNotification({
     type: "albumMoved",
     album: old,
     altAlbum: lastWalk[idx],
@@ -109,7 +111,8 @@ export async function onRenamedAlbums(from: Album, to: Album) {
 
 const ALLOW_EMPTY_ALBUM_CREATED_SINCE = 1000 * 60 * 60; // one hour
 async function albumExists(album: Album): Promise<boolean> {
-  const p = join(imagesRoot, album.key);
+  if(album.kind === AlbumKinds.folder) {
+  const p = join(imagesRoot, idFromKey(album.key).id);
   const s = await stat(p).catch(() => false);
   if (s === false) {
     return false;
@@ -126,6 +129,60 @@ async function albumExists(album: Album): Promise<boolean> {
     return true;
   }
   return false;
+} else if(album.kind === AlbumKinds.face) {
+  return true;
+}
+throw new Error('Unkown album kind');
+}
+
+export function albumWithData(
+  album: Album | string
+): AlbumWithData | undefined {  
+  const kind = typeof album === "string" ? idFromKey(album).kind : album.kind;
+  const key = typeof album === "string" ? album : album.key;
+if(kind === AlbumKinds.folder) {
+  return lastWalk.find((f) => f.key == key);
+} else if(kind === AlbumKinds.face) {
+  return getFaceAlbums().find((f) => f.key == key)
+}
+else throw new Error(`Unknown kind ${kind}`);
+}
+
+export async function readAlbumMetadata(album: Album) {
+  const ini = await readAlbumIni(album);
+  switch(album.kind) {
+    case AlbumKinds.folder: 
+      return ini;
+    case AlbumKinds.face:
+      await Promise.all(Object.keys(ini).map(async name => {
+        const faceData = await getFaceData({album, name});
+        const originalAlbum = albumWithData(faceData.albumKey);
+        if(!originalAlbum) {
+          throw new Error(`Unknown album ${faceData.albumKey}`);
+        }
+        const originalAlbumData = await readAlbumIni(originalAlbum);
+        const originalEntry = originalAlbumData[faceData.name];
+        if(originalEntry) {
+          if(originalEntry.dateTaken) ini[name].dateTaken = originalEntry.dateTaken;
+          if(originalEntry.star) ini[name].star = originalEntry.star;
+        }
+      }));
+      return ini;
+    default:
+      throw new Error(`Unkown kind ${album.kind}`);
+  }
+}
+
+export async function getSourceEntry(entry: AlbumEntry) {
+  switch(entry.album.kind) {
+    case AlbumKinds.folder:
+      return entry;
+    case AlbumKinds.face:
+      const faceData = await getFaceData(entry);
+      return {album: albumWithData(faceData.albumKey), name: faceData.name}
+    default:
+      throw new Error(`Unkown kind ${entry.album.kind}`);
+  }
 }
 
 export async function addOrRefreshOrDeleteAlbum(album: Album | undefined) {
@@ -137,23 +194,27 @@ export async function addOrRefreshOrDeleteAlbum(album: Album | undefined) {
     if (!(await albumExists(album))) {
       if (idx >= 0) {
         const data = lastWalk.splice(idx, 1)[0];
-        notificationQueue.push({ type: "albumDeleted", album: data });
+        queueNotification({ type: "albumDeleted", album: data });
       }
     } else {
-      const [media, meta] = await Promise.all([
+      const [count, shortcut] = await Promise.all([
         mediaCount(album),
-        readPicasaSection(album),
+        readShortcut(album),
       ]);
-      const updated =  {...album,  ...media, ...meta };
+      const updated: AlbumWithData = {
+        ...album,
+        ...count,
+        shortcut,
+      };
       if (idx === -1) {
-        notificationQueue.push({
+        queueNotification({
           type: "albumAdded",
           album: updated,
         });
         lastWalk.push(updated);
       } else {
-        if (differs(updated,lastWalk[idx])) {
-          notificationQueue.push({
+        if (differs(updated, lastWalk[idx])) {
+          queueNotification({
             type: "albumInfoUpdated",
             album: updated,
           });
@@ -176,18 +237,10 @@ export async function folders(filter: string): Promise<AlbumWithData[]> {
   return w;
 }
 
-export async function faceAlbums(): Promise<FaceAlbum[]> {
+export async function getFaceAlbumsWithData(_filter: string): Promise<AlbumWithData[]> {
   // Create 'fake' albums with the faces
-  const faces = Array.from(getFaces());
-  const names = faces.reduce(
-    (prev, face) => prev.add(face[1].name),
-    new Set<string>()
-  );
-
-  return Array.from(names).map((name) => ({
-    name,
-    key: `face:${name}`,
-  }));
+  const albums = getFaceAlbums();
+  return Array.from(albums).map(albumWithData).filter(v=>!!v) as AlbumWithData[];
 }
 
 async function walk(
@@ -195,11 +248,15 @@ async function walk(
   path: string,
   cb: (a: Album) => Promise<void>
 ): Promise<void> {
-  const album = { name, key: relative(imagesRoot, path) };
-  const m = await assetsInAlbum(album);
+  const album: Album = {
+    name,
+    key: keyFromID(relative(imagesRoot, path), AlbumKinds.folder),
+    kind: AlbumKinds.folder,
+  };
+  const m = await assetsInFolderAlbum(album);
 
   // depth down first
-  for (const child of m.folders.sort(alphaSorter(false, [true])).reverse()) {
+  for (const child of m.folders.sort(alphaSorter()).reverse()) {
     walkQueue.add<Album[]>(() => walk(child, join(path, child), cb));
   }
 
@@ -207,4 +264,31 @@ async function walk(
     // Complete with count and 'global' picasa data
     cb(album);
   }
+}
+
+export async function monitorAlbums(): Promise<{}> {
+  await waitUntilWalk();
+  const f = await getFaceAlbumsWithData("");
+  queueNotification({ type: "albums", albums: [...lastWalk, ...f] });
+  return {};
+}
+
+
+export async function setAlbumShortcut(album: Album, shortcut: string) {
+  const a = albumWithData(album);
+  if(!a) {
+    throw new Error('Unknown album');
+  }
+  const previous = getShortcuts()[shortcut];  
+  await setPicasaAlbumShortcut(album, shortcut);
+
+  if(previous) {
+    addOrRefreshOrDeleteAlbum(previous);
+  }
+  if(shortcut) {
+    addOrRefreshOrDeleteAlbum(album);
+  }
+
+  broadcast("shortcutsUpdated", {});
+  return;
 }

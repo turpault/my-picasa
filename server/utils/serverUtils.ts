@@ -1,6 +1,6 @@
 import { stat } from "fs/promises";
 import { join } from "path";
-import { AlbumEntry } from "../../shared/types/types";
+import { AlbumEntry, idFromKey } from "../../shared/types/types";
 import { imagesRoot } from "./constants";
 import { extname } from "path";
 
@@ -11,7 +11,7 @@ export async function fileExists(path: string): Promise<boolean> {
 }
 
 export function entryFilePath(entry: AlbumEntry) {
-  return join(imagesRoot, entry.album.key, entry.name);
+  return join(imagesRoot, idFromKey(entry.album.key).id, entry.name);
 }
 
 export function mediaName(entry: AlbumEntry): string {
@@ -21,3 +21,4 @@ export function mediaName(entry: AlbumEntry): string {
 export function removeExtension(fileName:string) {
   return fileName.slice(0, -extname(fileName).length);
 }
+

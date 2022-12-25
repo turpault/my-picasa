@@ -1,13 +1,14 @@
 import { buildEmitter } from "../../shared/lib/event";
-import { AlbumEntry, AlbumEntryPicasa, PicasaFileMeta } from "../../shared/types/types";
+import { AlbumEntry, AlbumEntryPicasa, JOBNAMES } from "../../shared/types/types";
 import { setupAutocolor } from "../features/autocolor";
 import { setupBlur } from "../features/blur";
 import { setupBrightness } from "../features/brightness";
 import { setupBW } from "../features/bw";
 import { setupContrast } from "../features/contrast";
 import { setupCrop } from "../features/crop";
-import { setupFlip } from "../features/flip";
 import { setupFill } from "../features/fill";
+import { setupFilters } from "../features/filter";
+import { setupFlip } from "../features/flip";
 import { setupMirror } from "../features/mirror";
 import { setupPolaroid } from "../features/polaroid";
 import { setupRotate } from "../features/rotate";
@@ -15,21 +16,22 @@ import { setupSepia } from "../features/sepia";
 import { setupSharpen } from "../features/sharpen";
 import { setupTilt } from "../features/tilt";
 import { buildAlbumEntryEx } from "../folder-utils";
-import { $, _$ } from "../lib/dom";
+import { $ } from "../lib/dom";
 import { toggleStar } from "../lib/handles";
 import { ImagePanZoomController } from "../lib/panzoom";
+import { getService } from "../rpc/connect";
 import { ActiveImageManager } from "../selection/active-manager";
+import { SelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
 import { animateStar } from "./animations";
 import { ImageController } from "./image-controller";
 import { makeImageStrip } from "./image-strip";
+import { makeMetadata } from "./metadata";
+import { t } from "./strings";
 import { deleteTabWin, makeGenericTab, TabEvent } from "./tabs";
 import { GENERAL_TOOL_TAB, make as makeTools } from "./tools";
-import { t } from "./strings";
-import { makeMetadata } from "./metadata";
-import { setupFilters } from "../features/filter";
-import { getService } from "../rpc/connect";
-import { SelectionManager } from "../selection/selection-manager";
+
+import { makeIdentify } from "./identify";
 
 const editHTML = `
 <div class="fill">
@@ -52,6 +54,8 @@ const editHTML = `
     <div class="collapsable collapsable-collapsed album-contents"></div>
     <div class="collapsible collapsed editor-image-block">${t("Metadata")}</div>
     <div class="collapsable collapsable-collapsed metadata"></div>
+    <div class="collapsible collapsed editor-image-block">${t("Identify")}</div>
+    <div class="collapsable collapsable-collapsed identify"></div>
   </div>
 
   <div class="image-container">
@@ -103,6 +107,7 @@ export async function makeEditorPage(
   }
 
   const metadata = $('.metadata', editor);
+  const identify = $('.identify', editor);
   const album = $('.album-contents', editor);
   album.append(tool);
 
@@ -133,6 +138,7 @@ export async function makeEditorPage(
 
       toolRegistrar.selectPage(GENERAL_TOOL_TAB);
       const refreshMetadataFct = makeMetadata(metadata);
+      makeIdentify(identify, imageController);
 
       const entries = await buildAlbumEntryEx(initialList);
       const s = await getService();
@@ -160,7 +166,7 @@ export async function makeEditorPage(
           selectionManager.clear();
           selectionManager.select(entry);
         }),
-        appEvents.on("keyDown", async ({ code, win }) => {
+        appEvents.on("keyDown", async ({ code, win, ctrl, key }) => {
           if (win.get() === editor.get()) {
             switch (code) {
               case "Space":
@@ -169,12 +175,26 @@ export async function makeEditorPage(
                 break;
               case "ArrowLeft":
                 activeManager.selectPrevious();
+                appEvents.emit('editSelect', {entry: activeManager.active()});
                 break;
               case "ArrowRight":
                 activeManager.selectNext();
+                appEvents.emit('editSelect', {entry: activeManager.active()});
                 break;
               case "Escape":
                 deleteTabWin(win);
+            }
+            if (ctrl) {
+              const s = await getService();
+              const shortcuts = await s.getShortcuts();
+              if (shortcuts[key]) {
+              const target = shortcuts[key];
+              s.createJob(JOBNAMES.EXPORT, {
+                  source: selectionManager.selected(),
+                  destination: target,
+                });
+                return;
+              }
             }
           }
         }),

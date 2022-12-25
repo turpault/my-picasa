@@ -101,7 +101,7 @@ export function makeMetadata(
                 val = v < 1 ? `1/${Math.round(1 / v)} s` : `${v} s`;
               }
               meta.append(
-                `<div><div class="exif-name">${t(section[idx]())}</div><div class="exif-value">${val}</div></div>`
+                `<div><div class="exif-name">${section[idx]()}</div><div class="exif-value">${val}</div></div>`
               );
             }
         }

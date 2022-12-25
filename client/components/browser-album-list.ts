@@ -1,4 +1,4 @@
-import { JOBNAMES } from "../../shared/types/types";
+import { Album, JOBNAMES } from "../../shared/types/types";
 import { AlbumIndexedDataSource } from "../album-data-source";
 import { folder, folderData } from "../element-templates";
 import {
@@ -31,7 +31,9 @@ export async function makeAlbumList(
   let filter = "";
   const folders = $(".folders", container);
   const events = albumDataSource.emitter;
+  let lastSelectedAlbum: Album | undefined;
   events.on("scrolled", ({ album }) => {
+    lastSelectedAlbum = album;
     if (lastHighlight && lastHighlight.exists()) {
       lastHighlight.removeClass("highlight-list");
     }
@@ -64,7 +66,7 @@ export async function makeAlbumList(
       const album = albumDataSource.albumAtIndex(idx);
       const node = folder();
       folderData(node, album);
-      node.attr('separator', album.yearSep || null);
+      node.attr('separator', album.head || null);
       setIdForAlbum(node, album, elementPrefix);
       addListeners(node);
       albums.push(node);
@@ -84,9 +86,12 @@ export async function makeAlbumList(
   });
 
   function addListeners(item: _$) {
+    const img = new Image();
+    img.src = "resources/images/icons/actions/duplicate-50.png";
     item
       .on("click", function (ev): any {
         const album = albumFromElement(item, elementPrefix)!;
+        lastSelectedAlbum = album;
         events.emit("selected", { album });
       })
       .on("dragover", (ev: any) => {
@@ -94,7 +99,7 @@ export async function makeAlbumList(
       })
       .on("dragenter", (ev: any) => {
         item.addClass("drop-area");
-        ev.preventDefault();
+        ev.dataTransfer.setDragImage(img, 10, 10);
       })
       .on("dragleave", (ev: any) => {
         item.removeClass("drop-area");

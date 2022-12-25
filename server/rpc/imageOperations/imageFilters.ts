@@ -99,18 +99,15 @@ async function read3DLUTFile(path: string): Promise<LUT3D> {
       res.data.push(line.split(' ').map(parseFloat));
     }
   }
-  if (res.title.length > 15) {
-    res.title = res.title.slice(-15);
-  }
   return res;
 }
 
 export async function applyFilter(buffer: Buffer, pixelSize: number, filterName: string): Promise<void> {
   try {
     const lut = await read3DLUT(filterName);
-    console.time(filterName);
+    //console.time(filterName);
     applyLUT(buffer, pixelSize, lut.width, lut.data);
-    console.timeEnd(filterName);
+    //console.timeEnd(filterName);
   } catch (e) {
     console.error(e);
   }

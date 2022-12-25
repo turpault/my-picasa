@@ -3,8 +3,8 @@ import {
   Album,
   AlbumEntry,
   JOBNAMES,
-  PicasaFileMeta,
-  PicasaFolderMeta,
+  AlbumEntryMetaData,
+  AlbumMetaData,
   undoStep,
 } from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
@@ -58,12 +58,12 @@ export function makeButtons(appEvents: AppEventSource): _$ {
     settings: Settings,
     tabKind:string;
     selection: AlbumEntry[],
-    picasa: PicasaFolderMeta;
+    albumMetaData: AlbumMetaData;
     undo: undoStep[]
   } = {
     settings: getSettings(),
     selection: [],
-    picasa: {},
+    albumMetaData: {},
     tabKind: '',
     undo: []
   }
@@ -179,7 +179,7 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       name: t("Add/Remove favorite"),
       icon: "resources/images/icons/actions/favorites-50.png",
       enabled: () => state.selection.length > 0,
-      highlight: ()=> state.selection.length > 0 ? !!state.picasa[state.selection[0].name]?.star : false,
+      highlight: ()=> state.selection.length > 0 ? !!state.albumMetaData[state.selection[0].name]?.star : false,
       click: async (ev: MouseEvent) => {
         const target = await toggleStar(state.selection);
         animateStar(target);
@@ -299,7 +299,7 @@ export function makeButtons(appEvents: AppEventSource): _$ {
     state.selection = activeTabContext().selectionManager.selected();
     state.tabKind = activeTabContext().kind;
     state.undo = ((await s.undoList()) as undoStep[]).reverse();
-    state.picasa = state.selection.length > 0 ? await s.readPicasaIni(state.selection[0].album) : {};
+    state.albumMetaData = state.selection.length > 0 ? await s.readAlbumMetadata(state.selection[0].album) : {};
 
     for (const action of actions) {
       if (action.type !== "sep") {

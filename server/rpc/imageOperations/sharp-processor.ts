@@ -10,17 +10,27 @@ import {
   decodeOperations,
   decodeRect,
   escapeXml,
-  fromHex, toHex2,
-  uuid
+  fromBase64,
+  fromHex,
+  namify,
+  toHex2,
+  uuid,
 } from "../../../shared/lib/utils";
-import { AlbumEntry, PicasaFileMeta } from "../../../shared/types/types";
+import {
+  AlbumEntry,
+  AlbumKinds,
+  idFromKey,
+  AlbumEntryMetaData,
+} from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
+import { getFaceData } from "../rpcFunctions/picasaIni";
 import { applyAllFilters, applyFilter } from "./imageFilters";
 
 const s = promisify(sizeOf);
 
 const contexts = new Map<string, Sharp>();
-const options = new Map<string, PicasaFileMeta>();
+const options = new Map<string, AlbumEntryMetaData>();
+const debug = (..._a:any[])=>{}; // console.info
 
 function getContext(context: string): Sharp {
   const j = contexts.get(context);
@@ -50,10 +60,11 @@ export async function dimensions(
 }
 
 export async function buildContext(entry: AlbumEntry): Promise<string> {
+  const relPath = join(idFromKey(entry.album.key).id, entry.name);
   const fileData = await readFile(
-    join(imagesRoot, entry.album.key, entry.name)
+    join(imagesRoot, relPath)
   );
-  const contextId = uuid();
+  const contextId = namify(relPath) + '-' + uuid();
   try {
     let s = sharp(fileData, {
       limitInputPixels: false,
@@ -71,11 +82,22 @@ export async function buildContext(entry: AlbumEntry): Promise<string> {
     throw e;
   }
 }
-export async function cloneContext(context: string): Promise<string> {
+export async function cloneContext(context: string, hint:string): Promise<string> {
   const j = getContext(context);
-  const contextId = uuid();
+  const contextId = context + '-' + namify(hint) + '-' + uuid();
+  debug('Cloning context', context, '->', contextId);
   setContext(contextId, j.clone());
   return contextId;
+}
+
+function tag(
+  name: string,
+  attrs: { [n: string]: any },
+  contents: string = ""
+): string {
+  return `<${name} ${Object.keys(attrs)
+    .map((a) => `${a}="${attrs[a].toString()}"`)
+    .join(" ")}>${contents}</${name}>`;
 }
 
 /*
@@ -130,7 +152,7 @@ export async function transform(
   const operations = decodeOperations(transformation);
   for (const { name, args } of operations) {
     let j = getContext(context);
-    switch (name.split(':')[0]) {
+    switch (name.split(":")[0]) {
       case "sepia":
         j = j.recomb([
           [0.3588, 0.7044, 0.1368],
@@ -207,7 +229,7 @@ export async function transform(
         const w = metadata.width!;
         const h = metadata.height!;
         const newRect = rotateRectangle(w, h, angle);
-        if (scale === 0 || scale === NaN) {
+        if (scale === 0 || Number.isNaN(scale)) {
           scale = newRect.ratio;
         }
 
@@ -341,19 +363,23 @@ export async function transform(
 
         break;
       case "filter": {
-        const filter = name.split(':')[1] || "All";
+        const filter = name.split(":")[1] || "All";
         const tileSize = 400;
 
         if (filter.startsWith("All:")) {
-          const group = filter.split(':').pop();
+          const group = filter.split(":").pop();
           j.resize(tileSize - 10, tileSize - 10);
           const r = await j.raw().toBuffer({ resolveWithObject: true });
           const pixelSize = r.info.channels as 3 | 4;
-          console.time('applyAllFilters');
-          const filtered = await applyAllFilters(r.data, r.info.channels, group);
-          console.timeEnd('applyAllFilters');
+          console.time("applyAllFilters");
+          const filtered = await applyAllFilters(
+            r.data,
+            r.info.channels,
+            group
+          );
+          console.timeEnd("applyAllFilters");
           // create a tapestry with all the resulting data
-          console.time('composite');
+          console.time("composite");
           const tapestryDimension = Math.ceil(Math.sqrt(filtered.length));
 
           j = sharp({
@@ -375,7 +401,7 @@ export async function transform(
               raw: {
                 width: tileSize - 10,
                 height: tileSize - 10,
-                channels: pixelSize
+                channels: pixelSize,
               },
               input: img.filtered,
               top: posY + 5,
@@ -390,7 +416,7 @@ export async function transform(
             layers.push({ input: Buffer.from(txtSvgOutline), top: posY, left: posX });*/
           });
           j = j.composite(layers);
-          console.time('endComposite');
+          console.time("endComposite");
         } else {
           const r = await j.raw().toBuffer({ resolveWithObject: true });
           const pixelSize = r.info.channels as 3 | 4;
@@ -400,8 +426,8 @@ export async function transform(
               width: r.info.width,
               height: r.info.height,
               channels: pixelSize,
-            }
-          })
+            },
+          });
         }
         break;
       }
@@ -447,6 +473,59 @@ export async function transform(
         */
 
         break;
+      case "identify":
+        {
+          await commit(context);
+          j = getContext(context);
+          const metadata = await j.metadata();
+          const w = metadata.width!;
+          const h = metadata.height!;
+
+          const stroke = Math.floor(w / 400) + 1;
+          let txtSvg = `<svg x="0" y="0" height="${h}" width="${w}">`;
+          for (const id of args.slice(1)) {
+            const [name, rect, color] = JSON.parse(fromBase64(id));
+            const style = `fill:none;stroke-width:${stroke};stroke:${
+              color || "rgb(0,255,0)"
+            }`;
+            const pos = decodeRect(rect);
+            const scaledPos = {
+              x: Math.floor(pos.left*w),
+              y: Math.floor(pos.top*h),
+              width: Math.floor(w*(pos.right - pos.left)),
+              height: Math.floor(h*(pos.bottom - pos.top)),
+            }
+            const fontSize = Math.max(Math.floor(scaledPos.width / 6), 30);
+            const layer =
+              tag("text", {
+                x: scaledPos.x,
+                y: scaledPos.y + scaledPos.height + fontSize,
+                width: scaledPos.width,
+                "alignment-baseline": "top",
+                height: fontSize*2,
+                "font-size":fontSize,
+              fill: color || "rgb(0,255,0)",
+              },
+              name) +
+              tag(
+                "rect",
+                {
+                  x: scaledPos.x,
+                  y: scaledPos.y,
+                  width: scaledPos.width,
+                  height: scaledPos.height,
+                  style,
+                }
+              );
+            txtSvg += layer;
+          }
+          txtSvg += "</svg>";
+          debug(txtSvg);
+          const layers = [{ input: Buffer.from(txtSvg), gravity: "northeast", left:0, top:0, width: w, height: h }];
+          j = j.composite(layers);
+        }
+        break;
+
       case "contrast":
         let contrast = parseFloat(args[1] || "0") / 100;
         j = j.linear(contrast, -(128 * contrast) + 128);
@@ -494,8 +573,9 @@ export async function transform(
             h / 3
           )}" width="${Math.floor(w * 0.8)}"> <text x="0" y="${Math.floor(
             h / 5
-          )}" font-size="${Math.floor(w / 20)}" fill="#000000">${text
-            }</text> </svg>`;
+          )}" font-size="${Math.floor(
+            w / 20
+          )}" fill="#000000">${text}</text> </svg>`;
           layers.push({ input: Buffer.from(txtSvg), gravity: "south" });
         }
         newImage = newImage.composite(layers);
@@ -590,13 +670,14 @@ export async function transform(
 
 export async function setOptions(
   context: string,
-  _options: PicasaFileMeta
+  _options: AlbumEntryMetaData
 ): Promise<void> {
   options.set(context, _options);
   return;
 }
 
 export async function destroyContext(context: string): Promise<void> {
+  debug('Delete context', context);
   contexts.delete(context);
 }
 
@@ -701,10 +782,13 @@ export async function buildImage(
   extraOperations: any[] | undefined
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
   return buildImageQueue.add(async () => {
-    const label = `Thumbnail for image ${entry.album.name} / ${entry.name
-      } / ${transformations} / ${extraOperations ? JSON.stringify(extraOperations) : "no op"}`;
+    const label = `Thumbnail for image ${entry.album.name} / ${
+      entry.name
+    } / ${transformations} / ${
+      extraOperations ? JSON.stringify(extraOperations) : "no op"
+    }`;
     console.time(label);
-    console.info(label);
+    debug(label);
     try {
       const context = await buildContext(entry);
       if (options) {
@@ -717,6 +801,43 @@ export async function buildImage(
       if (transformations) {
         await transform(context, transformations);
       }
+      const res = (await encode(context, "image/jpeg", "Buffer")) as {
+        width: number;
+        height: number;
+        data: Buffer;
+      };
+      await destroyContext(context);
+      console.timeEnd(label);
+      return { ...res, mime: "image/jpeg" };
+    } catch (e) {
+      console.timeEnd(label);
+      throw e;
+    }
+  });
+}
+
+const buildFaceImageQueue = new Queue(4, { fifo: false });
+export async function buildFaceImage(
+  entry: AlbumEntry
+): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
+  return buildFaceImageQueue.add(async () => {
+    const label = `Thumbnail for face ${entry.album.name} / ${entry.name}`;
+    console.time(label);
+    debug(label);
+    try {
+      const faceData = await getFaceData(entry);
+      const originalImageEntry = {
+        album: {
+          key: faceData.albumKey,
+          name: "",
+          kind: AlbumKinds.folder,
+        },
+        name: faceData.name,
+      };
+      const context = await buildContext(originalImageEntry);
+
+      await transform(context, `crop64=1,${faceData.rect}`);
+      await commit(context);
       const res = (await encode(context, "image/jpeg", "Buffer")) as {
         width: number;
         height: number;

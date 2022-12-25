@@ -1,44 +1,51 @@
+import { Base64 } from "js-base64";
 import { Album, AlbumEntry, pictureExtensions, videoExtensions } from "../types/types";
 
 export async function sleep(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));
 }
 
-export function sortByKey<T>(array: T[], keys:(keyof T)[], reverse?: boolean[]) {
-  const m = reverse ? -1 : 1;
-  array.sort(alphaSorter(false, reverse, keys  as string[]));
+export function sortByKey<T>(array: T[], keys:(keyof T)[], order: ("alpha"|"reverse"|string[])[]) {
+  array.sort(alphaSorter(false, keys  as string[], order));
 }
 
 export function alphaSorter(
   caseSensitive: boolean = true,
-  reverse: boolean[] = [],
-  keys: (string | undefined)[] = [undefined]
+  keys: (string | undefined)[] = [undefined],
+  order: ("alpha"|"reverse"|string[])[] = ["alpha"],
 ): (a: any, b: any) => number {
-  if (caseSensitive)
     return (_a, _b) => {
       for (const [idx, key] of keys.entries()) {
-        const m = reverse[idx] ? -1 : 1;
-        const a = removeDiacritics(`${key ? _a[key] : _a}`);
-        const b = removeDiacritics(`${key ? _b[key] : _b}`);
+        let va = key ? _a[key] : _a;
+        let vb = key ? _b[key] : _b;
+        if(va === undefined && vb === undefined) {
+          continue;
+        }
+        if(va === undefined) {
+          return 1;
+        }
+        if(vb === undefined) {
+          return -1;
+        }
+        if(!caseSensitive) {
+          va = va.toLowerCase();
+          vb = vb.toLowerCase();
+        }
+        if(Array.isArray(order[idx])) {
+          const d = order[idx].indexOf(va)-order[idx].indexOf(vb);
+          if(d!==0) {
+            return d;
+          } else {
+            continue;
+          }
+        }
+        const m = order[idx]==="alpha" ? 1 : -1;
+        const a = removeDiacritics(va);
+        const b = removeDiacritics(vb);
         if (a === b) {
           continue;
         }
         return m * (a < b ? -1 : 1);
-      }
-      return 0;
-    };
-  else
-    return (_a, _b) => {
-      for (const [idx, key] of keys.entries()) {
-        const m = reverse[idx] ? -1 : 1;
-        const a = removeDiacritics(`${key ? _a[key] : _a}`);
-        const b = removeDiacritics(`${key ? _b[key] : _b}`);
-        const la = a.toLowerCase();
-        const lb = b.toLowerCase();
-        if (la === lb) {
-          continue;
-        }
-        return m * (la < lb ? -1 : 1);
       }
       return 0;
     };
@@ -58,6 +65,10 @@ export function fixedEncodeURIComponent(str: string): string {
   return encodeURIComponent(str).replace(/[!'()*]/g, function (c) {
     return "%" + c.charCodeAt(0).toString(16);
   });
+}
+
+export function namify(s: string) {
+  return s.replace(/[^\w]+/gi, '-');
 }
 
 export function cssSplitValue(v: string): { value: number; unit: string } {
@@ -192,6 +203,15 @@ export function decodeRect(rect: string): RectRange {
   }
   throw new Error("Invalid Rect");
 }
+
+export function toBase64(data:any) {
+  return Base64.encode(data, true);
+}
+
+export function fromBase64(data:string) {
+  return Base64.decode(data);
+}
+
 
 export function getOperationList(filters:string): string[] {
   return (filters || "").split(";").filter((v) => v);

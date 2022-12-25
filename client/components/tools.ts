@@ -20,7 +20,7 @@ async function toolIconForTool(
   original: string,
   tool: Tool
 ): Promise<string> {
-  const copy = await cloneContext(context);
+  const copy = await cloneContext(context, "tool "+tool.filterName);
   await tool.icon(copy, original);
   const res = await encode(copy, "image/jpeg", "base64url");
   await destroyContext(copy);
@@ -126,7 +126,7 @@ export class ToolRegistrar {
   async refreshToolIcons(context: string, original: string, entry: AlbumEntry) {
     this.activeEntry = entry;
     // Initial copy, resized
-    const copy = await cloneContext(context);
+    const copy = await cloneContext(context, "toolminiicon");
     await execute(copy, [
       ["resize", 60, 60, { fit: "cover", kernel: "nearest" }],
     ]);

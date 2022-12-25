@@ -1,5 +1,5 @@
 import { inspect } from "util";
-import { uuid } from "../../shared/lib/utils";
+import { lock, uuid } from "../../shared/lib/utils";
 import { SocketAdaptorInterface } from "../../shared/socket/socketAdaptorInterface";
 import { busy } from "../utils/busy";
 import { inc, rate } from "../utils/stats";
@@ -152,6 +152,8 @@ export function registerServices(
           const serviceFunc = service.functions[name];
           const commandArgs = payload.args;
           let label: string = "";
+          const lockName = name + '/' + uuid();
+          const l = await lock(lockName);
           try {
             const convertedArguments = await getConvertedArguments(
               serviceFunc,
@@ -180,6 +182,7 @@ export function registerServices(
             console.info(errMessage, exception.stack);
             callback(errMessage);
           } finally {
+            l();
             busy();
             //console.timeEnd(label);
           }

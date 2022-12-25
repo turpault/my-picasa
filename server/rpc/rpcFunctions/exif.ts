@@ -3,7 +3,7 @@ import { Stats } from "fs";
 import { stat } from "fs/promises";
 import { join } from "path";
 import { isPicture, isVideo } from "../../../shared/lib/utils";
-import { AlbumEntry } from "../../../shared/types/types";
+import { AlbumEntry, idFromKey } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { entryFilePath } from "../../utils/serverUtils";
 
@@ -30,7 +30,7 @@ export function toExifDate(isoDate: string) {
 }
 
 export async function exifData(entry: AlbumEntry): Promise<any> {
-  const path = join(imagesRoot, entry.album.key, entry.name);
+  const path = join(imagesRoot, idFromKey(entry.album.key).id, entry.name);
   if (isPicture(entry)) {
     console.info(`Read exif from ${path}`);
     const tags = await exifr

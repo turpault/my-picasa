@@ -4,7 +4,7 @@ import { isPicture, isVideo } from "../../../shared/lib/utils";
 import { AlbumEntry } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { entryFilePath } from "../../utils/serverUtils";
-import { readPicasaIni } from "../rpcFunctions/picasaIni";
+import { readAlbumIni } from "../rpcFunctions/picasaIni";
 import {
   encode,
   buildContext,
@@ -14,7 +14,7 @@ import {
 } from "./sharp-processor";
 
 export async function exportToFolder(entry: AlbumEntry, targetFolder: string) {
-  const picasa = await readPicasaIni(entry.album);
+  const picasa = await readAlbumIni(entry.album);
   const options = picasa[entry.name] || {};
   if (isVideo(entry)) {
     // Straight copy

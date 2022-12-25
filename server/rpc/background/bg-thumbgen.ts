@@ -8,15 +8,16 @@ import { imagesRoot } from "../../utils/constants";
 import { imageInfo } from "../imageOperations/info";
 import { media } from "../rpcFunctions/media";
 import { makeThumbnail } from "../rpcFunctions/thumbnail";
-import { folders } from "../rpcFunctions/walker";
+import { folders, waitUntilWalk } from "../rpcFunctions/walker";
 
 export async function buildThumbs() {
   let spinnerName = Date.now().toString();
+  await waitUntilWalk();
   const spinner = new Spinnies({ spinner: bouncingBall });
   spinner.add(spinnerName, { text: "Building thumbs" });
   let lastFSChange = new Date().getTime();
   watch(imagesRoot, { recursive: true }, (eventType, filename) => {
-    if (isMediaUrl(filename)) {
+    if (isMediaUrl(filename) && !filename.startsWith('.')) {
       lastFSChange = new Date().getTime();
     }
   });

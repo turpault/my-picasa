@@ -1,7 +1,6 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "fs/promises";
 import { join } from "path";
-import { Album, AlbumEntry } from "../../../shared/types/types";
-import { openExplorer } from "../../open";
+import { Album, AlbumEntry, AlbumKinds, idFromKey, keyFromID } from "../../../shared/types/types";
 import { defaultNewFolderRoot, imagesRoot } from "../../utils/constants";
 import { openWithFinder } from "./osascripts";
 import { addOrRefreshOrDeleteAlbum } from "./walker";
@@ -41,18 +40,22 @@ export async function makeAlbum(name: string): Promise<Album> {
   return stat(p)
     .catch((e) => mkdir(p, { recursive: true }))
     .then(() => {
-      const a: Album = { key: join(defaultNewFolderRoot, name), name };
+      const a: Album = {
+        key: keyFromID(join(defaultNewFolderRoot, name), AlbumKinds.folder),
+        name,
+        kind: AlbumKinds.folder,
+      };
       addOrRefreshOrDeleteAlbum(a);
       return a;
     });
 }
 
 export async function openAlbumInFinder(album: Album) {
-  const p = join(imagesRoot, album.key);
+  const p = join(imagesRoot, idFromKey(album.key).id);
   openWithFinder(p);
 }
 
 export async function openAlbumEntryInFinder(entry: AlbumEntry) {
-  const p = join(imagesRoot, entry.album.key, entry.name);
+  const p = join(imagesRoot, idFromKey(entry.album.key).id, entry.name);
   openWithFinder(p);
 }
