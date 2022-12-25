@@ -4,9 +4,12 @@ import { sleep, uuid } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
+  AlbumKinds,
+  idFromKey,
   Job,
   JobData,
-  JOBNAMES
+  JOBNAMES,
+  keyFromID,
 } from "../../../shared/types/types";
 import { openExplorer } from "../../open";
 import { exportsRoot, imagesRoot } from "../../utils/constants";
@@ -17,12 +20,23 @@ import { exportToFolder } from "../imageOperations/export";
 import { exportAllFavoritesJob } from "./fileJob-export-favorites";
 import { setRank } from "./media";
 import { openWithFinder } from "./osascripts";
-import { readPicasaEntry, readPicasaIni, updatePicasaEntry } from "./picasaIni";
+import { readPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasaIni";
 import { copyThumbnails } from "./thumbnailCache";
-import { addOrRefreshOrDeleteAlbum, onRenamedAlbums, refreshAlbumKeys, refreshAlbums } from "./walker";
+import {
+  addOrRefreshOrDeleteAlbum,
+  albumWithData,
+  onRenamedAlbums,
+  queueNotification,
+  refreshAlbumKeys,
+  refreshAlbums,
+} from "./walker";
 
 const jobs: Job[] = [];
-type MultiMoveJobArguments = {source: AlbumEntry, destination: Album, rank: Number}[];
+type MultiMoveJobArguments = {
+  source: AlbumEntry;
+  destination: Album;
+  rank: Number;
+}[];
 
 export async function getJob(id: string): Promise<object> {
   const j = jobs.filter((j) => j.id === id);
@@ -61,7 +75,7 @@ export async function createFSJob(
     .then(async (updatedAlbums: Album[]) => {
       broadcast("jobFinished", job);
       if (updatedAlbums.length) {
-        refreshAlbumKeys(updatedAlbums.map(a=>a.key));
+        refreshAlbumKeys(updatedAlbums.map((a) => a.key));
       }
     })
     .catch((err: Error) => {
@@ -127,22 +141,25 @@ function albumChanged(album: Album, list: Album[]) {
 async function moveJob(job: Job): Promise<Album[]> {
   // convert to a multi-move
   const source = job.data.source as AlbumEntry[];
-  const {album, at, before} = job.data.destination as {album: Album, at: AlbumEntry, before: boolean};
+  const { album, at, before } = job.data.destination as {
+    album: Album;
+    at: AlbumEntry;
+    before: boolean;
+  };
   let rank: number;
-  if(at) {
+  if (at) {
     const p1 = await readPicasaEntry(at);
     const rank1 = parseInt(p1.rank || "0");
-    rank = rank1 + (before ? 0: 1);
+    rank = rank1 + (before ? 0 : 1);
   }
-  const mmArgs:MultiMoveJobArguments = source.map((entry, index) => ({
+  const mmArgs: MultiMoveJobArguments = source.map((entry, index) => ({
     source: entry,
     destination: album,
-    rank
+    rank,
   }));
   job.data.source = mmArgs;
   job.data.destination = undefined;
   job.data.argument = undefined;
-
 
   return multiMoveJob(job);
 }
@@ -151,7 +168,7 @@ async function copyJob(job: Job): Promise<Album[]> {
   job.status = "started";
   const updatedAlbums: Album[] = [];
   const source = job.data.source as AlbumEntry[];
-  const dest = job.data.destination as Album;  
+  const dest = job.data.destination as Album;
   const steps = source.length;
   job.progress.start = steps;
   job.progress.remaining = steps;
@@ -163,7 +180,7 @@ async function copyJob(job: Job): Promise<Album[]> {
         let found = false;
         let idx = 1;
         while (!found) {
-          let destPath = join(imagesRoot, dest.key, targetName);
+          let destPath = join(imagesRoot, idFromKey(dest.key).id, targetName);
           found = true;
           if (await fileExists(destPath)) {
             // target already exists
@@ -171,13 +188,13 @@ async function copyJob(job: Job): Promise<Album[]> {
             const ext = extname(s.name);
             const base = basename(s.name, ext);
             targetName = base + ` (${idx++})` + ext;
-            destPath = join(imagesRoot, dest.key);
+            destPath = join(imagesRoot, idFromKey(dest.key).id);
           }
         }
 
         await copyFile(
           entryFilePath(s),
-          join(imagesRoot, dest.key, targetName)
+          join(imagesRoot, idFromKey(dest.key).id, targetName)
         );
         await copyMetadata(s, { album: dest, name: targetName }, false);
         albumChanged(dest, updatedAlbums);
@@ -214,12 +231,12 @@ async function deleteAlbumJob(job: Job): Promise<Album[]> {
   job.progress.remaining = 1;
   job.changed();
 
-  const from = join(imagesRoot, source.key);
+  const from = join(imagesRoot, idFromKey(source.key).id);
   const to = join(dirname(from), "." + basename(from));
   const altKey = relative(imagesRoot, to);
   try {
     await rename(from, to);
-    undoDeleteAlbumPayload.source.push({ name: source.name, key: altKey });
+    undoDeleteAlbumPayload.source.push({ name: source.name, key: altKey, kind:AlbumKinds.folder });
     albumChanged(source, updatedAlbums);
   } catch (e: any) {
     job.errors.push(e.message as string);
@@ -264,8 +281,8 @@ async function renameAlbumJob(job: Job): Promise<Album[]> {
 
   try {
     await rename(
-      join(imagesRoot, source.key),
-      join(imagesRoot, targetAlbum.key)
+      join(imagesRoot, idFromKey(source.key).id),
+      join(imagesRoot, idFromKey(targetAlbum.key).id)
     );
     undoDeleteAlbumPayload.source = targetAlbum;
     onRenamedAlbums(source, targetAlbum);
@@ -303,7 +320,7 @@ async function restoreJob(job: Job): Promise<Album[]> {
           throw new Error(`${s.name} is not a deleted file`);
         }
         const from = entryFilePath(s);
-        const to = join(imagesRoot, s.album.key, s.name.slice(1));
+        const to = join(imagesRoot, idFromKey(s.album.key).id, s.name.slice(1));
         await rename(from, to);
         albumChanged(s.album, updatedAlbums);
       } catch (e: any) {
@@ -329,14 +346,14 @@ async function restoreAlbumJob(job: Job): Promise<Album[]> {
   job.progress.remaining = steps;
   job.changed();
   try {
-    const from = join(imagesRoot, source.key);
+    const from = join(imagesRoot, idFromKey(source.key).id);
     if (!basename(source.key).startsWith(".")) {
       throw new Error(`${source.name} is not a deleted file`);
     }
-    const newKey = join(dirname(source.key), basename(source.key).substr(1));
-    const to = join(imagesRoot, newKey);
+    const newKey = join(dirname(idFromKey(source.key).id), basename(source.key).substr(1));
+    const to = join(imagesRoot, idFromKey(newKey).id);
     await rename(from, to);
-    albumChanged({ name: source.name, key: newKey }, updatedAlbums);
+    albumChanged({ name: source.name, key: keyFromID(newKey, AlbumKinds.folder) , kind:AlbumKinds.folder }, updatedAlbums);
   } catch (e: any) {
     job.errors.push(e.message as string);
   } finally {
@@ -366,7 +383,7 @@ async function deleteJob(job: Job): Promise<Album[]> {
     source.map(async (s) => {
       try {
         const from = entryFilePath(s);
-        const to = join(imagesRoot, s.album.key, "." + s.name);
+        const to = join(imagesRoot, idFromKey(s.album.key).id, "." + s.name);
         await rename(from, to);
         undoDeletePayload.source.push({ album: s.album, name: "." + s.name });
         albumChanged(s.album, updatedAlbums);
@@ -396,57 +413,67 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
 
   job.status = "started";
   const updatedAlbums: Album[] = [];
-  const source = job.data.source as {source: AlbumEntry, destination: Album, rank: Number}[];
+  const source = job.data.source as {
+    source: AlbumEntry;
+    destination: Album;
+    rank: number;
+  }[];
   const steps = source.length;
   job.progress.start = steps;
   job.progress.remaining = steps;
   job.changed();
-  await Promise.allSettled(
-    source.map(async (s) => {
-      try {
-        let targetName = s.source.name;
-        const sourceRank = parseInt((await readPicasaEntry(s.source)).rank || '0');
-        if(s.destination.key !== s.source.album.key) {
-          let found = false;
-          let destPath = join(imagesRoot, s.destination.key, targetName);
-          let idx = 1;
-          while (!found) {
-            found = true;
-            await stat(destPath)
-              .then((e) => {
-                // target already exists
-                found = false;
-                const ext = extname(s.source.name);
-                const base = basename(s.source.name, ext);
-                targetName = base + ` (${idx++})` + ext;
-                destPath = join(imagesRoot, s.destination.key, targetName);
-              })
-              .catch((e) => {});
-          }
-          await copyMetadata(s.source, { album: s.destination, name: targetName }, true);
-          await rename(
-            entryFilePath(s.source),
-            join(imagesRoot, s.destination.key, targetName)
-          );
-          undoMultiMovePayload.source.push({source: {
-            album:  s.destination,
+  for (const s of source) {
+    try {
+      let targetName = s.source.name;
+      const sourceRank = parseInt(
+        (await readPicasaEntry(s.source)).rank || "0"
+      );
+      if (s.destination.key !== s.source.album.key) {
+        let found = false;
+        let destPath = join(imagesRoot, idFromKey(s.destination.key).id, targetName);
+        let idx = 1;
+        while (!found) {
+          found = true;
+          await stat(destPath)
+            .then((e) => {
+              // target already exists
+              found = false;
+              const ext = extname(s.source.name);
+              const base = basename(s.source.name, ext);
+              targetName = base + ` (${idx++})` + ext;
+              destPath = join(imagesRoot, idFromKey(s.destination.key).id, targetName);
+            })
+            .catch((e) => {});
+        }
+        await copyMetadata(
+          s.source,
+          { album: s.destination, name: targetName },
+          true
+        );
+        await rename(
+          entryFilePath(s.source),
+          join(imagesRoot, idFromKey(s.destination.key).id, targetName)
+        );
+        undoMultiMovePayload.source.push({
+          source: {
+            album: s.destination,
             name: targetName,
-          }, destination: s.source.album, rank:sourceRank} );
-        }
-        await setRank({ album: s.destination, name: targetName }, s.rank);
-        albumChanged(s.source.album, updatedAlbums);
-        if(s.source.album.key !== s.destination.key)
-          albumChanged(s.destination, updatedAlbums);
-        else {
-          broadcast('albumEvent', [{type: "albumOrderUpdated", data:s.source.album}]);
-        }
-      } catch (e: any) {
-        job.errors.push(e.message as string);
-      } finally {
-        job.progress.remaining--;
+          },
+          destination: s.source.album,
+          rank: sourceRank,
+        });
       }
-    })
-  );
+      await setRank({ album: s.destination, name: targetName }, s.rank);
+      if (s.source.album.key !== s.destination.key) {
+        albumChanged(s.source.album, updatedAlbums);
+        albumChanged(s.destination, updatedAlbums);
+      }
+    } catch (e: any) {
+      job.errors.push(e.message as string);
+    } finally {
+      job.progress.remaining--;
+    }
+  }
   if (!job.data.noUndo) {
     undoMultiMovePayload.noUndo = true;
     addToUndo(
@@ -470,11 +497,13 @@ async function exportJob(job: Job): Promise<Album[]> {
   job.progress.start = steps;
   job.progress.remaining = steps;
   job.changed();
-  const targetFolder = destination ? join(imagesRoot, destination.key) : join(
-    exportsRoot,
-    "exports-" + new Date().toLocaleString().replace(/\//g, "-")
-  );
-  job.name = ('Exporting to ' + (destination ? destination.name : targetFolder));
+  const targetFolder = destination
+    ? join(imagesRoot, idFromKey(destination.key).id)
+    : join(
+        exportsRoot,
+        "exports-" + new Date().toLocaleString().replace(/\//g, "-")
+      );
+  job.name = "Exporting to " + (destination ? destination.name : targetFolder);
   await mkdir(targetFolder, { recursive: true });
   for (const src of source) {
     try {
@@ -489,7 +518,7 @@ async function exportJob(job: Job): Promise<Album[]> {
   job.status = "finished";
   job.changed();
 
-  if(!destination) {
+  if (!destination) {
     openWithFinder(targetFolder, true);
   } else {
     addOrRefreshOrDeleteAlbum(destination);
@@ -502,7 +531,7 @@ async function copyMetadata(
   dest: AlbumEntry,
   deleteSource: boolean = false
 ) {
-  const sourceIniData = await readPicasaIni(source.album);
+  const sourceIniData = await readAlbumIni(source.album);
   if (sourceIniData[source.name]) {
     updatePicasaEntry(dest, "*", sourceIniData[source.name]);
 

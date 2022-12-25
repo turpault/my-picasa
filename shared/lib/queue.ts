@@ -35,6 +35,9 @@ export class Queue {
     const copy = this.resolveFct;
     copy.forEach((p) => p(false));
   }
+  length() {
+    return this.promises.length;
+  }
   async drain() {
     return new Promise<void>((resolve) => {
       this.event.once("drain", () => {

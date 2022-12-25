@@ -1,6 +1,6 @@
 import { isPicture, isVideo } from "../../../shared/lib/utils";
 import { AlbumEntry, AlbumEntryWithMetadata, Filetype } from "../../../shared/types/types";
-import { readPicasaIni, updatePicasaEntry } from "../rpcFunctions/picasaIni";
+import { readAlbumIni, updatePicasaEntry } from "../rpcFunctions/picasaIni";
 import {
   buildContext, destroyContext, encode, setOptions,
   transform
@@ -8,7 +8,7 @@ import {
 
 export async function imageInfo(entry: AlbumEntry): Promise<AlbumEntryWithMetadata> {  
   const res:AlbumEntryWithMetadata = {...entry, meta: {transform:'', type:Filetype.Picture, width: 0, height: 0}};
-  const picasa = await readPicasaIni(entry.album);  
+  const picasa = await readAlbumIni(entry.album);  
   const options = picasa[entry.name] || {};
   if (isVideo(entry)) {
     res.meta.type = Filetype.Video;    

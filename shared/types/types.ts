@@ -7,7 +7,7 @@ export type PicasaSection = { [name: string]: string };
 export type extraFields =
   | `cached:filters:${ThumbnailSize}`
   | `cached:dimensions:${ThumbnailSize}`;
-export type PicasaFileMeta = {
+export type AlbumEntryMetaData = {
   dateTaken?: string; // ISO date
   star?: boolean;
   caption?: string;
@@ -69,9 +69,9 @@ export type ImageFileMeta = {
   transform: string | undefined;
 };
 
-export type PicasaFolderMeta =
+export type AlbumMetaData =
   | {
-      [name: string]: PicasaFileMeta;
+      [name: string]: AlbumEntryMetaData;
     }
   | {
       [name: string]: PicasaSection;
@@ -85,15 +85,28 @@ export type SliderEvent = {
   value: number;
 };
 
+export enum AlbumKinds {
+  folder = "folder",
+  face = "face",
+}
+
 export type Album = {
   name: string;
   key: string;
+  kind: AlbumKinds;
 };
 
-export type FaceAlbum = Album & {};
+export type AlbumWithData = Album & { count: number; shortcut?: string };
 
+const sep = "»";
+export function keyFromID(id: string, kind: AlbumKinds) {
+  return `${kind}${sep}${id}`;
+}
 
-export type AlbumWithData = Album & { shortcut?: string; count: number };
+export function idFromKey(key: string): { id: string; kind: AlbumKinds } {
+  const [kind, id] = key.split(sep);
+  return { id, kind: kind as AlbumKinds };
+}
 
 export type AlbumChangeType =
   | "albums"
@@ -119,11 +132,11 @@ export type AlbumEntryWithMetadata = AlbumEntry & {
 };
 
 export type AlbumEntryPicasa = AlbumEntry & {
-  picasa: PicasaFileMeta;
+  metadata: AlbumEntryMetaData;
 };
 
 export type AlbumInfo = {
-  picasa: PicasaFolderMeta;
+  metadata: AlbumMetaData;
   assets: AlbumEntry[];
 };
 

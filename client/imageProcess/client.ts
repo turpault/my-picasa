@@ -41,9 +41,9 @@ export async function transform(
   return context;
 }
 
-export async function cloneContext(context: string): Promise<string> {
+export async function cloneContext(context: string, hint: string): Promise<string> {
   const c = await getService();
-  const newContext = await c.cloneContext(context);
+  const newContext = await c.cloneContext(context, hint);
   return newContext;
 }
 

@@ -1,27 +1,144 @@
 import { Rectangle, Point } from "ts-2d-geometry";
-import { rectanglesIntersect } from "../../shared/lib/utils";
-import { Album, AlbumEntry, AlbumEntryPicasa, PicasaFileMeta } from "../../shared/types/types";
+import { fromBase64, rectanglesIntersect } from "../../shared/lib/utils";
+import {
+  Album,
+  AlbumEntry,
+  AlbumEntryPicasa,
+  AlbumKinds,
+  JOBNAMES,
+  AlbumEntryMetaData,
+} from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
 import {
   $,
   albumEntryFromElement,
+  albumEntryFromElementOrChild,
   elementFromEntry,
   setIdForEntry,
-  _$
+  _$,
 } from "../lib/dom";
 import { getSettings, getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
 import { AlbumListEventSource } from "../uiTypes";
 
+let lastDragged: _$ | undefined;
+let lastSources: _$[] = [];
+export async function onDragEnd() {
+  if (lastDragged) {
+    lastDragged.removeClass("thumbnail-dragged-over");
+  }
+  lastSources.map((e) => e.removeClass("thumbnail-dragged"));
+  lastSources.map((e) => e.removeClass("thumbnail-dragged-later"));
+}
+export async function onDrop(
+  ev: DragEvent,
+  album: Album,
+  selectionManager: SelectionManager,
+  elementPrefix: string
+) {
+  if (lastDragged) {
+    ev.preventDefault();
 
-function buildThumbnail(events: AlbumListEventSource, selectionManager: SelectionManager, elementPrefix: string): HTMLElement {
-  const imagePrefix = 'img:'+elementPrefix;
+    let entry: AlbumEntry | undefined = albumEntryFromElement(
+      lastDragged,
+      elementPrefix
+    )!;
+    // Emulate the move by moving elements
+    lastSources.reverse().forEach((e) => {
+      e.remove();
+      lastDragged?.parent()?.insertBefore(e, lastDragged);
+    });
+
+    const selection = selectionManager.selected();
+    if (entry) {
+      const s = await getService();
+
+      if (entry.album.key !== album.key) {
+        entry = undefined;
+      }
+      s.createJob(JOBNAMES.MOVE, {
+        source: selection,
+        destination: {
+          album: album,
+          at: entry,
+          before: true,
+        },
+      });
+      selectionManager.clear();
+    }
+  }
+  onDragEnd();
+}
+
+function buildThumbnail(
+  events: AlbumListEventSource,
+  selectionManager: SelectionManager,
+  elementPrefix: string
+): HTMLElement {
+  const imagePrefix = "img:" + elementPrefix;
   const e = $(
-    `<div class="thumbnail thumbnail-size">
-    <img draggable="true" class="th browser-thumbnail" loading="lazy"> <img class="star" src="resources/images/star.svg">
+    `<div draggable="true" class="thumbnail thumbnail-size">
+    <img class="th browser-thumbnail" loading="lazy"> <img class="star" src="resources/images/star.svg">
     </div>`
   );
+  e.on("dragstart", (ev: any) => {
+    const entry = albumEntryFromElement(e, elementPrefix);
+    if (entry) {
+      selectionManager.select(entry);
+      ev.dataTransfer.effectAllowed = "move";
+      ev.dataTransfer.setData("text/html", "");
+      if (selectionManager.selected().length > 0) {
+        // Todo multiple select
+      }
+    }
+    lastSources = selectionManager
+      .selected()
+      .map((entry) => elementFromEntry(entry, elementPrefix));
+    lastSources.forEach((e) => e.addClass("thumbnail-dragged"));
+    requestAnimationFrame(() => {
+      lastSources.forEach((e) => e.addClass("thumbnail-dragged-later"));
+    });
+    ev.stopPropagation();
+    //ev.preventDefault();
+  });
+  e.on("dragleave", async (ev: DragEvent) => {
+    ev.preventDefault();
+    //e.removeClass("thumbnail-dragged-over");
+    //e.removeClass("padding-margin-right");
+  });
+  e.on("drop", (ev) => {
+    if (lastDragged) {
+      const entry = albumEntryFromElement(lastDragged, elementPrefix);
+      if (entry) onDrop(ev, entry.album, selectionManager, elementPrefix);
+    }
+  });
+  e.on("dragend", async (ev: DragEvent) => {
+    onDragEnd();
+    ev.preventDefault();
+  });
+  e.on("dragover", (event) => {
+    // prevent default to allow drop
+    event.preventDefault();
+  });
+  e.on("dragenter", async (ev: DragEvent) => {
+    ev.preventDefault();
+    if (lastSources.find((elem) => elem.get() === e.get())) {
+      return;
+    }
+    // make sure this is the only element that drags on
+    if (lastDragged) {
+      lastDragged.removeClass("thumbnail-dragged-over");
+    }
+    lastDragged = e;
+
+    // See if this is a left or right-ight drag over
+    const rect = e.clientRect();
+    const mouse = { x: ev.clientX, y: ev.clientY };
+    e.addClass("thumbnail-dragged-over");
+    return;
+  });
+
   /*for (const side of ["left", "right"]) {
     $(`.thumbnail-drop-area-${side}`, e)
       .on("dragenter", function (ev) {
@@ -54,7 +171,7 @@ function buildThumbnail(events: AlbumListEventSource, selectionManager: Selectio
       });
   }*/
   const img = $(".th", e);
-  img.on("click", (ev: any) => {
+  e.on("click", (ev: any) => {
     const entry = albumEntryFromElement(e, elementPrefix);
     if (entry) {
       ev.stopPropagation();
@@ -69,20 +186,17 @@ function buildThumbnail(events: AlbumListEventSource, selectionManager: Selectio
       });
     }
   });
-  img.on("dragstart", (ev: any) => {
-    const entry = albumEntryFromElement(e, elementPrefix);
-    if (entry) {
-      selectionManager.select(entry);
-      ev.dataTransfer.effectAllowed = "move";
-      ev.dataTransfer.setData("text/html", "");
-    }
-    ev.stopPropagation();
-    //ev.preventDefault();
-  });
-  e.on("dblclick", (ev: any) => {
-    const entry = albumEntryFromElement(e, elementPrefix);
+  e.on("dblclick", async (ev: any) => {
+    let entry = albumEntryFromElement(e, elementPrefix);
     if (!entry) {
       return;
+    }
+    if(entry.album.kind == AlbumKinds.face) {
+      const s = await getService();
+      entry = await s.getSourceEntry(entry);
+      if(!entry) {
+        return;
+      }
     }
     events.emit("thumbnailDblClicked", {
       entry,
@@ -114,66 +228,59 @@ function buildThumbnail(events: AlbumListEventSource, selectionManager: Selectio
   return e.get();
 }
 
-export async function makeThumbnailManager(elementPrefix: string, selectionManager: SelectionManager) {
+export async function makeThumbnailManager(
+  elementPrefix: string,
+  selectionManager: SelectionManager
+) {
   const s = await getService();
-  s.on(
-    "picasaFileMetaChanged",
-    async (e: { payload: AlbumEntryPicasa }) => {
-      // Is there a thumbnail with that data ?
-      const elem = elementFromEntry(e.payload, elementPrefix);
-      if (elem) {
-        thumbnailData(elem, e.payload, e.payload.picasa, selectionManager, elementPrefix);
-      }
+  s.on("picasaFileMetaChanged", async (e: { payload: AlbumEntryPicasa }) => {
+    // Is there a thumbnail with that data ?
+    const elem = elementFromEntry(e.payload, elementPrefix);
+    if (elem) {
+      thumbnailData(
+        elem,
+        e.payload,
+        e.payload.metadata,
+        selectionManager,
+        elementPrefix
+      );
     }
-  );
+  });
 
-  var sheet = Array.from(document.styleSheets).reduce((prev, current) => {
-    try {
-      return [...prev, ...(Array.from(current.cssRules) as any[])];
-    } catch (e) {
-      return prev;
-    }
-  }, [] as any[]);
+  const root = document.documentElement;
 
-  const thumbnailRule = sheet.find((p) =>
-    p.cssText.includes(".thumbnail-size")
-  );
   getSettingsEmitter().on("changed", (event) => {
     if (event.field === "iconSize") {
-      thumbnailRule.style.width = `${event.iconSize}px`;
-      thumbnailRule.style.height = `${event.iconSize}px`;
+      root.style.setProperty("--thumbnail-size", `${event.iconSize}px`);
     }
   });
   const settings = getSettings();
-  thumbnailRule.style.width = `${settings.iconSize}px`;
-  thumbnailRule.style.height = `${settings.iconSize}px`;
+  root.style.setProperty("--thumbnail-size", `${settings.iconSize}px`);
 
-selectionManager.events.on("added", ({ key }) => {
-  // Element might be not displayed
-  try {
-    const e = elementFromEntry(key, elementPrefix);
-    if (e.exists())
-      e.addClass("selected");
-  } catch (e) { }
-});
-selectionManager.events.on("removed", ({ key }) => {
-  // Element might be not displayed
-  try {
-    const e = elementFromEntry(key, elementPrefix);
-    if (e.exists())
-      e.removeClass("selected");
-  } catch (e) { }
-});
+  selectionManager.events.on("added", ({ key }) => {
+    // Element might be not displayed
+    try {
+      const e = elementFromEntry(key, elementPrefix);
+      if (e.exists()) e.addClass("selected");
+    } catch (e) {}
+  });
+  selectionManager.events.on("removed", ({ key }) => {
+    // Element might be not displayed
+    try {
+      const e = elementFromEntry(key, elementPrefix);
+      if (e.exists()) e.removeClass("selected");
+    } catch (e) {}
+  });
 }
 export async function thumbnailData(
   e: _$,
   entry: AlbumEntry,
-  picasaData: PicasaFileMeta,
+  picasaData: AlbumEntryMetaData,
   selectionManager: SelectionManager,
-  elementPrefix:string
+  elementPrefix: string
 ) {
   const thumb = $("img", e);
-  const imagePrefix = 'img:'+ elementPrefix;
+  const imagePrefix = "img:" + elementPrefix;
 
   setIdForEntry(e, entry, elementPrefix);
   setIdForEntry(thumb, entry, imagePrefix);
@@ -184,8 +291,9 @@ export async function thumbnailData(
     $(e).removeClass("selected");
   }
   thumb.attr("src", thumbnailUrl(entry, "th-medium", true));
-  const label = entry.name;
-  let dateTime = '';
+  // could be improved
+  const label = entry.album.kind === AlbumKinds.folder ? entry.name : JSON.parse(fromBase64(entry.name))[0];
+  let dateTime = "";
   if (picasaData.dateTaken) {
     dateTime = new Date(picasaData.dateTaken).toLocaleString();
   }
@@ -228,15 +336,68 @@ export function selectThumbnailsInRect(
     }
   }
 }
-export function thumbnailsAround(container: _$,
-  p: Point, elementPrefix:string): { entry: AlbumEntry, leftOf: boolean } {
-  function distanceTo(p: Point, r: Rectangle): { distance: number, leftOf: boolean } {
+
+export function entryAboveBelow(
+  entry: AlbumEntry,
+  elementPrefix: string,
+  below: boolean
+): AlbumEntry | null {
+  const sel = elementFromEntry(entry, elementPrefix);
+  if (sel) {
+    const pos = sel.clientRect();
+    pos.y += pos.height * (below ? 1.5 : -0.5);
+    let pointedElement = document.elementFromPoint(pos.x, pos.y);
+    const entry = albumEntryFromElementOrChild(
+      $(pointedElement!),
+      elementPrefix
+    );
+    if (entry) {
+      return entry;
+    }
+    pos.y += pos.height * (below ? -1 : 1);
+    pointedElement = document.elementFromPoint(pos.x, pos.y);
+    return albumEntryFromElementOrChild($(pointedElement!), elementPrefix);
+  }
+  return null;
+}
+
+export function entryLeftRight(
+  entry: AlbumEntry,
+  elementPrefix: string,
+  right: boolean
+): AlbumEntry | null {
+  const sel = elementFromEntry(entry, elementPrefix);
+  const n = right ? sel.get().nextSibling : sel.get().previousSibling;
+
+  if (n) {
+    return albumEntryFromElement($(n as HTMLElement), elementPrefix);
+  }
+  return null;
+}
+
+export function thumbnailsAround(
+  container: _$,
+  p: Point,
+  elementPrefix: string
+): { entry: AlbumEntry; leftOf: boolean } {
+  function distanceTo(
+    p: Point,
+    r: Rectangle
+  ): { distance: number; leftOf: boolean } {
     // Over an existing one
-    if (p.y > r.topLeft.y && p.y < r.bottomRight.y && p.x > r.topLeft.x && p.x < r.bottomRight.x) {
+    if (
+      p.y > r.topLeft.y &&
+      p.y < r.bottomRight.y &&
+      p.x > r.topLeft.x &&
+      p.x < r.bottomRight.x
+    ) {
       return { distance: 0, leftOf: true };
     }
 
-    const midPoint = new Point((r.bottomRight.x + r.topLeft.x) / 2, (r.bottomRight.y + r.topLeft.y) / 2);
+    const midPoint = new Point(
+      (r.bottomRight.x + r.topLeft.x) / 2,
+      (r.bottomRight.y + r.topLeft.y) / 2
+    );
     let xDelta = p.x - midPoint.x;
     let yDelta = (p.y - midPoint.y) * 10000;
     const d = Math.pow(xDelta, 2) + Math.pow(yDelta, 2);
@@ -245,7 +406,10 @@ export function thumbnailsAround(container: _$,
   //var rect = container.clientRect();
   //let candidate:AlbumEntry | undefined;
   let d: number = Number.MAX_SAFE_INTEGER;
-  const distances: { entry: AlbumEntry, d: { distance: number, leftOf: boolean } }[] = [];
+  const distances: {
+    entry: AlbumEntry;
+    d: { distance: number; leftOf: boolean };
+  }[] = [];
   for (const e of container.children()) {
     if (e.get()!.offsetParent === null) {
       continue; // Element is not displayed
@@ -255,9 +419,18 @@ export function thumbnailsAround(container: _$,
     }
     const r = e.clientRect();
     //r.x -= rect.x;
-    //r.y -= rect.y;     
+    //r.y -= rect.y;
     const entry = albumEntryFromElement(e, elementPrefix)!;
-    const dist = { entry, d: distanceTo(p, new Rectangle(new Point(r.x, r.y), new Point(r.x + r.width, r.y + r.height))) };
+    const dist = {
+      entry,
+      d: distanceTo(
+        p,
+        new Rectangle(
+          new Point(r.x, r.y),
+          new Point(r.x + r.width, r.y + r.height)
+        )
+      ),
+    };
     if (dist.d.distance === 0) {
       // Overlapping, shortcut
       return { entry: dist.entry, leftOf: dist.d.leftOf };
@@ -268,15 +441,17 @@ export function thumbnailsAround(container: _$,
 
   return { entry: distances[0].entry, leftOf: distances[0].d.leftOf };
 }
+
 export function makeNThumbnails(
   domElement: _$,
   count: number,
   events: AlbumListEventSource,
   selectionManager: SelectionManager,
-  elementPrefix:string
-) {
+  elementPrefix: string
+): boolean {
+  const countChanged = domElement.get().children.length !== count;
   while (domElement.get().children.length < count) {
-    domElement.append(buildThumbnail(events,selectionManager, elementPrefix));
+    domElement.append(buildThumbnail(events, selectionManager, elementPrefix));
   }
   /*for (const i of domElement.all(".img")) {
     i.attr("src", "");
@@ -294,4 +469,5 @@ export function makeNThumbnails(
       e.css("display", "none");
     }
   }
+  return countChanged;
 }

@@ -67,6 +67,10 @@ const stringTable: { [key: string]: any } = {
   "More...": { fr: "Plus..." },
   "Do you want to delete $1 files": { fr: "Voulez-vous effacer $1 fichiers" },
   "Delete $1 files...": { fr: "Effacer $1 fichier..." },
+  "face": { fr: "Personnes", en:"People" },
+  "shortcut": { fr: "Raccourcis", en:"Shortcuts" },
+  "montage": { fr: "Montages", en:"Montages" },
+  "folder": { fr: "Dossiers", en:"Folders" },
 };
 const lang = window.navigator.language.split("-")[0];
 let str = new Set<string>();

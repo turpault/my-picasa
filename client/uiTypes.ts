@@ -40,6 +40,7 @@ export type ImageControllerEvent = {
   idle: {};
   busy: {};
   operationListChanged: {};
+  faceUpdated:{}
 };
 
 export type AppEvent = {
@@ -71,6 +72,7 @@ export type AppEvent = {
   // Well-known events sourced from tabs
   edit: { initialList: AlbumEntry[]; initialIndex: number };
   show: { initialList: AlbumEntry[]; initialIndex: number };
+  editSelect: { entry: AlbumEntry };
   composite: { initialList: AlbumEntry[]; initialIndex: number };
 };
 
@@ -81,6 +83,7 @@ export type AlbumListEvent = {
   scrolled: { album: Album };
   invalidateFrom: {
     index: number;
+    to: number;
   };
   invalidateAt: {
     index: number;

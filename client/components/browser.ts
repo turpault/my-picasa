@@ -1,14 +1,12 @@
-import { buildEmitter } from "../../shared/lib/event";
 import { JOBNAMES } from "../../shared/types/types";
 import { AlbumIndexedDataSource } from "../album-data-source";
-import { $, _$ } from "../lib/dom";
+import { $ } from "../lib/dom";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
-import { AlbumListEvent, AppEventSource } from "../uiTypes";
+import { AppEventSource } from "../uiTypes";
 import { makeAlbumList } from "./browser-album-list";
 import { makePhotoList } from "./browser-photo-list";
-import { makeButtons } from "./browser-photo-list-buttons";
-import { message, Button } from "./message";
+import { Button, message } from "./message";
 import { question } from "./question";
 import { t } from "./strings";
 

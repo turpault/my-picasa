@@ -1,4 +1,4 @@
-import { Album, AlbumEntry } from "../types/types";
+import { Album, AlbumEntry, AlbumKinds } from "../types/types";
 import { cssSplitValue } from "../../shared/lib/utils";
 import { off } from "process";
 
@@ -355,9 +355,20 @@ export function $(
 export function preLoadImage(url: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const i = new Image();
+    document.body.appendChild(i);
+    (window as any).i = i;
+    i.onload = () => {      
+      i.remove();
+      resolve();
+    };
+    i.decode().then(() => {
+    }).catch(_e => {
+    });
+    i.onerror = () => {
+      i.remove();
+      reject();
+    };
     i.src = url;
-    i.onload = () => resolve();
-    i.onerror = () => reject();
   });
 }
 
@@ -381,12 +392,12 @@ export function setIdForAlbum(e: _$, album: Album, qualifier: string) {
   e.id(idFromAlbum(album, qualifier));
 }
 function albumFromId(id: string): Album | null {
-  const [qualifier, valid, key, name] = id.split("|");
-  if (valid === "album") return { key, name };
+  const [qualifier, valid, key, name, kind] = id.split("|");
+  if (valid === "album") return { key, name, kind: kind as AlbumKinds };
   return null;
 }
 function idFromAlbum(a: Album, qualifier: string): string {
-  return `${qualifier}|album|${a.key}|${a.name}`;
+  return `${qualifier}|album|${a.key}|${a.name}|${a.kind}`;
 }
 
 // Name HTML element from/to AlbumEntry
@@ -400,16 +411,32 @@ export function albumEntryFromElement(
 ): AlbumEntry | null {
   return albumEntryFromId(e.id().slice(qualifier.length));
 }
+export function albumEntryFromElementOrChild(
+  e: _$,
+  qualifier: string
+): AlbumEntry | null {
+  if(!e || !e.exists()) {
+    return null;
+  }
+  const r = albumEntryFromId(e.id().slice(qualifier.length));
+  if(r) { return r; }
+  const p = e.parent();
+  if(!p ||!p.exists()) {
+    return null;
+  }
+  return albumEntryFromElementOrChild(p, qualifier);
+}
+
 export function setIdForEntry(e: _$, entry: AlbumEntry, qualifier: string) {
   e.id(idFromAlbumEntry(entry, qualifier));
 }
 function albumEntryFromId(id: string): AlbumEntry | null {
-  const [qualifier, valid, key, name, entry] = id.split("|");
+  const [qualifier, valid, key, name, kind, entry] = id.split("|");
   if (valid === "entry") {
-    return { album: { key, name }, name: entry };
+    return { album: { key, name, kind: kind as AlbumKinds }, name: entry };
   }
   return null;
 }
 export function idFromAlbumEntry(entry: AlbumEntry, qualifier: string): string {
-  return `${qualifier}|entry|${entry.album.key}|${entry.album.name}|${entry.name}`;
+  return `${qualifier}|entry|${entry.album.key}|${entry.album.name}|${entry.album.kind}|${entry.name}`;
 }

@@ -39,6 +39,7 @@ tell application "Finder"
       ? `select (every item of the_folder whose name is in ["${f}"])`
       : ""
   }	
+  activate
 end tell
   `;
   return runScript(script);

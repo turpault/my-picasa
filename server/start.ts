@@ -5,6 +5,7 @@ import { basename, join } from "path";
 import { lockedLocks, startLockMonitor } from "../shared/lib/utils";
 import { SocketAdaptorInterface } from "../shared/socket/socketAdaptorInterface";
 import { WsAdaptor } from "../shared/socket/wsAdaptor";
+import { idFromKey } from "../shared/types/types";
 import { buildThumbs } from "./rpc/background/bg-thumbgen";
 import { parseLUTs } from "./rpc/imageOperations/imageFilters";
 import { encode } from "./rpc/imageOperations/sharp-processor";
@@ -12,7 +13,7 @@ import { RPCInit } from "./rpc/index";
 import { asset } from "./rpc/routes/asset";
 import { thumbnail } from "./rpc/routes/thumbnail";
 import { picasaIniCleaner } from "./rpc/rpcFunctions/picasaIni";
-import { startAlbumUpdateNotification, updateLastWalkLoop } from "./rpc/rpcFunctions/walker";
+import { albumWithData, startAlbumUpdateNotification, updateLastWalkLoop } from "./rpc/rpcFunctions/walker";
 import { startSentry } from "./sentry";
 import { busy, measureCPULoad } from "./utils/busy";
 import { addSocket, removeSocket } from "./utils/socketList";
@@ -33,7 +34,9 @@ export function socketInit(httpServer: FastifyInstance) {
     console.info("[socket]: Client has connected...");
     const socket = socketAdaptorInit(connection.socket);
     addSocket(socket);
-    socket.onDisconnect(() => removeSocket(socket));
+    socket.onDisconnect(() =>{
+      removeSocket(socket);
+    });
 
     RPCInit(socket, {});
 
@@ -73,10 +76,16 @@ function setupRoutes(server: FastifyInstance) {
     return { series: await history(), locks: lockedLocks() };
   });
 
-  server.get("/thumbnail/:album/:name/:resolution", async (request, reply) => {
-    const { album, name, resolution } = request.params as any;
+  server.get("/thumbnail/:albumkey/:name/:resolution", async (request, reply) => {
+    const { albumkey, name, resolution } = request.params as any;
+    const album = albumWithData(albumkey);
+    if(!album) {
+      reply.code(404);
+      reply.send();
+      return;
+    }
     const entry = {
-      album: { key: album, name: basename(album) },
+      album,
       name,
     };
 
@@ -86,10 +95,16 @@ function setupRoutes(server: FastifyInstance) {
     return r.data;
   });
 
-  server.get("/asset/:album/:name", async (request, reply) => {
-    const { album, name } = request.params as any;
+  server.get("/asset/:albumkey/:name", async (request, reply) => {
+    const { albumkey, name } = request.params as any;
+    const album = albumWithData(albumkey);
+    if(!album) {
+      reply.code(404);
+      reply.send();
+      return;
+    }
     const entry = {
-      album: { key: album, name: "" },
+      album,
       name,
     };
 
@@ -129,7 +144,7 @@ export async function start(p?: number) {
     });
 
     setupRoutes(server);
-    await server.listen(p, "localhost");
+    await server.listen({port:p});
     console.info(`Ready to accept connections on port ${p}.`);
 
     buildThumbs();

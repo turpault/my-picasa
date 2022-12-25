@@ -26,15 +26,12 @@ import {
 } from "./rpcFunctions/fs";
 import { media, mediaCount, setRank, sortAlbum } from "./rpcFunctions/media";
 import {
-  getShortcuts,
-  readPicasaEntry,
-  readPicasaIni,
-  rotate,
-  setAlbumShortcut,
+  getFaceAlbumFromHash,
+  getShortcuts, readPicasaEntry, rotate,
   updatePicasaEntry
 } from "./rpcFunctions/picasaIni";
 import { clientReady } from "./rpcFunctions/ready";
-import { folders, monitorAlbums } from "./rpcFunctions/walker";
+import { folders, getSourceEntry, monitorAlbums, readAlbumMetadata, setAlbumShortcut } from "./rpcFunctions/walker";
 import { ServiceMap } from "./rpcHandler";
 
 /**
@@ -52,7 +49,7 @@ export const MyPicasa: ServiceMap = {
     },
     cloneContext: {
       handler: cloneContext,
-      arguments: ["context:string"],
+      arguments: ["context:string", "hint:string"],
     },
     destroyContext: {
       handler: destroyContext,
@@ -122,8 +119,8 @@ export const MyPicasa: ServiceMap = {
       handler: setRank,
       arguments: ["entry:string", "rank:integer"],
     },
-    readPicasaIni: {
-      handler: readPicasaIni,
+    readAlbumMetadata: {
+      handler: readAlbumMetadata,
       arguments: ["album:object"],
     },
     exifData: {
@@ -189,6 +186,14 @@ export const MyPicasa: ServiceMap = {
     getShortcuts: {
       handler: getShortcuts,
       arguments:[]
+    },
+    getSourceEntry: {
+      handler: getSourceEntry,
+      arguments:["entry:object"]
+    },
+    getFaceAlbumFromHash: {
+      handler: getFaceAlbumFromHash,
+      arguments:["hash:string"]
     },
     rotate: {
       handler: rotate,

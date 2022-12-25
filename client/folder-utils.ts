@@ -5,10 +5,9 @@ import {
   AlbumInfo,
   videoExtensions,
 } from "../shared/types/types";
-import { readPicasaIni } from "./lib/handles";
+import { readAlbumMetadata } from "./lib/handles";
 import { getSettings, Settings } from "./lib/settings";
 import { getService } from "./rpc/connect";
-import { albumContents } from "./walker";
 
 export async function buildAlbumEntryEx(
   entries: AlbumEntry[]
@@ -22,8 +21,8 @@ export async function buildAlbumEntryEx(
   const s = await getService();
   const picasa = await Promise.all(
     uniqueAlbums.map(async (a) => {
-      const pic = await s.readPicasaIni(a);
-      return { album: a, picasa: pic };
+      const metadata = await s.readAlbumMetadata(a);
+      return { album: a, picasa: metadata };
     })
   );
   return entries.map((entry) => {
@@ -31,14 +30,25 @@ export async function buildAlbumEntryEx(
     if (!p) {
       return {
         ...entry,
-        picasa: {},
+        metadata: {},
       };
     }
     return {
       ...entry,
-      picasa: p!.picasa[entry.name] || {},
+      metadata: p!.picasa[entry.name] || {},
     };
   });
+}
+
+
+async function albumContents(
+  fh: Album,
+): Promise<{
+  entries: AlbumEntry[];
+}> {
+  const service = await getService();
+  const { entries } = await service.media(fh);
+  return { entries };
 }
 
 export async function getAlbumInfo(
@@ -60,7 +70,7 @@ export async function getAlbumInfo(
   }
   // Gettings contents might change the picasa data
   const contents = await albumContents(album);
-  const picasa = await readPicasaIni(album);
+  const picasa = await readAlbumMetadata(album);
   let entries = contents.entries;
 
   if (settings.filters.star) {
@@ -94,7 +104,7 @@ export async function getAlbumInfo(
     assets.reverse();
   }
   */
-  return { picasa, assets: entries };
+  return { metadata: picasa, assets: entries };
 }
 
 export async function getFileExifData(entry: AlbumEntry): Promise<any> {

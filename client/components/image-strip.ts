@@ -1,5 +1,5 @@
 import { range, uuid } from "../../shared/lib/utils";
-import { AlbumEntry, AlbumEntryPicasa, PicasaFileMeta } from "../../shared/types/types";
+import { AlbumEntry, AlbumEntryPicasa, AlbumEntryMetaData } from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
 import { $, elementFromEntry, idFromAlbumEntry, _$ } from "../lib/dom";
 import { getService } from "../rpc/connect";

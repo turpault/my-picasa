@@ -14,7 +14,7 @@ import { buildImage } from "../imageOperations/sharp-processor";
 import { toExifDate } from "./exif";
 import { media } from "./media";
 import { importScript } from "./osascripts";
-import { readPicasaIni } from "./picasaIni";
+import { readAlbumIni } from "./picasaIni";
 import { folders, waitUntilWalk } from "./walker";
 
 function photoLibrary() {
@@ -72,7 +72,7 @@ export async function exportAllFavoritesJob(job: Job): Promise<Album[]> {
   });
   for (const album of albums) {
     q.add(async () => {
-      const p = await readPicasaIni(album);
+      const p = await readAlbumIni(album);
       const m = await media(album);
 
       for (const entry of m.entries) {

@@ -10,6 +10,7 @@ import { join } from "path";
 import { isVideo, lock } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
+  idFromKey,
   ThumbnailSize,
   ThumbnailSizeVals,
 } from "../../../shared/types/types";
@@ -27,8 +28,8 @@ export function thumbnailPathFromEntryAndSize(
   size: ThumbnailSize
 ) {
   if (isVideo(entry))
-    return join(imagesRoot, entry.album.key, `.${size}-${entry.name}.gif`);
-  else return join(imagesRoot, entry.album.key, `.${size}-${entry.name}`);
+    return join(imagesRoot, idFromKey(entry.album.key).id, `.${size}-${entry.name}.gif`);
+  else return join(imagesRoot, idFromKey(entry.album.key).id, `.${size}-${entry.name}`);
 }
 
 export async function readThumbnailFromCache(
@@ -41,6 +42,7 @@ export async function readThumbnailFromCache(
   try {
     d = await readFile(path);
   } catch (e: any) {
+    console.warn('Reading file from cache failed:', e);
     d = undefined;
   }
   unlock();

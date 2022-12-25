@@ -1,19 +1,21 @@
 import { readFile, stat, writeFile } from "fs/promises";
 import { extname } from "path";
-import { lock } from "../../../shared/lib/utils";
+import { isVideo, lock } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
+  AlbumKinds,
   extraFields,
   ThumbnailSize,
   videoExtensions,
 } from "../../../shared/types/types";
 import { dec, inc } from "../../utils/stats";
 import {
+  buildFaceImage,
   buildImage,
   dimensionsFromFile,
 } from "../imageOperations/sharp-processor";
 import { createGif } from "../videoOperations/gif";
-import { readPicasaIni, updatePicasaEntry } from "./picasaIni";
+import { getFaceData, readAlbumIni, updatePicasaEntry } from "./picasaIni";
 import {
   readThumbnailFromCache,
   thumbnailPathFromEntryAndSize,
@@ -37,7 +39,7 @@ async function shouldMakeImageThumbnail(
 ): Promise<boolean> {
   let exception: Error | undefined = undefined;
   try {
-    const picasa = await readPicasaIni(entry.album);
+    const picasa = await readAlbumIni(entry.album);
 
     const picasaLabel = cachedFilterKey[size];
     const picasaSizeLabel = dimensionsFilterKey[size];
@@ -47,8 +49,8 @@ async function shouldMakeImageThumbnail(
     const cachedTransform = picasa[entry.name][picasaLabel] || "";
     let cachedSize = picasa[entry.name][picasaSizeLabel];
     const path = thumbnailPathFromEntryAndSize(entry, size);
-    const fileExists = stat(path)
-      .then(() => true)
+    const fileExists = await stat(path)
+      .then((s) => s.size !== 0)
       .catch(() => false);
     if (!fileExists || !cachedSize || transform !== cachedTransform) {
       return true;
@@ -79,13 +81,20 @@ export async function readOrMakeThumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize = "th-medium"
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
-  if (videoExtensions.includes(extname(entry.name).substr(1).toLowerCase())) {
+  if(entry.album.kind == AlbumKinds.face) {
+    // Extract a face thumbnail
+    return makeFaceThumbnail(entry);
+  }
+  if (isVideo(entry)) {
     return readOrMakeVideoThumbnail(entry, size);
   } else {
     return readOrMakeImageThumbnail(entry, size);
   }
 }
 
+async function makeFaceThumbnail(  entry: AlbumEntry){
+  return buildFaceImage(entry)
+}
 async function makeImageThumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize
@@ -95,7 +104,7 @@ async function makeImageThumbnail(
   inc("thumbnail");
   let exception: Error | undefined = undefined;
   try {
-    const picasa = await readPicasaIni(entry.album);
+    const picasa = await readAlbumIni(entry.album);
     const sizes = {
       "th-small": 100,
       "th-medium": 250,
@@ -126,7 +135,7 @@ async function makeImageThumbnail(
         picasa[entry.name][picasaSizeLabel]
       );
 
-      writeThumbnailToCache(entry, size, res.data);
+      await writeThumbnailToCache(entry, size, res.data);
     }
   } catch (e: any) {
     exception = e;
@@ -152,7 +161,7 @@ async function readOrMakeImageThumbnail(
       await makeImageThumbnail(entry, size);
     }
     const picasaSizeLabel = dimensionsFilterKey[size];
-    const picasa = await readPicasaIni(entry.album);
+    const picasa = await readAlbumIni(entry.album);
     let jpegBuffer = await readThumbnailFromCache(entry, size);
     let cachedSize = picasa[entry.name][picasaSizeLabel];
     if (!cachedSize) {

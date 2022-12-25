@@ -3,47 +3,43 @@ import { join } from "path";
 import { isPicture, isVideo } from "../../../shared/lib/utils";
 import {
   Album,
-  AlbumChangeEvent,
   AlbumEntry,
-  PicasaFolderMeta
+  AlbumKinds,
+  idFromKey
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
-import { broadcast } from "../../utils/socketList";
 import { exifDataAndStats } from "./exif";
-import { readPicasaIni, updatePicasaEntry } from "./picasaIni";
+import { readAlbumIni, readPicasaEntry, updatePicasaEntry } from "./picasaIni";
+import { albumWithData, queueNotification } from "./walker";
 
-export async function setRank(entry: AlbumEntry, rank: Number): Promise<void> {
-  const ini = await readPicasaIni(entry.album);
-  const sortedAndFiltered = Object.entries(ini)
-    .sort((a, b) => parseInt(a[1].rank || "0") - parseInt(b[1].rank || "0"))
-    .filter((v) => v[0] != entry.name);
-  let rankIndex = 0;
-  for (const [name, i] of sortedAndFiltered) {
-    if (rankIndex === rank) {
-      rankIndex++;
-    }
-    updatePicasaEntry({ album: entry.album, name }, "rank", rankIndex);
-    rankIndex++;
-  }
-  updatePicasaEntry(entry, "rank", rank);
+export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
+  const entries = (await media(entry.album)).entries.filter(e => e.name !== entry.name);
+  await sortAssetsByRank(entries);
+  entries.splice(rank, 0, entry);
+  entries.map((entry, index)=> {
+    updatePicasaEntry(entry, "rank", index);
+  });
+  queueNotification({
+    type: "albumOrderUpdated",
+    album: albumWithData(entry.album),
+  });
 }
 
-async function assignRanks(
-  filesInFolder: AlbumEntry[],
-  ini: PicasaFolderMeta
-): Promise<void> {
+async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {
   let rank = 0;
   for (const entry of filesInFolder) {
     if (isPicture(entry) || isVideo(entry)) {
-      if (!ini[entry.name] || ini[entry.name].rank === undefined) {
+      let current = (await readPicasaEntry(entry)).rank;
+      if(current) {
+        rank = Math.max(rank, parseInt(current));
+      } else 
         updatePicasaEntry(entry, "rank", rank++);
-      }
     }
   }
 }
 
 export async function sortAlbum(album: Album, order: string): Promise<void> {
-  const i = await readPicasaIni(album);
+  const i = await readAlbumIni(album);
   const entries = (await media(album)).entries;
 
   switch (order) {
@@ -81,8 +77,16 @@ export async function sortAlbum(album: Album, order: string): Promise<void> {
         );
         */
         const sorted = entries.sort((e1, e2) => {
-          if(i[e1.name] && i[e2.name] && i[e1.name].dateTaken !== undefined && i[e2.name].dateTaken !== undefined )
-            return new Date(i[e1.name].dateTaken!).getTime() -  new Date(i[e2.name].dateTaken!).getTime();
+          if (
+            i[e1.name] &&
+            i[e2.name] &&
+            i[e1.name].dateTaken !== undefined &&
+            i[e2.name].dateTaken !== undefined
+          )
+            return (
+              new Date(i[e1.name].dateTaken!).getTime() -
+              new Date(i[e2.name].dateTaken!).getTime()
+            );
           return 0;
         });
 
@@ -97,25 +101,31 @@ export async function sortAlbum(album: Album, order: string): Promise<void> {
             return e1.exif.stats.ctime.getTime() - e2.exif.tags.DateTime;
           return e1.exif.tags.DateTime - e2.exif.stats.ctime.getTime();
         });*/
+
         sorted.forEach((sortedEntry, index) => {
-          updatePicasaEntry(sortedEntry, "rank", index);
+          setRank(sortedEntry, index);
         });
       }
       break;
   }
-  broadcast("albumEvent", [
-    { type: "albumOrderUpdated", album: album },
-  ] as AlbumChangeEvent[]);
 }
 
 export async function mediaCount(album: Album): Promise<{ count: number }> {
-  return { count: (await assetsInAlbum(album)).entries.length };
+  if (album.kind === AlbumKinds.folder) {
+    return { count: (await assetsInFolderAlbum(album)).entries.length };
+  } else if (album.kind === AlbumKinds.face) {
+    const ini = await readAlbumIni(album);
+    return { count: Object.keys(ini).length };
+  } else throw new Error(`Unknown kind ${album.kind}`);
 }
 
-export async function assetsInAlbum(
+export async function assetsInFolderAlbum(
   album: Album
 ): Promise<{ entries: AlbumEntry[]; folders: string[] }> {
-  const items = await readdir(join(imagesRoot, album.key));
+  if (album.kind !== AlbumKinds.folder) {
+    throw new Error("Can only scan folders");
+  }
+  const items = await readdir(join(imagesRoot, idFromKey(album.key).id));
   const entries: AlbumEntry[] = [];
   const folders: string[] = [];
 
@@ -125,7 +135,7 @@ export async function assetsInAlbum(
       if (isPicture(entry) || isVideo(entry)) {
         entries.push(entry);
       } else {
-        const s = await stat(join(imagesRoot, album.key, i));
+        const s = await stat(join(imagesRoot, idFromKey(album.key).id, i));
         if (s.isDirectory()) {
           folders.push(i);
         }
@@ -135,53 +145,62 @@ export async function assetsInAlbum(
   return { entries, folders };
 }
 
+export async function media(album: Album): Promise<{ entries: AlbumEntry[] }> {
+  if (album.kind === AlbumKinds.folder) {
+    let [picasa, assets] = await Promise.all([
+      readAlbumIni(album),
+      assetsInFolderAlbum(album),
+    ]);
 
-export async function media(
-  album: Album
-): Promise<{ entries: AlbumEntry[] }> {
-  let [picasa, assets] = await Promise.all([
-    readPicasaIni(album),
-    assetsInAlbum(album),
-  ]);
-
-  let entries = assets.entries;
-  for (const entry of entries) {
-    if (isPicture(entry)) {
-      if (!picasa[entry.name] || !picasa[entry.name].dateTaken) {
-        const exif = await exifDataAndStats(entry);
-        // dates, in fallback order
-        const pictureDate = exif.tags.DateTimeOriginal || (exif.tags.CreateDate && new Date(exif.tags.CreateDate)) || (exif.tags.ModifyDate && new Date(exif.tags.ModifyDate));
-        if (pictureDate)
-          updatePicasaEntry(
-            entry,
-            "dateTaken",
-            pictureDate.toISOString()
-          );
-        else if (exif.stats) {
-          // Default to file creation time
-          updatePicasaEntry(entry, "dateTaken", exif.stats.ctime.toISOString());
+    let entries = assets.entries;
+    for (const entry of entries) {
+      if (isPicture(entry)) {
+        if (!picasa[entry.name] || !picasa[entry.name].dateTaken) {
+          const exif = await exifDataAndStats(entry);
+          // dates, in fallback order
+          const pictureDate =
+            exif.tags.DateTimeOriginal ||
+            (exif.tags.CreateDate && new Date(exif.tags.CreateDate)) ||
+            (exif.tags.ModifyDate && new Date(exif.tags.ModifyDate));
+          if (pictureDate)
+            updatePicasaEntry(entry, "dateTaken", pictureDate.toISOString());
+          else if (exif.stats) {
+            // Default to file creation time
+            updatePicasaEntry(
+              entry,
+              "dateTaken",
+              exif.stats.ctime.toISOString()
+            );
+          }
         }
       }
     }
-  }
-  await assignRanks(entries, picasa);
-  await sortAssetsByRank(entries, picasa);
-  return { entries };
+    await sortAssetsByRank(entries);
+    await assignRanks(entries);
+    return { entries };
+  } else if (album.kind === AlbumKinds.face) {
+    const ini = await readAlbumIni(album);
+    const entries = Object.keys(ini).map((name) => ({ album, name }));
+    await sortAssetsByRank(entries);
+    await assignRanks(entries);
+    return { entries };
+  } else throw new Error(`Unknown kind ${album.kind}`);
 }
 
-async function sortAssetsByRank(
-  entries: AlbumEntry[],
-  picasa: PicasaFolderMeta
-) {
-  entries.sort((a, b) => {
-    if (
-      picasa[a.name] &&
-      picasa[b.name] &&
-      picasa[a.name].rank !== undefined &&
-      picasa[b.name].rank !== undefined
-    ) {
-      return parseInt(picasa[a.name].rank!) - parseInt(picasa[b.name].rank!);
+async function sortAssetsByRank(entries: AlbumEntry[]) {
+  const ranks = (
+    await Promise.all(entries.map((entry) => readPicasaEntry(entry)))
+  ).map((e) => e.rank);
+  const entriesWithRanks = entries.map((entry, index) => ({
+    entry,
+    rank: ranks[index],
+  }));
+  entriesWithRanks.sort((a, b) => {
+    if (a.rank !== undefined && b.rank !== undefined) {
+      return parseInt(a.rank!) - parseInt(b.rank!);
     }
+    if(a.rank) return -1;
+    if(b.rank) return 1;
     return 0;
   });
 }
