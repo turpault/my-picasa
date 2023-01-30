@@ -9,28 +9,30 @@ import {
   clipColor,
   decodeOperations,
   decodeRect,
-  escapeXml,
   fromBase64,
   fromHex,
   namify,
+  noop,
   toHex2,
   uuid,
 } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
+  AlbumEntryMetaData,
   AlbumKinds,
   idFromKey,
-  AlbumEntryMetaData,
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { getFaceData } from "../rpcFunctions/picasaIni";
 import { applyAllFilters, applyFilter } from "./imageFilters";
+import exifr from "exifr";
 
 const s = promisify(sizeOf);
 
 const contexts = new Map<string, Sharp>();
 const options = new Map<string, AlbumEntryMetaData>();
-const debug = (..._a:any[])=>{}; // console.info
+const debug = true;
+const debugInfo = debug ? console.info : noop;
 
 function getContext(context: string): Sharp {
   const j = contexts.get(context);
@@ -61,10 +63,9 @@ export async function dimensions(
 
 export async function buildContext(entry: AlbumEntry): Promise<string> {
   const relPath = join(idFromKey(entry.album.key).id, entry.name);
-  const fileData = await readFile(
-    join(imagesRoot, relPath)
-  );
-  const contextId = namify(relPath) + '-' + uuid();
+  const fileData = await readFile(join(imagesRoot, relPath));
+  const contextId = namify(relPath) + "-" + uuid();
+
   try {
     let s = sharp(fileData, {
       limitInputPixels: false,
@@ -72,7 +73,7 @@ export async function buildContext(entry: AlbumEntry): Promise<string> {
     })
       .withMetadata()
       .rotate();
-    const meta = await s.metadata();
+
     contexts.set(contextId, s);
     return contextId;
   } catch (e: any) {
@@ -82,11 +83,18 @@ export async function buildContext(entry: AlbumEntry): Promise<string> {
     throw e;
   }
 }
-export async function cloneContext(context: string, hint:string): Promise<string> {
+export async function cloneContext(
+  context: string,
+  hint: string
+): Promise<string> {
   const j = getContext(context);
-  const contextId = context + '-' + namify(hint) + '-' + uuid();
-  debug('Cloning context', context, '->', contextId);
-  setContext(contextId, j.clone());
+
+  const contextId = context + "-" + namify(hint) + "-" + uuid();
+  debugInfo("Cloning context", context, "->", contextId);
+
+  const s = j.clone();
+
+  contexts.set(contextId, s);
   return contextId;
 }
 
@@ -98,6 +106,15 @@ function tag(
   return `<${name} ${Object.keys(attrs)
     .map((a) => `${a}="${attrs[a].toString()}"`)
     .join(" ")}>${contents}</${name}>`;
+}
+
+export function exifToSharpMeta(obj: { [key: string]: any }): any {
+  const asSharp = Object.fromEntries(
+    Object.entries(obj)
+      .filter(([_key, value]) => value !== undefined)
+      .map(([key, value]) => [key, value.toString()])
+  );
+  return asSharp;
 }
 
 /*
@@ -152,6 +169,7 @@ export async function transform(
   const operations = decodeOperations(transformation);
   for (const { name, args } of operations) {
     let j = getContext(context);
+
     switch (name.split(":")[0]) {
       case "sepia":
         j = j.recomb([
@@ -224,7 +242,7 @@ export async function transform(
         const angleDeg = 10 * parseFloat(args[1]); // in degrees
         const angle = (Math.PI * angleDeg) / 180;
         let scale = parseInt(args[2]);
-        j = await commitContext(j);
+        j = await branchContext(j);
         const metadata = await j.metadata();
         const w = metadata.width!;
         const h = metadata.height!;
@@ -234,12 +252,12 @@ export async function transform(
         }
 
         j = j.rotate(-angleDeg);
-        j = await commitContext(j);
+        j = await branchContext(j);
 
         const rw = Math.floor(newRect.w * scale);
         const rh = Math.floor(newRect.h * scale);
         j = j.resize(rw, rh);
-        j = await commitContext(j);
+        j = await branchContext(j);
 
         const rl = Math.floor((rw - w) / 2);
         const rt = Math.floor((rh - h) / 2);
@@ -421,13 +439,16 @@ export async function transform(
           const r = await j.raw().toBuffer({ resolveWithObject: true });
           const pixelSize = r.info.channels as 3 | 4;
           await applyFilter(r.data, r.info.channels, filter);
-          j = sharp(r.data, {
-            raw: {
-              width: r.info.width,
-              height: r.info.height,
-              channels: pixelSize,
+          j = j.composite([
+            {
+              input: r.data,
+              raw: {
+                width: r.info.width,
+                height: r.info.height,
+                channels: pixelSize,
+              },
             },
-          });
+          ]);
         }
         break;
       }
@@ -475,7 +496,6 @@ export async function transform(
         break;
       case "identify":
         {
-          await commit(context);
           j = getContext(context);
           const metadata = await j.metadata();
           const w = metadata.width!;
@@ -490,38 +510,47 @@ export async function transform(
             }`;
             const pos = decodeRect(rect);
             const scaledPos = {
-              x: Math.floor(pos.left*w),
-              y: Math.floor(pos.top*h),
-              width: Math.floor(w*(pos.right - pos.left)),
-              height: Math.floor(h*(pos.bottom - pos.top)),
-            }
+              x: Math.floor(pos.left * w),
+              y: Math.floor(pos.top * h),
+              width: Math.floor(w * (pos.right - pos.left)),
+              height: Math.floor(h * (pos.bottom - pos.top)),
+            };
             const fontSize = Math.max(Math.floor(scaledPos.width / 6), 30);
             const layer =
-              tag("text", {
-                x: scaledPos.x,
-                y: scaledPos.y + scaledPos.height + fontSize,
-                width: scaledPos.width,
-                "alignment-baseline": "top",
-                height: fontSize*2,
-                "font-size":fontSize,
-              fill: color || "rgb(0,255,0)",
-              },
-              name) +
               tag(
-                "rect",
+                "text",
                 {
                   x: scaledPos.x,
-                  y: scaledPos.y,
+                  y: scaledPos.y + scaledPos.height + fontSize,
                   width: scaledPos.width,
-                  height: scaledPos.height,
-                  style,
-                }
-              );
+                  "alignment-baseline": "top",
+                  height: fontSize * 2,
+                  "font-size": fontSize,
+                  fill: color || "rgb(0,255,0)",
+                },
+                name
+              ) +
+              tag("rect", {
+                x: scaledPos.x,
+                y: scaledPos.y,
+                width: scaledPos.width,
+                height: scaledPos.height,
+                style,
+              });
             txtSvg += layer;
           }
           txtSvg += "</svg>";
-          debug(txtSvg);
-          const layers = [{ input: Buffer.from(txtSvg), gravity: "northeast", left:0, top:0, width: w, height: h }];
+          debugInfo(txtSvg);
+          const layers = [
+            {
+              input: Buffer.from(txtSvg),
+              gravity: "northeast",
+              left: 0,
+              top: 0,
+              width: w,
+              height: h,
+            },
+          ];
           j = j.composite(layers);
         }
         break;
@@ -618,7 +647,7 @@ export async function transform(
         const text = decodeURIComponent(args[1]);
         const size = parseInt(args[2]);
         const gravity = args[3];
-        const { data, info } = await j
+        /*const { data, info } = await j
           .raw()
           .toBuffer({ resolveWithObject: true });
         const leftByPosition = {
@@ -626,37 +655,34 @@ export async function transform(
           s: w / 2,
           w: 0,
           e: w,
-        };
+        };*/
 
-        const layers: sharp.OverlayOptions[] = [
+        const layers: sharp.OverlayOptions[] = []; /*[
           {
             input: data,
             gravity,
             raw: info,
           },
-        ];
+        ];*/
 
+        const fontSize = Math.floor((size * w) / 1000);
         const txtSvg = `<svg width="${w}" height="100"> 
-        <text  x="50%" y ="50%" text-anchor="middle" dominant-baseline="middle" font-size="${Math.floor(
-          (size * w) / 1000
-        )}" fill="#000000">${text}</text> 
+        <rect x="0" cy="0" width="${w}" height="${fontSize}" fill="#FFFFFF" style="fill-opacity: .35;" />
+        <text  x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}" fill="#000000">${text}</text> 
         </svg>`;
         layers.push({ input: Buffer.from(txtSvg), gravity: "south" });
 
-        const newImage = sharp({
+        /*const newImage = sharp({
           create: {
             width: w,
-            /** Number of pixels high. */
             height: h,
-            /** Number of bands e.g. 3 for RGB, 4 for RGBA */
             channels: 4,
-            /** Parsed by the [color](https://www.npmjs.org/package/color) module to extract values for red, green, blue and alpha. */
             background: "#ffffff",
           },
           limitInputPixels: false,
           failOnError: false,
-        });
-        j = newImage.composite(layers);
+        });*/
+        j = j.composite(layers);
         break;
       }
 
@@ -677,16 +703,35 @@ export async function setOptions(
 }
 
 export async function destroyContext(context: string): Promise<void> {
-  debug('Delete context', context);
+  debugInfo("Delete context", context);
   contexts.delete(context);
 }
 
+const emptyPng = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAA1BMVEUAAACnej3aAAAAAXRSTlMAQObYZgAAAApJREFUCNdjYAAAAAIAAeIhvDMAAAAASUVORK5CYII=",
+  "base64"
+);
+const emptyJpg = Buffer.from(
+  "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD3+iiigD//2Q==",
+  "base64"
+);
 export async function encode(
   context: string,
   mime: string = "image/jpeg",
   format: string = "Buffer"
 ): Promise<{ width: number; height: number; data: Buffer | string }> {
-  let j = getContext(context);
+  let j: sharp.Sharp;
+  try {
+    j = getContext(context);
+  } catch (e) {
+    switch (mime) {
+      case "image/jpeg":
+        return { width: 1, height: 1, data: emptyJpg };
+      default:
+        return { width: 1, height: 1, data: emptyPng };
+    }
+  }
+
   switch (mime) {
     case "image/jpeg":
       j = j.jpeg();
@@ -704,6 +749,8 @@ export async function encode(
       j = j.gif();
       break;
   }
+  //const exif = exifToSharpMeta(getExif(context));
+  //j.withMetadata({exif: {IFD0: exif, IFD1: exif, IFD2: exif, GPSIFD: exif, ExifIFD:exif, ImageIFD: exif}})
   switch (format) {
     case "base64":
       {
@@ -759,18 +806,21 @@ export async function execute(
 
 export async function commit(context: string): Promise<void> {
   let j = getContext(context);
-  j = await commitContext(j);
+  j = await branchContext(j);
   setContext(context, j);
 }
 
-async function commitContext(j: sharp.Sharp): Promise<sharp.Sharp> {
-  const updated = await j.raw().toBuffer({ resolveWithObject: true });
-  j = sharp(updated.data, {
+async function branchContext(j: sharp.Sharp): Promise<sharp.Sharp> {
+  const raw = await j
+    .jpeg({ quality: 100 })
+    .toBuffer({ resolveWithObject: true });
+
+  const j2 = sharp(raw.data, {
     limitInputPixels: false,
-    raw: updated.info,
     failOnError: false,
-  });
-  return j;
+  }).withMetadata();
+
+  return j2;
 }
 
 // Queue last-in first out
@@ -782,13 +832,13 @@ export async function buildImage(
   extraOperations: any[] | undefined
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
   return buildImageQueue.add(async () => {
-    const label = `Thumbnail for image ${entry.album.name} / ${
+    const label = `BuildImage for image ${entry.album.name} / ${
       entry.name
     } / ${transformations} / ${
       extraOperations ? JSON.stringify(extraOperations) : "no op"
     }`;
     console.time(label);
-    debug(label);
+    debugInfo(label);
     try {
       const context = await buildContext(entry);
       if (options) {
@@ -796,7 +846,6 @@ export async function buildImage(
       }
       if (extraOperations) {
         await execute(context, extraOperations);
-        await commit(context);
       }
       if (transformations) {
         await transform(context, transformations);
@@ -823,7 +872,7 @@ export async function buildFaceImage(
   return buildFaceImageQueue.add(async () => {
     const label = `Thumbnail for face ${entry.album.name} / ${entry.name}`;
     console.time(label);
-    debug(label);
+    debugInfo(label);
     try {
       const faceData = await getFaceData(entry);
       const originalImageEntry = {
@@ -837,7 +886,6 @@ export async function buildFaceImage(
       const context = await buildContext(originalImageEntry);
 
       await transform(context, `crop64=1,${faceData.rect}`);
-      await commit(context);
       const res = (await encode(context, "image/jpeg", "Buffer")) as {
         width: number;
         height: number;

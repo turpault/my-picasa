@@ -1,22 +1,22 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
-import { ActiveImageEvent, AlbumEntry } from "../../shared/types/types";
+import { ActiveImageEvent, AlbumEntryPicasa } from "../../shared/types/types";
 import { albumEntryIndexInList } from "../lib/dom";
 
 export class ActiveImageManager {
-  constructor(lst: AlbumEntry[], current: AlbumEntry) {
+  constructor(lst: AlbumEntryPicasa[], current: AlbumEntryPicasa) {
     this._list = lst;
     this._current = current;
     this.event = buildEmitter<ActiveImageEvent>();
   }
 
-  list(): AlbumEntry[] {
+  list(): AlbumEntryPicasa[] {
     return this._list;
   }
-  active(): AlbumEntry {
+  active(): AlbumEntryPicasa {
     return this._current;
   }
 
-  select(entry: AlbumEntry) {
+  select(entry: AlbumEntryPicasa) {
     this._current = entry;
     this.event.emit("changed", entry);
   }
@@ -39,6 +39,6 @@ export class ActiveImageManager {
 
   event: Emitter<ActiveImageEvent>;
 
-  private _list: AlbumEntry[];
-  private _current: AlbumEntry;
+  private _list: AlbumEntryPicasa[];
+  private _current: AlbumEntryPicasa;
 }

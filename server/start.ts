@@ -88,8 +88,9 @@ function setupRoutes(server: FastifyInstance) {
       album,
       name,
     };
+    const animated = (request.query as any)['animated'] !== undefined;
 
-    const r = await thumbnail(entry, resolution);
+    const r = await thumbnail(entry, resolution, animated);
     reply.type(r.mime);
     reply.header("cache-control", "no-cache");
     return r.data;

@@ -1,6 +1,6 @@
 import { copyFile, mkdir, rename, stat } from "fs/promises";
 import { basename, dirname, extname, join, relative, sep } from "path";
-import { sleep, uuid } from "../../../shared/lib/utils";
+import { lock, sleep, uuid } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
@@ -9,9 +9,8 @@ import {
   Job,
   JobData,
   JOBNAMES,
-  keyFromID,
+  keyFromID
 } from "../../../shared/types/types";
-import { openExplorer } from "../../open";
 import { exportsRoot, imagesRoot } from "../../utils/constants";
 import { entryFilePath, fileExists } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
@@ -20,15 +19,10 @@ import { exportToFolder } from "../imageOperations/export";
 import { exportAllFavoritesJob } from "./fileJob-export-favorites";
 import { setRank } from "./media";
 import { openWithFinder } from "./osascripts";
-import { readPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasaIni";
+import { readAlbumIni, readPicasaEntry, updatePicasaEntry } from "./picasaIni";
 import { copyThumbnails } from "./thumbnailCache";
 import {
-  addOrRefreshOrDeleteAlbum,
-  albumWithData,
-  onRenamedAlbums,
-  queueNotification,
-  refreshAlbumKeys,
-  refreshAlbums,
+  addOrRefreshOrDeleteAlbum, onRenamedAlbums, refreshAlbumKeys
 } from "./walker";
 
 const jobs: Job[] = [];
@@ -47,6 +41,16 @@ export async function getJob(id: string): Promise<object> {
   throw new Error("Not Found");
 }
 
+export async function waitJob(id: string): Promise<object> {
+  const j = jobs.filter((j) => j.id === id);
+  if (j.length) {    
+    if (typeof j[0] === "undefined") debugger;
+    await j[0].awaiter();
+    return j[0];
+  }
+  throw new Error("Not Found");
+}
+
 function deleteFSJob(job: Job) {
   jobs.splice(jobs.indexOf(job), 1);
   broadcast("jobDeleted", job);
@@ -56,8 +60,10 @@ export async function createFSJob(
   jobName: string,
   jobArgs: object
 ): Promise<string> {
+  const jobId = `Job:${uuid()}`;
+  const completion = await lock(jobId)
   const job: Job = {
-    id: uuid(),
+    id: jobId,
     name: jobName,
     data: jobArgs as JobData,
     status: "queued",
@@ -69,6 +75,8 @@ export async function createFSJob(
     changed: () => {
       broadcast("jobChanged", job);
     },
+    completion,
+    awaiter: async () => { (await lock(jobId))(); }
   };
   jobs.push(job);
   executeJob(job)
@@ -83,6 +91,7 @@ export async function createFSJob(
       job.status = "finished";
     })
     .finally(async () => {
+      completion();
       await sleep(10);
       deleteFSJob(job);
     });

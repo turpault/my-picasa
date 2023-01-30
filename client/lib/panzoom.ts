@@ -43,6 +43,7 @@ export class ImagePanZoomController {
     this.clientWidth = w;
     this.clientHeight = h;
   }
+  
   screenToCanvasCoords(x: number, y: number): { x: number; y: number } {
     const transform = this.panner.getTransform();
     const offsets = { left: this.element.left, top: this.element.top };

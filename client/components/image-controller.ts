@@ -8,7 +8,12 @@ import {
   PicasaFilter,
   toBase64,
 } from "../../shared/lib/utils";
-import { Album, AlbumEntryPicasa, AlbumKinds } from "../../shared/types/types";
+import {
+  Album,
+  AlbumEntryPicasa,
+  AlbumKinds,
+  FaceData,
+} from "../../shared/types/types";
 import {
   assetUrl,
   buildContext,
@@ -45,6 +50,7 @@ export class ImageController {
     this.caption = "";
     this.faces = [];
     this.parent = this.image.parent()!;
+    this.image.on("load", () => this.loaded());
     new ResizeObserver(() => this.recenter()).observe(this.parent.get()!);
   }
 
@@ -53,10 +59,12 @@ export class ImageController {
   }
 
   private loaded() {
-    this.image.css("display", "");
-    this.recenter();
-
-    this.events.emit("idle", {});
+    if (this.image.attr("src")) {
+      console.info("Loaded image", this.image.attr("src"));
+      this.image.css("display", "");
+      this.recenter();
+      this.events.emit("idle", {});
+    }
   }
 
   operations(): PicasaFilter[] {
@@ -83,7 +91,7 @@ export class ImageController {
   }
 
   async rebuildContext(): Promise<boolean> {
-    console.info(this.entry.name, "rebuildContext", this.q.length(), 'pending');
+    console.info(this.entry.name, "rebuildContext", this.q.length(), "pending");
     this.q.clear();
     this.events.emit("busy", {});
     return this.q.add(async () => {
@@ -125,6 +133,12 @@ export class ImageController {
       await destroyContext(context);
     }
     this.entry = albumEntry;
+    this.events.emit("busy", {});
+    this.image.css({ display: "none" });
+    this.video.css({ display: "none" });
+    this.image.attr("src", null);
+    this.video.empty();
+    this.faces = [];
 
     const data = this.entry.metadata;
     this.filters = data.filters ? decodeOperations(data.filters) : [];
@@ -136,47 +150,47 @@ export class ImageController {
       const url = thumbnailUrl(this.entry, "th-large");
       this.image.css({ display: "" });
       this.video.css({ display: "none" });
-      // Fetch face date + display preview from thumbnail
-      await Promise.all([
-        preLoadImage(url),
-        async () => {
-          this.faces = [];
-          if (this.entry.metadata.faces) {
-            // Convert hashes to actual names
-            const s = await getService();
-            await Promise.all(
-              this.entry.metadata.faces.split(";").map(async (face, idx) => {
-                const [rect, hash] = face.split(",");
-                const faceAlbum = (await s.getFaceAlbumFromHash(hash)) as {
-                  album: Album;
-                };
-                if (faceAlbum.album) {
-                  this.faces.push({
-                    album: faceAlbum.album,
-                    rect,
-                    hash,
-                    label: `${idx}: ${faceAlbum.album.name}`,
-                  });
-                }
-              })
-            );
-          }
-          this.events.emit("faceUpdated", {});
-        },
-      ]).then(() => {
-        console.info(this.entry.name, "3. Preloaded");
-        this.image.attr("src", url);
-        this.loaded();
-        this.update();
-      });
+      await preLoadImage(url);
+      console.info(this.entry.name, "3. Preloaded");
+      this.image.attr("src", url);
+      this.update();
     }
     if (isVideo(this.entry)) {
       this.image.css({ display: "none" });
       this.video.css({ display: "" });
       this.update();
     }
+    this.events.emit("displayed", {});
   }
 
+  async getFaces(): Promise<FaceData[]> {
+    if (this.faces.length) {
+      return this.faces;
+    }
+    const faces: FaceData[] = [];
+    if (this.entry.metadata.faces) {
+      const s = await getService();
+      await Promise.all(
+        this.entry.metadata.faces.split(";").map(async (face, idx) => {
+          const [rect, hash] = face.split(",");
+          const faceAlbum = (await s.getFaceAlbumFromHash(hash)) as {
+            album: Album;
+          };
+          if (faceAlbum.album) {
+            faces.push({
+              album: faceAlbum.album,
+              rect,
+              hash,
+              label: `${idx}: ${faceAlbum.album.name}`,
+            });
+          }
+        })
+      );
+    }
+    this.faces = faces;
+
+    return this.faces;
+  }
   async preview(operation: PicasaFilter | null) {
     this.previewOperation = operation;
     if (this.liveContext) {
@@ -187,54 +201,40 @@ export class ImageController {
         const clone = await cloneContext(this.liveContext, "imageview");
         await transform(clone, [operation]);
         const url = await encodeToURL(clone, "image/jpeg");
-        preLoadImage(url).then(() => {
-          if (this.previewOperation === operation) {
-            this.image.attr("src", url);
-          }
-          destroyContext(clone);
-        });
+        await preLoadImage(url);
+        if (this.previewOperation === operation) {
+          this.image.attr("src", url);
+        }
+        destroyContext(clone);
       }
     }
   }
 
-  async update(updatedEntry?: AlbumEntryPicasa) {
+  async update() {
     const name = this.entry.name;
     if (isPicture(this.entry)) {
-      if (
-        !updatedEntry?.metadata.filters ||
-        updatedEntry.metadata.filters !== encodeOperations(this.operations())
-      ) {
-        if (updatedEntry?.metadata.filters) {
-          this.filters = decodeOperations(updatedEntry?.metadata.filters);
-        }
-        console.info(name, "update, will rebuild context");
-        if (await this.rebuildContext()) {          
-          console.info(name, "update, context rebuilt");
-          this.events.emit("updated", {
-            context: this.context,
-            liveContext: this.liveContext,
-            caption: this.caption,
-            filters: this.filters,
-          });
-          this.events.emit("liveViewUpdated", {
-            context: this.liveContext,
-            original: this.context,
-            entry: this.entry,
-          });
+      // Only update when the filter list changed
+      if (await this.rebuildContext()) {
+        const liveContext = this.liveContext;
+        console.info(name, "update, context rebuilt");
+        this.events.emit("updated", {
+          context: this.context,
+          liveContext,
+          caption: this.caption,
+          filters: this.filters,
+        });
+        this.events.emit("liveViewUpdated", {
+          context: liveContext,
+          original: this.context,
+          entry: this.entry,
+        });
 
-          const data = await encodeToURL(this.liveContext, "image/jpeg");
-          preLoadImage(data)
-            .then(() => {
-              console.info(name, "5. Preloaded update");
-              this.image.attr("src", data);
-              this.loaded();
-            })
-            .catch((e) => {
-              // Might fails as it's quite asynchronous
-            });
-        } else {
-          console.warn(name, 'Context rebuilt abort')
-        }
+        const data = await encodeToURL(liveContext, "image/jpeg");
+        await preLoadImage(data);
+        console.info(name, "5. Preloaded update");
+        this.image.attr("src", data);
+      } else {
+        console.warn(name, "Context rebuilt abort");
       }
     }
     if (isVideo(this.entry)) {
@@ -298,15 +298,12 @@ export class ImageController {
   recenter() {
     const h = this.parent.height;
     const w = this.parent.width;
-    this.zoomController!.setClientSize(h, w);
+    this.zoomController!.setClientSize(w, h);
     this.zoomController!.recenter();
   }
 
   getCurrentEntry() {
     return this.entry;
-  }
-  getFaces() {
-    return this.faces;
   }
 
   private image: _$;
@@ -321,12 +318,7 @@ export class ImageController {
   private identify: boolean;
   private parent: _$;
   private mute: number;
-  private faces: {
-    album: Album;
-    hash: string;
-    rect: string;
-    label: string;
-  }[];
+  private faces: FaceData[];
   private previewOperation: PicasaFilter | null = null;
   events: Emitter<ImageControllerEvent>;
 }

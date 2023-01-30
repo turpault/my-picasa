@@ -15,7 +15,7 @@ import {
 } from "./imageOperations/sharp-processor";
 import { clientException, clientLog } from "./rpcFunctions/clientLog";
 import { exifData } from "./rpcFunctions/exif";
-import { createFSJob, getJob } from "./rpcFunctions/fileJobs";
+import { createFSJob, getJob, waitJob } from "./rpcFunctions/fileJobs";
 import {
   folder,
   makeAlbum,
@@ -28,6 +28,7 @@ import { media, mediaCount, setRank, sortAlbum } from "./rpcFunctions/media";
 import {
   getFaceAlbumFromHash,
   getShortcuts, readPicasaEntry, rotate,
+  toggleStar,
   updatePicasaEntry
 } from "./rpcFunctions/picasaIni";
 import { clientReady } from "./rpcFunctions/ready";
@@ -77,7 +78,11 @@ export const MyPicasa: ServiceMap = {
     },
     getJob: {
       handler: getJob,
-      arguments: ["hash:object"],
+      arguments: ["hash:string"],
+    },
+    waitJob: {
+      handler: waitJob,
+      arguments: ["hash:string"],
     },
     createJob: {
       handler: createFSJob,
@@ -198,6 +203,10 @@ export const MyPicasa: ServiceMap = {
     rotate: {
       handler: rotate,
       arguments:["entries:object", "direction:string"]
+    },
+    toggleStar: {
+      handler: toggleStar,
+      arguments:["entries:object"]
     }
   },
 };

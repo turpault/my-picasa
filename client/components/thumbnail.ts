@@ -1,5 +1,9 @@
 import { Rectangle, Point } from "ts-2d-geometry";
-import { fromBase64, rectanglesIntersect } from "../../shared/lib/utils";
+import {
+  fromBase64,
+  isVideo,
+  rectanglesIntersect,
+} from "../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
@@ -76,12 +80,24 @@ function buildThumbnail(
   selectionManager: SelectionManager,
   elementPrefix: string
 ): HTMLElement {
-  const imagePrefix = "img:" + elementPrefix;
   const e = $(
     `<div draggable="true" class="thumbnail thumbnail-size">
-    <img class="th browser-thumbnail" loading="lazy"> <img class="star" src="resources/images/star.svg">
-    </div>`
+      <img class="th browser-thumbnail" loading="lazy"> 
+      <div class="star"></div>
+    </div>
+    `
   );
+  const img = $(".th", e);
+  e.on("mouseenter", (_ev: any) => {
+    if (img.attr("src-hover")) {
+      img.attr("src", img.attr("src-hover"));
+    }
+  });
+  e.on("mouseleave", (_ev: any) => {
+    if (img.attr("src-original")) {
+      img.attr("src", img.attr("src-original"));
+    }
+  });
   e.on("dragstart", (ev: any) => {
     const entry = albumEntryFromElement(e, elementPrefix);
     if (entry) {
@@ -170,7 +186,6 @@ function buildThumbnail(
         return false;
       });
   }*/
-  const img = $(".th", e);
   e.on("click", (ev: any) => {
     const entry = albumEntryFromElement(e, elementPrefix);
     if (entry) {
@@ -191,10 +206,10 @@ function buildThumbnail(
     if (!entry) {
       return;
     }
-    if(entry.album.kind == AlbumKinds.face) {
+    if (entry.album.kind == AlbumKinds.face) {
       const s = await getService();
       entry = await s.getSourceEntry(entry);
-      if(!entry) {
+      if (!entry) {
         return;
       }
     }
@@ -236,7 +251,7 @@ export async function makeThumbnailManager(
   s.on("picasaFileMetaChanged", async (e: { payload: AlbumEntryPicasa }) => {
     // Is there a thumbnail with that data ?
     const elem = elementFromEntry(e.payload, elementPrefix);
-    if (elem) {
+    if (elem.exists()) {
       thumbnailData(
         elem,
         e.payload,
@@ -290,9 +305,21 @@ export async function thumbnailData(
   } else {
     $(e).removeClass("selected");
   }
-  thumb.attr("src", thumbnailUrl(entry, "th-medium", true));
+  thumb.attr("src", thumbnailUrl(entry, "th-medium", false, true));
+  thumb.attr("src-original", thumbnailUrl(entry, "th-medium", false, true));
+  if (isVideo(entry)) {
+    e.attr("is-video", "");
+    thumb.attr("src-hover", thumbnailUrl(entry, "th-medium", true, true));
+  } else {
+    e.attr("is-video", null);
+    thumb.attr("src-hover", null);
+  }
+
   // could be improved
-  const label = entry.album.kind === AlbumKinds.folder ? entry.name : JSON.parse(fromBase64(entry.name))[0];
+  const label =
+    entry.album.kind === AlbumKinds.folder
+      ? entry.name
+      : JSON.parse(fromBase64(entry.name))[0];
   let dateTime = "";
   if (picasaData.dateTaken) {
     dateTime = new Date(picasaData.dateTaken).toLocaleString();
@@ -301,7 +328,10 @@ export async function thumbnailData(
   e.attr("data-tooltip-below-image", dateTime);
   // Async get the thumbnail
   if (picasaData && picasaData.star) {
-    $(".star", e).css("display", "");
+    $(".star", e).css({
+      display: "",
+      width: `${20 * parseInt(picasaData.starCount || "1")}px`,
+    });
   } else {
     $(".star", e).css("display", "none");
   }

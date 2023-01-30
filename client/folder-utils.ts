@@ -59,7 +59,7 @@ export async function getAlbumInfo(
     sort: "date",
     iconSize: 250,
     filters: {
-      star: false,
+      star: 0,
       video: false,
     },
     inverseSort: false,
@@ -75,7 +75,7 @@ export async function getAlbumInfo(
 
   if (settings.filters.star) {
     entries = entries.filter((v) => {
-      return !!picasa[v.name].star;
+      return settings.filters.star <= parseInt(picasa[v.name].starCount || "1");
     });
   }
   if (settings.filters.video) {

@@ -25,9 +25,9 @@ export function makeIdentify(
   toggle.on('change', () => {
     controller.setIdentifyMode(toggle.val()==="true");
   });  
-  controller.events.on('faceUpdated', ()=> {
+  controller.events.on('displayed', async ()=> {
     toggle.val(controller.identifyMode()?"true":"false");
-    const faces = controller.getFaces();
+    const faces = await controller.getFaces();
     faceList.empty();
     for(const face of faces) {
       faceList.append(`<div class="identify-face">${face.label}<a href="#" class="identify-face-remove">${t("Remove")}</a></div>`);

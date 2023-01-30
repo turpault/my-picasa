@@ -70,6 +70,7 @@ export function encodeToURL(context: string, mime: string): string {
 export function thumbnailUrl(
   entry: AlbumEntry,
   size: ThumbnailSize = "th-medium",
+  animated: boolean = true,
   cacheBust?: boolean
 ): string {
   if (!entry) {
@@ -77,7 +78,7 @@ export function thumbnailUrl(
   }
   return `http://localhost:${getServicePort()}/thumbnail/${fixedEncodeURIComponent(
     entry.album.key
-  )}/${fixedEncodeURIComponent(entry.name)}/${fixedEncodeURIComponent(size)}` + (cacheBust ? `?cacheBust=${uuid()}` : "");
+  )}/${fixedEncodeURIComponent(entry.name)}/${fixedEncodeURIComponent(size)}` + (cacheBust ? `?cacheBust=${uuid()}${animated?"&animated":""}` : (animated?"?animated":""));
 }
 
 export function assetUrl(entry: AlbumEntry): string {

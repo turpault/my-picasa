@@ -3,7 +3,7 @@ import { get, set } from "./idb-keyval";
 
 export type Settings = {
   filters: {
-    star: boolean;
+    star: number;
     video: boolean;
   };
   iconSize: number;
@@ -16,14 +16,14 @@ export type SettingsChangeEvent = {
 };
 const e = buildEmitter<SettingsChangeEvent>();
 const settings: Settings = {
-  filters: { star: false, video: false },
+  filters: { star: 0, video: false },
   sort: "date",
   inverseSort: false,
   iconSize: 250,
 };
 
 export async function makeSettings() {
-  settings.filters.star = (await get("filterByStar")) || false;
+  settings.filters.star = (await get("filterByStar")) || 0;
   settings.filters.video = (await get("filterByVideos")) || false;
   settings.sort = (await get("sort")) || "date";
   settings.inverseSort = (await get("inverseSort")) || false;
@@ -48,7 +48,7 @@ export function getSettingsEmitter(): Emitter<SettingsChangeEvent> {
   return e;
 }
 
-export function updateFilterByStar(newValue: boolean) {
+export function updateFilterByStar(newValue: number) {
   settings.filters.star = newValue;
   changed("filters.star");
 }

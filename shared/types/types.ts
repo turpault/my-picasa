@@ -10,6 +10,7 @@ export type extraFields =
 export type AlbumEntryMetaData = {
   dateTaken?: string; // ISO date
   star?: boolean;
+  starCount?: string;
   caption?: string;
   text?: string;
   textactive?: string;
@@ -43,6 +44,8 @@ export type Job = {
   progress: { start: number; remaining: number };
   errors: string[];
   changed: Function;
+  completion: Function;
+  awaiter: ()=>Promise<void>; 
 };
 
 export enum JOBNAMES {
@@ -56,7 +59,7 @@ export enum JOBNAMES {
   DELETE_ALBUM = "Delete Album",
   RESTORE_ALBUM = "Restore Album",
   RENAME_ALBUM = "Rename Album",
-  EXPORT_TO_IPHOTO = "Export...",
+  EXPORT_TO_IPHOTO = "Export All Favorites",
 }
 
 export const ThumbnailSizeVals = ["th-small", "th-medium", "th-large"] as const;
@@ -78,7 +81,7 @@ export type AlbumMetaData =
     };
 
 export type ActiveImageEvent = {
-  changed: AlbumEntry;
+  changed: AlbumEntryPicasa;
 };
 
 export type SliderEvent = {
@@ -144,6 +147,12 @@ export type FolderEvent = {
   updated: { folders: Album[] };
 };
 
+export type FaceData = {
+  album: Album;
+  hash: string;
+  rect: string;
+  label: string;
+};
 export const pictureExtensions = [
   "jpeg",
   "jpg",

@@ -6,20 +6,20 @@ import {
   AlbumKinds,
   extraFields,
   ThumbnailSize,
-  videoExtensions,
+  videoExtensions
 } from "../../../shared/types/types";
 import { dec, inc } from "../../utils/stats";
 import {
   buildFaceImage,
   buildImage,
-  dimensionsFromFile,
+  dimensionsFromFile
 } from "../imageOperations/sharp-processor";
 import { createGif } from "../videoOperations/gif";
-import { getFaceData, readAlbumIni, updatePicasaEntry } from "./picasaIni";
+import { readAlbumIni, updatePicasaEntries } from "./picasaIni";
 import {
   readThumbnailFromCache,
   thumbnailPathFromEntryAndSize,
-  writeThumbnailToCache,
+  writeThumbnailToCache
 } from "./thumbnailCache";
 
 const cachedFilterKey: Record<ThumbnailSize, extraFields> = {
@@ -35,7 +35,8 @@ const dimensionsFilterKey: Record<ThumbnailSize, extraFields> = {
 
 async function shouldMakeImageThumbnail(
   entry: AlbumEntry,
-  size: ThumbnailSize
+  size: ThumbnailSize,
+  animated: boolean
 ): Promise<boolean> {
   let exception: Error | undefined = undefined;
   try {
@@ -48,7 +49,7 @@ async function shouldMakeImageThumbnail(
     const transform = picasa[entry.name].filters || "";
     const cachedTransform = picasa[entry.name][picasaLabel] || "";
     let cachedSize = picasa[entry.name][picasaSizeLabel];
-    const path = thumbnailPathFromEntryAndSize(entry, size);
+    const {path} = thumbnailPathFromEntryAndSize(entry, size, animated);
     const fileExists = await stat(path)
       .then((s) => s.size !== 0)
       .catch(() => false);
@@ -68,27 +69,29 @@ async function shouldMakeImageThumbnail(
 
 export async function makeThumbnail(
   entry: AlbumEntry,
-  size: ThumbnailSize = "th-medium"
+  size: ThumbnailSize = "th-medium",
+  animated: boolean
 ): Promise<void> {
   if (videoExtensions.includes(extname(entry.name).substr(1).toLowerCase())) {
-    return makeVideoThumbnail(entry, size);
+    return makeVideoThumbnail(entry, size, animated);
   } else {
-    return makeImageThumbnail(entry, size);
+    return makeImageThumbnail(entry, size, animated);
   }
 }
 
 export async function readOrMakeThumbnail(
   entry: AlbumEntry,
-  size: ThumbnailSize = "th-medium"
+  size: ThumbnailSize = "th-medium",
+  animated: boolean = true
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
   if(entry.album.kind == AlbumKinds.face) {
     // Extract a face thumbnail
     return makeFaceThumbnail(entry);
   }
   if (isVideo(entry)) {
-    return readOrMakeVideoThumbnail(entry, size);
+    return readOrMakeVideoThumbnail(entry, size, animated);
   } else {
-    return readOrMakeImageThumbnail(entry, size);
+    return readOrMakeImageThumbnail(entry, size, animated);
   }
 }
 
@@ -97,7 +100,8 @@ async function makeFaceThumbnail(  entry: AlbumEntry){
 }
 async function makeImageThumbnail(
   entry: AlbumEntry,
-  size: ThumbnailSize
+  size: ThumbnailSize,
+  animated: boolean
 ): Promise<void> {
   const lockLabel = `makeImageThumbnail: ${entry.album.key}-${entry.name}-${size}`;
   const release = await lock(lockLabel);
@@ -116,7 +120,7 @@ async function makeImageThumbnail(
 
     picasa[entry.name] = picasa[entry.name] || {};
     const transform = picasa[entry.name].filters || "";
-    if (await shouldMakeImageThumbnail(entry, size)) {
+    if (await shouldMakeImageThumbnail(entry, size, animated)) {
       const res = await buildImage(entry, picasa[entry.name], transform, [
         [
           "resize",
@@ -126,16 +130,9 @@ async function makeImageThumbnail(
         ],
       ]);
 
-      picasa[entry.name][picasaLabel] = transform;
-      picasa[entry.name][picasaSizeLabel] = `${res.width}x${res.height}`;
-      updatePicasaEntry(entry, picasaLabel, picasa[entry.name][picasaLabel]);
-      updatePicasaEntry(
-        entry,
-        picasaSizeLabel,
-        picasa[entry.name][picasaSizeLabel]
-      );
+      updatePicasaEntries(entry, {[picasaLabel]: transform, [picasaSizeLabel]: `${res.width}x${res.height}`});
 
-      await writeThumbnailToCache(entry, size, res.data);
+      await writeThumbnailToCache(entry, size, res.data, animated);
     }
   } catch (e: any) {
     exception = e;
@@ -150,19 +147,20 @@ async function makeImageThumbnail(
 
 async function readOrMakeImageThumbnail(
   entry: AlbumEntry,
-  size: ThumbnailSize = "th-medium"
+  size: ThumbnailSize,
+  animated:boolean
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
   const lockLabel = `readOrMakeImageThumbnail: ${entry.album.key}-${entry.name}-${size}`;
   const release = await lock(lockLabel);
   inc("thumbnail");
   let exception: Error | undefined = undefined;
   try {
-    if (await shouldMakeImageThumbnail(entry, size)) {
-      await makeImageThumbnail(entry, size);
+    if (await shouldMakeImageThumbnail(entry, size, animated)) {
+      await makeImageThumbnail(entry, size, animated);
     }
     const picasaSizeLabel = dimensionsFilterKey[size];
     const picasa = await readAlbumIni(entry.album);
-    let jpegBuffer = await readThumbnailFromCache(entry, size);
+    let jpegBuffer = await readThumbnailFromCache(entry, size, animated);
     let cachedSize = picasa[entry.name][picasaSizeLabel];
     if (!cachedSize) {
       throw new Error("Cannot read cached size");
@@ -186,13 +184,14 @@ async function readOrMakeImageThumbnail(
 
 async function makeVideoThumbnail(
   entry: AlbumEntry,
-  size: ThumbnailSize = "th-medium"
+  size: ThumbnailSize = "th-medium",
+  animated: boolean
 ): Promise<void> {
   let res: { data: Buffer; width: number; height: number } | undefined;
-  const gif = thumbnailPathFromEntryAndSize(entry, size);
-  if (!(await stat(gif).catch((e) => false))) {
+  const {path} = thumbnailPathFromEntryAndSize(entry, size, animated);
+  if (!(await stat(path).catch((e) => false))) {
     const unlock = await lock(
-      "makeVideoThumbnail: " + entry.album.key + " " + entry.name + " " + size
+      "makeVideoThumbnail: " + entry.album.key + " " + entry.name + " " + size + (animated ? " animated":"")
     );
     let _exception;
     try {
@@ -201,9 +200,9 @@ async function makeVideoThumbnail(
         "th-medium": 250,
         "th-large": 500,
       };
-      const data = await createGif(entry, sizes[size]);
-      await writeFile(gif, data);
-      const d = await dimensionsFromFile(gif);
+      const data = await createGif(entry, sizes[size], animated);
+      await writeFile(path, data);
+      const d = await dimensionsFromFile(path);
       res = { data, ...d };
     } catch (e) {
       _exception = e;
@@ -218,17 +217,18 @@ async function makeVideoThumbnail(
 
 async function readOrMakeVideoThumbnail(
   entry: AlbumEntry,
-  size: ThumbnailSize
+  size: ThumbnailSize,
+  animated: boolean
 ): Promise<{ data: Buffer; width: number; height: number; mime: string }> {
   let res: { data: Buffer; width: number; height: number } | undefined;
-  await makeVideoThumbnail(entry, size);
-  const gif = thumbnailPathFromEntryAndSize(entry, size);
-  const data = await readFile(gif);
-  const d = await dimensionsFromFile(gif);
+  await makeVideoThumbnail(entry, size, animated);
+  const {path, mime} = thumbnailPathFromEntryAndSize(entry, size, animated);
+  const data = await readFile(path);
+  const d = await dimensionsFromFile(path);
   res = { data, ...d };
   if (!res) {
     throw new Error("No result");
   } else {
-    return { ...res, mime: "image/gif" };
+    return { ...res, mime };
   }
 }

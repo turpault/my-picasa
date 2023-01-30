@@ -50,6 +50,7 @@ export function generateCode(services: ServiceMap): GeneratedCode {
 
   // tscode
   Object.keys(services.functions).forEach((name) => {
+    console.info(name);
     const func = services.functions[name];
     const args = func.arguments;
     // Generate the TS function argument list string
