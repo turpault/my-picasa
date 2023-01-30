@@ -1,32 +1,26 @@
-import { buildEmitter, Emitter } from "../../shared/lib/event";
+import { Emitter } from "../../shared/lib/event";
+import { debounce } from "../../shared/lib/utils";
 import {
   Album,
-  AlbumEntry,
-  JOBNAMES,
-  AlbumEntryMetaData,
-  AlbumMetaData,
-  undoStep,
+  AlbumEntry, AlbumMetaData, JOBNAMES, undoStep
 } from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
+import { toggleStar } from "../lib/handles";
 import {
   getSettings,
   getSettingsEmitter,
   Settings,
   updateFilterByStar,
   updateFilterByVideos,
-  updateIconSize,
+  updateIconSize
 } from "../lib/settings";
-import { debounce } from "../../shared/lib/utils";
 import { getService } from "../rpc/connect";
-import { SelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
 import { DropListEvents, makeDropList } from "./controls/dropdown";
 import { question } from "./question";
 import { t } from "./strings";
 import { activeTabContext } from "./tabs";
-import { toggleStar } from "../lib/handles";
-import { animateStar } from "./animations";
 const html = `<div class="bottom-list-tools">
 <div class="w3-bar buttons">
 </div>
@@ -89,7 +83,7 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       visible: ()=> state.tabKind === 'Browser',
       click: async (ev: MouseEvent) => {
         const s = await getService();
-        s.createJob(JOBNAMES.EXPORT_TO_IPHOTO, {});
+        return  s.createJob(JOBNAMES.EXPORT_TO_IPHOTO, {});
       },
     },
     {
@@ -100,7 +94,7 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       click: async (ev: MouseEvent) => {
         if(state.selection.length >0) {
         const s = await getService();
-        s.createJob(JOBNAMES.EXPORT, {
+        return s.createJob(JOBNAMES.EXPORT, {
           source: state.selection,
         });
       }
@@ -114,42 +108,20 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       click: async (ev: MouseEvent) => {
         if(state.selection.length >0) {
         const s = await getService();
-        s.createJob(JOBNAMES.EXPORT, {
+        return s.createJob(JOBNAMES.EXPORT, {
           source: state.selection,
         });
       }
       },
     },
     { type: "sep" },
-
-    {
-      name: t("View starred only"),
-      icon: "resources/images/icons/actions/filter-star-50.png",
-      highlight: () => state.settings.filters.star,
-      visible: ()=>state.tabKind === 'Browser',
-      click: async (ev: MouseEvent) => {
-        updateFilterByStar(!state.settings.filters.star);
-      },
-    },
-    {
-      name: t("View videos only"),
-      icon: "resources/images/icons/actions/filter-video-50.png",
-      highlight: () => state.settings.filters.video,
-      visible: ()=>state.tabKind === 'Browser',
-      click: async (ev: MouseEvent) => {
-        updateFilterByVideos(!state.settings.filters.video);
-      },
-    },
-    {
-      type: "sep"
-    },
     {
       name: t("Clone Selection"),
       icon: "resources/images/icons/actions/duplicate-50.png",
       visible: ()=> state.tabKind === 'Browser',
       click: async (ev: MouseEvent) => {
         const s = await getService();
-        s.createJob(JOBNAMES.DUPLICATE, {
+        return s.createJob(JOBNAMES.DUPLICATE, {
           source: state.selection,
         });
       },
@@ -165,7 +137,7 @@ export function makeButtons(appEvents: AppEventSource): _$ {
             if (newAlbum) {
               const s = await getService();
               s.makeAlbum(newAlbum).then((album: Album) => {
-                s.createJob(JOBNAMES.MOVE, {
+                return s.createJob(JOBNAMES.MOVE, {
                   source: state.selection,
                   destination: { album },
                 });
@@ -181,8 +153,7 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       enabled: () => state.selection.length > 0,
       highlight: ()=> state.selection.length > 0 ? !!state.albumMetaData[state.selection[0].name]?.star : false,
       click: async (ev: MouseEvent) => {
-        const target = await toggleStar(state.selection);
-        animateStar(target);
+        toggleStar(state.selection);
       },
     },
     {
@@ -239,7 +210,7 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       click: async (_ev: MouseEvent) => {
         const s = await getService();
         const undo = state.undo[0];
-        s.undo(undo.uuid);
+        return s.undo(undo.uuid);
       },
     },
     { type: "sep" },
@@ -261,7 +232,7 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       visible: ()=> state.tabKind === 'Browser',
       click: async (ev: MouseEvent) => {
         const s = await getService();
-        s.createJob(JOBNAMES.DELETE, {
+        return s.createJob(JOBNAMES.DELETE, {
           source: state.selection,
         });
       },
@@ -288,7 +259,17 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       class="w3-button bottom-bar-button" style="background-image: url(${action.icon})"></button>`);
         break;
     }
-    if (action.click) action.element.on("click", action.click);   
+    if (action.click!==undefined) {
+    action.element.on("click", async (ev:MouseEvent) => {
+      const res = await action.click!(ev);
+      if(typeof res === "string") {
+        action.element?.addClass('job-running');
+        const s =await getService();
+        await s.waitJob(res);
+        action.element?.removeClass('job-running');
+      }
+    });   
+  }
     buttons.append(action.element);
   }
 

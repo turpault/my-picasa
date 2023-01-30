@@ -191,11 +191,8 @@ async function sortAssetsByRank(entries: AlbumEntry[]) {
   const ranks = (
     await Promise.all(entries.map((entry) => readPicasaEntry(entry)))
   ).map((e) => e.rank);
-  const entriesWithRanks = entries.map((entry, index) => ({
-    entry,
-    rank: ranks[index],
-  }));
-  entriesWithRanks.sort((a, b) => {
+  entries.forEach((entry, index) => {(entry as any).rank = ranks[index];});;
+  entries.sort((a:any, b:any) => {
     if (a.rank !== undefined && b.rank !== undefined) {
       return parseInt(a.rank!) - parseInt(b.rank!);
     }

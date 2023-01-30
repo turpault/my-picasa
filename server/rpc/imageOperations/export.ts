@@ -11,6 +11,7 @@ import {
   setOptions,
   transform,
   destroyContext,
+  commit,
 } from "./sharp-processor";
 
 export async function exportToFolder(entry: AlbumEntry, targetFolder: string) {
@@ -30,7 +31,8 @@ export async function exportToFolder(entry: AlbumEntry, targetFolder: string) {
     if (options.filters) {
       await transform(context, options.filters!);
     }
-    const res = (await encode(context)).data as Buffer;
+    await commit(context);
+    const res = (await encode(context)).data as Buffer;    
     await destroyContext(context);
     let targetFile = join(targetFolder, entry.name);
     let idx = 0;

@@ -8,6 +8,7 @@ export async function sleep(delay: number) {
 export function sortByKey<T>(array: T[], keys:(keyof T)[], order: ("alpha"|"reverse"|string[])[]) {
   array.sort(alphaSorter(false, keys  as string[], order));
 }
+export const noop = (..._a:any[])=>{}; 
 
 export function alphaSorter(
   caseSensitive: boolean = true,
@@ -336,19 +337,23 @@ class Mutex {
 }
 const locks: Map<string, Mutex> = new Map();
 
+let lastCheck = Date.now();
 function checkForVeryLongLocks() {
-  const now = new Date();
+  const now = Date.now();
+  if(now < lastCheck + 1000) {
+    return;
+  }
+  lastCheck = now;
   const table = Array.from(locks.entries())
     .filter(([name, mutex]) => mutex.locked())
     .map(([name, mutex]) => ({
       name,
-      duration: now.getTime() - mutex.lockDate.getTime(),
+      duration: now - mutex.lockDate.getTime(),
     }))
     .filter((l) => l.duration > 1000);
   if (table.length > 0) {
     console.warn(
-      "These locks are taking longer than expected",
-      JSON.stringify(table)
+      "These locks are taking longer than expected"
     );
     console.table(table);
   }
@@ -414,3 +419,4 @@ export function escapeXml(unsafe: string): string {
     return "";
   });
 }
+

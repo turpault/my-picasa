@@ -96,14 +96,24 @@
   pointer-events: none;
 }
 
-.images .thumbnail .star {
-  color: rgb(255, 255, 0);
+.star {
+  /* color: rgb(255, 255, 0); */
   position: absolute;
-  bottom: 47px;
-  right: 39px;
+  bottom: 20px;
+  right: 20px;
   font-size: 30px;
   width: 20px;
   height: 20px;
+  background-image: url('images/star-40.png');
+  background-repeat: repeat-x;
+  background-size: contain;
+  background-position: right;
+  transition: width 0.5s linear;
+  /* background-color: aqua; */
+}
+.big-star{
+  background-image: url('images/star-80.png');
+  height: 40px;
 }
 
 .images .selected .th {
@@ -116,6 +126,9 @@
   padding: 2px;
   position: absolute;
 }
+.thumbnail[is-video] {
+  background-color: lightgray;
+}
 
 .meta-file-entry {
   text-overflow: ellipsis;
@@ -124,7 +137,8 @@
   overflow: hidden;
 }
 
-.edited-image {}
+.edited-image {
+}
 
 .edited-video {
   width: 100%;
@@ -578,6 +592,7 @@ body {
 .folders li[separator] {
   border-top: 15px solid black;
 }
+
 
 .folders li[separator] {
   border-top: 15px solid black;
@@ -1287,6 +1302,9 @@ body {
 .radio-button:checked+label {
   border: 1px solid royalblue;
 }
+.list-check::after {
+  content: "✓"
+}
 
 .multiselect-image-list {
   width: 70px;
@@ -1426,4 +1444,28 @@ body {
 }
 .identify-face {
   text-indent: 10px;  
+}
+
+.filter-menu {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  opacity: 0.5;
+  border: 1px solid black;
+}
+.filter-menu:hover {
+  opacity: 1;
+}
+.filter-menu-items {
+  bottom: 38px;
+  right:0;
+}
+@keyframes pulse {
+  0% { /*transform: scale(0.9);*/ opacity: 0.3; }
+  50% { /*transform: scale(1);*/ opacity: 1; }
+  100% { /*transform: scale(0.9);*/ opacity: 0.3; }
+}
+
+.job-running {
+  animation: pulse 1s infinite ease-in-out;
 }

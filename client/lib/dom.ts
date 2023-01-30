@@ -352,17 +352,17 @@ export function $(
   return new _$(e, from);
 }
 
-export function preLoadImage(url: string): Promise<void> {
+export function preLoadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const i = new Image();
-    document.body.appendChild(i);
+    $(i).css('opacity', 0);
     (window as any).i = i;
     i.onload = () => {      
-      i.remove();
-      resolve();
+      resolve(i);
     };
     i.decode().then(() => {
-    }).catch(_e => {
+    }).catch(e => {
+      console.error(e);
     });
     i.onerror = () => {
       i.remove();

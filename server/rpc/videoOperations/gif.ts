@@ -1,16 +1,15 @@
 import { spawn } from "child_process";
-import { join } from "path";
 import { lock } from "../../../shared/lib/utils";
 import { AlbumEntry } from "../../../shared/types/types";
-import { imagesRoot } from "../../utils/constants";
 import { entryFilePath } from "../../utils/serverUtils";
-import { delayEnd, delayStart, inc, rate } from "../../utils/stats";
+import { delayEnd, delayStart, rate } from "../../utils/stats";
 
 var pathToFfmpeg = require('ffmpeg-static');
 
 export async function createGif(
   asset: AlbumEntry,
-  size: number
+  size: number,
+  animated: boolean
 ): Promise<Buffer> {
   rate("createGif");
   let converted = false;
@@ -21,9 +20,11 @@ export async function createGif(
   try {
     const i = delayStart("createGif");
     converted = await new Promise<boolean>((resolve) => {
+      const ffmpegArg = animated ? `"${pathToFfmpeg}" -t 20 -i "${source}" -vf "fps=10,scale=${size}:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -loop 0 -f gif -` :
+      `"${pathToFfmpeg}" -t 1 -i "${source}" -vf "fps=10,scale=${size}:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -loop -1 -f gif -`;
       const p = spawn("sh", [
         "-c",
-        `"${pathToFfmpeg}" -t 20 -i "${source}" -vf "fps=10,scale=${size}:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -loop 0 -f gif -`,
+        ffmpegArg,
       ]);
       p.stdout.on("data", (data) => {
         result.push(data);

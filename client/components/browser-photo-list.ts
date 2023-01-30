@@ -1,27 +1,22 @@
-import { Point } from "ts-2d-geometry/dist";
-import { debounce, lock, range, sleep } from "../../shared/lib/utils";
+import { lock, range } from "../../shared/lib/utils";
 import {
   Album,
-  AlbumEntry,
-  AlbumEntryWithMetadata,
-  AlbumWithData,
-  JOBNAMES,
+  AlbumEntry, AlbumWithData,
+  JOBNAMES
 } from "../../shared/types/types";
 import { AlbumIndexedDataSource } from "../album-data-source";
 import { getAlbumInfo } from "../folder-utils";
 import {
   $,
-  albumFromElement,
-  elementFromEntry,
-  setIdForAlbum,
-  _$,
+  albumFromElement, setIdForAlbum,
+  _$
 } from "../lib/dom";
 import { toggleStar } from "../lib/handles";
-import { getSettingsEmitter } from "../lib/settings";
+import { getSettings, getSettingsEmitter, updateFilterByStar, updateFilterByVideos } from "../lib/settings";
+import { MAX_STAR } from "../../shared/lib/shared-constants";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
 import { AlbumListEventSource, AppEventSource } from "../uiTypes";
-import { animateStar } from "./animations";
 import { Button, message } from "./message";
 import { t } from "./strings";
 import {
@@ -31,19 +26,16 @@ import {
   makeThumbnailManager,
   onDrop,
   selectThumbnailsInRect,
-  thumbnailData,
-  thumbnailsAround,
+  thumbnailData
 } from "./thumbnail";
 
 const extra = `
-<div class="w3-dropdown-hover w3-right sort-menu">
+<div class="w3-dropdown-hover w3-right filter-menu">
   <button
-    style="font-size: 22px"
-    class="w3-button fa fa-sort"
-  ></button>
-  <div class="w3-dropdown-content w3-bar-block w3-card-4">
-    <a id="SortByDate" class="w3-bar-item w3-button">By date</a>
-    <a id="SortByName" class="w3-bar-item w3-button">By name</a>
+    class="w3-button filter-button"
+  >Filtres</button>
+  <div class="filter-menu-items w3-dropdown-content w3-bar-block w3-card-4">
+    <a class="filter-videos w3-bar-item w3-button">${t('Only Videos')}</a>
   </div>
 </div>`;
 // Create two elements, allergic to visibility
@@ -69,6 +61,25 @@ export async function makePhotoList(
   const pool: _$[] = [];
   const displayed: _$[] = [];
   const photoList = $(html);
+  const topMenu = $(extra);
+  const menuItems = $('.filter-menu-items', topMenu);
+  const filterByVideos = $('.filter-videos', menuItems);
+  filterByVideos.on('click',()=> updateFilterByVideos(!getSettings().filters.video));
+  range(1, MAX_STAR-1).forEach(star =>{
+    const item = $(`<a class="w3-bar-item w3-button filter-favorites-${star}">${t('Only Favorites') + ` ${star}`}</a>`);
+    item.on('click', ()=>updateFilterByStar(getSettings().filters.star === star ? 0 : star));
+    menuItems.append(item);
+  });
+  getSettingsEmitter().on("changed", () => {
+    const settings = getSettings();
+    filterByVideos.addRemoveClass('list-check', settings.filters.video);
+    range(1, MAX_STAR-1).forEach(star =>{
+      $(`.filter-favorites-${star}`, menuItems).addRemoveClass('list-check', settings.filters.star === star);
+    });
+  });
+
+  photoList.append(topMenu);
+
   const container = $(".images", photoList);
   // Bind thumbnails display with selection
   makeThumbnailManager(thumbElementPrefix, selectionManager);
@@ -95,8 +106,7 @@ export async function makePhotoList(
       switch (code) {
         case "Space":
           if (selectionManager.selected().length > 0) {
-            const target = await toggleStar(selectionManager.selected());
-            animateStar(target);
+            toggleStar(selectionManager.selected());
           }
           break;
         case "ArrowLeft":

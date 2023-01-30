@@ -93,9 +93,6 @@ export class AlbumIndexedDataSource {
             this.emitter.emit("invalidateAt", { index: min });
           } else {
             console.warn(`Invalidating from ${min} / ${max}`);
-            if (min < 500) {
-              console.info(e.payload);
-            }
             this.emitter.emit("invalidateFrom", {
               index: min,
               to: max,

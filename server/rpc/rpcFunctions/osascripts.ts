@@ -15,9 +15,8 @@ async function runScript(script: string) {
 }
 export async function importScript(files: string[]) {
   const script = `
-set imageList to {
-  ${files.map((file) => '"' + file + '" as alias').join(", ")}
-}
+set imageList to {}
+${files.map((file) => 'copy (POSIX FILE "' + file + '") as alias to the end of |imageList|').join("\n")}
 tell application "Photos"
 activate
 delay 2

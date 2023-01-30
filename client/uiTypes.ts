@@ -40,7 +40,7 @@ export type ImageControllerEvent = {
   idle: {};
   busy: {};
   operationListChanged: {};
-  faceUpdated:{}
+  displayed:{}
 };
 
 export type AppEvent = {

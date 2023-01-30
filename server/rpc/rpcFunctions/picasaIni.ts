@@ -1,4 +1,4 @@
-import { readFile, rename, stat, unlink, writeFile } from "fs/promises";
+import { readFile, rename, unlink, writeFile } from "fs/promises";
 import { join } from "path";
 import ini from "../../../shared/lib/ini";
 import { Queue } from "../../../shared/lib/queue";
@@ -9,19 +9,15 @@ import {
   lock,
   removeDiacritics,
   sleep,
-  toBase64,
+  toBase64
 } from "../../../shared/lib/utils";
 import {
+  MAX_STAR } from "../../../shared/lib/shared-constants"
+import {
   Album,
-  AlbumEntry,
-  AlbumEntryPicasa,
-  AlbumKinds,
-  AlbumWithData,
+  AlbumEntry, AlbumEntryMetaData, AlbumKinds, AlbumMetaData, AlbumWithData,
   idFromKey,
-  keyFromID,
-  AlbumEntryMetaData,
-  AlbumMetaData,
-  PicasaSection,
+  keyFromID, PicasaSection
 } from "../../../shared/types/types";
 import { imagesRoot, PICASA } from "../../utils/constants";
 import { fileExists } from "../../utils/serverUtils";
@@ -344,6 +340,26 @@ export async function rotate(entries: AlbumEntry[], direction: string) {
     updatePicasaEntry(entry, "filters", encodeOperations(operations));
   }
 }
+
+export async function toggleStar(entries: AlbumEntry[]) {
+  for (const entry of entries) {    
+    const picasa = await readPicasaEntry(entry);
+    let star = picasa.star;
+    let starCount: string | undefined = picasa.starCount || "1";
+    if (!star) {
+      star = true;
+      starCount = "1";
+    } else {
+      starCount = (parseInt(starCount) + 1).toString();
+    }
+    if (parseInt(starCount) >= MAX_STAR) {
+      starCount = undefined;
+      star = undefined;
+    }
+    updatePicasaEntries(entry, { star, starCount });
+  }
+}
+
 export async function updatePicasa(
   album: Album,
   field: string,
@@ -391,11 +407,38 @@ export async function updatePicasaEntry(
     }
   }
 
-  if (["filters", "caption", "rotate", "star"].includes(field)) {
+  if (["filters", "caption", "rotate", "star", "starCount"].includes(field)) {
     broadcast("picasaFileMetaChanged", {
       ...entry,
       metadata: picasa[entry.name],
-    } as AlbumEntryPicasa);
+    } );
+  }
+  return writePicasaIni(entry.album, picasa);
+}
+
+export async function updatePicasaEntries(
+  entry: AlbumEntry,
+  kv: AlbumEntryMetaData
+) {
+  const picasa = await readAlbumIni(entry.album);
+  let doBroadcast = false;
+  picasa[entry.name] = picasa[entry.name] || ({} as AlbumEntryMetaData);
+  for (const k of Object.keys(kv) as (keyof AlbumEntryMetaData)[]) {
+    if (kv[k] !== undefined && kv[k] !== null) {
+      picasa[entry.name][k] = kv[k]!.toString();
+    } else {
+      delete picasa[entry.name][k];
+    }
+    if (["filters", "caption", "rotate", "star", "starCount"].includes(k)) {
+      doBroadcast = true;
+    }
+  }
+
+  if (doBroadcast) {
+    broadcast("picasaFileMetaChanged", {
+      ...entry,
+      metadata: picasa[entry.name],
+    } );
   }
   return writePicasaIni(entry.album, picasa);
 }

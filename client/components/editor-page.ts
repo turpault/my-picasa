@@ -1,5 +1,5 @@
 import { buildEmitter } from "../../shared/lib/event";
-import { AlbumEntry, AlbumEntryPicasa, JOBNAMES } from "../../shared/types/types";
+import { AlbumEntry, AlbumEntryMetaData, AlbumEntryPicasa, JOBNAMES } from "../../shared/types/types";
 import { setupAutocolor } from "../features/autocolor";
 import { setupBlur } from "../features/blur";
 import { setupBrightness } from "../features/brightness";
@@ -68,6 +68,7 @@ const editHTML = `
     <video autoplay muted loop controls class="edited-video">
     </video>
     <img class="fill-with-aspect edited-image"></img>
+    <div class="star big-star"></div>
   </div>
 </div>`;
 
@@ -150,18 +151,26 @@ export async function makeEditorPage(
       refreshMetadataFct(entries[initialIndex], [entries[initialIndex]]);
       makeImageStrip($('.image-strip', tool), activeManager);
 
-      imageController.init(activeManager.active() as AlbumEntryPicasa);
+      imageController.init(activeManager.active());
 
+      function updateStarCount(entry: AlbumEntryPicasa) {
+        $(".star",imageContainer).css({
+          display: entry.metadata.star ? "":"none",
+          width: `${parseInt(entry.metadata.starCount || "1")*40}px`
+        });
+
+      }
       const off = [
         imageController.events.on("idle", () => {
           $(".busy-spinner", editor).css("display", "none");
         }),
         imageController.events.on("busy", () => {
           $(".busy-spinner", editor).css("display", "block");
-        }),
+        }),        
         activeManager.event.on("changed", (entry) => {
-          imageController.display(entry as AlbumEntryPicasa);
+          imageController.display(entry);
           tabEvent.emit("rename", { name: entry.name });
+          updateStarCount(entry);
           refreshMetadataFct(entry, [entry]);
           selectionManager.clear();
           selectionManager.select(entry);
@@ -170,8 +179,7 @@ export async function makeEditorPage(
           if (win.get() === editor.get()) {
             switch (code) {
               case "Space":
-                const target = await toggleStar([activeManager.active()]);
-                animateStar(target);
+                await toggleStar([activeManager.active()]);
                 break;
               case "ArrowLeft":
                 activeManager.selectPrevious();
@@ -203,11 +211,12 @@ export async function makeEditorPage(
             off.forEach((o) => o());
           }
         }),
+
         s.on(
           "picasaFileMetaChanged",
           async (e: { payload: AlbumEntryPicasa }) => {
             if(e.payload.album.key === activeManager.active().album.key && e.payload.name === activeManager.active().name) {
-              imageController.update(e.payload);
+              updateStarCount(e.payload);
             }
           }
         )

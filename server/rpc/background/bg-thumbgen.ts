@@ -16,7 +16,7 @@ export async function buildThumbs() {
   const spinner = new Spinnies({ spinner: bouncingBall });
   spinner.add(spinnerName, { text: "Building thumbs" });
   let lastFSChange = new Date().getTime();
-  watch(imagesRoot, { recursive: true }, (eventType, filename) => {
+  watch(imagesRoot, { recursive: true }, (_eventType, filename) => {
     if (isMediaUrl(filename) && !filename.startsWith('.')) {
       lastFSChange = new Date().getTime();
     }
@@ -52,7 +52,7 @@ export async function buildThumbs() {
         await imageInfo(picture);
         await Promise.all(
           // All size except large ones
-          ThumbnailSizeVals.filter((f) => !f.includes("large")).map((size) =>makeThumbnail(picture, size))
+          [...ThumbnailSizeVals.filter((f) => !f.includes("large")).map((size) => makeThumbnail(picture, size, true)), ...ThumbnailSizeVals.filter((f) => !f.includes("large")).map((size) => makeThumbnail(picture, size, false))]
         );          
       }
     }
