@@ -81,7 +81,7 @@
     "@fastify/static": "^5.0.0",
     "@fastify/websocket": "^5.0.0",
     "@sentry/browser": "^7.32.1",
-    "@sentry/node": "^7.24.2",
+    "@sentry/node": "^7.33.0",
     "@sentry/tracing": "^7.32.1",
     "chalk": "^4.1.2",
     "cli-spinners": "^2.7.0",
