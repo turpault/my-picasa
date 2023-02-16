@@ -88,7 +88,7 @@
     "draggabilly": "^3.0.0",
     "exifr": "^7.1.3",
     "fast-exif": "^1.0.1",
-    "fastify": "^3.22.1",
+    "fastify": "^3.29.5",
     "ffmpeg-static": "^5.1.0",
     "image-size": "^1.0.2",
     "js-base64": "^3.7.4",
