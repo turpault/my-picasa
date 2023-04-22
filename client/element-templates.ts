@@ -4,7 +4,7 @@ import { $, _$ } from "./lib/dom";
 import { AlbumWithData } from "./types/types";
 
 export function folder(): _$ {
-  const e = $(`<li><div class="browser-list-text"></div><span class="browser-list-count"></span></li>`);
+  const e = $(`<li class="folder-row"><div class="browser-list-text"></div><span class="browser-list-count"></span></li>`);
   return e;
 }
 export function folderData(e: _$, album:AlbumWithData) {

@@ -87,6 +87,12 @@ export class _$ {
 
     return this;
   }
+  absolutePosition(pos: {x:number; y:number;}) {
+    this.css("position", "absolute");
+    this.css("left", `${pos.x}px`);
+    this.css("top", `${pos.y}px`);
+    return this;
+  }
   text(value?: any) {
     const nodes = this.get().childNodes;
     let found = false;
@@ -362,7 +368,7 @@ export function preLoadImage(url: string): Promise<HTMLImageElement> {
     };
     i.decode().then(() => {
     }).catch(e => {
-      console.error(e);
+      console.error(`While loading ${url}`, e);
     });
     i.onerror = () => {
       i.remove();

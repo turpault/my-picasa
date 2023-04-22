@@ -9,6 +9,10 @@ export type extraFields =
   | `cached:dimensions:${ThumbnailSize}`;
 export type AlbumEntryMetaData = {
   dateTaken?: string; // ISO date
+  geoPOI?: string; // a JSON-encoded string with a list of POIs around the photo
+  latitude?: number;
+  longitude?: number;
+  exif?: string; // a JSON-encoded string with the EXIF data
   star?: boolean;
   starCount?: string;
   caption?: string;

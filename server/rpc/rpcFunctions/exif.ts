@@ -6,6 +6,7 @@ import { isPicture, isVideo } from "../../../shared/lib/utils";
 import { AlbumEntry, idFromKey } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { entryFilePath } from "../../utils/serverUtils";
+import { readPicasaEntry, updatePicasaEntry } from "./picasaIni";
 
 export async function exifDataAndStats(
   entry: AlbumEntry
@@ -30,19 +31,29 @@ export function toExifDate(isoDate: string) {
 }
 
 export async function exifData(entry: AlbumEntry): Promise<any> {
-  const path = join(imagesRoot, idFromKey(entry.album.key).id, entry.name);
+  const picasaEntry = await readPicasaEntry(entry);
   if (isPicture(entry)) {
-    console.info(`Read exif from ${path}`);
+    if(picasaEntry.exif) {
+      return JSON.parse(picasaEntry.exif);
+    }
+    const path = join(imagesRoot, idFromKey(entry.album.key).id, entry.name);
+      console.info(`Read exif from ${path}`);
     const tags = await exifr
       .parse(entryFilePath(entry))
       .catch((e: any) => {
         console.error(`Exception while reading exif for ${path}: ${e}`);
         return {};
       });
+    updatePicasaEntry(entry, "exif", JSON.stringify(tags || {}));
+    const latitude = Array.isArray(tags.gps.latitude) &&  tags.gps.latitude[0] + tags.gps.latitude[1]/60 + tags.gps.latitude[2]/3600 || 0;
+    const longitude = Array.isArray(tags.gps.longitude) && tags.gps.longitude[0] + tags.gps.longitude[1]/60 + tags.gps.longitude[2]/3600 || 0;
+
+    updatePicasaEntry(entry, "latitude", latitude);
+    updatePicasaEntry(entry, "longitude", longitude);
+
     if (!tags) {
       return {};
     }
-
     return tags;
   } else if (isVideo(entry)) {
     // no tags yet

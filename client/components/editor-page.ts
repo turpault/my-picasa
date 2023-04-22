@@ -149,18 +149,18 @@ export async function makeEditorPage(
         entries[initialIndex]
       );
       refreshMetadataFct(entries[initialIndex], [entries[initialIndex]]);
-      makeImageStrip($('.image-strip', tool), activeManager);
-
-      imageController.init(activeManager.active());
-
-      function updateStarCount(entry: AlbumEntryPicasa) {
+      const offStrip = await makeImageStrip($('.image-strip', tool), activeManager);
+      const updateStarCount = (entry: AlbumEntryPicasa) => {
         $(".star",imageContainer).css({
           display: entry.metadata.star ? "":"none",
           width: `${parseInt(entry.metadata.starCount || "1")*40}px`
         });
-
       }
+      const offImgCtrl = await imageController.init(activeManager.active());
+
       const off = [
+        offStrip,
+        offImgCtrl,
         imageController.events.on("idle", () => {
           $(".busy-spinner", editor).css("display", "none");
         }),

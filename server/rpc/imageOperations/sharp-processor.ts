@@ -14,18 +14,17 @@ import {
   namify,
   noop,
   toHex2,
-  uuid,
+  uuid
 } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
   AlbumEntryMetaData,
-  AlbumKinds,
-  idFromKey,
+  AlbumKinds
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { getFaceData } from "../rpcFunctions/picasaIni";
 import { applyAllFilters, applyFilter } from "./imageFilters";
-import exifr from "exifr";
+import { entryRelativePath } from "./info";
 
 const s = promisify(sizeOf);
 
@@ -62,7 +61,7 @@ export async function dimensions(
 }
 
 export async function buildContext(entry: AlbumEntry): Promise<string> {
-  const relPath = join(idFromKey(entry.album.key).id, entry.name);
+  const relPath = entryRelativePath(entry);
   const fileData = await readFile(join(imagesRoot, relPath));
   const contextId = namify(relPath) + "-" + uuid();
 
@@ -761,7 +760,6 @@ export async function encode(
           height: info.height,
         };
       }
-      break;
     case "base64url":
       {
         const { data, info } = await j.toBuffer({ resolveWithObject: true });
@@ -771,7 +769,6 @@ export async function encode(
           height: info.height,
         };
       }
-      break;
     case "base64urlInfo":
       {
         const { data, info } = await j.toBuffer({ resolveWithObject: true });
@@ -781,7 +778,6 @@ export async function encode(
           height: info.height,
         };
       }
-      break;
     case "Buffer":
     default:
       const { data, info } = await j.toBuffer({ resolveWithObject: true });

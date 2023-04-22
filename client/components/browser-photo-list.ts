@@ -317,6 +317,9 @@ export async function makePhotoList(
       }
     }
   });
+  events.on("invalidateFrom", (event) => {
+    invalidateFrom(event.index);
+  });
   function moveToPool(element: _$) {
     pool.push(element);
     element.remove();

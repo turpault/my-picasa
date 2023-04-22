@@ -1,20 +1,21 @@
+import { join } from "path";
 import { isPicture, isVideo } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
   AlbumEntryWithMetadata,
   Filetype,
+  idFromKey
 } from "../../../shared/types/types";
 import {
   readAlbumIni,
-  updatePicasaEntries,
-  updatePicasaEntry,
+  updatePicasaEntries
 } from "../rpcFunctions/picasaIni";
 import {
   buildContext,
   destroyContext,
   encode,
   setOptions,
-  transform,
+  transform
 } from "./sharp-processor";
 
 export async function imageInfo(
@@ -56,4 +57,8 @@ export async function imageInfo(
     res.meta.transform = options.filters;
   }
   return res;
+}
+
+export function entryRelativePath(entry: AlbumEntry): string {
+  return join(idFromKey(entry.album.key).id, entry.name);
 }

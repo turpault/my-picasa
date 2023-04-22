@@ -96,7 +96,7 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
     } else {
       target = join(imagesRoot, "." + idFromKey(album.key).id + ".ini");
     }
-    // In the cache
+    // Not in the map, read it
     const iniData = await readFile(target, {
       encoding: "utf8",
     });
@@ -116,6 +116,7 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
     }
 
     picasaMap.set(album.key, i);
+    await addMissingPicasaData(album, i);
   } catch (e: any) {
     console.error(`Error reading .ini file: ${e.message}`);
     picasaMap.set(album.key, {});
@@ -125,6 +126,73 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
   // If we get there, we either read the ini, or created a new one, return it
   const res = await readAlbumIni(album);
   return res;
+}
+
+function addMissingPicasaData(album:Album, picasaIni:AlbumMetaData) {
+  for(const entry of pi)
+  if(!options.latitude || !options.longitude) {
+    const exif = await exifData(entry);
+    const latitude = Array.isArray(exif.gps.latitude) &&  exif.gps.latitude[0] + exif.gps.latitude[1]/60 + exif.gps.latitude[2]/3600;
+    const longitude = Array.isArray(exif.gps.longitude) && exif.gps.longitude[0] + exif.gps.longitude[1]/60 + exif.gps.longitude[2]/3600;
+    updatePicasaEntries(entry, {
+        latitude,
+        longitude,
+      });
+    res.meta.latitude = latitude;
+    res.meta.longitude = longitude;
+  }
+
+  if (!picasaIni.Picasa) {
+    picasaIni.Picasa = {};
+  }
+  if (!picasaIni.Picasa.name) {
+    picasaIni.Picasa.name = album.name;
+  }
+  if (!picasaIni.Picasa.date) {
+    picasaIni.Picasa.date = new Date().toISOString();
+  }
+  if (!picasaIni.Picasa.version) {
+    picasaIni.Picasa.version = "3.0";
+  }
+  if (!picasaIni.Picasa.sort_order) {
+    picasaIni.Picasa.sort_order = "0";
+  }
+  if (!picasaIni.Picasa.sort_direction) {
+    picasaIni.Picasa.sort_direction = "0";
+  }
+  if (!picasaIni.Picasa.sort_field) {
+    picasaIni.Picasa.sort_field = "0";
+  }
+  if (!picasaIni.Picasa.show_captions) {
+    picasaIni.Picasa.show_captions = "0";
+  }
+  if (!picasaIni.Picasa.show_names) {
+    picasaIni.Picasa.show_names = "0";
+  }
+  if (!picasaIni.Picasa.show_faces) {
+    picasaIni.Picasa.show_faces = "0";
+  }
+  if (!picasaIni.Picasa.show_comments) {
+    picasaIni.Picasa.show_comments = "0";
+  }
+  if (!picasaIni.Picasa.show_slideshow) {
+    picasaIni.Picasa.show_slideshow = "0";
+  }
+  if (!picasaIni.Picasa.show_map) {
+    picasaIni.Picasa.show_map = "0";
+  }
+  if (!picasaIni.Picasa.show_date) {
+    picasaIni.Picasa.show_date = "0";
+  }
+  if (!picasaIni.Picasa.show_toolbar) {
+    picasaIni.Picasa.show_toolbar = "0";
+  }
+  if (!picasaIni.Picasa.show_statusbar) {
+    picasaIni.Picasa.show_statusbar = "0";
+  }
+  if (!picasaIni.Picasa.show_path) {
+    picasaIni.Picasa.show_path = "0";
+  }
 }
 
 export function getFaceAlbumFromHash(
@@ -413,7 +481,7 @@ export async function updatePicasaEntry(
       metadata: picasa[entry.name],
     } );
   }
-  return writePicasaIni(entry.album, picasa);
+  writePicasaIni(entry.album, picasa);
 }
 
 export async function updatePicasaEntries(
@@ -440,5 +508,5 @@ export async function updatePicasaEntries(
       metadata: picasa[entry.name],
     } );
   }
-  return writePicasaIni(entry.album, picasa);
+  writePicasaIni(entry.album, picasa);
 }
