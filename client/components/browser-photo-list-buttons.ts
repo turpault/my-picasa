@@ -160,6 +160,7 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       name: t("Rotate Selected Left"),
       icon: "resources/images/icons/actions/rotate-left-50.png",
       enabled: () => state.selection.length > 0,
+      visible: ()=> state.tabKind === 'Browser',
       click: async (ev: MouseEvent) => {
         const s = await getService();
         s.rotate(state.selection, 'left');
@@ -169,6 +170,7 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       name: t("Rotate Selected Right"),
       icon: "resources/images/icons/actions/rotate-right-50.png",
       enabled: () => state.selection.length > 0,
+      visible: ()=> state.tabKind === 'Browser',
       click: async (ev: MouseEvent) => {
         const s = await getService();
         s.rotate(state.selection, 'right');

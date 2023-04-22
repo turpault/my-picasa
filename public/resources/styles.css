@@ -461,6 +461,7 @@ body {
   overflow: hidden;
   white-space: nowrap;
   width: 244px;
+  pointer-events: none;
 }
 
 .browser-list-count {
@@ -468,6 +469,7 @@ body {
   position: absolute;
   font-style: italic;
   font-weight: bold;
+  pointer-events: none;
 }
 
 .filterAlbum {
@@ -502,7 +504,7 @@ body {
   box-shadow: rgba(126, 126, 126, 0.5) 0px 0px 0px 99999px;
   border: 3px solid blue;
   z-index: 99;
-  display: none;
+  /* display: none; */
 }
 
 .draw {
@@ -586,7 +588,7 @@ body {
   font-size: 12px;
   line-height: 14px;
   padding-top: 4px;
-  padding-bottom: 4px;
+  padding-bottom: 4px;  
 }
 
 .folders li[separator] {

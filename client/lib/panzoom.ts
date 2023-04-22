@@ -55,6 +55,11 @@ export class ImagePanZoomController {
     return { x: targetX, y: targetY };
   }
 
+  canvasToScreenCoords(x: number, y: number): { x: number; y: number } {    
+    const transform = this.panner.getTransform();
+    return {x: (x - transform.x)/transform.scale, y: (y - transform.y)/transform.scale};
+  }
+
   canvasBoundsOnScreen(): Rectangle {
     const offsets = { left: this.element.left, top: this.element.top };
     const transform = this.panner.getTransform();

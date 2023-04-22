@@ -1,5 +1,5 @@
 import { readFile, stat, writeFile } from "fs/promises";
-import { extname } from "path";
+import { extname, join } from "path";
 import { isVideo, lock } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
@@ -8,7 +8,9 @@ import {
   ThumbnailSize,
   videoExtensions
 } from "../../../shared/types/types";
+import { imagesRoot } from "../../utils/constants";
 import { dec, inc } from "../../utils/stats";
+import { entryRelativePath } from "../imageOperations/info";
 import {
   buildFaceImage,
   buildImage,
@@ -41,6 +43,11 @@ async function shouldMakeImageThumbnail(
   let exception: Error | undefined = undefined;
   try {
     const picasa = await readAlbumIni(entry.album);
+    const sourceStat = await stat(join(imagesRoot, entryRelativePath(entry))).catch(()=>undefined);
+    if(!sourceStat) {
+      // Source file is gone
+      return false;
+    }
 
     const picasaLabel = cachedFilterKey[size];
     const picasaSizeLabel = dimensionsFilterKey[size];
@@ -50,10 +57,10 @@ async function shouldMakeImageThumbnail(
     const cachedTransform = picasa[entry.name][picasaLabel] || "";
     let cachedSize = picasa[entry.name][picasaSizeLabel];
     const {path} = thumbnailPathFromEntryAndSize(entry, size, animated);
-    const fileExists = await stat(path)
-      .then((s) => s.size !== 0)
+    const fileExistsAndIsNotOutdated = await stat(path)
+      .then((s) => s.size !== 0 && s.mtime > sourceStat.mtime)
       .catch(() => false);
-    if (!fileExists || !cachedSize || transform !== cachedTransform) {
+    if (!fileExistsAndIsNotOutdated || !cachedSize || transform !== cachedTransform) {
       return true;
     }
     return false;

@@ -1,3 +1,4 @@
+import { Point } from "ts-2d-geometry/dist";
 import { _$ } from "./lib/dom";
 import { Emitter } from "./lib/event";
 import { PicasaFilter } from "./lib/utils";
@@ -103,6 +104,13 @@ export type AlbumListEvent = {
   };
   ready: {};
 };
+
+export type DraggableControlPositionEvent = {
+  dragged: {
+    canvasPosition: {x: number, y: number},
+    screenPosition: {x: number, y: number}
+  }
+}
 export type AlbumListEventSource = Emitter<AlbumListEvent>;
 
 export type TabContext = {
