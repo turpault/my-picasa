@@ -1,7 +1,8 @@
-import { readFile, rename, unlink, writeFile } from "fs/promises";
+import { readFile } from "fs/promises";
 import { join } from "path";
 import ini from "../../../shared/lib/ini";
 import { Queue } from "../../../shared/lib/queue";
+import { MAX_STAR } from "../../../shared/lib/shared-constants";
 import {
   decodeOperations,
   encodeOperations,
@@ -9,18 +10,21 @@ import {
   lock,
   removeDiacritics,
   sleep,
-  toBase64
+  toBase64,
 } from "../../../shared/lib/utils";
 import {
-  MAX_STAR } from "../../../shared/lib/shared-constants"
-import {
   Album,
-  AlbumEntry, AlbumEntryMetaData, AlbumKinds, AlbumMetaData, AlbumWithData,
+  AlbumEntry,
+  AlbumEntryMetaData,
+  AlbumKind,
+  AlbumMetaData,
+  AlbumWithData,
+  PicasaSection,
   idFromKey,
-  keyFromID, PicasaSection
+  keyFromID,
 } from "../../../shared/types/types";
-import { imagesRoot, PICASA } from "../../utils/constants";
-import { fileExists } from "../../utils/serverUtils";
+import { PICASA, imagesRoot } from "../../utils/constants";
+import { safeWriteFile } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { rate } from "../../utils/stats";
 import { media } from "./media";
@@ -48,7 +52,7 @@ export async function picasaIniCleaner() {
     dirtyPicasaSet = new Map<string, Album>();
     i.forEach(async (album) => {
       let target: string = "";
-      if (album.kind === AlbumKinds.folder) {
+      if (album.kind === AlbumKind.FOLDER) {
         target = join(imagesRoot, idFromKey(album.key).id, PICASA);
       } else {
         target = join(imagesRoot, "." + idFromKey(album.key).id + ".ini");
@@ -56,14 +60,7 @@ export async function picasaIniCleaner() {
       rate("writePicasa");
       console.info(`\nWriting file ${target}`);
       const out = ini.encode(picasaMap.get(album.key));
-      const tmp = join(target + new Date().toISOString());
-      unlink(target + "~").catch(() => {});
-      await writeFile(tmp, out);
-      // Swap files
-      if (await fileExists(target)) {
-        await rename(target, target + "~");
-      }
-      await rename(tmp, target);
+      await safeWriteFile(target, out);
     });
     picasaMap.forEach((value, key) => {
       if (dirtyPicasaSet.has(key)) {
@@ -91,7 +88,7 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
       return picasaMap.get(album.key)!;
     }
     let target: string = "";
-    if (album.kind === AlbumKinds.folder) {
+    if (album.kind === AlbumKind.FOLDER) {
       target = join(imagesRoot, idFromKey(album.key).id, PICASA);
     } else {
       target = join(imagesRoot, "." + idFromKey(album.key).id + ".ini");
@@ -102,7 +99,7 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
     });
     const i = ini.parse(iniData);
     // Read&fix data
-    if (album.kind === AlbumKinds.folder) {
+    if (album.kind === AlbumKind.FOLDER) {
       // Parse faces asynchronously
       processFaces(album, i);
 
@@ -116,7 +113,6 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
     }
 
     picasaMap.set(album.key, i);
-    await addMissingPicasaData(album, i);
   } catch (e: any) {
     console.error(`Error reading .ini file: ${e.message}`);
     picasaMap.set(album.key, {});
@@ -126,73 +122,6 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
   // If we get there, we either read the ini, or created a new one, return it
   const res = await readAlbumIni(album);
   return res;
-}
-
-function addMissingPicasaData(album:Album, picasaIni:AlbumMetaData) {
-  for(const entry of pi)
-  if(!options.latitude || !options.longitude) {
-    const exif = await exifData(entry);
-    const latitude = Array.isArray(exif.gps.latitude) &&  exif.gps.latitude[0] + exif.gps.latitude[1]/60 + exif.gps.latitude[2]/3600;
-    const longitude = Array.isArray(exif.gps.longitude) && exif.gps.longitude[0] + exif.gps.longitude[1]/60 + exif.gps.longitude[2]/3600;
-    updatePicasaEntries(entry, {
-        latitude,
-        longitude,
-      });
-    res.meta.latitude = latitude;
-    res.meta.longitude = longitude;
-  }
-
-  if (!picasaIni.Picasa) {
-    picasaIni.Picasa = {};
-  }
-  if (!picasaIni.Picasa.name) {
-    picasaIni.Picasa.name = album.name;
-  }
-  if (!picasaIni.Picasa.date) {
-    picasaIni.Picasa.date = new Date().toISOString();
-  }
-  if (!picasaIni.Picasa.version) {
-    picasaIni.Picasa.version = "3.0";
-  }
-  if (!picasaIni.Picasa.sort_order) {
-    picasaIni.Picasa.sort_order = "0";
-  }
-  if (!picasaIni.Picasa.sort_direction) {
-    picasaIni.Picasa.sort_direction = "0";
-  }
-  if (!picasaIni.Picasa.sort_field) {
-    picasaIni.Picasa.sort_field = "0";
-  }
-  if (!picasaIni.Picasa.show_captions) {
-    picasaIni.Picasa.show_captions = "0";
-  }
-  if (!picasaIni.Picasa.show_names) {
-    picasaIni.Picasa.show_names = "0";
-  }
-  if (!picasaIni.Picasa.show_faces) {
-    picasaIni.Picasa.show_faces = "0";
-  }
-  if (!picasaIni.Picasa.show_comments) {
-    picasaIni.Picasa.show_comments = "0";
-  }
-  if (!picasaIni.Picasa.show_slideshow) {
-    picasaIni.Picasa.show_slideshow = "0";
-  }
-  if (!picasaIni.Picasa.show_map) {
-    picasaIni.Picasa.show_map = "0";
-  }
-  if (!picasaIni.Picasa.show_date) {
-    picasaIni.Picasa.show_date = "0";
-  }
-  if (!picasaIni.Picasa.show_toolbar) {
-    picasaIni.Picasa.show_toolbar = "0";
-  }
-  if (!picasaIni.Picasa.show_statusbar) {
-    picasaIni.Picasa.show_statusbar = "0";
-  }
-  if (!picasaIni.Picasa.show_path) {
-    picasaIni.Picasa.show_path = "0";
-  }
 }
 
 export function getFaceAlbumFromHash(
@@ -223,7 +152,7 @@ async function processFaces(album: Album, picasaIni: AlbumMetaData) {
         const [originalName, email, something] = value.split(";");
         const name = normalizeName(originalName);
 
-        const key = keyFromID(name, AlbumKinds.face);
+        const key = keyFromID(name, AlbumKind.FACE);
         if (!faces.has(key)) {
           faces.set(key, {
             key,
@@ -233,7 +162,7 @@ async function processFaces(album: Album, picasaIni: AlbumMetaData) {
             email,
             something,
             originalName,
-            kind: AlbumKinds.face,
+            kind: AlbumKind.FACE,
           });
         }
         faces.get(key)!.hash[hash] = "";
@@ -330,7 +259,7 @@ async function readPicasaSection(
   album: Album,
   section: string = "Picasa"
 ): Promise<PicasaSection> {
-  if (album.kind === AlbumKinds.folder) {
+  if (album.kind === AlbumKind.FOLDER) {
     const picasa = await readAlbumIni(album);
     picasa[section] = picasa[section] || {};
     return picasa[section] as PicasaSection;
@@ -410,7 +339,7 @@ export async function rotate(entries: AlbumEntry[], direction: string) {
 }
 
 export async function toggleStar(entries: AlbumEntry[]) {
-  for (const entry of entries) {    
+  for (const entry of entries) {
     const picasa = await readPicasaEntry(entry);
     let star = picasa.star;
     let starCount: string | undefined = picasa.starCount || "1";
@@ -445,7 +374,7 @@ export async function updatePicasa(
   } else {
     delete section[field];
   }
-  return writePicasaIni(album, picasa);
+  await writePicasaIni(album, picasa);
 }
 
 export async function updatePicasaEntry(
@@ -479,7 +408,7 @@ export async function updatePicasaEntry(
     broadcast("picasaFileMetaChanged", {
       ...entry,
       metadata: picasa[entry.name],
-    } );
+    });
   }
   writePicasaIni(entry.album, picasa);
 }
@@ -506,7 +435,7 @@ export async function updatePicasaEntries(
     broadcast("picasaFileMetaChanged", {
       ...entry,
       metadata: picasa[entry.name],
-    } );
+    });
   }
   writePicasaIni(entry.album, picasa);
 }

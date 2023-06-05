@@ -14,12 +14,14 @@ import {
   namify,
   noop,
   toHex2,
-  uuid
+  uuid,
 } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
   AlbumEntryMetaData,
-  AlbumKinds
+  AlbumKind,
+  ImageEncoding,
+  ImageMimeType,
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { getFaceData } from "../rpcFunctions/picasaIni";
@@ -58,6 +60,27 @@ export async function dimensions(
   let s = sharp(data, { limitInputPixels: false, failOnError: false }).rotate();
   const metadata = await s.metadata();
   return { width: metadata.width!, height: metadata.height! };
+}
+
+export async function buildNewContext(
+  width: number,
+  height: number
+): Promise<string> {
+  const contextId = uuid();
+  const j = sharp({
+    create: {
+      width,
+      /** Number of pixels high. */
+      height,
+      /** Number of bands e.g. 3 for RGB, 4 for RGBA */
+      channels: 3,
+      /** Parsed by the [color](https://www.npmjs.org/package/color) module to extract values for red, green, blue and alpha. */
+      background: "#ffffff",
+    },
+  });
+
+  contexts.set(contextId, j);
+  return contextId;
 }
 
 export async function buildContext(entry: AlbumEntry): Promise<string> {
@@ -630,6 +653,12 @@ export async function transform(
         j = j.resize(sizeW, sizeH, { fit: "inside" });
         break;
       }
+      case "cover": {
+        const sizeW = args[1] ? parseInt(args[1]) : undefined;
+        const sizeH = args[2] ? parseInt(args[2]) : undefined;
+        j = j.resize(sizeW, sizeH, { fit: "cover" });
+        break;
+      }
       case "exif": {
         const exif = args[0]
           ? JSON.parse(decodeURIComponent(args[0]))
@@ -692,6 +721,70 @@ export async function transform(
   }
   return context;
 }
+export async function blitMultiple(
+  target: string,
+  sources: {
+    context: string;
+    position: {
+      left: number;
+      top: number;
+    };
+  }[]
+): Promise<void> {
+  let targetContext = getContext(target);
+  const compositeLayers = await Promise.all(
+    sources.map(async (source) => {
+      const left = Math.round(source.position.left);
+      const top = Math.round(source.position.top);
+      const sourceContext = getContext(source.context);
+      const pixels = await sourceContext
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const pixelSize = pixels.info.channels as 3 | 4;
+      return {
+        input: pixels.data,
+        raw: {
+          width: pixels.info.width,
+          height: pixels.info.height,
+          channels: pixelSize,
+        },
+        top,
+        left,
+      };
+    })
+  );
+  targetContext = targetContext.composite(compositeLayers);
+  setContext(target, targetContext);
+}
+
+export async function blit(
+  target: string,
+  source: string,
+  left: number,
+  top: number
+): Promise<void> {
+  left = Math.round(left);
+  top = Math.round(top);
+  const sourceContext = getContext(source);
+  let targetContext = getContext(target);
+  const pixels = await sourceContext
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const pixelSize = pixels.info.channels as 3 | 4;
+  targetContext = targetContext.composite([
+    {
+      input: pixels.data,
+      raw: {
+        width: pixels.info.width,
+        height: pixels.info.height,
+        channels: pixelSize,
+      },
+      top,
+      left,
+    },
+  ]);
+  setContext(target, targetContext);
+}
 
 export async function setOptions(
   context: string,
@@ -716,8 +809,8 @@ const emptyJpg = Buffer.from(
 );
 export async function encode(
   context: string,
-  mime: string = "image/jpeg",
-  format: string = "Buffer"
+  mime: ImageMimeType = "image/jpeg",
+  format: ImageEncoding = "Buffer"
 ): Promise<{ width: number; height: number; data: Buffer | string }> {
   let j: sharp.Sharp;
   try {
@@ -751,33 +844,23 @@ export async function encode(
   //const exif = exifToSharpMeta(getExif(context));
   //j.withMetadata({exif: {IFD0: exif, IFD1: exif, IFD2: exif, GPSIFD: exif, ExifIFD:exif, ImageIFD: exif}})
   switch (format) {
-    case "base64":
-      {
-        const { data, info } = await j.toBuffer({ resolveWithObject: true });
-        return {
-          data: data.toString(format),
-          width: info.width,
-          height: info.height,
-        };
-      }
+    case "base64": {
+      const { data, info } = await j.toBuffer({ resolveWithObject: true });
+      return {
+        data: data.toString(format),
+        width: info.width,
+        height: info.height,
+      };
+    }
     case "base64url":
-      {
-        const { data, info } = await j.toBuffer({ resolveWithObject: true });
-        return {
-          data: "data:" + mime + ";base64," + data.toString("base64"),
-          width: info.width,
-          height: info.height,
-        };
-      }
-    case "base64urlInfo":
-      {
-        const { data, info } = await j.toBuffer({ resolveWithObject: true });
-        return {
-          data: "data:" + mime + ";base64," + data.toString("base64"),
-          width: info.width,
-          height: info.height,
-        };
-      }
+    case "base64urlInfo": {
+      const { data, info } = await j.toBuffer({ resolveWithObject: true });
+      return {
+        data: "data:" + mime + ";base64," + data.toString("base64"),
+        width: info.width,
+        height: info.height,
+      };
+    }
     case "Buffer":
     default:
       const { data, info } = await j.toBuffer({ resolveWithObject: true });
@@ -875,7 +958,7 @@ export async function buildFaceImage(
         album: {
           key: faceData.albumKey,
           name: "",
-          kind: AlbumKinds.folder,
+          kind: AlbumKind.FOLDER,
         },
         name: faceData.name,
       };

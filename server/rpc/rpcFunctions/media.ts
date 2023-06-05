@@ -4,19 +4,22 @@ import { isPicture, isVideo } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
-  AlbumKinds,
-  idFromKey
+  AlbumKind,
+  idFromKey,
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { exifDataAndStats } from "./exif";
 import { readAlbumIni, readPicasaEntry, updatePicasaEntry } from "./picasaIni";
 import { albumWithData, queueNotification } from "./walker";
+import { getProjects } from "../projects";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
-  const entries = (await media(entry.album)).entries.filter(e => e.name !== entry.name);
+  const entries = (await media(entry.album)).entries.filter(
+    (e) => e.name !== entry.name
+  );
   await sortAssetsByRank(entries);
   entries.splice(rank, 0, entry);
-  entries.map((entry, index)=> {
+  entries.forEach((entry, index) => {
     updatePicasaEntry(entry, "rank", index);
   });
   queueNotification({
@@ -30,10 +33,9 @@ async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {
   for (const entry of filesInFolder) {
     if (isPicture(entry) || isVideo(entry)) {
       let current = (await readPicasaEntry(entry)).rank;
-      if(current) {
+      if (current) {
         rank = Math.max(rank, parseInt(current));
-      } else 
-        updatePicasaEntry(entry, "rank", rank++);
+      } else updatePicasaEntry(entry, "rank", rank++);
     }
   }
 }
@@ -111,9 +113,9 @@ export async function sortAlbum(album: Album, order: string): Promise<void> {
 }
 
 export async function mediaCount(album: Album): Promise<{ count: number }> {
-  if (album.kind === AlbumKinds.folder) {
+  if (album.kind === AlbumKind.FOLDER) {
     return { count: (await assetsInFolderAlbum(album)).entries.length };
-  } else if (album.kind === AlbumKinds.face) {
+  } else if (album.kind === AlbumKind.FACE) {
     const ini = await readAlbumIni(album);
     return { count: Object.keys(ini).length };
   } else throw new Error(`Unknown kind ${album.kind}`);
@@ -122,7 +124,7 @@ export async function mediaCount(album: Album): Promise<{ count: number }> {
 export async function assetsInFolderAlbum(
   album: Album
 ): Promise<{ entries: AlbumEntry[]; folders: string[] }> {
-  if (album.kind !== AlbumKinds.folder) {
+  if (album.kind !== AlbumKind.FOLDER) {
     throw new Error("Can only scan folders");
   }
   const items = await readdir(join(imagesRoot, idFromKey(album.key).id));
@@ -146,7 +148,7 @@ export async function assetsInFolderAlbum(
 }
 
 export async function media(album: Album): Promise<{ entries: AlbumEntry[] }> {
-  if (album.kind === AlbumKinds.folder) {
+  if (album.kind === AlbumKind.FOLDER) {
     let [picasa, assets] = await Promise.all([
       readAlbumIni(album),
       assetsInFolderAlbum(album),
@@ -178,11 +180,14 @@ export async function media(album: Album): Promise<{ entries: AlbumEntry[] }> {
     await sortAssetsByRank(entries);
     await assignRanks(entries);
     return { entries };
-  } else if (album.kind === AlbumKinds.face) {
+  } else if (album.kind === AlbumKind.FACE) {
     const ini = await readAlbumIni(album);
     const entries = Object.keys(ini).map((name) => ({ album, name }));
     await sortAssetsByRank(entries);
     await assignRanks(entries);
+    return { entries };
+  } else if (album.kind === AlbumKind.PROJECT) {
+    const entries = await getProjects(album.key);
     return { entries };
   } else throw new Error(`Unknown kind ${album.kind}`);
 }
@@ -191,13 +196,15 @@ async function sortAssetsByRank(entries: AlbumEntry[]) {
   const ranks = (
     await Promise.all(entries.map((entry) => readPicasaEntry(entry)))
   ).map((e) => e.rank);
-  entries.forEach((entry, index) => {(entry as any).rank = ranks[index];});;
-  entries.sort((a:any, b:any) => {
+  entries.forEach((entry, index) => {
+    (entry as any).rank = ranks[index];
+  });
+  entries.sort((a: any, b: any) => {
     if (a.rank !== undefined && b.rank !== undefined) {
       return parseInt(a.rank!) - parseInt(b.rank!);
     }
-    if(a.rank) return -1;
-    if(b.rank) return 1;
+    if (a.rank) return -1;
+    if (b.rank) return 1;
     return 0;
   });
 }

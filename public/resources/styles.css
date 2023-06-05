@@ -1196,16 +1196,22 @@ body {
   }
 }
 
-.composition-sidebar {
+.mosaic {
+  background-color: rgb(243, 243, 243);
+  display: flex;
+  flex-direction: row;
+}
+
+.mosaic-sidebar {
   overflow-y: scroll;
   height: 100%;
   width: 300px;
-  position: relative;
+  /* position: relative; */
   padding-left: 5px;
   background-color: rgb(243, 243, 243);
 }
 
-.composition-parameter-block {
+.mosaic-parameter-block {
   color: rgb(80, 80, 80);
   font-family: sans-serif;
   font-weight: bold;
@@ -1213,20 +1219,61 @@ body {
   overflow-x: hidden;
 }
 
-.composition-parameters {}
-
-.composition-container {
-  position: absolute;
-  inset: 0px 0px 0px 300px;
+.centered {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* position: absolute; */
+  width: 100%;
   height: 100%;
+}
+.mosaic-image:hover button {
+  opacity: 0.7;
+  border: none;
+}
+.mosaic-image-button {
+  background-color: rgba(255, 255, 255, 0.5);
+  background-size: 30px 30px;
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-color: rgba(255, 255, 255, 0.5);
+  width: 30px;
+  height: 30px;
+  border: none;
+  opacity: 0;
+}
+.mosaic-image-button-rotate-left {
+  background-image: url('images/icons/actions/rotate-left-50.png');
+}
+.mosaic-image-button-rotate-right {
+  background-image: url('images/icons/actions/rotate-right-50.png');
+}
+.mosaic-image-button-trash {
+  background-image: url('images/icons/actions/trash-50.png');
+}
+
+.mosaic-parameters {}
+
+.mosaic-container {
+  /* position: absolute; */
+  /* inset: 0px 0px 0px 300px; */
+  /* height: 100%; */
+  flex-shrink: 4;
   overflow: scroll;
   background-color: rgb(243, 243, 243);
+  transform: scale(1.);
 }
 
 .montage {
   background: rgb(221, 221, 221);
+  position: relative;
   width: 1000px;
   height: 800px;
+}
+
+.montage-container {
+  position: absolute;
+  transform: scale(1.0);
 }
 
 .montage::after {
@@ -1235,13 +1282,13 @@ body {
   clear: both;
 }
 
-.composited-element {
+.mosaic-element {
   background-position: center center;
   background-size: cover;
   background-repeat: no-repeat;
 }
 
-.composited-element:hover {
+.mosaic-element:hover {
   border-color: rgba(255, 255, 255, 0.5);
   cursor: move;
 }

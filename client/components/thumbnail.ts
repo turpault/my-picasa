@@ -8,7 +8,7 @@ import {
   Album,
   AlbumEntry,
   AlbumEntryPicasa,
-  AlbumKinds,
+  AlbumKind,
   JOBNAMES,
   AlbumEntryMetaData,
 } from "../../shared/types/types";
@@ -206,7 +206,7 @@ function buildThumbnail(
     if (!entry) {
       return;
     }
-    if (entry.album.kind == AlbumKinds.face) {
+    if (entry.album.kind == AlbumKind.FACE) {
       const s = await getService();
       entry = await s.getSourceEntry(entry);
       if (!entry) {
@@ -290,7 +290,7 @@ export async function makeThumbnailManager(
 export async function thumbnailData(
   e: _$,
   entry: AlbumEntry,
-  picasaData: AlbumEntryMetaData,
+  picasaData: AlbumEntryMetaData | undefined,
   selectionManager: SelectionManager,
   elementPrefix: string
 ) {
@@ -317,11 +317,12 @@ export async function thumbnailData(
 
   // could be improved
   const label =
-    entry.album.kind === AlbumKinds.folder
-      ? entry.name
-      : JSON.parse(fromBase64(entry.name))[0];
+    entry.album.kind === AlbumKind.FACE
+      ? JSON.parse(fromBase64(entry.name))[0]
+      : entry.name;
+
   let dateTime = "";
-  if (picasaData.dateTaken) {
+  if (picasaData?.dateTaken) {
     dateTime = new Date(picasaData.dateTaken).toLocaleString();
   }
   e.attr("data-tooltip-above-image", label);

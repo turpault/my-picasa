@@ -15,8 +15,12 @@ export type Tool = {
   editable?: boolean;
   preview?: boolean;
   icon: iconFct;
-  build: (...args: any[])=>PicasaFilter;
-  buildUI: (index: number, args: string[], context: string) => { ui: HTMLElement, clearFct?: Function };
+  build: (...args: any[]) => PicasaFilter;
+  buildUI: (
+    index: number,
+    args: string[],
+    context: string
+  ) => { ui: HTMLElement; clearFct?: Function };
   activate: activateFct;
   multipleFamily: string | null;
 };
@@ -41,12 +45,12 @@ export type ImageControllerEvent = {
   idle: {};
   busy: {};
   operationListChanged: {};
-  displayed:{}
+  displayed: {};
 };
 
 export type AppEvent = {
   ready: {
-    state: boolean
+    state: boolean;
   };
   tabChanged: {
     tab: _$;
@@ -74,7 +78,7 @@ export type AppEvent = {
   edit: { initialList: AlbumEntry[]; initialIndex: number };
   show: { initialList: AlbumEntry[]; initialIndex: number };
   editSelect: { entry: AlbumEntry };
-  composite: { initialList: AlbumEntry[]; initialIndex: number };
+  mosaic: { initialList: AlbumEntry[]; initialIndex: number };
 };
 
 export type AppEventSource = Emitter<AppEvent>;
@@ -107,13 +111,13 @@ export type AlbumListEvent = {
 
 export type DraggableControlPositionEvent = {
   dragged: {
-    canvasPosition: {x: number, y: number},
-    screenPosition: {x: number, y: number}
-  }
-}
+    canvasPosition: { x: number; y: number };
+    screenPosition: { x: number; y: number };
+  };
+};
 export type AlbumListEventSource = Emitter<AlbumListEvent>;
 
 export type TabContext = {
   selectionManager: SelectionManager;
-  kind: 'Browser' | 'Editor' | 'Composition' | 'Gallery';
-}
+  kind: "Browser" | "Editor" | "Mosaic" | "Gallery" | "Error" | "Slideshow";
+};

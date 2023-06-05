@@ -4,12 +4,13 @@ import { lock, sleep, uuid } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
-  AlbumKinds,
+  AlbumKind,
   idFromKey,
   Job,
   JobData,
   JOBNAMES,
-  keyFromID
+  keyFromID,
+  ProjectType,
 } from "../../../shared/types/types";
 import { exportsRoot, imagesRoot } from "../../utils/constants";
 import { entryFilePath, fileExists } from "../../utils/serverUtils";
@@ -22,8 +23,14 @@ import { openWithFinder } from "./osascripts";
 import { readAlbumIni, readPicasaEntry, updatePicasaEntry } from "./picasaIni";
 import { copyThumbnails } from "./thumbnailCache";
 import {
-  addOrRefreshOrDeleteAlbum, onRenamedAlbums, refreshAlbumKeys
+  addOrRefreshOrDeleteAlbum,
+  onRenamedAlbums,
+  refreshAlbumKeys,
 } from "./walker";
+import {
+  generateMosaicFile,
+  makeMosaic,
+} from "../imageOperations/image-edits/composition";
 
 const jobs: Job[] = [];
 type MultiMoveJobArguments = {
@@ -43,7 +50,7 @@ export async function getJob(id: string): Promise<object> {
 
 export async function waitJob(id: string): Promise<object> {
   const j = jobs.filter((j) => j.id === id);
-  if (j.length) {    
+  if (j.length) {
     if (typeof j[0] === "undefined") debugger;
     await j[0].awaiter();
     return j[0];
@@ -61,7 +68,7 @@ export async function createFSJob(
   jobArgs: object
 ): Promise<string> {
   const jobId = `Job:${uuid()}`;
-  const completion = await lock(jobId)
+  const completion = await lock(jobId);
   const job: Job = {
     id: jobId,
     name: jobName,
@@ -76,7 +83,9 @@ export async function createFSJob(
       broadcast("jobChanged", job);
     },
     completion,
-    awaiter: async () => { (await lock(jobId))(); }
+    awaiter: async () => {
+      (await lock(jobId))();
+    },
   };
   jobs.push(job);
   executeJob(job)
@@ -122,6 +131,8 @@ async function executeJob(job: Job): Promise<Album[]> {
       return renameAlbumJob(job);
     case JOBNAMES.EXPORT_TO_IPHOTO:
       return exportAllFavoritesJob(job);
+    case JOBNAMES.BUILD_PROJECT:
+      return buildProject(job);
     default:
       job.status = "finished";
       job.errors.push(`Unknown job name ${job.name}`);
@@ -245,7 +256,11 @@ async function deleteAlbumJob(job: Job): Promise<Album[]> {
   const altKey = relative(imagesRoot, to);
   try {
     await rename(from, to);
-    undoDeleteAlbumPayload.source.push({ name: source.name, key: altKey, kind:AlbumKinds.folder });
+    undoDeleteAlbumPayload.source.push({
+      name: source.name,
+      key: altKey,
+      kind: AlbumKind.FOLDER,
+    });
     albumChanged(source, updatedAlbums);
   } catch (e: any) {
     job.errors.push(e.message as string);
@@ -359,10 +374,20 @@ async function restoreAlbumJob(job: Job): Promise<Album[]> {
     if (!basename(source.key).startsWith(".")) {
       throw new Error(`${source.name} is not a deleted file`);
     }
-    const newKey = join(dirname(idFromKey(source.key).id), basename(source.key).substr(1));
+    const newKey = join(
+      dirname(idFromKey(source.key).id),
+      basename(source.key).substr(1)
+    );
     const to = join(imagesRoot, idFromKey(newKey).id);
     await rename(from, to);
-    albumChanged({ name: source.name, key: keyFromID(newKey, AlbumKinds.folder) , kind:AlbumKinds.folder }, updatedAlbums);
+    albumChanged(
+      {
+        name: source.name,
+        key: keyFromID(newKey, AlbumKind.FOLDER),
+        kind: AlbumKind.FOLDER,
+      },
+      updatedAlbums
+    );
   } catch (e: any) {
     job.errors.push(e.message as string);
   } finally {
@@ -439,7 +464,11 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
       );
       if (s.destination.key !== s.source.album.key) {
         let found = false;
-        let destPath = join(imagesRoot, idFromKey(s.destination.key).id, targetName);
+        let destPath = join(
+          imagesRoot,
+          idFromKey(s.destination.key).id,
+          targetName
+        );
         let idx = 1;
         while (!found) {
           found = true;
@@ -450,7 +479,11 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
               const ext = extname(s.source.name);
               const base = basename(s.source.name, ext);
               targetName = base + ` (${idx++})` + ext;
-              destPath = join(imagesRoot, idFromKey(s.destination.key).id, targetName);
+              destPath = join(
+                imagesRoot,
+                idFromKey(s.destination.key).id,
+                targetName
+              );
             })
             .catch((e) => {});
         }
@@ -533,6 +566,33 @@ async function exportJob(job: Job): Promise<Album[]> {
     addOrRefreshOrDeleteAlbum(destination);
   }
   return [];
+}
+
+async function buildProject(job: Job): Promise<Album[]> {
+  // Deleting a set of images means renaming them
+  job.status = "started";
+  const updatedAlbums: Album[] = [];
+  const sources = job.data.source as AlbumEntry[];
+  job.progress.start = 1;
+  job.progress.remaining = sources.length;
+  job.changed();
+
+  for (const source of sources) {
+    if (source.album.kind === AlbumKind.PROJECT) {
+      const projectType = source.album.name as ProjectType;
+      switch (projectType) {
+        case ProjectType.MOSAIC:
+          await generateMosaicFile(source, job.data.argument.width);
+          updatedAlbums.push(source.album);
+          break;
+      }
+    }
+    job.progress.remaining--;
+    job.changed();
+  }
+  job.status = "finished";
+  job.changed();
+  return updatedAlbums;
 }
 
 async function copyMetadata(

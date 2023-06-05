@@ -1,8 +1,9 @@
-import { stat } from "fs/promises";
+import { rename, stat, writeFile } from "fs/promises";
 import { join } from "path";
 import { AlbumEntry, idFromKey } from "../../shared/types/types";
 import { imagesRoot } from "./constants";
 import { extname } from "path";
+import { lock } from "../../shared/lib/utils";
 
 export async function fileExists(path: string): Promise<boolean> {
   return stat(path)
@@ -15,10 +16,17 @@ export function entryFilePath(entry: AlbumEntry) {
 }
 
 export function mediaName(entry: AlbumEntry): string {
-  return removeExtension(entry.album.name + ' - ' + entry.name);
+  return removeExtension(entry.album.name + " - " + entry.name);
 }
 
-export function removeExtension(fileName:string) {
+export function removeExtension(fileName: string) {
   return fileName.slice(0, -extname(fileName).length);
 }
 
+export async function safeWriteFile(fileName: string, data: any) {
+  const unlock = await lock("safeWriteFile: " + fileName);
+  const tmp = fileName + ".tmp";
+  await writeFile(tmp, data);
+  await rename(tmp, fileName);
+  unlock();
+}

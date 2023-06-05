@@ -27,9 +27,13 @@ function createWindow() {
     center: true,
     show: false,
   });
+  const query: Record<string, string> = { port: getPort().toString() };
+  if (process.env.PICISA_WINDOWS) {
+    query["window"] = "browser";
+  }
 
   win.loadFile(join(__dirname, "..", "..", "public", `index.html`), {
-    hash: getPort().toString(),
+    query,
   });
   return win;
 }

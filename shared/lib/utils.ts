@@ -1,55 +1,64 @@
 import { Base64 } from "js-base64";
-import { Album, AlbumEntry, pictureExtensions, videoExtensions } from "../types/types";
+import {
+  Album,
+  AlbumEntry,
+  pictureExtensions,
+  videoExtensions,
+} from "../types/types";
 
 export async function sleep(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));
 }
 
-export function sortByKey<T>(array: T[], keys:(keyof T)[], order: ("alpha"|"reverse"|string[])[]) {
-  array.sort(alphaSorter(false, keys  as string[], order));
+export function sortByKey<T>(
+  array: T[],
+  keys: (keyof T)[],
+  order: ("alpha" | "reverse" | string[])[]
+) {
+  array.sort(alphaSorter(false, keys as string[], order));
 }
-export const noop = (..._a:any[])=>{}; 
+export const noop = (..._a: any[]) => {};
 
 export function alphaSorter(
   caseSensitive: boolean = true,
   keys: (string | undefined)[] = [undefined],
-  order: ("alpha"|"reverse"|string[])[] = ["alpha"],
+  order: ("alpha" | "reverse" | string[])[] = ["alpha"]
 ): (a: any, b: any) => number {
-    return (_a, _b) => {
-      for (const [idx, key] of keys.entries()) {
-        let va = key ? _a[key] : _a;
-        let vb = key ? _b[key] : _b;
-        if(va === undefined && vb === undefined) {
-          continue;
-        }
-        if(va === undefined) {
-          return 1;
-        }
-        if(vb === undefined) {
-          return -1;
-        }
-        if(!caseSensitive) {
-          va = va.toLowerCase();
-          vb = vb.toLowerCase();
-        }
-        if(Array.isArray(order[idx])) {
-          const d = order[idx].indexOf(va)-order[idx].indexOf(vb);
-          if(d!==0) {
-            return d;
-          } else {
-            continue;
-          }
-        }
-        const m = order[idx]==="alpha" ? 1 : -1;
-        const a = removeDiacritics(va);
-        const b = removeDiacritics(vb);
-        if (a === b) {
-          continue;
-        }
-        return m * (a < b ? -1 : 1);
+  return (_a, _b) => {
+    for (const [idx, key] of keys.entries()) {
+      let va = key ? _a[key] : _a;
+      let vb = key ? _b[key] : _b;
+      if (va === undefined && vb === undefined) {
+        continue;
       }
-      return 0;
-    };
+      if (va === undefined) {
+        return 1;
+      }
+      if (vb === undefined) {
+        return -1;
+      }
+      if (!caseSensitive) {
+        va = va.toLowerCase();
+        vb = vb.toLowerCase();
+      }
+      if (Array.isArray(order[idx])) {
+        const d = order[idx].indexOf(va) - order[idx].indexOf(vb);
+        if (d !== 0) {
+          return d;
+        } else {
+          continue;
+        }
+      }
+      const m = order[idx] === "alpha" ? 1 : -1;
+      const a = removeDiacritics(va);
+      const b = removeDiacritics(vb);
+      if (a === b) {
+        continue;
+      }
+      return m * (a < b ? -1 : 1);
+    }
+    return 0;
+  };
 }
 
 export function removeDiacritics(from: string): string {
@@ -69,7 +78,7 @@ export function fixedEncodeURIComponent(str: string): string {
 }
 
 export function namify(s: string) {
-  return s.replace(/[^\w]+/gi, '-');
+  return s.replace(/[^\w]+/gi, "-");
 }
 
 export function cssSplitValue(v: string): { value: number; unit: string } {
@@ -113,6 +122,22 @@ export function debounce(
       debounceFcts.delete(key);
     })();
   }
+}
+/**
+ * Debounce a function
+ * @param f the function to debounce
+ * @param delay the delay in milliseconds
+ * @param guid the guid to use to identify the function
+ * @param atStart weather to call the function at the start or at the end of the delay
+ * @returns
+ */
+export function debounced(
+  f: Function,
+  delay?: number,
+  guid?: string,
+  atStart?: boolean
+) {
+  return () => debounce(f, delay, guid, atStart);
 }
 
 export function isMediaUrl(url: string): boolean {
@@ -205,19 +230,17 @@ export function decodeRect(rect: string): RectRange {
   throw new Error("Invalid Rect");
 }
 
-export function toBase64(data:any) {
+export function toBase64(data: any) {
   return Base64.encode(data, true);
 }
 
-export function fromBase64(data:string) {
+export function fromBase64(data: string) {
   return Base64.decode(data);
 }
 
-
-export function getOperationList(filters:string): string[] {
+export function getOperationList(filters: string): string[] {
   return (filters || "").split(";").filter((v) => v);
 }
-
 
 export function fromHex(hex: string): number[] {
   return hex.match(/.{1,2}/g)!.map((v) => parseInt(v, 16));
@@ -252,18 +275,17 @@ export type PicasaFilter = {
   args: string[];
 };
 
-export function albumInFilter(
-  album: Album,
-  normalizedFilter: string
-): boolean {
-  if(removeDiacritics(album.name).toLowerCase().includes(normalizedFilter)) {
+export function albumInFilter(album: Album, normalizedFilter: string): boolean {
+  if (removeDiacritics(album.name).toLowerCase().includes(normalizedFilter)) {
     return true;
   }
   return false;
 }
 
-export function encodeOperations(operations: PicasaFilter[]):string  {
-  return operations.map(operation => `${operation.name}=${operation.args.join(',')}`).join(';');
+export function encodeOperations(operations: PicasaFilter[]): string {
+  return operations
+    .map((operation) => `${operation.name}=${operation.args.join(",")}`)
+    .join(";");
 }
 
 export function decodeOperations(operations: string): PicasaFilter[] {
@@ -340,7 +362,7 @@ const locks: Map<string, Mutex> = new Map();
 let lastCheck = Date.now();
 function checkForVeryLongLocks() {
   const now = Date.now();
-  if(now < lastCheck + 1000) {
+  if (now < lastCheck + 1000) {
     return;
   }
   lastCheck = now;
@@ -352,9 +374,7 @@ function checkForVeryLongLocks() {
     }))
     .filter((l) => l.duration > 1000);
   if (table.length > 0) {
-    console.warn(
-      "These locks are taking longer than expected"
-    );
+    console.warn("These locks are taking longer than expected");
     console.table(table);
   }
 }
@@ -391,11 +411,13 @@ export function lockedLocks(): string[] {
 }
 
 export function valuesOfEnum<T>(e: T): any[] {
-  return Object.values(e as any).filter((v) => !isNaN(Number(v)));
+  return keysOfEnum(e).map((k) => e[k]);
 }
 
 export function keysOfEnum<T>(e: T): (keyof T)[] {
-  return (Object.keys(e as any) as unknown) as (keyof T)[];
+  return (Object.keys(e as any).filter((k) =>
+    Number.isNaN(Number(k))
+  ) as unknown) as (keyof T)[];
 }
 
 export function startLockMonitor() {
@@ -419,4 +441,3 @@ export function escapeXml(unsafe: string): string {
     return "";
   });
 }
-
