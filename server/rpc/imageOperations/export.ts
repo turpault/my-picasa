@@ -3,7 +3,7 @@ import { join } from "path";
 import { isPicture, isVideo } from "../../../shared/lib/utils";
 import { AlbumEntry } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
-import { entryFilePath } from "../../utils/serverUtils";
+import { entryFilePath, safeWriteFile } from "../../utils/serverUtils";
 import { readAlbumIni } from "../rpcFunctions/picasaIni";
 import {
   encode,
@@ -19,10 +19,7 @@ export async function exportToFolder(entry: AlbumEntry, targetFolder: string) {
   const options = picasa[entry.name] || {};
   if (isVideo(entry)) {
     // Straight copy
-    await copyFile(
-      entryFilePath(entry),
-      join(targetFolder, entry.name)
-    );
+    await copyFile(entryFilePath(entry), join(targetFolder, entry.name));
   } else if (isPicture(entry)) {
     const context = await buildContext(entry);
 
@@ -32,7 +29,7 @@ export async function exportToFolder(entry: AlbumEntry, targetFolder: string) {
       await transform(context, options.filters!);
     }
     await commit(context);
-    const res = (await encode(context)).data as Buffer;    
+    const res = (await encode(context)).data as Buffer;
     await destroyContext(context);
     let targetFile = join(targetFolder, entry.name);
     let idx = 0;
@@ -46,6 +43,6 @@ export async function exportToFolder(entry: AlbumEntry, targetFolder: string) {
           return false;
         })
     ) {}
-    await writeFile(targetFile, res);
+    await safeWriteFile(targetFile, res);
   }
 }

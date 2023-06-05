@@ -1,13 +1,16 @@
 import { buildEmitter, Emitter } from "../shared/lib/event";
 import {
   albumInFilter,
+  debounce,
+  debounced,
   removeDiacritics,
   sortByKey,
 } from "../shared/lib/utils";
 import {
   Album,
   AlbumChangeEvent,
-  AlbumKinds,
+  AlbumEntry,
+  AlbumKind,
   AlbumWithData,
 } from "../shared/types/types";
 import { t } from "./components/strings";
@@ -29,14 +32,40 @@ export class AlbumIndexedDataSource {
   async init() {
     const s = await getService();
     this.shortcuts = await s.getShortcuts();
+    let invalidations: any[] = [];
+
+    const resolveAndInvalidate = debounced(() => {
+      if (invalidations.length > 0) {
+        const filtered = invalidations.filter(
+          (v) => v !== undefined
+        ) as number[];
+        if (filtered.length > 0) {
+          const min = Math.min(...filtered);
+          const max = Math.max(...filtered);
+          if (min === max) {
+            this.emitter.emit("invalidateAt", { index: min });
+          } else {
+            console.warn(`Invalidating from ${min} / ${max}`);
+            this.emitter.emit("invalidateFrom", {
+              index: min,
+              to: max,
+            });
+          }
+        }
+        invalidations = [];
+      }
+    });
     return new Promise<void>((resolve) => {
       s.monitorAlbums();
       let gotEvent = false;
+
       s.on("shortcutsUpdated", async () => {
         this.shortcuts = await s.getShortcuts();
+        invalidations.push(0);
+        invalidations.push(10);
+        resolveAndInvalidate();
       });
       this.unreg = s.on("albumEvent", async (e: any) => {
-        let invalidations = [];
         for (const event of e.payload as AlbumChangeEvent[]) {
           if (!gotEvent && event.type !== "albums") {
             continue;
@@ -83,22 +112,7 @@ export class AlbumIndexedDataSource {
               invalidations.push(this.albums.length - 1);
           }
         }
-        const filtered = invalidations.filter(
-          (v) => v !== undefined
-        ) as number[];
-        if (filtered.length > 0) {
-          const min = Math.min(...filtered);
-          const max = Math.max(...filtered);
-          if (min === max) {
-            this.emitter.emit("invalidateAt", { index: min });
-          } else {
-            console.warn(`Invalidating from ${min} / ${max}`);
-            this.emitter.emit("invalidateFrom", {
-              index: min,
-              to: max,
-            });
-          }
-        }
+        resolveAndInvalidate();
       });
     });
   }
@@ -186,10 +200,10 @@ export class AlbumIndexedDataSource {
       ) {
         // New kind
         head = album.shortcut ? t("shortcut") : t(k);
-      } else if (k === AlbumKinds.face) {
+      } else if (k === AlbumKind.FACE) {
         // face album don't have separators
         head = "";
-      } else if (k === AlbumKinds.folder) {
+      } else if (k === AlbumKind.FOLDER) {
         if (album.shortcut) {
           // shortcuts don't have separators
           head = "";
@@ -225,7 +239,7 @@ export class AlbumIndexedDataSource {
       this.albums,
       ["kind", "shortcut", "name"],
       [
-        [AlbumKinds.folder, AlbumKinds.face],
+        [AlbumKind.PROJECT, AlbumKind.FOLDER, AlbumKind.FACE],
         "alpha",
         this.sort.includes("Reverse") ? "reverse" : "alpha",
       ]

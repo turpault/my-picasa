@@ -11,7 +11,7 @@ const singleLineSelectHTML = `
 `;
 
 type SelectionList =  { image: string, key: any, selected: boolean }[];
-type SelectEvents = {
+type SelectEvents<T extends SelectionList> = {
   select: {
     index: number;
     key: any;
@@ -20,17 +20,17 @@ type SelectEvents = {
     index: number;
     key: any;
     selected: boolean;
-    items: SelectionList
+    items: T
   };
 };
 
-export function makeChoiceList(
+export function makeChoiceList<T extends SelectionList>(
   label: string,
   items: { label: string; key: any }[],
   currentKey: any
-): { element: _$; emitter: Emitter<SelectEvents> } {
+): { element: _$; emitter: Emitter<SelectEvents<T>> } {
   const e = $(singleLineSelectHTML);
-  const emitter = buildEmitter<SelectEvents>();
+  const emitter = buildEmitter<SelectEvents<T>>();
   const name =  uuid();
   $(".multiselect-label", e).text(label);
   items
@@ -62,12 +62,12 @@ const multiSelectImageHTML = `
 </div>
 `;
 
-export function makeMultiselectImageList(
+export function makeMultiselectImageList<T extends SelectionList>(
   label: string,
-  items: SelectionList
-): { element: _$; emitter: Emitter<SelectEvents> } {
+  items: T
+): { element: _$; emitter: Emitter<SelectEvents<T>> } {
   const e = $(multiSelectImageHTML);
-  const emitter = buildEmitter<SelectEvents>();
+  const emitter = buildEmitter<SelectEvents<T>>();
   const name =  uuid();
   $(".multiselect-label", e).text(label);
   items

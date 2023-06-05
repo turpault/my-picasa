@@ -1,5 +1,5 @@
 import { encodeOperations, fixedEncodeURIComponent, PicasaFilter, uuid } from "../../shared/lib/utils";
-import { AlbumEntry, ThumbnailSize } from "../../shared/types/types";
+import { AlbumEntry, AlbumEntryWithMetadata, ThumbnailSize } from "../../shared/types/types";
 import { getService, getServicePort } from "../rpc/connect";
 
 export async function buildContext(entry: AlbumEntry): Promise<string> {
@@ -88,4 +88,13 @@ export function assetUrl(entry: AlbumEntry): string {
   return `http://127.0.0.1:${getServicePort()}/asset/${fixedEncodeURIComponent(
     entry.album.key
   )}/${fixedEncodeURIComponent(entry.name)}`;
+}
+
+export async function albumEntriesWithMetadata(
+  a: AlbumEntry[]
+): Promise<AlbumEntryWithMetadata[]> {
+  const s = await getService();
+  return Promise.all(
+    a.map((entry) => s.imageInfo(entry) as Promise<AlbumEntryWithMetadata>)
+  );
 }

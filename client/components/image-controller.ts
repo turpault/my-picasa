@@ -11,7 +11,7 @@ import {
 import {
   Album,
   AlbumEntryPicasa,
-  AlbumKinds,
+  AlbumKind,
   FaceData,
 } from "../../shared/types/types";
 import {
@@ -34,7 +34,7 @@ export class ImageController {
     this.image = image;
     this.video = video;
     this.entry = {
-      album: { key: "", name: "", kind: AlbumKinds.folder },
+      album: { key: "", name: "", kind: AlbumKind.FOLDER },
       name: "",
       metadata: {},
     };

@@ -1,3 +1,5 @@
+import { buildEmitter } from "../../shared/lib/event";
+
 export const Resizable = {};
 Resizable.activeContentWindows = [];
 Resizable.activeResizers = [];
@@ -20,7 +22,7 @@ Resizable.Classes = {
 
 Resizable.initialise = function(parent, initialSizes, gutter){
   //Find left window
-  Resizable.resizerThickness = gutter || 4;
+  Resizable.resizerThickness =  gutter === undefined ? 4 : gutter;
   Resizable.initialSizes = initialSizes;
   const rect = parent.getBoundingClientRect();
   var parentWindow = new Resizable.ContentWindow(null, rect.width, rect.height, parent);
@@ -28,6 +30,17 @@ Resizable.initialise = function(parent, initialSizes, gutter){
   Resizable.setupChildren(parentWindow);
   return parentWindow;
 };
+
+Resizable.getSizes = function(contentWindow) {
+  var sizes = {};
+  sizes[contentWindow.getDivId()] = contentWindow.sizeFractionOfParent;
+  if(contentWindow.children.length > 0){
+    for(const child of contentWindow.children) {
+      Object.assign(sizes, Resizable.getSizes(child));
+    }
+  }
+  return sizes;
+}
 
 Resizable.setupChildren = function(parentWindow){
   var childInfo = parentWindow.findChildWindowElements();
@@ -53,12 +66,13 @@ Resizable.setupChildren = function(parentWindow){
 };
 
 Resizable.ContentWindow = class{
-  
-  constructor(parent, width, height, div){
+  constructor(parent, width, height, div, content){
     this.parent = parent;
     this.width = width;
     this.height = height;
     this.sizeFractionOfParent = 0.5;
+    this.events = !!parent ?  parent.events : buildEmitter();
+    this.content = content;
 
     if(div == null){
       this.divId = "contentWindow" + Resizable.activeContentWindows.length;
@@ -101,6 +115,9 @@ Resizable.ContentWindow = class{
 
   }
 
+  resized() {
+    this.events.emit('resized', this);
+  }
   getDiv(){
     return document.getElementById(this.divId);
   }
@@ -142,7 +159,6 @@ Resizable.ContentWindow = class{
   }
 
   resize(side, mousePos){
-
     if(this.parent == null){
       return;
     }
@@ -180,9 +196,7 @@ Resizable.ContentWindow = class{
     }
 
     this.repositionChildResizer();
-    
-    Resizable.windowResized();
-
+    this.resized();
   }
 
   calculateSizeFractionOfParent(){
@@ -337,7 +351,8 @@ Resizable.ContentWindow = class{
     w2.getDiv().style.left = Math.round(leftWidth + this.childResizerThickness/2) + "px";
 
     this.childResizer = new Resizable.Resizer(this, w1, w2, true);
-    this.childResizer.getDiv().style.left = Math.round(leftWidth - this.childResizerThickness/2) + "px";
+    this.childResizer.getDiv().style.left = -1 + Math.round(leftWidth - this.childResizerThickness/2) + "px";
+    this.childResizer.getDiv().style.borderRight = this.childResizer.getDiv().style.borderLeft = "2px solid #0000FF30";
 
     this.children.push(w1);
     this.children.push(w2);
@@ -362,7 +377,8 @@ Resizable.ContentWindow = class{
     w2.getDiv().style.top = Math.round(topHeight + this.childResizerThickness/2)  + "px";
 
     this.childResizer = new Resizable.Resizer(this, w1, w2, false);
-    this.childResizer.getDiv().style.top = Math.round(topHeight - this.childResizerThickness/2) + "px";
+    this.childResizer.getDiv().style.top = -1+Math.round(topHeight - this.childResizerThickness/2) + "px";
+    this.childResizer.getDiv().style.borderTop = this.childResizer.getDiv().style.borderBottom = "2px solid #0000FF30";
 
     this.children.push(w1);
     this.children.push(w2);
@@ -406,25 +422,6 @@ function getResizerFromDiv(divId){
 function siblingWindowErrorCorrect(child){
   child.getSibling().sizeFractionOfParent = 1 - child.sizeFractionOfParent;
 }
-
-
-Resizable.windowResized = function(){
-  //Code to run when any window is resized should be placed here.
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 Resizable.Resizer = class{

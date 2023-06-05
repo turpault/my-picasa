@@ -1,15 +1,14 @@
-import { writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { isVideo } from "../../../shared/lib/utils";
 import { AlbumEntry } from "../../../shared/types/types";
-import { entryFilePath } from "../../utils/serverUtils";
+import { entryFilePath, safeWriteFile } from "../../utils/serverUtils";
 import {
   buildContext,
   destroyContext,
   encode,
   setOptions,
-  transform
+  transform,
 } from "../imageOperations/sharp-processor";
 import { readAlbumIni } from "../rpcFunctions/picasaIni";
 
@@ -37,6 +36,6 @@ export async function asset(entry: AlbumEntry): Promise<string> {
   };
   await destroyContext(context);
   const out = join(tmpdir(), entry.name);
-  await writeFile(out, res.data);
+  await safeWriteFile(out, res.data);
   return out;
 }
