@@ -1,11 +1,11 @@
 import { mkdir } from "fs/promises";
-import { join } from "path";
+import { basename, join } from "path";
+import { calculateImagePositions } from "../../../../shared/lib/mosaic-positions";
+import { namify } from "../../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
-  AlbumEntryWithMetadata,
   AlbumKind,
-  Cell,
   ImageEncoding,
   ImageMimeType,
   MosaicProject,
@@ -15,8 +15,8 @@ import {
 import { ProjectOutputFolder, imagesRoot } from "../../../utils/constants";
 import { safeWriteFile } from "../../../utils/serverUtils";
 import { getProject } from "../../projects";
+import { addOrRefreshOrDeleteAlbum } from "../../rpcFunctions/walker";
 import {
-  blit,
   blitMultiple,
   buildContext,
   buildNewContext,
@@ -25,21 +25,20 @@ import {
   transform,
 } from "../sharp-processor";
 
-
 export async function makeMosaic(
   entry: AlbumEntry,
-  width: number,
+  width: number | undefined,
   mime: ImageMimeType = "image/jpeg",
   format: ImageEncoding = "Buffer"
 ): Promise<{ width: number; height: number; data: Buffer | string }> {
   const project = (await getProject(entry)) as MosaicProject;
-  width = Math.floor(width);
+  width = Math.floor(width || project.payload.size);
   const height = Math.floor(
     width *
-    Math.pow(
-      project.payload.format,
-      project.payload.orientation === Orientation.PAYSAGE ? -1 : 1
-    )
+      Math.pow(
+        project.payload.format,
+        project.payload.orientation === Orientation.PAYSAGE ? -1 : 1
+      )
   );
   const gutter =
     (project.payload.gutter / 100) * (Orientation.PAYSAGE ? width : height);
@@ -78,19 +77,26 @@ export async function makeMosaic(
 
 export async function generateMosaicFile(
   entry: AlbumEntry,
-  width: number = 1920
+  width: number
 ): Promise<AlbumEntry> {
   const res = await makeMosaic(entry, width);
   const targetFolder = join(imagesRoot, ProjectOutputFolder);
   await mkdir(targetFolder, { recursive: true });
-  const targetFile = entry.name + ".jpg";
+  const targetFile =
+    namify(
+      `${
+        entry.name
+      } ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`
+    ) + ".jpeg";
   await safeWriteFile(join(targetFolder, targetFile), res.data);
 
   const album: Album = {
-    name: ProjectOutputFolder,
+    name: basename(ProjectOutputFolder),
     key: keyFromID(ProjectOutputFolder, AlbumKind.FOLDER),
     kind: AlbumKind.FOLDER,
   };
+
+  await addOrRefreshOrDeleteAlbum(album);
 
   return {
     name: targetFile,

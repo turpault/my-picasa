@@ -100,7 +100,7 @@ export class _$ {
     ) as _$;
   }
   attachData(...data: any[]): _$ {
-    (this.get() as any)._data = [...((this.get() as any)._data || []), data];
+    (this.get() as any)._data = [...((this.get() as any)._data || []), ...data];
     return this;
   }
   getData(): any[] {

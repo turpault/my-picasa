@@ -526,7 +526,8 @@ body {
   width: 55px;
   position: absolute;
   top: 50px;
-  right: 100%;
+  left: 0;
+  opacity: 0.7;
 }
 
 .crop-buttons button {
@@ -1285,6 +1286,10 @@ body {
   clear: both;
 }
 
+.gutter {
+  background-color: darkgray;
+  border:1px solid blue
+}
 .mosaic-element {
   background-position: center center;
   background-size: cover;

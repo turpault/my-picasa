@@ -135,10 +135,10 @@ export function debounce(
 export function debounced(
   f: Function,
   delay?: number,
-  guid?: string,
   atStart?: boolean
-) {
-  return () => debounce(f, delay, guid, atStart);
+): Function {
+  return (...args: any[]) =>
+    debounce(() => f(...args), delay, undefined, atStart);
 }
 
 export function isMediaUrl(url: string): boolean {
