@@ -11,7 +11,6 @@ import { calculateImagePositions } from "../../shared/lib/mosaic-positions";
  * @param gutter The gutter in pixels
  * @returns a function, called each time cells are updated
  */
-
 export function resizable(
   parent: _$,
   root: Cell,
