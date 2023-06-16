@@ -13,11 +13,17 @@ import { RPCInit } from "./rpc/index";
 import { asset } from "./rpc/routes/asset";
 import { thumbnail } from "./rpc/routes/thumbnail";
 import { picasaIniCleaner } from "./rpc/rpcFunctions/picasaIni";
-import { albumWithData, startAlbumUpdateNotification, updateLastWalkLoop } from "./rpc/rpcFunctions/walker";
+import {
+  albumWithData,
+  startAlbumUpdateNotification,
+  updateLastWalkLoop,
+} from "./rpc/rpcFunctions/walker";
 import { startSentry } from "./sentry";
 import { busy, measureCPULoad } from "./utils/busy";
 import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
+import { buildGeolocation } from "./rpc/background/bg-geolocate";
+import { initProjects } from "./rpc/projects";
 
 /** */
 
@@ -29,18 +35,17 @@ function socketAdaptorInit(serverClient: any): SocketAdaptorInterface {
 }
 
 export function socketInit(httpServer: FastifyInstance) {
-
-  httpServer.get('/cmd', { websocket: true }, (connection, req) => {
+  httpServer.get("/cmd", { websocket: true }, (connection, req) => {
     console.info("[socket]: Client has connected...");
     const socket = socketAdaptorInit(connection.socket);
     addSocket(socket);
-    socket.onDisconnect(() =>{
+    socket.onDisconnect(() => {
       removeSocket(socket);
     });
 
     RPCInit(socket, {});
 
-    connection.on('error', () => {
+    connection.on("error", () => {
       console.debug("[socket]: Socket had an error...");
       removeSocket(socket);
     });
@@ -76,30 +81,33 @@ function setupRoutes(server: FastifyInstance) {
     return { series: await history(), locks: lockedLocks() };
   });
 
-  server.get("/thumbnail/:albumkey/:name/:resolution", async (request, reply) => {
-    const { albumkey, name, resolution } = request.params as any;
-    const album = albumWithData(albumkey);
-    if(!album) {
-      reply.code(404);
-      reply.send();
-      return;
-    }
-    const entry = {
-      album,
-      name,
-    };
-    const animated = (request.query as any)['animated'] !== undefined;
+  server.get(
+    "/thumbnail/:albumkey/:name/:resolution",
+    async (request, reply) => {
+      const { albumkey, name, resolution } = request.params as any;
+      const album = albumWithData(albumkey);
+      if (!album) {
+        reply.code(404);
+        reply.send();
+        return;
+      }
+      const entry = {
+        album,
+        name,
+      };
+      const animated = (request.query as any)["animated"] !== undefined;
 
-    const r = await thumbnail(entry, resolution, animated);
-    reply.type(r.mime);
-    reply.header("cache-control", "no-cache");
-    return r.data;
-  });
+      const r = await thumbnail(entry, resolution, animated);
+      reply.type(r.mime);
+      reply.header("cache-control", "no-cache");
+      return r.data;
+    }
+  );
 
   server.get("/asset/:albumkey/:name", async (request, reply) => {
     const { albumkey, name } = request.params as any;
     const album = albumWithData(albumkey);
-    if(!album) {
+    if (!album) {
       reply.code(404);
       reply.send();
       return;
@@ -121,6 +129,7 @@ export function getPort() {
 
 export async function start(p?: number) {
   try {
+    // No port specified, get a random one
     if (!p) {
       p = getPort();
     }
@@ -145,17 +154,18 @@ export async function start(p?: number) {
     });
 
     setupRoutes(server);
-    await server.listen({port:p});
+    await server.listen({ port: p });
     console.info(`Ready to accept connections on port ${p}.`);
 
     buildThumbs();
+    buildGeolocation();
     updateLastWalkLoop();
     measureCPULoad();
     picasaIniCleaner();
     startLockMonitor();
     startAlbumUpdateNotification();
     parseLUTs();
-
+    initProjects();
   } catch (err) {
     console.error(err);
     process.exit(1);

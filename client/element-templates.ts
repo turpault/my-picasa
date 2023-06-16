@@ -4,14 +4,21 @@ import { $, _$ } from "./lib/dom";
 import { AlbumWithData } from "./types/types";
 
 export function folder(): _$ {
-  const e = $(`<li><div class="browser-list-text"></div><span class="browser-list-count"></span></li>`);
+  const e = $(
+    `<li class="folder-row"><div class="browser-list-text"></div><span class="browser-list-count"></span></li>`
+  );
   return e;
 }
-export function folderData(e: _$, album:AlbumWithData) {
-  $('.browser-list-text',e).text(`${album.shortcut ? String.fromCharCode(0x245F + parseInt(album.shortcut))+' ':''}${album.name}`);
-  $('.browser-list-count', e).text(`(${album.count})`);
+export function folderData(e: _$, album: AlbumWithData) {
+  $(".browser-list-text", e).text(
+    `${
+      album.shortcut
+        ? String.fromCharCode(0x245f + parseInt(album.shortcut)) + " "
+        : ""
+    }${album.name}`
+  );
+  $(".browser-list-count", e).text(`(${album.count})`);
 }
-
 
 export function toolHeader(
   name: string,
@@ -50,7 +57,7 @@ export function toolHeader(
     });
   $(".edit-tool", e)
     .css({
-      display: (toolRegistrar.tool(name) && toolRegistrar.tool(name).editable) ? "" : ["none", "important"],
+      display: toolRegistrar.tool(name)?.editable ? "" : ["none", "important"],
     })
     .on("click", () => {
       toolRegistrar.edit(index, name);

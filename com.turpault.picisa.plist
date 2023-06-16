@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.turpault.picisa</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/node</string>
+        <string>/Users/turpault/dev/picisa/deploy/server/index.js</string>
+        <string>8010</string>
+    </array>
+    <key>KeepAlive</key>
+    <true/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PICISA_PICTURE_FOLDER</key>
+        <string>/Volumes/1TB USB/Photos</string>
+    </dict>
+    <key>StandardErrorPath</key>
+    <string>/tmp/picisa.job.out</string>
+    <key>StandardOutPath</key>
+    <string>/tmp/picisa.job.out</string> 
+
+    <key>UserName</key>
+    <string>turpault</string>
+    <key>GroupName</key>
+    <string>staff</string>
+    <key>InitGroups</key>
+    <true/>
+</dict>
+</plist>

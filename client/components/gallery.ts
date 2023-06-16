@@ -1,17 +1,20 @@
 import { buildEmitter } from "../../shared/lib/event";
 import { isVideoUrl } from "../../shared/lib/utils";
+import { AlbumEntry } from "../../shared/types/types";
 import { assetUrl, thumbnailUrl } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
-import { AlbumEntry } from "../../shared/types/types";
+import {
+  AlbumEntrySelectionManager,
+  SelectionManager,
+} from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
-import { deleteTabWin, makeGenericTab, TabEvent } from "./tabs";
-import { SelectionManager } from "../selection/selection-manager";
+import { TabEvent, deleteTabWin, makeGenericTab } from "./tabs";
 
 export async function makeGallery(
   initialIndex: number,
   initialList: AlbumEntry[],
   appEvents: AppEventSource
-): Promise<{ win: _$; tab: _$, selectionManager:SelectionManager }> {
+): Promise<{ win: _$; tab: _$; selectionManager: AlbumEntrySelectionManager }> {
   const thumbs = initialList.map((asset) => thumbnailUrl(asset));
   const urls = initialList.map((asset) => assetUrl(asset));
   const e = $(`
@@ -116,5 +119,9 @@ export async function makeGallery(
   }
   const tabEvent = buildEmitter<TabEvent>();
   tabEvent.emit("rename", { name: "Gallery" });
-  return { win: e, tab: makeGenericTab(tabEvent), selectionManager: new SelectionManager() };
+  return {
+    win: e,
+    tab: makeGenericTab(tabEvent),
+    selectionManager: new SelectionManager(),
+  };
 }

@@ -26,6 +26,7 @@ export async function question(
     display: "block",
   });
   displayed = true;
+  $(".question", q).focus();
 
   return new Promise<string | undefined>((resolve) => {
     $(".confirm", q).on("click", () => {
@@ -37,6 +38,13 @@ export async function question(
       q.remove();
       displayed = false;
       resolve(undefined);
+    });
+    q.on("keydown", (e) => {
+      if (e.code === "Enter") {
+        q.remove();
+        displayed = false;
+        resolve($(".question", q).val());
+      }
     });
   });
 }

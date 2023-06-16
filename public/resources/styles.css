@@ -217,7 +217,7 @@ body {
   white-space: nowrap;
 }
 
-.editor-image-block {
+.gradient-sidebar-title {
   cursor: pointer;
   font-weight: bold;
   background: linear-gradient(271deg, rgb(243, 243, 243) 0%, rgb(204, 204, 204) 100%);
@@ -461,6 +461,7 @@ body {
   overflow: hidden;
   white-space: nowrap;
   width: 244px;
+  pointer-events: none;
 }
 
 .browser-list-count {
@@ -468,6 +469,7 @@ body {
   position: absolute;
   font-style: italic;
   font-weight: bold;
+  pointer-events: none;
 }
 
 .filterAlbum {
@@ -502,7 +504,7 @@ body {
   box-shadow: rgba(126, 126, 126, 0.5) 0px 0px 0px 99999px;
   border: 3px solid blue;
   z-index: 99;
-  display: none;
+  /* display: none; */
 }
 
 .draw {
@@ -524,7 +526,8 @@ body {
   width: 55px;
   position: absolute;
   top: 50px;
-  right: 100%;
+  left: 0;
+  opacity: 0.7;
 }
 
 .crop-buttons button {
@@ -586,7 +589,7 @@ body {
   font-size: 12px;
   line-height: 14px;
   padding-top: 4px;
-  padding-bottom: 4px;
+  padding-bottom: 4px;  
 }
 
 .folders li[separator] {
@@ -1194,52 +1197,106 @@ body {
   }
 }
 
-.composition-sidebar {
+.mosaic {
+  background-color: rgb(243, 243, 243);
+  display: flex;
+  flex-direction: row;
+}
+
+.mosaic-sidebar {
   overflow-y: scroll;
   height: 100%;
   width: 300px;
-  position: relative;
+  /* position: relative; */
   padding-left: 5px;
   background-color: rgb(243, 243, 243);
 }
 
-.composition-parameter-block {
+.mosaic-parameter-block {
   color: rgb(80, 80, 80);
   font-family: sans-serif;
   font-weight: bold;
   width: 100%;
   overflow-x: hidden;
+  margin-bottom: 20px;
 }
 
-.composition-parameters {}
-
-.composition-container {
-  position: absolute;
-  inset: 0px 0px 0px 300px;
+.centered {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* position: absolute; */
+  width: 100%;
   height: 100%;
+}
+.mosaic-image:hover button {
+  opacity: 0.7;
+  border: none;
+}
+.mosaic-image-button {
+  background-color: rgba(255, 255, 255, 0.5);
+  background-size: 30px 30px;
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-color: rgba(255, 255, 255, 0.5);
+  width: 30px;
+  height: 30px;
+  border: none;
+  opacity: 0;
+}
+.mosaic-image-button-rotate-left {
+  background-image: url('images/icons/actions/rotate-left-50.png');
+}
+.mosaic-image-button-rotate-right {
+  background-image: url('images/icons/actions/rotate-right-50.png');
+}
+.mosaic-image-button-trash {
+  background-image: url('images/icons/actions/trash-50.png');
+}
+
+.mosaic-image-control {
+  max-width: 30%;
+}
+
+.mosaic-parameters {}
+
+.mosaic-container {
+  /* position: absolute; */
+  /* inset: 0px 0px 0px 300px; */
+  /* height: 100%; */
+  flex-shrink: 4;
   overflow: scroll;
   background-color: rgb(243, 243, 243);
 }
 
-.montage {
+.mosaic-grid {
   background: rgb(221, 221, 221);
+  position: relative;
   width: 1000px;
   height: 800px;
 }
 
-.montage::after {
+.mosaic-container-child {
+  position: absolute;
+}
+
+.mosaic-grid::after {
   content: "";
   display: block;
   clear: both;
 }
 
-.composited-element {
+.gutter {
+  background-color: darkgray;
+  border:1px solid blue
+}
+.mosaic-element {
   background-position: center center;
   background-size: cover;
   background-repeat: no-repeat;
 }
 
-.composited-element:hover {
+.mosaic-element:hover {
   border-color: rgba(255, 255, 255, 0.5);
   cursor: move;
 }

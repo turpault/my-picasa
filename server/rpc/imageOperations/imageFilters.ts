@@ -74,7 +74,7 @@ async function read3DLUT(title: string): Promise<LUT3D> {
 
 async function read3DLUTFile(path: string): Promise<LUT3D> {
   const fileData = await readFile(join(imagesRoot, filtersFolder, path));
-  const contents = fileData.toString('utf-8');
+  const contents = fileData.toString('utf8');
   const lines = contents.split('\n');
   const res = {
     width: 0,

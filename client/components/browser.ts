@@ -1,4 +1,5 @@
-import { JOBNAMES } from "../../shared/types/types";
+import { idFromAlbumEntry } from "../../shared/lib/utils";
+import { AlbumEntry, JOBNAMES } from "../../shared/types/types";
 import { AlbumIndexedDataSource } from "../album-data-source";
 import { $ } from "../lib/dom";
 import { getService } from "../rpc/connect";
@@ -23,8 +24,21 @@ export async function makeBrowser(
   albumDataSource: AlbumIndexedDataSource
 ) {
   const win = $(html);
-  const selectionManager = new SelectionManager();
+  const selectionManager = new SelectionManager<AlbumEntry>(
+    [],
+    idFromAlbumEntry
+  );
 
+  selectionManager.events.on("added", () => {
+    emitter.emit("browserSelectionChanged", {
+      selection: selectionManager.selected(),
+    });
+  });
+  selectionManager.events.on("removed", () => {
+    emitter.emit("browserSelectionChanged", {
+      selection: selectionManager.selected(),
+    });
+  });
   win.append(await makeAlbumList(emitter, albumDataSource, selectionManager));
   win.append(await makePhotoList(emitter, albumDataSource, selectionManager));
 

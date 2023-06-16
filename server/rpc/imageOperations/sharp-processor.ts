@@ -19,13 +19,14 @@ import {
 import {
   AlbumEntry,
   AlbumEntryMetaData,
-  AlbumKinds,
-  idFromKey,
+  AlbumKind,
+  ImageEncoding,
+  ImageMimeType,
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { getFaceData } from "../rpcFunctions/picasaIni";
 import { applyAllFilters, applyFilter } from "./imageFilters";
-import exifr from "exifr";
+import { entryRelativePath } from "./info";
 
 const s = promisify(sizeOf);
 
@@ -61,8 +62,29 @@ export async function dimensions(
   return { width: metadata.width!, height: metadata.height! };
 }
 
+export async function buildNewContext(
+  width: number,
+  height: number
+): Promise<string> {
+  const contextId = uuid();
+  const j = sharp({
+    create: {
+      width,
+      /** Number of pixels high. */
+      height,
+      /** Number of bands e.g. 3 for RGB, 4 for RGBA */
+      channels: 3,
+      /** Parsed by the [color](https://www.npmjs.org/package/color) module to extract values for red, green, blue and alpha. */
+      background: "#ffffff",
+    },
+  });
+
+  contexts.set(contextId, j);
+  return contextId;
+}
+
 export async function buildContext(entry: AlbumEntry): Promise<string> {
-  const relPath = join(idFromKey(entry.album.key).id, entry.name);
+  const relPath = entryRelativePath(entry);
   const fileData = await readFile(join(imagesRoot, relPath));
   const contextId = namify(relPath) + "-" + uuid();
 
@@ -180,11 +202,13 @@ export async function transform(
         break;
       case "rotate":
         {
-          await commit(context);
-          j = getContext(context);
           let r: number;
           if (args[1] && (r = parseInt(args[1])) != 0) {
-            j = j.rotate(-r * 90);
+            if (r % 4 !== 0) {
+              await commit(context);
+              j = getContext(context);
+              j = j.rotate(-r * 90);
+            }
           }
         }
         break;
@@ -196,7 +220,10 @@ export async function transform(
         break;
       case "crop64":
         const crop = decodeRect(args[1]);
-        if (crop) {
+        if (
+          crop &&
+          (crop.left > 0 || crop.top > 0 || crop.right < 1 || crop.bottom < 1)
+        ) {
           const { info } = await j.raw().toBuffer({ resolveWithObject: true });
           const w = info.width!;
           const h = info.height!;
@@ -220,17 +247,19 @@ export async function transform(
         break;
       case "fill":
         {
-          await commit(context);
-          j = getContext(context);
           const amount = parseFloat(args[1]);
-          //j = j.gamma(2.2, 1 + amount);
-          j = j.modulate({ brightness: 1 + amount });
+          if (amount !== 0) {
+            await commit(context);
+            j = getContext(context);
+            //j = j.gamma(2.2, 1 + amount);
+            j = j.modulate({ brightness: 1 + amount });
+          }
         }
         break;
       case "blur":
         {
           const amount = parseFloat(args[1]);
-          j = j.blur(amount);
+          if (amount !== 0) j = j.blur(amount);
         }
         break;
       case "sharpen":
@@ -240,28 +269,29 @@ export async function transform(
 
       case "tilt":
         const angleDeg = 10 * parseFloat(args[1]); // in degrees
-        const angle = (Math.PI * angleDeg) / 180;
-        let scale = parseInt(args[2]);
-        j = await branchContext(j);
-        const metadata = await j.metadata();
-        const w = metadata.width!;
-        const h = metadata.height!;
-        const newRect = rotateRectangle(w, h, angle);
-        if (scale === 0 || Number.isNaN(scale)) {
-          scale = newRect.ratio;
-        }
+        if (angleDeg != 0) {
+          const angle = (Math.PI * angleDeg) / 180;
+          let scale = parseInt(args[2]);
+          j = await branchContext(j);
+          const metadata = await j.metadata();
+          const w = metadata.width!;
+          const h = metadata.height!;
+          const newRect = rotateRectangle(w, h, angle);
+          if (scale === 0 || Number.isNaN(scale)) {
+            scale = newRect.ratio;
+          }
 
-        j = j.rotate(-angleDeg);
-        j = await branchContext(j);
+          j = j.rotate(-angleDeg);
+          j = await branchContext(j);
 
-        const rw = Math.floor(newRect.w * scale);
-        const rh = Math.floor(newRect.h * scale);
-        j = j.resize(rw, rh);
-        j = await branchContext(j);
+          const rw = Math.floor(newRect.w * scale);
+          const rh = Math.floor(newRect.h * scale);
+          j = j.resize(rw, rh);
+          j = await branchContext(j);
 
-        const rl = Math.floor((rw - w) / 2);
-        const rt = Math.floor((rh - h) / 2);
-        /*const layers2: sharp.OverlayOptions[] = [
+          const rl = Math.floor((rw - w) / 2);
+          const rt = Math.floor((rh - h) / 2);
+          /*const layers2: sharp.OverlayOptions[] = [
           {
             input: {
               create: {
@@ -278,12 +308,13 @@ export async function transform(
         ];
 
         j = j.composite(layers2);*/
-        j = j.extract({
-          left: rl,
-          top: rt,
-          width: w,
-          height: h,
-        });
+          j = j.extract({
+            left: rl,
+            top: rt,
+            width: w,
+            height: h,
+          });
+        }
         break;
       case "Orton":
         {
@@ -631,6 +662,12 @@ export async function transform(
         j = j.resize(sizeW, sizeH, { fit: "inside" });
         break;
       }
+      case "cover": {
+        const sizeW = args[1] ? parseInt(args[1]) : undefined;
+        const sizeH = args[2] ? parseInt(args[2]) : undefined;
+        j = j.resize(sizeW, sizeH, { fit: "cover" });
+        break;
+      }
       case "exif": {
         const exif = args[0]
           ? JSON.parse(decodeURIComponent(args[0]))
@@ -693,6 +730,70 @@ export async function transform(
   }
   return context;
 }
+export async function blitMultiple(
+  target: string,
+  sources: {
+    context: string;
+    position: {
+      left: number;
+      top: number;
+    };
+  }[]
+): Promise<void> {
+  let targetContext = getContext(target);
+  const compositeLayers = await Promise.all(
+    sources.map(async (source) => {
+      const left = Math.round(source.position.left);
+      const top = Math.round(source.position.top);
+      const sourceContext = getContext(source.context);
+      const pixels = await sourceContext
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const pixelSize = pixels.info.channels as 3 | 4;
+      return {
+        input: pixels.data,
+        raw: {
+          width: pixels.info.width,
+          height: pixels.info.height,
+          channels: pixelSize,
+        },
+        top,
+        left,
+      };
+    })
+  );
+  targetContext = targetContext.composite(compositeLayers);
+  setContext(target, targetContext);
+}
+
+export async function blit(
+  target: string,
+  source: string,
+  left: number,
+  top: number
+): Promise<void> {
+  left = Math.round(left);
+  top = Math.round(top);
+  const sourceContext = getContext(source);
+  let targetContext = getContext(target);
+  const pixels = await sourceContext
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const pixelSize = pixels.info.channels as 3 | 4;
+  targetContext = targetContext.composite([
+    {
+      input: pixels.data,
+      raw: {
+        width: pixels.info.width,
+        height: pixels.info.height,
+        channels: pixelSize,
+      },
+      top,
+      left,
+    },
+  ]);
+  setContext(target, targetContext);
+}
 
 export async function setOptions(
   context: string,
@@ -717,8 +818,8 @@ const emptyJpg = Buffer.from(
 );
 export async function encode(
   context: string,
-  mime: string = "image/jpeg",
-  format: string = "Buffer"
+  mime: ImageMimeType = "image/jpeg",
+  format: ImageEncoding = "Buffer"
 ): Promise<{ width: number; height: number; data: Buffer | string }> {
   let j: sharp.Sharp;
   try {
@@ -752,36 +853,23 @@ export async function encode(
   //const exif = exifToSharpMeta(getExif(context));
   //j.withMetadata({exif: {IFD0: exif, IFD1: exif, IFD2: exif, GPSIFD: exif, ExifIFD:exif, ImageIFD: exif}})
   switch (format) {
-    case "base64":
-      {
-        const { data, info } = await j.toBuffer({ resolveWithObject: true });
-        return {
-          data: data.toString(format),
-          width: info.width,
-          height: info.height,
-        };
-      }
-      break;
+    case "base64": {
+      const { data, info } = await j.toBuffer({ resolveWithObject: true });
+      return {
+        data: data.toString(format),
+        width: info.width,
+        height: info.height,
+      };
+    }
     case "base64url":
-      {
-        const { data, info } = await j.toBuffer({ resolveWithObject: true });
-        return {
-          data: "data:" + mime + ";base64," + data.toString("base64"),
-          width: info.width,
-          height: info.height,
-        };
-      }
-      break;
-    case "base64urlInfo":
-      {
-        const { data, info } = await j.toBuffer({ resolveWithObject: true });
-        return {
-          data: "data:" + mime + ";base64," + data.toString("base64"),
-          width: info.width,
-          height: info.height,
-        };
-      }
-      break;
+    case "base64urlInfo": {
+      const { data, info } = await j.toBuffer({ resolveWithObject: true });
+      return {
+        data: "data:" + mime + ";base64," + data.toString("base64"),
+        width: info.width,
+        height: info.height,
+      };
+    }
     case "Buffer":
     default:
       const { data, info } = await j.toBuffer({ resolveWithObject: true });
@@ -879,7 +967,7 @@ export async function buildFaceImage(
         album: {
           key: faceData.albumKey,
           name: "",
-          kind: AlbumKinds.folder,
+          kind: AlbumKind.FOLDER,
         },
         name: faceData.name,
       };

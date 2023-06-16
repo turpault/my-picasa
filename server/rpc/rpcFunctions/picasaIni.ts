@@ -1,7 +1,8 @@
-import { readFile, rename, unlink, writeFile } from "fs/promises";
+import { readFile } from "fs/promises";
 import { join } from "path";
 import ini from "../../../shared/lib/ini";
 import { Queue } from "../../../shared/lib/queue";
+import { MAX_STAR } from "../../../shared/lib/shared-constants";
 import {
   decodeOperations,
   encodeOperations,
@@ -9,18 +10,21 @@ import {
   lock,
   removeDiacritics,
   sleep,
-  toBase64
+  toBase64,
 } from "../../../shared/lib/utils";
 import {
-  MAX_STAR } from "../../../shared/lib/shared-constants"
-import {
   Album,
-  AlbumEntry, AlbumEntryMetaData, AlbumKinds, AlbumMetaData, AlbumWithData,
+  AlbumEntry,
+  AlbumEntryMetaData,
+  AlbumKind,
+  AlbumMetaData,
+  AlbumWithData,
+  PicasaSection,
   idFromKey,
-  keyFromID, PicasaSection
+  keyFromID,
 } from "../../../shared/types/types";
-import { imagesRoot, PICASA } from "../../utils/constants";
-import { fileExists } from "../../utils/serverUtils";
+import { PICASA, imagesRoot } from "../../utils/constants";
+import { safeWriteFile } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { rate } from "../../utils/stats";
 import { media } from "./media";
@@ -48,7 +52,7 @@ export async function picasaIniCleaner() {
     dirtyPicasaSet = new Map<string, Album>();
     i.forEach(async (album) => {
       let target: string = "";
-      if (album.kind === AlbumKinds.folder) {
+      if (album.kind === AlbumKind.FOLDER) {
         target = join(imagesRoot, idFromKey(album.key).id, PICASA);
       } else {
         target = join(imagesRoot, "." + idFromKey(album.key).id + ".ini");
@@ -56,14 +60,7 @@ export async function picasaIniCleaner() {
       rate("writePicasa");
       console.info(`\nWriting file ${target}`);
       const out = ini.encode(picasaMap.get(album.key));
-      const tmp = join(target + new Date().toISOString());
-      unlink(target + "~").catch(() => {});
-      await writeFile(tmp, out);
-      // Swap files
-      if (await fileExists(target)) {
-        await rename(target, target + "~");
-      }
-      await rename(tmp, target);
+      await safeWriteFile(target, out);
     });
     picasaMap.forEach((value, key) => {
       if (dirtyPicasaSet.has(key)) {
@@ -91,18 +88,18 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
       return picasaMap.get(album.key)!;
     }
     let target: string = "";
-    if (album.kind === AlbumKinds.folder) {
+    if (album.kind === AlbumKind.FOLDER) {
       target = join(imagesRoot, idFromKey(album.key).id, PICASA);
     } else {
       target = join(imagesRoot, "." + idFromKey(album.key).id + ".ini");
     }
-    // In the cache
+    // Not in the map, read it
     const iniData = await readFile(target, {
       encoding: "utf8",
     });
     const i = ini.parse(iniData);
     // Read&fix data
-    if (album.kind === AlbumKinds.folder) {
+    if (album.kind === AlbumKind.FOLDER) {
       // Parse faces asynchronously
       processFaces(album, i);
 
@@ -155,7 +152,7 @@ async function processFaces(album: Album, picasaIni: AlbumMetaData) {
         const [originalName, email, something] = value.split(";");
         const name = normalizeName(originalName);
 
-        const key = keyFromID(name, AlbumKinds.face);
+        const key = keyFromID(name, AlbumKind.FACE);
         if (!faces.has(key)) {
           faces.set(key, {
             key,
@@ -165,7 +162,7 @@ async function processFaces(album: Album, picasaIni: AlbumMetaData) {
             email,
             something,
             originalName,
-            kind: AlbumKinds.face,
+            kind: AlbumKind.FACE,
           });
         }
         faces.get(key)!.hash[hash] = "";
@@ -262,7 +259,7 @@ async function readPicasaSection(
   album: Album,
   section: string = "Picasa"
 ): Promise<PicasaSection> {
-  if (album.kind === AlbumKinds.folder) {
+  if (album.kind === AlbumKind.FOLDER) {
     const picasa = await readAlbumIni(album);
     picasa[section] = picasa[section] || {};
     return picasa[section] as PicasaSection;
@@ -342,7 +339,7 @@ export async function rotate(entries: AlbumEntry[], direction: string) {
 }
 
 export async function toggleStar(entries: AlbumEntry[]) {
-  for (const entry of entries) {    
+  for (const entry of entries) {
     const picasa = await readPicasaEntry(entry);
     let star = picasa.star;
     let starCount: string | undefined = picasa.starCount || "1";
@@ -377,7 +374,7 @@ export async function updatePicasa(
   } else {
     delete section[field];
   }
-  return writePicasaIni(album, picasa);
+  await writePicasaIni(album, picasa);
 }
 
 export async function updatePicasaEntry(
@@ -408,12 +405,12 @@ export async function updatePicasaEntry(
   }
 
   if (["filters", "caption", "rotate", "star", "starCount"].includes(field)) {
-    broadcast("picasaFileMetaChanged", {
+    broadcast("albumEntryAspectChanged", {
       ...entry,
       metadata: picasa[entry.name],
-    } );
+    });
   }
-  return writePicasaIni(entry.album, picasa);
+  writePicasaIni(entry.album, picasa);
 }
 
 export async function updatePicasaEntries(
@@ -435,10 +432,10 @@ export async function updatePicasaEntries(
   }
 
   if (doBroadcast) {
-    broadcast("picasaFileMetaChanged", {
+    broadcast("albumEntryAspectChanged", {
       ...entry,
       metadata: picasa[entry.name],
-    } );
+    });
   }
-  return writePicasaIni(entry.album, picasa);
+  writePicasaIni(entry.album, picasa);
 }

@@ -1,5 +1,17 @@
-import { encodeOperations, fixedEncodeURIComponent, PicasaFilter, uuid } from "../../shared/lib/utils";
-import { AlbumEntry, ThumbnailSize } from "../../shared/types/types";
+import {
+  encodeOperations,
+  fixedEncodeURIComponent,
+  idFromAlbumEntry,
+  PicasaFilter,
+  uuid,
+} from "../../shared/lib/utils";
+import {
+  AlbumEntry,
+  AlbumEntryPicasa,
+  AlbumEntryWithMetadata,
+  keyFromID,
+  ThumbnailSize,
+} from "../../shared/types/types";
 import { getService, getServicePort } from "../rpc/connect";
 
 export async function buildContext(entry: AlbumEntry): Promise<string> {
@@ -41,7 +53,10 @@ export async function transform(
   return context;
 }
 
-export async function cloneContext(context: string, hint: string): Promise<string> {
+export async function cloneContext(
+  context: string,
+  hint: string
+): Promise<string> {
   const c = await getService();
   const newContext = await c.cloneContext(context, hint);
   return newContext;
@@ -67,18 +82,35 @@ export function encodeToURL(context: string, mime: string): string {
   )}`;
 }
 
+const busts: { [key: string]: number } = {};
+export async function initCacheBuster() {
+  const s = await getService();
+  s.on("albumEntryAspectChanged", async (e: { payload: AlbumEntryPicasa }) => {
+    const key = idFromAlbumEntry(e.payload, "");
+    busts[key] = (busts[key] || 0) + 1;
+  });
+}
+
+function cacheBustId(e: AlbumEntry) {
+  const key = idFromAlbumEntry(e, "");
+  return busts[key] || 0;
+}
+
 export function thumbnailUrl(
   entry: AlbumEntry,
   size: ThumbnailSize = "th-medium",
-  animated: boolean = true,
-  cacheBust?: boolean
+  animated: boolean = true
 ): string {
   if (!entry) {
     return "";
   }
-  return `http://localhost:${getServicePort()}/thumbnail/${fixedEncodeURIComponent(
-    entry.album.key
-  )}/${fixedEncodeURIComponent(entry.name)}/${fixedEncodeURIComponent(size)}` + (cacheBust ? `?cacheBust=${uuid()}${animated?"&animated":""}` : (animated?"?animated":""));
+  return (
+    `http://localhost:${getServicePort()}/thumbnail/${fixedEncodeURIComponent(
+      entry.album.key
+    )}/${fixedEncodeURIComponent(entry.name)}/${fixedEncodeURIComponent(
+      size
+    )}` + `?cacheBust=${cacheBustId(entry)}${animated ? "&animated" : ""}`
+  );
 }
 
 export function assetUrl(entry: AlbumEntry): string {
@@ -88,4 +120,13 @@ export function assetUrl(entry: AlbumEntry): string {
   return `http://127.0.0.1:${getServicePort()}/asset/${fixedEncodeURIComponent(
     entry.album.key
   )}/${fixedEncodeURIComponent(entry.name)}`;
+}
+
+export async function albumEntriesWithMetadata(
+  a: AlbumEntry[]
+): Promise<AlbumEntryWithMetadata[]> {
+  const s = await getService();
+  return Promise.all(
+    a.map((entry) => s.imageInfo(entry) as Promise<AlbumEntryWithMetadata>)
+  );
 }

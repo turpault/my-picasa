@@ -11,7 +11,7 @@ import {
 import {
   Album,
   AlbumEntryPicasa,
-  AlbumKinds,
+  AlbumKind,
   FaceData,
 } from "../../shared/types/types";
 import {
@@ -34,13 +34,13 @@ export class ImageController {
     this.image = image;
     this.video = video;
     this.entry = {
-      album: { key: "", name: "", kind: AlbumKinds.folder },
+      album: { key: "", name: "", kind: AlbumKind.FOLDER },
       name: "",
       metadata: {},
     };
     this.context = "";
     this.liveContext = "";
-    this.events = buildEmitter<ImageControllerEvent>();
+    this.events = buildEmitter<ImageControllerEvent>(false);
     this.zoomController = panZoomCtrl;
     this.q = new Queue(1);
     this.identify = false;
@@ -73,17 +73,22 @@ export class ImageController {
     }
     return this.operationList();
   }
+
   muteAt(indexToMute: number) {
-    this.mute = indexToMute;
-    this.update();
+    if (this.mute !== indexToMute) {
+      this.mute = indexToMute;
+      this.update();
+    }
   }
   muted() {
     return this.mute;
   }
 
   setIdentifyMode(enable: boolean) {
-    this.identify = enable;
-    this.update();
+    if (this.identify !== enable) {
+      this.identify = enable;
+      this.update();
+    }
   }
 
   identifyMode() {
@@ -121,9 +126,24 @@ export class ImageController {
     });
   }
 
-  init(albumEntry: AlbumEntryPicasa) {
+  async init(albumEntry: AlbumEntryPicasa) {
     this.entry = albumEntry;
     this.display(albumEntry);
+    const s = await getService();
+    return s.on(
+      "albumEntryAspectChanged",
+      (e: { payload: AlbumEntryPicasa }) => {
+        if (e.payload.name === this.entry.name) {
+          // Note ignore event for now, to support A/B edits
+          /*
+        if(encodeOperations(this.filters) !== e.payload.metadata.filters) {
+          this.filters = decodeOperations(e.payload.metadata.filters || '');
+          this.update();
+        } 
+        */
+        }
+      }
+    );
   }
 
   async display(albumEntry: AlbumEntryPicasa) {
@@ -210,7 +230,7 @@ export class ImageController {
     }
   }
 
-  async update() {
+  private async update() {
     const name = this.entry.name;
     if (isPicture(this.entry)) {
       // Only update when the filter list changed
@@ -277,8 +297,10 @@ export class ImageController {
   }
 
   async updateOperation(idx: number, op: PicasaFilter) {
-    this.filters[idx] = op;
-    await Promise.all([this.saveFilterInfo(), this.update()]);
+    if (JSON.stringify(this.filters[idx]) !== JSON.stringify(op)) {
+      this.filters[idx] = op;
+      await Promise.all([this.saveFilterInfo(), this.update()]);
+    }
   }
 
   async saveFilterInfo() {
@@ -298,7 +320,6 @@ export class ImageController {
   recenter() {
     const h = this.parent.height;
     const w = this.parent.width;
-    this.zoomController!.setClientSize(w, h);
     this.zoomController!.recenter();
   }
 

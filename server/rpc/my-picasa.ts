@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/camelcase */
 import { Exceptions } from "../../shared/types/exceptions";
 import { undo, undoList } from "../utils/undo";
+import { generateMosaicFile } from "./imageOperations/image-edits/mosaic";
 import { getFilterGroups, getFilterList } from "./imageOperations/imageFilters";
 import { imageInfo } from "./imageOperations/info";
 import {
@@ -11,8 +12,14 @@ import {
   encode,
   execute,
   setOptions,
-  transform
+  transform,
 } from "./imageOperations/sharp-processor";
+import {
+  createProject,
+  getProject,
+  getProjects,
+  writeProject,
+} from "./projects";
 import { clientException, clientLog } from "./rpcFunctions/clientLog";
 import { exifData } from "./rpcFunctions/exif";
 import { createFSJob, getJob, waitJob } from "./rpcFunctions/fileJobs";
@@ -22,17 +29,25 @@ import {
   openAlbumEntryInFinder,
   openAlbumInFinder,
   readFileContents,
-  writeFileContents
+  writeFileContents,
 } from "./rpcFunctions/fs";
 import { media, mediaCount, setRank, sortAlbum } from "./rpcFunctions/media";
 import {
   getFaceAlbumFromHash,
-  getShortcuts, readPicasaEntry, rotate,
+  getShortcuts,
+  readPicasaEntry,
+  rotate,
   toggleStar,
-  updatePicasaEntry
+  updatePicasaEntry,
 } from "./rpcFunctions/picasaIni";
 import { clientReady } from "./rpcFunctions/ready";
-import { folders, getSourceEntry, monitorAlbums, readAlbumMetadata, setAlbumShortcut } from "./rpcFunctions/walker";
+import {
+  folders,
+  getSourceEntry,
+  monitorAlbums,
+  readAlbumMetadata,
+  setAlbumShortcut,
+} from "./rpcFunctions/walker";
 import { ServiceMap } from "./rpcHandler";
 
 /**
@@ -170,7 +185,13 @@ export const MyPicasa: ServiceMap = {
     },
     exception: {
       handler: clientException,
-      arguments: ["message:string", "file:string", "line:integer", "col:integer", "error:object"],
+      arguments: [
+        "message:string",
+        "file:string",
+        "line:integer",
+        "col:integer",
+        "error:object",
+      ],
     },
     ready: {
       handler: clientReady,
@@ -190,23 +211,43 @@ export const MyPicasa: ServiceMap = {
     },
     getShortcuts: {
       handler: getShortcuts,
-      arguments:[]
+      arguments: [],
     },
     getSourceEntry: {
       handler: getSourceEntry,
-      arguments:["entry:object"]
+      arguments: ["entry:object"],
     },
     getFaceAlbumFromHash: {
       handler: getFaceAlbumFromHash,
-      arguments:["hash:string"]
+      arguments: ["hash:string"],
     },
     rotate: {
       handler: rotate,
-      arguments:["entries:object", "direction:string"]
+      arguments: ["entries:object", "direction:string"],
     },
     toggleStar: {
       handler: toggleStar,
-      arguments:["entries:object"]
-    }
+      arguments: ["entries:object"],
+    },
+    getProjects: {
+      handler: getProjects,
+      arguments: ["type:string"],
+    },
+    getProject: {
+      handler: getProject,
+      arguments: ["entry:object"],
+    },
+    writeProject: {
+      handler: writeProject,
+      arguments: ["data:object", "changeType:string"],
+    },
+    createProject: {
+      handler: createProject,
+      arguments: ["type:string", "name:string"],
+    },
+    buildMosaic: {
+      handler: generateMosaicFile,
+      arguments: ["entry:object", "width:number", "height:number"],
+    },
   },
 };
