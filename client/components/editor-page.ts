@@ -1,5 +1,9 @@
 import { buildEmitter } from "../../shared/lib/event";
-import { AlbumEntry, AlbumEntryMetaData, AlbumEntryPicasa, JOBNAMES } from "../../shared/types/types";
+import {
+  AlbumEntry,
+  AlbumEntryPicasa,
+  JOBNAMES,
+} from "../../shared/types/types";
 import { setupAutocolor } from "../features/autocolor";
 import { setupBlur } from "../features/blur";
 import { setupBrightness } from "../features/brightness";
@@ -23,20 +27,22 @@ import { getService } from "../rpc/connect";
 import { ActiveImageManager } from "../selection/active-manager";
 import { SelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
-import { animateStar } from "./animations";
 import { ImageController } from "./image-controller";
 import { makeImageStrip } from "./image-strip";
 import { makeMetadata } from "./metadata";
 import { t } from "./strings";
-import { deleteTabWin, makeGenericTab, TabEvent } from "./tabs";
+import { TabEvent, deleteTabWin, makeGenericTab } from "./tabs";
 import { GENERAL_TOOL_TAB, make as makeTools } from "./tools";
 
+import { idFromAlbumEntry } from "../../shared/lib/utils";
 import { makeIdentify } from "./identify";
 
 const editHTML = `
 <div class="fill">
   <div class="fill w3-bar-block tools">
-    <div style="display:none" class="collapsible w3-bar-item editor-image-block">${t("Description")}</div>
+    <div style="display:none" class="collapsible w3-bar-item gradient-sidebar-title">${t(
+      "Description"
+    )}</div>
     <div style="display:none" class="collapsable">
       <input
         class="description w3-input"
@@ -45,16 +51,24 @@ const editHTML = `
         placeholder="${t("No description")}"
       />
     </div>
-    <div class="collapsible editor-image-block">${t("Effects")}<div class="effects-title"></div></div>
+    <div class="collapsible gradient-sidebar-title">${t(
+      "Effects"
+    )}<div class="effects-title"></div></div>
     <div class="collapsable">
       <div class="effects"></div>
       <div class="history"></div>
     </div>
-    <div class="collapsible collapsed editor-image-block">${t("Album")}</div>
+    <div class="collapsible collapsed gradient-sidebar-title">${t(
+      "Album"
+    )}</div>
     <div class="collapsable collapsable-collapsed album-contents"></div>
-    <div class="collapsible collapsed editor-image-block">${t("Metadata")}</div>
+    <div class="collapsible collapsed gradient-sidebar-title">${t(
+      "Metadata"
+    )}</div>
     <div class="collapsable collapsable-collapsed metadata"></div>
-    <div class="collapsible collapsed editor-image-block">${t("Identify")}</div>
+    <div class="collapsible collapsed gradient-sidebar-title">${t(
+      "Identify"
+    )}</div>
     <div class="collapsable collapsable-collapsed identify"></div>
   </div>
 
@@ -89,27 +103,30 @@ export async function makeEditorPage(
   appEvents: AppEventSource
 ) {
   const editor = $(editHTML);
-  const selectionManager = new SelectionManager([initialList[initialIndex]]);
-  
+  const selectionManager = new SelectionManager<AlbumEntry>(
+    [initialList[initialIndex]],
+    idFromAlbumEntry
+  );
+
   const image = $(".edited-image", editor);
   const video = $(".edited-video", editor);
   const imageContainer = $(".image-container", editor);
   const tool = $(toolsHTML);
 
-  const collapsibleItems = editor.all('.collapsible');
+  const collapsibleItems = editor.all(".collapsible");
   for (const collapsible of collapsibleItems) {
-    collapsible.on('click', () => {
+    collapsible.on("click", () => {
       const collapse = !collapsible.hasClass("collapsed");
 
       collapsible.addRemoveClass("collapsed", collapse);
       const content = collapsible.get().nextElementSibling! as HTMLElement;
       $(content).addRemoveClass("collapsable-collapsed", collapse);
-    })
+    });
   }
 
-  const metadata = $('.metadata', editor);
-  const identify = $('.identify', editor);
-  const album = $('.album-contents', editor);
+  const metadata = $(".metadata", editor);
+  const identify = $(".identify", editor);
+  const album = $(".album-contents", editor);
   album.append(tool);
 
   const tabEvent = buildEmitter<TabEvent>();
@@ -149,24 +166,27 @@ export async function makeEditorPage(
         entries[initialIndex]
       );
       refreshMetadataFct(entries[initialIndex], [entries[initialIndex]]);
-      makeImageStrip($('.image-strip', tool), activeManager);
-
-      imageController.init(activeManager.active());
-
-      function updateStarCount(entry: AlbumEntryPicasa) {
-        $(".star",imageContainer).css({
-          display: entry.metadata.star ? "":"none",
-          width: `${parseInt(entry.metadata.starCount || "1")*40}px`
+      const offStrip = await makeImageStrip(
+        $(".image-strip", tool),
+        activeManager
+      );
+      const updateStarCount = (entry: AlbumEntryPicasa) => {
+        $(".star", imageContainer).css({
+          display: entry.metadata.star ? "" : "none",
+          width: `${parseInt(entry.metadata.starCount || "1") * 40}px`,
         });
+      };
+      const offImgCtrl = await imageController.init(activeManager.active());
 
-      }
       const off = [
+        offStrip,
+        offImgCtrl,
         imageController.events.on("idle", () => {
           $(".busy-spinner", editor).css("display", "none");
         }),
         imageController.events.on("busy", () => {
           $(".busy-spinner", editor).css("display", "block");
-        }),        
+        }),
         activeManager.event.on("changed", (entry) => {
           imageController.display(entry);
           tabEvent.emit("rename", { name: entry.name });
@@ -183,11 +203,11 @@ export async function makeEditorPage(
                 break;
               case "ArrowLeft":
                 activeManager.selectPrevious();
-                appEvents.emit('editSelect', {entry: activeManager.active()});
+                appEvents.emit("editSelect", { entry: activeManager.active() });
                 break;
               case "ArrowRight":
                 activeManager.selectNext();
-                appEvents.emit('editSelect', {entry: activeManager.active()});
+                appEvents.emit("editSelect", { entry: activeManager.active() });
                 break;
               case "Escape":
                 deleteTabWin(win);
@@ -196,8 +216,8 @@ export async function makeEditorPage(
               const s = await getService();
               const shortcuts = await s.getShortcuts();
               if (shortcuts[key]) {
-              const target = shortcuts[key];
-              s.createJob(JOBNAMES.EXPORT, {
+                const target = shortcuts[key];
+                s.createJob(JOBNAMES.EXPORT, {
                   source: selectionManager.selected(),
                   destination: target,
                 });
@@ -213,13 +233,16 @@ export async function makeEditorPage(
         }),
 
         s.on(
-          "picasaFileMetaChanged",
+          "albumEntryAspectChanged",
           async (e: { payload: AlbumEntryPicasa }) => {
-            if(e.payload.album.key === activeManager.active().album.key && e.payload.name === activeManager.active().name) {
+            if (
+              e.payload.album.key === activeManager.active().album.key &&
+              e.payload.name === activeManager.active().name
+            ) {
               updateStarCount(e.payload);
             }
           }
-        )
+        ),
       ];
       const z = $(".zoom-ctrl", tool);
       z.on("input", () => {
@@ -228,7 +251,6 @@ export async function makeEditorPage(
       zoomController.events.on("zoom", (zoom) => {
         z.val(zoom.scale * 10);
       });
-
     }
   });
   return { win: editor, tab, selectionManager };

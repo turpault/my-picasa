@@ -14,7 +14,7 @@ function _getTimeoutInSeconds(): number {
  */
 export class WsAdaptor implements SocketAdaptorInterface {
   constructor() {
-    this.handlerMap = buildEmitter<any>();
+    this.handlerMap = buildEmitter<any>(false);
     this.responseCallbacks = {};
     this.middleware = [];
     this.closed = false;
@@ -126,8 +126,7 @@ export class WsAdaptor implements SocketAdaptorInterface {
     retryDelay: number
   ): Promise<void> {
     if (this.ws!.readyState !== 1) {
-      if(this.ws!.onerror)
-        this.ws!.onerror({} as Event);
+      if (this.ws!.onerror) this.ws!.onerror({} as Event);
       if (remainingRetries > 0) {
         await sleep(retryDelay);
         return this.emitRetry(
@@ -136,7 +135,10 @@ export class WsAdaptor implements SocketAdaptorInterface {
           retryDelay * WsAdaptor.TIMEOUT_MULTIPLIER
         );
       }
-      console.warn('Socket has been closed, cannot send message', JSON.stringify(message).slice(0,50));
+      console.warn(
+        "Socket has been closed, cannot send message",
+        JSON.stringify(message).slice(0, 50)
+      );
     }
     this.ws!.send(message.toString());
   }
@@ -201,7 +203,7 @@ export class WsAdaptor implements SocketAdaptorInterface {
         });
 
         if (this.ws!.readyState !== 1) {
-          if(this.ws!.onerror) {
+          if (this.ws!.onerror) {
             this.ws!.onerror!({} as Event);
           }
           return;

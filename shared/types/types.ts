@@ -9,6 +9,10 @@ export type extraFields =
   | `cached:dimensions:${ThumbnailSize}`;
 export type AlbumEntryMetaData = {
   dateTaken?: string; // ISO date
+  geoPOI?: string; // a JSON-encoded string with a list of POIs around the photo
+  latitude?: number;
+  longitude?: number;
+  exif?: string; // a JSON-encoded string with the EXIF data
   star?: boolean;
   starCount?: string;
   caption?: string;
@@ -45,7 +49,8 @@ export type Job = {
   errors: string[];
   changed: Function;
   completion: Function;
-  awaiter: ()=>Promise<void>; 
+  awaiter: () => Promise<any>;
+  out: any;
 };
 
 export enum JOBNAMES {
@@ -60,11 +65,19 @@ export enum JOBNAMES {
   RESTORE_ALBUM = "Restore Album",
   RENAME_ALBUM = "Rename Album",
   EXPORT_TO_IPHOTO = "Export All Favorites",
+  BUILD_PROJECT = "Build Project",
 }
 
 export const ThumbnailSizeVals = ["th-small", "th-medium", "th-large"] as const;
 export type ThumbnailSize = typeof ThumbnailSizeVals[number];
-
+export type ImageEncoding = "base64" | "base64url" | "base64urlInfo" | "Buffer";
+export type ImageMimeType =
+  | "raw"
+  | "image/jpeg"
+  | "image/png"
+  | "image/gif"
+  | "image/webp"
+  | "image/tiff";
 export type ImageFileMeta = {
   type: Filetype;
   width: number;
@@ -88,27 +101,28 @@ export type SliderEvent = {
   value: number;
 };
 
-export enum AlbumKinds {
-  folder = "folder",
-  face = "face",
+export enum AlbumKind {
+  PROJECT = "project",
+  FOLDER = "folder",
+  FACE = "face",
 }
 
 export type Album = {
   name: string;
   key: string;
-  kind: AlbumKinds;
+  kind: AlbumKind;
 };
 
 export type AlbumWithData = Album & { count: number; shortcut?: string };
 
 const sep = "»";
-export function keyFromID(id: string, kind: AlbumKinds) {
+export function keyFromID(id: string, kind: AlbumKind) {
   return `${kind}${sep}${id}`;
 }
 
-export function idFromKey(key: string): { id: string; kind: AlbumKinds } {
+export function idFromKey(key: string): { id: string; kind: AlbumKind } {
   const [kind, id] = key.split(sep);
-  return { id, kind: kind as AlbumKinds };
+  return { id, kind: kind as AlbumKind };
 }
 
 export type AlbumChangeType =
@@ -174,8 +188,57 @@ export enum Orientation {
 }
 
 export enum Format {
-  F10x8,
-  F6x4,
-  F5x5,
-  F16x9,
+  F10x8 = 10 / 8,
+  F6x4 = 6 / 4,
+  F5x5 = 5 / 5,
+  F16x9 = 16 / 9,
+}
+
+export enum MosaicSizes {
+  "HD" = 1920,
+  "4K" = 3840,
+  "8K" = 7680,
+}
+
+export enum GutterSizes {
+  "None" = 0,
+  "Small" = 1,
+  "Medium" = 2,
+  "Large" = 4,
+}
+
+export type Cell = {
+  id: string;
+  split: "v" | "h";
+  image?: AlbumEntryWithMetadata;
+  weight: number;
+  childs?: {
+    left: Cell;
+    right: Cell;
+  };
+};
+
+export type MosaicProject = AlbumEntry & {
+  payload: Mosaic;
+};
+
+export type Mosaic = {
+  pool: AlbumEntryWithMetadata[];
+  images: AlbumEntryWithMetadata[];
+  format: Format;
+  layout: Layout;
+  orientation: Orientation;
+  gutter: number;
+  root?: Cell;
+  size: number;
+  seed: number;
+};
+
+export enum Layout {
+  MOSAIC,
+  SQUARE,
+}
+
+export enum ProjectType {
+  MOSAIC = "Mosaic",
 }

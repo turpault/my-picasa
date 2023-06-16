@@ -7,7 +7,7 @@ import {
   Album,
   AlbumChangeEvent,
   AlbumEntry,
-  AlbumKinds,
+  AlbumKind,
   AlbumWithData,
   idFromKey,
   keyFromID,
@@ -25,6 +25,7 @@ import {
   readShortcut,
   setPicasaAlbumShortcut,
 } from "./picasaIni";
+import { getProjectAlbum, getProjectAlbums, getProjects } from "../projects";
 
 let lastWalk: AlbumWithData[] = [];
 const walkQueue = new Queue(10);
@@ -99,12 +100,12 @@ export async function refreshAlbumKeys(albums: string[]) {
       .map((key) => {
         return lastWalk.find((album) => album.key === key);
       })
-      .map((album)=>addOrRefreshOrDeleteAlbum(album))
+      .map((album) => addOrRefreshOrDeleteAlbum(album))
   );
 }
 
 export async function refreshAlbums(albums: AlbumWithData[]) {
-  await Promise.all(albums.map((album)=>addOrRefreshOrDeleteAlbum(album)));
+  await Promise.all(albums.map((album) => addOrRefreshOrDeleteAlbum(album)));
 }
 
 export async function onRenamedAlbums(from: Album, to: Album) {
@@ -120,7 +121,7 @@ export async function onRenamedAlbums(from: Album, to: Album) {
 
 const ALLOW_EMPTY_ALBUM_CREATED_SINCE = 1000 * 60 * 60; // one hour
 async function albumExists(album: Album): Promise<boolean> {
-  if (album.kind === AlbumKinds.folder) {
+  if (album.kind === AlbumKind.FOLDER) {
     const p = join(imagesRoot, idFromKey(album.key).id);
     const s = await stat(p).catch(() => false);
     if (s === false) {
@@ -138,7 +139,9 @@ async function albumExists(album: Album): Promise<boolean> {
       return true;
     }
     return false;
-  } else if (album.kind === AlbumKinds.face) {
+  } else if (album.kind === AlbumKind.FACE) {
+    return true;
+  } else if (album.kind === AlbumKind.PROJECT) {
     return true;
   }
   throw new Error("Unkown album kind");
@@ -149,19 +152,25 @@ export function albumWithData(
 ): AlbumWithData | undefined {
   const kind = typeof album === "string" ? idFromKey(album).kind : album.kind;
   const key = typeof album === "string" ? album : album.key;
-  if (kind === AlbumKinds.folder) {
+  if (kind === AlbumKind.FOLDER) {
     return lastWalk.find((f) => f.key == key);
-  } else if (kind === AlbumKinds.face) {
+  } else if (kind === AlbumKind.PROJECT) {
+    return getProjectAlbum(key);
+  } else if (kind === AlbumKind.FACE) {
     return getFaceAlbums().find((f) => f.key == key);
   } else throw new Error(`Unknown kind ${kind}`);
 }
 
 export async function readAlbumMetadata(album: Album) {
-  const ini = await readAlbumIni(album);
   switch (album.kind) {
-    case AlbumKinds.folder:
+    case AlbumKind.FOLDER: {
+      const ini = await readAlbumIni(album);
       return ini;
-    case AlbumKinds.face:
+    }
+    case AlbumKind.PROJECT:
+      return {};
+    case AlbumKind.FACE: {
+      const ini = await readAlbumIni(album);
       await Promise.all(
         Object.keys(ini).map(async (name) => {
           const faceData = await getFaceData({ album, name });
@@ -179,6 +188,7 @@ export async function readAlbumMetadata(album: Album) {
         })
       );
       return ini;
+    }
     default:
       throw new Error(`Unkown kind ${album.kind}`);
   }
@@ -186,9 +196,9 @@ export async function readAlbumMetadata(album: Album) {
 
 export async function getSourceEntry(entry: AlbumEntry) {
   switch (entry.album.kind) {
-    case AlbumKinds.folder:
+    case AlbumKind.FOLDER:
       return entry;
-    case AlbumKinds.face:
+    case AlbumKind.FACE:
       const faceData = await getFaceData(entry);
       return { album: albumWithData(faceData.albumKey), name: faceData.name };
     default:
@@ -264,7 +274,7 @@ export async function folders(filter: string): Promise<AlbumWithData[]> {
 }
 
 export async function getFaceAlbumsWithData(
-  _filter: string
+  _filter: string = ""
 ): Promise<AlbumWithData[]> {
   // Create 'fake' albums with the faces
   const albums = getFaceAlbums();
@@ -280,8 +290,8 @@ async function walk(
 ): Promise<void> {
   const album: Album = {
     name,
-    key: keyFromID(relative(imagesRoot, path), AlbumKinds.folder),
-    kind: AlbumKinds.folder,
+    key: keyFromID(relative(imagesRoot, path), AlbumKind.FOLDER),
+    kind: AlbumKind.FOLDER,
   };
   const m = await assetsInFolderAlbum(album);
 
@@ -299,7 +309,8 @@ async function walk(
 export async function monitorAlbums(): Promise<{}> {
   await waitUntilWalk();
   const f = await getFaceAlbumsWithData("");
-  queueNotification({ type: "albums", albums: [...lastWalk, ...f] });
+  const p = await getProjectAlbums();
+  queueNotification({ type: "albums", albums: [...lastWalk, ...f, ...p] });
   return {};
 }
 

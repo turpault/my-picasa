@@ -1,18 +1,18 @@
 import { spawn } from "child_process";
-import { copyFile, mkdir, utimes, writeFile } from "fs/promises";
+import { copyFile, mkdir, utimes } from "fs/promises";
 import { join } from "path";
 import { Queue } from "../../../shared/lib/queue";
 import { RESIZE_ON_EXPORT_SIZE } from "../../../shared/lib/shared-constants";
 import { isPicture, isVideo } from "../../../shared/lib/utils";
 import { Album, Job } from "../../../shared/types/types";
-import { exportsRoot, PhotoLibraryPath } from "../../utils/constants";
+import { PhotoLibraryPath, exportsRoot } from "../../utils/constants";
 import {
   entryFilePath,
   mediaName,
   removeExtension,
+  safeWriteFile,
 } from "../../utils/serverUtils";
 import { buildImage } from "../imageOperations/sharp-processor";
-import { toExifDate } from "./exif";
 import { media } from "./media";
 import { importScript, openWithFinder } from "./osascripts";
 import { readAlbumIni } from "./picasaIni";
@@ -99,10 +99,10 @@ export async function exportAllFavoritesJob(job: Job): Promise<Album[]> {
                 transform +
                   `;resize=1,${RESIZE_ON_EXPORT_SIZE};label=1,${encodeURIComponent(
                     imageLabel
-                  )},25,south`/*;exif=${encodeURIComponent(JSON.stringify(exif))}`*/,
+                  )},25,south` /*;exif=${encodeURIComponent(JSON.stringify(exif))}`*/,
                 []
               );
-              await writeFile(targetFileName, res.data);
+              await safeWriteFile(targetFileName, res.data);
               missingPicturePath.push(targetFileName);
             }
             if (isVideo(entry)) {
@@ -111,10 +111,10 @@ export async function exportAllFavoritesJob(job: Job): Promise<Album[]> {
               function albumNameToDate(name: string): Date {
                 let [y, m, d] = name.split("-").map(parseInt);
                 if (y > 1800) {
-                  if (m < 0 || m > 12 || Number.isNaN(m)) {
+                  if (m <= 0 || m > 12 || Number.isNaN(m)) {
                     m = 1;
                   }
-                  if (d < 0 || d > 31 || Number.isNaN(d)) {
+                  if (d <= 0 || d > 31 || Number.isNaN(d)) {
                     d = 1;
                   }
                 }

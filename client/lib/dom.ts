@@ -1,6 +1,9 @@
-import { Album, AlbumEntry, AlbumKinds } from "../types/types";
-import { cssSplitValue } from "../../shared/lib/utils";
-import { off } from "process";
+import {
+  albumEntryFromId,
+  cssSplitValue,
+  idFromAlbumEntry,
+} from "../../shared/lib/utils";
+import { Album, AlbumEntry, AlbumKind } from "../types/types";
 
 export function NodeListToFirstElem(
   e: HTMLElement | NodeListOf<HTMLElement> | undefined
@@ -53,7 +56,22 @@ export class _$ {
     listener: (this: _$, ev: HTMLElementEventMap[K]) => any,
     options?: boolean | AddEventListenerOptions
   ): _$ {
-    this.get().addEventListener(type, (...args) => { listener.call(this, ...args); }, options);
+    this.get().addEventListener(
+      type,
+      (...args) => {
+        listener.call(this, ...args);
+      },
+      options
+    );
+    return this;
+  }
+  off<K extends keyof HTMLElementEventMap>(
+    type: K,
+    listener: (this: _$, ev: HTMLElementEventMap[K]) => any
+  ): _$ {
+    this.get().removeEventListener(type, (...args) => {
+      listener.call(this, ...args);
+    });
     return this;
   }
   get(): HTMLElement {
@@ -64,6 +82,9 @@ export class _$ {
   }
   exists(): boolean {
     return !!this._e;
+  }
+  optional(): _$ | undefined {
+    return this.exists() ? this : undefined;
   }
   proxy(): _$ {
     if (this._e) {
@@ -78,6 +99,13 @@ export class _$ {
       }
     ) as _$;
   }
+  attachData(...data: any[]): _$ {
+    (this.get() as any)._data = [...((this.get() as any)._data || []), ...data];
+    return this;
+  }
+  getData(): any[] {
+    return (this.get() as any)._data || [];
+  }
   val(value?: any) {
     if (arguments.length === 0) {
       return (this.get() as any).value;
@@ -85,6 +113,12 @@ export class _$ {
 
     (this.get() as any).value = value;
 
+    return this;
+  }
+  absolutePosition(pos: { x: number; y: number }) {
+    this.css("position", "absolute");
+    this.css("left", `${pos.x}px`);
+    this.css("top", `${pos.y}px`);
     return this;
   }
   text(value?: any) {
@@ -100,7 +134,7 @@ export class _$ {
         found = true;
         break;
       }
-    };
+    }
     if (!found) {
       if (arguments.length === 0) {
         return "";
@@ -248,6 +282,10 @@ export class _$ {
     return this.get().offsetParent !== null;
   }
 
+  focus() {
+    this.get().focus();
+  }
+
   empty(): _$ {
     this.get().innerHTML = "";
     return this;
@@ -334,7 +372,7 @@ export class _$ {
       if (bySelector) {
         return bySelector as HTMLElement;
       }
-    } catch (err) { }
+    } catch (err) {}
     const n = document.createElement("div");
     n.innerHTML = e;
     if (n.children.length === 1) {
@@ -355,15 +393,16 @@ export function $(
 export function preLoadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const i = new Image();
-    $(i).css('opacity', 0);
+    $(i).css("opacity", 0);
     (window as any).i = i;
-    i.onload = () => {      
+    i.onload = () => {
       resolve(i);
     };
-    i.decode().then(() => {
-    }).catch(e => {
-      console.error(e);
-    });
+    i.decode()
+      .then(() => {})
+      .catch((e) => {
+        console.error(`While loading ${url}`, e);
+      });
     i.onerror = () => {
       i.remove();
       reject();
@@ -393,7 +432,7 @@ export function setIdForAlbum(e: _$, album: Album, qualifier: string) {
 }
 function albumFromId(id: string): Album | null {
   const [qualifier, valid, key, name, kind] = id.split("|");
-  if (valid === "album") return { key, name, kind: kind as AlbumKinds };
+  if (valid === "album") return { key, name, kind: kind as AlbumKind };
   return null;
 }
 function idFromAlbum(a: Album, qualifier: string): string {
@@ -415,13 +454,15 @@ export function albumEntryFromElementOrChild(
   e: _$,
   qualifier: string
 ): AlbumEntry | null {
-  if(!e || !e.exists()) {
+  if (!e || !e.exists()) {
     return null;
   }
   const r = albumEntryFromId(e.id().slice(qualifier.length));
-  if(r) { return r; }
+  if (r) {
+    return r;
+  }
   const p = e.parent();
-  if(!p ||!p.exists()) {
+  if (!p || !p.exists()) {
     return null;
   }
   return albumEntryFromElementOrChild(p, qualifier);
@@ -429,14 +470,4 @@ export function albumEntryFromElementOrChild(
 
 export function setIdForEntry(e: _$, entry: AlbumEntry, qualifier: string) {
   e.id(idFromAlbumEntry(entry, qualifier));
-}
-function albumEntryFromId(id: string): AlbumEntry | null {
-  const [qualifier, valid, key, name, kind, entry] = id.split("|");
-  if (valid === "entry") {
-    return { album: { key, name, kind: kind as AlbumKinds }, name: entry };
-  }
-  return null;
-}
-export function idFromAlbumEntry(entry: AlbumEntry, qualifier: string): string {
-  return `${qualifier}|entry|${entry.album.key}|${entry.album.name}|${entry.album.kind}|${entry.name}`;
 }

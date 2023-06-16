@@ -4,12 +4,16 @@ import { $, _$ } from "../../lib/dom";
 import { Emitter } from "../../../shared/lib/event";
 import { ImagePanZoomController } from "../../lib/panzoom";
 import { del } from "../../lib/idb-keyval";
+import { PanZoomController } from "panzoom";
+import { EventEmitter } from "stream";
 
 export type ValueChangeEvent = {
   updated: { index: number; value: RectRange };
   preview: { index: number; value: RectRange };
   cancel: {};
 };
+
+//export function draggableElement(e: _$, zoomController: PanZoomController): EventEmitter<
 
 export function setupCropPreview(
   container: _$,
@@ -294,13 +298,13 @@ export function setupCropPreview(
 
             const corner = panZoomCtrl.canvasBoundsOnScreen();
 
-            function intersect(p: Point, v: Vector): Point {
+            const intersect = (p: Point, v: Vector): Point => {
               const l = new Line(p, v);
               return c
                 .limits(corner)
                 .map((lim) => l.intersect(lim).get())
                 .sort((a: Point, b: Point) =>
-                  p.distanceSquare(a) < p.distanceSquare(b) ? -1 : 1
+                  p.distanceSquare(a) - p.distanceSquare(b)
                 )[0];
             }
 

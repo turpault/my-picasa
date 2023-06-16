@@ -1,21 +1,14 @@
-import {
-  copyFile,
-  readFile,
-  rename,
-  stat,
-  unlink,
-  writeFile,
-} from "fs/promises";
+import { copyFile, readFile, rename, unlink } from "fs/promises";
 import { join } from "path";
 import { isVideo, lock } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
-  idFromKey,
   ThumbnailSize,
   ThumbnailSizeVals,
+  idFromKey,
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
-import { fileExists } from "../../utils/serverUtils";
+import { fileExists, safeWriteFile } from "../../utils/serverUtils";
 
 export async function deleteImageFileMetas(entry: AlbumEntry): Promise<void> {
   for (const k of ThumbnailSizeVals) {
@@ -33,7 +26,7 @@ export function thumbnailPathFromEntryAndSize(
       path: join(
         imagesRoot,
         idFromKey(entry.album.key).id,
-        `.${size}-${entry.name}${animated?"":".non-animated"}.gif`
+        `.${size}-${entry.name}${animated ? "" : ".non-animated"}.gif`
       ),
       mime: "image/gif",
     };
@@ -74,13 +67,13 @@ export async function writeThumbnailToCache(
 ): Promise<void> {
   const { path } = thumbnailPathFromEntryAndSize(entry, size, animated);
   const unlock = await lock("writeThumbnailToCache: " + path);
-  let d: Buffer | undefined;
   try {
-    const d = await writeFile(path, data);
+    await safeWriteFile(path, data);
   } catch (e: any) {
-    d = undefined;
+    console.warn("Writing file to cache failed:", e);
+  } finally {
+    unlock();
   }
-  unlock();
 }
 
 export async function deleteThumbnailFromCache(
@@ -92,8 +85,9 @@ export async function deleteThumbnailFromCache(
     const unlock = await lock("deleteThumbnailFromCache: " + path);
     try {
       await unlink(path);
-    } catch (e) {}
-    unlock();
+    } finally {
+      unlock();
+    }
   }
 }
 

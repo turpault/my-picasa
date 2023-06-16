@@ -1,27 +1,24 @@
+import L from "leaflet";
+import { AlbumEntry } from "../../shared/types/types";
 import { getFileExifData } from "../folder-utils";
 import { $, _$ } from "../lib/dom";
-import { SelectionEventSource } from "../selection/selection-manager";
-import { AlbumEntry } from "../../shared/types/types";
-import L from "leaflet";
 import { t } from "./strings";
 const section: { [k: string]: any } = {
-  "Make": () => t("Make"),
-  "Model": () => t("Model"),
-  "ISO": () => t("ISO"),
-  "ExposureTime": () => t("Exposure Time"),
-  "FNumber": () => t("F-Number"),
-  "DateTimeOriginal": () => t("Original Date"),
-  "ExifImageHeight": () => t("Height (pixels)"),
-  "ExifImageWidth": () => t("Width (pixels)")
+  Make: () => t("Make"),
+  Model: () => t("Model"),
+  ISO: () => t("ISO"),
+  ExposureTime: () => t("Exposure Time"),
+  FNumber: () => t("F-Number"),
+  DateTimeOriginal: () => t("Original Date"),
+  ExifImageHeight: () => t("Height (pixels)"),
+  ExifImageWidth: () => t("Width (pixels)"),
 };
 const metaHTML = ` <div>
 <div class="metadata"></div>
 <div class="map"></div>
 </div>
 `;
-export function makeMetadata(
-  e: _$
-) {
+export function makeMetadata(e: _$) {
   const metasidebar = $(metaHTML);
   e.append(metasidebar);
   const map = $(".map", metasidebar);
@@ -65,10 +62,15 @@ export function makeMetadata(
     marker.setLatLng([lat, long]);
   }
 
-  function refreshMetadata(latest: AlbumEntry | undefined, selection: AlbumEntry[]) {
+  function refreshMetadata(
+    latest: AlbumEntry | undefined,
+    selection: AlbumEntry[]
+  ) {
     meta.empty();
     selection.forEach((sel, idx) =>
-      meta.append(`<div><div class="exif-name">File #${idx}</div><div class="exif-value">${sel.name}</div></div>`)
+      meta.append(
+        `<div><div class="exif-name">File #${idx}</div><div class="exif-value">${sel.name}</div></div>`
+      )
     );
 
     hideMap();
@@ -101,7 +103,9 @@ export function makeMetadata(
                 val = v < 1 ? `1/${Math.round(1 / v)} s` : `${v} s`;
               }
               meta.append(
-                `<div><div class="exif-name">${section[idx]()}</div><div class="exif-value">${val}</div></div>`
+                `<div><div class="exif-name">${section[
+                  idx
+                ]()}</div><div class="exif-value">${val}</div></div>`
               );
             }
         }

@@ -1,7 +1,14 @@
-import { mkdir, readdir, readFile, stat, writeFile } from "fs/promises";
+import { mkdir, readdir, readFile, stat } from "fs/promises";
 import { join } from "path";
-import { Album, AlbumEntry, AlbumKinds, idFromKey, keyFromID } from "../../../shared/types/types";
-import { defaultNewFolderRoot, imagesRoot } from "../../utils/constants";
+import {
+  Album,
+  AlbumEntry,
+  AlbumKind,
+  idFromKey,
+  keyFromID,
+} from "../../../shared/types/types";
+import { defaultNewFolder, imagesRoot } from "../../utils/constants";
+import { safeWriteFile } from "../../utils/serverUtils";
 import { openWithFinder } from "./osascripts";
 import { addOrRefreshOrDeleteAlbum } from "./walker";
 
@@ -14,7 +21,7 @@ export async function writeFileContents(
   file: string,
   data: string
 ): Promise<void> {
-  return writeFile(join(imagesRoot, file), data);
+  return safeWriteFile(join(imagesRoot, file), data);
 }
 
 export async function folder(
@@ -36,14 +43,14 @@ export async function folder(
 }
 
 export async function makeAlbum(name: string): Promise<Album> {
-  const p = join(imagesRoot, defaultNewFolderRoot, name);
+  const p = join(imagesRoot, defaultNewFolder, name);
   return stat(p)
     .catch((e) => mkdir(p, { recursive: true }))
     .then(() => {
       const a: Album = {
-        key: keyFromID(join(defaultNewFolderRoot, name), AlbumKinds.folder),
+        key: keyFromID(join(defaultNewFolder, name), AlbumKind.FOLDER),
         name,
-        kind: AlbumKinds.folder,
+        kind: AlbumKind.FOLDER,
       };
       addOrRefreshOrDeleteAlbum(a);
       return a;

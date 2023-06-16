@@ -4,7 +4,7 @@ const { applyLUT } = require('./build/Release/lut3d');
 
 async function readLUTFile(file: string): Promise<{ width: Number, data: Number[][] }> {
   const fileData = await readFile(file);
-  const contents = fileData.toString('utf-8');
+  const contents = fileData.toString('utf8');
   const lines = contents.split('\n');
   const res = {
     width: 0,

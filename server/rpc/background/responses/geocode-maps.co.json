@@ -1,0 +1,24 @@
+{
+  "place_id": 286801821,
+  "licence": "Data © OpenStreetMap contributors, ODbL 1.0. https://osm.org/copyright",
+  "powered_by": "Map Maker: https://maps.co",
+  "osm_type": "relation",
+  "osm_id": 1879842,
+  "lat": "51.50344025",
+  "lon": "-0.12770820958562096",
+  "display_name": "Prime Minister’s Office, 10, Downing Street, Westminster, Covent Garden, City of Westminster, Greater London, England, SW1A 2AA, United Kingdom",
+  "address": {
+    "tourism": "Prime Minister’s Office",
+    "house_number": "10",
+    "road": "Downing Street",
+    "quarter": "Westminster",
+    "suburb": "Covent Garden",
+    "city": "City of Westminster",
+    "state_district": "Greater London",
+    "state": "England",
+    "postcode": "SW1A 2AA",
+    "country": "United Kingdom",
+    "country_code": "gb"
+  },
+  "boundingbox": ["51.5032573", "51.5036483", "-0.1278356", "-0.1273038"]
+}

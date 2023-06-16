@@ -11,7 +11,7 @@ export function connect(
   address: string,
   ssl: boolean
 ): Emitter<ConnectionEvent> {
-  const events = buildEmitter<ConnectionEvent>();
+  const events = buildEmitter<ConnectionEvent>(false);
   const socket = new WsAdaptor();
   const reopen = () => {
     const wSocket = new WebSocket(
@@ -22,7 +22,7 @@ export function connect(
       try {
         wSocket.close();
       } catch (e) {}
-      sleep(1).then(reopen);
+      sleep(1).finally(reopen);
     };
     wSocket.onopen = () => {
       try {
@@ -31,7 +31,7 @@ export function connect(
         service.initialize(socket);
         events.emit("connected", { service });
       } catch (e) {
-        sleep(10).then(reopen);
+        sleep(10).finally(reopen);
       }
     };
     wSocket.onclose = () => {};

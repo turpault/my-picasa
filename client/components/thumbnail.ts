@@ -8,7 +8,7 @@ import {
   Album,
   AlbumEntry,
   AlbumEntryPicasa,
-  AlbumKinds,
+  AlbumKind,
   JOBNAMES,
   AlbumEntryMetaData,
 } from "../../shared/types/types";
@@ -23,7 +23,7 @@ import {
 } from "../lib/dom";
 import { getSettings, getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
-import { SelectionManager } from "../selection/selection-manager";
+import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { AlbumListEventSource } from "../uiTypes";
 
 let lastDragged: _$ | undefined;
@@ -38,7 +38,7 @@ export async function onDragEnd() {
 export async function onDrop(
   ev: DragEvent,
   album: Album,
-  selectionManager: SelectionManager,
+  selectionManager: AlbumEntrySelectionManager,
   elementPrefix: string
 ) {
   if (lastDragged) {
@@ -77,7 +77,7 @@ export async function onDrop(
 
 function buildThumbnail(
   events: AlbumListEventSource,
-  selectionManager: SelectionManager,
+  selectionManager: AlbumEntrySelectionManager,
   elementPrefix: string
 ): HTMLElement {
   const e = $(
@@ -206,7 +206,7 @@ function buildThumbnail(
     if (!entry) {
       return;
     }
-    if (entry.album.kind == AlbumKinds.face) {
+    if (entry.album.kind == AlbumKind.FACE) {
       const s = await getService();
       entry = await s.getSourceEntry(entry);
       if (!entry) {
@@ -245,10 +245,10 @@ function buildThumbnail(
 
 export async function makeThumbnailManager(
   elementPrefix: string,
-  selectionManager: SelectionManager
+  selectionManager: AlbumEntrySelectionManager
 ) {
   const s = await getService();
-  s.on("picasaFileMetaChanged", async (e: { payload: AlbumEntryPicasa }) => {
+  s.on("albumEntryAspectChanged", async (e: { payload: AlbumEntryPicasa }) => {
     // Is there a thumbnail with that data ?
     const elem = elementFromEntry(e.payload, elementPrefix);
     if (elem.exists()) {
@@ -290,8 +290,8 @@ export async function makeThumbnailManager(
 export async function thumbnailData(
   e: _$,
   entry: AlbumEntry,
-  picasaData: AlbumEntryMetaData,
-  selectionManager: SelectionManager,
+  picasaData: AlbumEntryMetaData | undefined,
+  selectionManager: AlbumEntrySelectionManager,
   elementPrefix: string
 ) {
   const thumb = $("img", e);
@@ -305,11 +305,11 @@ export async function thumbnailData(
   } else {
     $(e).removeClass("selected");
   }
-  thumb.attr("src", thumbnailUrl(entry, "th-medium", false, true));
-  thumb.attr("src-original", thumbnailUrl(entry, "th-medium", false, true));
+  thumb.attr("src", thumbnailUrl(entry, "th-medium", false));
+  thumb.attr("src-original", thumbnailUrl(entry, "th-medium", false));
   if (isVideo(entry)) {
     e.attr("is-video", "");
-    thumb.attr("src-hover", thumbnailUrl(entry, "th-medium", true, true));
+    thumb.attr("src-hover", thumbnailUrl(entry, "th-medium", true));
   } else {
     e.attr("is-video", null);
     thumb.attr("src-hover", null);
@@ -317,11 +317,12 @@ export async function thumbnailData(
 
   // could be improved
   const label =
-    entry.album.kind === AlbumKinds.folder
-      ? entry.name
-      : JSON.parse(fromBase64(entry.name))[0];
+    entry.album.kind === AlbumKind.FACE
+      ? JSON.parse(fromBase64(entry.name))[0]
+      : entry.name;
+
   let dateTime = "";
-  if (picasaData.dateTaken) {
+  if (picasaData?.dateTaken) {
     dateTime = new Date(picasaData.dateTaken).toLocaleString();
   }
   e.attr("data-tooltip-above-image", label);
@@ -341,7 +342,7 @@ export function selectThumbnailsInRect(
   container: _$,
   p1: { x: number; y: number },
   p2: { x: number; y: number },
-  selectionManager: SelectionManager,
+  selectionManager: AlbumEntrySelectionManager,
   elementPrefix: string
 ) {
   var rect = container.clientRect();
@@ -476,7 +477,7 @@ export function makeNThumbnails(
   domElement: _$,
   count: number,
   events: AlbumListEventSource,
-  selectionManager: SelectionManager,
+  selectionManager: AlbumEntrySelectionManager,
   elementPrefix: string
 ): boolean {
   const countChanged = domElement.get().children.length !== count;

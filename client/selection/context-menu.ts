@@ -1,10 +1,12 @@
+import { Album, JOBNAMES } from "../../shared/types/types";
 import { question } from "../components/question";
 import { $ } from "../lib/dom";
 import { getService } from "../rpc/connect";
-import { Album, JOBNAMES } from "../../shared/types/types";
-import { SelectionManager } from "./selection-manager";
+import { AlbumEntrySelectionManager } from "./selection-manager";
 
-export function makeDropDownContextMenu(selectionManager:SelectionManager) {
+export function makeDropDownContextMenu(
+  selectionManager: AlbumEntrySelectionManager
+) {
   document.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     const menu = $(`<div class="context-menu">
@@ -15,12 +17,12 @@ export function makeDropDownContextMenu(selectionManager:SelectionManager) {
           `<div>Move ${
             selectionManager.selected().length
           } photos in a new Album...`
-        ).on("click", ()=>moveSelectionInNewAlbum(selectionManager))
+        ).on("click", () => moveSelectionInNewAlbum(selectionManager))
       );
       menu.append(
         $(
           `<div>Duplicate ${selectionManager.selected().length} photos`
-        ).on("click", ()=>duplicateSelection(selectionManager))
+        ).on("click", () => duplicateSelection(selectionManager))
       );
       menu.append(
         $(`<div>Delete ${selectionManager.selected().length} photos`).on(
@@ -39,7 +41,9 @@ export function makeDropDownContextMenu(selectionManager:SelectionManager) {
   });
 }
 
-async function moveSelectionInNewAlbum(selectionManager:SelectionManager) {
+async function moveSelectionInNewAlbum(
+  selectionManager: AlbumEntrySelectionManager
+) {
   const newAlbum = await question(
     "New album name",
     "Please type the new album name"
@@ -55,7 +59,9 @@ async function moveSelectionInNewAlbum(selectionManager:SelectionManager) {
   }
 }
 
-async function duplicateSelection(selectionManager:SelectionManager) {
+async function duplicateSelection(
+  selectionManager: AlbumEntrySelectionManager
+) {
   const s = await getService();
   s.createJob(JOBNAMES.DUPLICATE, {
     source: selectionManager.selected(),

@@ -27,12 +27,13 @@
   "main": "dist/server/main.js",
   "browser": "dist/src/index.js",
   "scripts": {
-    "build": "tsc -d -p tsconfig-server.json && npm run build-filters && run-p build:*",
+    "build": "run-p build:*",
+    "build:server": "tsc -d -p tsconfig-server.json && npm run build-filters",
     "build:client": "webpack",
     "build:icons": "png2icons resources/picisa.png resources/picisa -icns",
     "build:ico": "png2icons resources/picisa.png public/favicon -ico",
     "build:splashbase64url": "node server/toBase64Url.mjs public/resources/images/splash.png",
-    "build:rpc": "node dist/server/rpc/generate.js client/rpc/generated-rpc",
+    "build:rpc": "ts-node server/rpc/generate.ts client/rpc/generated-rpc",
     "build-filters": "(cd server/rpc/imageOperations/native-filters ; npm run configure ; npm run build) ; mkdir -p dist/server/rpc/imageOperations/native-filters/build/Release ; cp server/rpc/imageOperations/native-filters/build/Release/lut3d.node dist/server/rpc/imageOperations/native-filters/build/Release/lut3d.node",
     "package": "electron-packager . --icon resources/picisa.icns --app-version 1.0.0 --appname Picisa --no-deref-symlinks --overwrite --ignore='\\.d\\.ts|\\.map'",
     "deploy": "osascript -e 'do shell script \"rm -rf /Applications/picisa.app ; cp -Rf  picisa-darwin-x64/picisa.app /Applications/\" with administrator privileges'",
@@ -43,7 +44,9 @@
     "start:tsc-server": "tsc-watch -p tsconfig-server.json",
     "start:server": "nodemon --watch ./dist/server --watch ./dist/shared dist/server/index.js",
     "start-fav": "ts-node --esm server/rpc/rpcFunctions/fileJob-export-favorites.ts",
-    "electron": "electron ."
+    "electron": "electron .",
+    "preinstall": "npm run build:server",
+    "install:daemon": "sudo cp com.turpault.picisa.plist /Library/LaunchDaemons && sudo chmod 600 /Library/LaunchDaemons/com.turpault.picisa.plist && sudo launchctl load /Library/LaunchDaemons/com.turpault.picisa.plist || launchctl kickstart -k com.turpault.picisa.plist"
   },
   "devDependencies": {
     "@types/draggabilly": "^2.1.3",

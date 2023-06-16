@@ -42,7 +42,9 @@ export async function makeJobList(e: HTMLElement) {
   });
   service.on("jobDeleted", (e: any) => {
     const job = e.payload as Job;
-    delete jobs[job.id];
-    refreshList();
+    setTimeout(() => {
+      delete jobs[job.id];
+      refreshList();
+    }, 5000);
   });
 }

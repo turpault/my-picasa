@@ -26,11 +26,13 @@ export function makeDropList(
   currentIndex: number
 ): { element: _$; emitter: Emitter<DropListEvents> } {
   const e = $(droplistHTML);
-  const emitter = buildEmitter<DropListEvents>();
+  const emitter = buildEmitter<DropListEvents>(false);
   emitter.on("refresh", ({ label, items }) => {
     $(".dropdown-content", e).empty();
     $(".dropdown-button", e).text(label);
-    $(".dropdown-value", e).text(currentIndex < items.length ? items[currentIndex].label : '');
+    $(".dropdown-value", e).text(
+      currentIndex < items.length ? items[currentIndex].label : ""
+    );
     items
       .map((itemText, index) =>
         $(
