@@ -339,11 +339,16 @@ export function makeButtons(appEvents: AppEventSource): _$ {
   }
   getSettingsEmitter().on("changed", refreshState);
   appEvents.on("tabDisplayed", ({ context }) => {
-    context.selectionManager.events.on("*", () => debounce(refreshState, 200));
+    context.selectionManager.events.on("added", () =>
+      debounce(refreshState, 200)
+    );
+    context.selectionManager.events.on("removed", () =>
+      debounce(refreshState, 200)
+    );
   });
   getService().then((s) => {
     s.on("undoChanged", refreshState);
-    s.on("picasaFileMetaChanged", refreshState);
+    s.on("albumEntryAspectChanged", refreshState);
   });
   appEvents.on("tabChanged", refreshState);
   return container;

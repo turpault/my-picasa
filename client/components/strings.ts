@@ -70,12 +70,21 @@ const stringTable: { [key: string]: any } = {
   "Delete $1 files...": { fr: "Effacer $1 fichier..." },
   face: { fr: "Personnes", en: "People" },
   shortcut: { fr: "Raccourcis", en: "Shortcuts" },
-  montage: { fr: "Montages", en: "Montages" },
   folder: { fr: "Dossiers", en: "Folders" },
   "Only Videos": { fr: "Videos Seulement" },
   "Show/Hide Identification": { fr: "Montrer/Cacher les identifications" },
   Identify: { fr: "Identifier" },
   "Only Favorites": { fr: "Seulement les préférées" },
+  "Mosaic Parameters": { fr: "Parametres de la Mosaique" },
+  Square: { fr: "Carré" },
+  None: { fr: "Aucun" },
+  Small: { fr: "Petite" },
+  Medium: { fr: "Moyenne" },
+  Large: { fr: "Grande" },
+  Portrait: { fr: "Portrait" },
+  Paysage: { fr: "Paysage" },
+  "Target Size": { fr: "Taille de l'image" },
+  "Gutter Size": { fr: "Taille de la marge" },
 };
 const lang = window.navigator.language.split("-")[0];
 let str = new Set<string>();

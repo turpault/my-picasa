@@ -217,7 +217,7 @@ body {
   white-space: nowrap;
 }
 
-.editor-image-block {
+.gradient-sidebar-title {
   cursor: pointer;
   font-weight: bold;
   background: linear-gradient(271deg, rgb(243, 243, 243) 0%, rgb(204, 204, 204) 100%);
@@ -1217,6 +1217,7 @@ body {
   font-weight: bold;
   width: 100%;
   overflow-x: hidden;
+  margin-bottom: 20px;
 }
 
 .centered {
@@ -1252,6 +1253,10 @@ body {
   background-image: url('images/icons/actions/trash-50.png');
 }
 
+.mosaic-image-control {
+  max-width: 30%;
+}
+
 .mosaic-parameters {}
 
 .mosaic-container {
@@ -1261,22 +1266,20 @@ body {
   flex-shrink: 4;
   overflow: scroll;
   background-color: rgb(243, 243, 243);
-  transform: scale(1.);
 }
 
-.montage {
+.mosaic-grid {
   background: rgb(221, 221, 221);
   position: relative;
   width: 1000px;
   height: 800px;
 }
 
-.montage-container {
+.mosaic-container-child {
   position: absolute;
-  transform: scale(1.0);
 }
 
-.montage::after {
+.mosaic-grid::after {
   content: "";
   display: block;
   clear: both;

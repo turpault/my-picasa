@@ -1,7 +1,12 @@
 import { mkdirSync } from "fs";
-import { readFile, readdir } from "fs/promises";
+import { readFile, readdir, unlink } from "fs/promises";
 import { join, parse } from "path";
-import { debounce, lock, valuesOfEnum } from "../../shared/lib/utils";
+import {
+  debounce,
+  idFromAlbumEntry,
+  lock,
+  valuesOfEnum,
+} from "../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
@@ -10,13 +15,14 @@ import {
   MosaicProject,
   ProjectType,
   ThumbnailSize,
+  ThumbnailSizeVals,
   idFromKey,
   keyFromID,
 } from "../../shared/types/types";
 import { ThumbnailSizes, imagesRoot } from "../utils/constants";
 import { fileExists, safeWriteFile } from "../utils/serverUtils";
 import { broadcast } from "../utils/socketList";
-import { makeMosaic } from "./imageOperations/image-edits/composition";
+import { makeMosaic } from "./imageOperations/image-edits/mosaic";
 import { queueNotification } from "./rpcFunctions/walker";
 
 const projectFolder = join(imagesRoot, ".projects");
@@ -138,11 +144,24 @@ export async function writeProject(
   const projectType = idFromKey(project.album.key).id as ProjectType;
   allProjects[projectType].projects[project.name] = project;
   commitChanges(projectType);
-  broadcast("projectsUpdated", { project, changeType });
-  queueNotification({
-    type: "albumInfoUpdated",
-    album: getProjectAlbum(project.album.key),
-  });
+  clearProjectThumbnails(project);
+  debounce(
+    () => {
+      broadcast("projectsUpdated", { project, changeType });
+
+      queueNotification({
+        type: "albumInfoUpdated",
+        album: getProjectAlbum(project.album.key),
+      });
+      broadcast("albumEntryAspectChanged", {
+        ...project,
+        metadata: {},
+      });
+    },
+    1000,
+    "writeProject/" + idFromAlbumEntry(project, ""),
+    false
+  );
 }
 
 export async function makeProjectThumbnail(
@@ -177,4 +196,22 @@ export async function makeProjectThumbnail(
     unlock();
   }
   return Buffer.from("");
+}
+
+async function clearProjectThumbnails(entry: AlbumEntry): Promise<void> {
+  for (const size of ThumbnailSizeVals) {
+    const p = join(
+      projectFolder,
+      `${entry.album.key}-${entry.name}-${size}.jpg`
+    );
+    const unlock = await lock(p);
+    try {
+      const iconFileExists = await fileExists(p);
+      if (iconFileExists) {
+        await unlink(p);
+      }
+    } finally {
+      unlock();
+    }
+  }
 }

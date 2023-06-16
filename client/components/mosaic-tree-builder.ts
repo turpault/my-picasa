@@ -1,4 +1,4 @@
-import { uuid } from "../../shared/lib/utils";
+import { prng, uuid } from "../../shared/lib/utils";
 import { AlbumEntryWithMetadata, Cell } from "../../shared/types/types";
 
 export function leaves(nodes: Cell[]) {
@@ -17,7 +17,8 @@ export function leafs(node: Cell): Cell[] {
   return [...leafs(node.childs.left), ...leafs(node.childs.right)];
 }
 
-export function buildCells(list: AlbumEntryWithMetadata[]): Cell {
+export function buildCells(list: AlbumEntryWithMetadata[], seed: number): Cell {
+  const rnd = prng(parseInt(seed.toString(10).replace(".", "")));
   // 1- sort images as portrait/paysage/square
   const portrait: AlbumEntryWithMetadata[] = [];
   const paysage: AlbumEntryWithMetadata[] = [];
@@ -70,7 +71,7 @@ export function buildCells(list: AlbumEntryWithMetadata[]): Cell {
     throw new Error("Wrong number of leaves");
   }
 
-  const randomized1 = [...allNodes].sort(() => Math.random() - 0.5);
+  const randomized1 = [...allNodes].sort(() => ((rnd() >0.5) ? -1 : 1));
   // Remove extra nodes
   let extraNodeCount = Math.pow(2, depth) - list.length;
   for (const node of randomized1) {
@@ -90,81 +91,24 @@ export function buildCells(list: AlbumEntryWithMetadata[]): Cell {
   if (leaves(allNodes) !== list.length) {
     throw new Error("Wrong number of leaves");
   }
-  const randomized = [...allNodes].sort(() => Math.random() - 0.5);
-  if (leaves(randomized) !== list.length) {
-    throw new Error("Wrong number of leaves");
-  }
-
-  for (const img of list) {
-    let found = false;
-    for (const node of randomized) {
-      if (!node.childs && !node.image) {
-        // There's still room left
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      // no available slot, pick a random one and split
-      for (const node of randomized) {
-        if (!node.childs) {
-          const copy = { ...node };
-          node.image = undefined;
-          const { allNodes: newNodes } = split(node, 1);
-          node.childs!.left = {
-            ...copy,
-            split: copy.split === "v" ? "h" : "v",
-          };
-          randomized.push(node.childs!.right);
-          randomized.push(node);
-          randomized.splice(randomized.indexOf(node), 1);
-          break;
-        }
-      }
-    }
-
-    found = false;
-    // Find a node with no childs
-    for (const node of randomized) {
-      if (
-        !found &&
-        !node.childs &&
-        node.split === "v" &&
-        paysage.includes(img) &&
-        !node.image
-      ) {
-        found = true;
-        node.image = img;
-        break;
-      }
-      if (
-        !found &&
-        !node.childs &&
-        node.split === "h" &&
-        portrait.includes(img) &&
-        !node.image
-      ) {
-        found = true;
-        node.image = img;
-        break;
-      }
-      if (!found && !node.childs && square.includes(img) && !node.image) {
-        found = true;
-        node.image = img;
-        break;
-      }
-    }
-    if (!found) {
-      for (const node of randomized) {
-        if (!node.image && !node.childs) {
-          node.image = img;
-          found = true;
-          break;
-        }
-      }
-    }
-    if (!found) {
-      throw new Error("Should have found");
+  // Assign a picture to leaf nodes
+  const randomLeaves = leafs(root).sort(() => ((rnd() >0.5 ) ? -1 : 1));
+  const paysagePool = [...paysage];
+  const portraitPool = [...portrait];
+  const squarePool = [...square];
+  for (const node of randomLeaves) {
+    if (node.split === "v" && paysagePool.length > 0) {
+      node.image = paysagePool.pop();
+    } else if (node.split === "h" && portraitPool.length > 0) {
+      node.image = portraitPool.pop();
+    } else if (squarePool.length > 0) {
+      node.image = squarePool.pop();
+    } else if (paysagePool.length > 0) {
+      node.image = paysagePool.pop();
+    } else if (portraitPool.length > 0) {
+      node.image = portraitPool.pop();
+    } else {
+      throw new Error("Not enough images");
     }
   }
 

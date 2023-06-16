@@ -11,7 +11,7 @@ export function connect(
   address: string,
   ssl: boolean
 ): Emitter<ConnectionEvent> {
-  const events = buildEmitter<ConnectionEvent>();
+  const events = buildEmitter<ConnectionEvent>(false);
   const socket = new WsAdaptor();
   const reopen = () => {
     const wSocket = new WebSocket(

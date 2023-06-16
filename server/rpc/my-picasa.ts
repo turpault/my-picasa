@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/camelcase */
 import { Exceptions } from "../../shared/types/exceptions";
 import { undo, undoList } from "../utils/undo";
-import { generateMosaicFile } from "./imageOperations/image-edits/composition";
+import { generateMosaicFile } from "./imageOperations/image-edits/mosaic";
 import { getFilterGroups, getFilterList } from "./imageOperations/imageFilters";
 import { imageInfo } from "./imageOperations/info";
 import {

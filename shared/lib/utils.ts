@@ -2,6 +2,7 @@ import { Base64 } from "js-base64";
 import {
   Album,
   AlbumEntry,
+  AlbumKind,
   pictureExtensions,
   videoExtensions,
 } from "../types/types";
@@ -110,14 +111,14 @@ export function debounce(
   if (debounceFcts.has(key)) {
     debounceFcts.get(key)!.f = f;
   } else {
-    debounceFcts.set(f, { elapse: Date.now() + delay, f });
+    debounceFcts.set(key, { elapse: Date.now() + delay, f });
     (async () => {
       if (atStart) {
-        f();
+        debounceFcts.get(key)?.f();
       }
       await sleep(delay / 1000);
       if (!atStart) {
-        f();
+        debounceFcts.get(key)?.f();
       }
       debounceFcts.delete(key);
     })();
@@ -440,4 +441,34 @@ export function escapeXml(unsafe: string): string {
     }
     return "";
   });
+}
+
+export function lessThanEntry(a: AlbumEntry, b: AlbumEntry) {
+  if (a.album.name !== b.album.name)
+    return a.album.name < b.album.name ? -1 : 1;
+  if (a.name === b.name) return 0;
+  return a.name < b.name ? -1 : 1;
+}
+
+export function albumEntryFromId(id: string): AlbumEntry | null {
+  const [qualifier, valid, key, name, kind, entry] = id.split("|");
+  if (valid === "entry") {
+    return { album: { key, name, kind: kind as AlbumKind }, name: entry };
+  }
+  return null;
+}
+export function idFromAlbumEntry(
+  entry: AlbumEntry,
+  qualifier: string = ""
+): string {
+  return `${qualifier}|entry|${entry.album.key}|${entry.album.name}|${entry.album.kind}|${entry.name}`;
+}
+
+export function prng(a: number) {
+  return function () {
+    var t = (a += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }

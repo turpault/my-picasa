@@ -3,13 +3,13 @@ import { AlbumIndexedDataSource } from "../album-data-source";
 import { folder, folderData } from "../element-templates";
 import {
   $,
+  _$,
   albumFromElement,
   elementFromAlbum,
   setIdForAlbum,
-  _$,
 } from "../lib/dom";
 import { getService } from "../rpc/connect";
-import { SelectionManager } from "../selection/selection-manager";
+import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
 import { makeButtons } from "./browser-photo-list-buttons";
 
@@ -21,9 +21,8 @@ const html = `<div class="w3-theme fill folder-pane">
 export async function makeAlbumList(
   appEvents: AppEventSource,
   albumDataSource: AlbumIndexedDataSource,
-  selectionManager: SelectionManager
+  selectionManager: AlbumEntrySelectionManager
 ) {
-
   const container = $(html);
   await makeButtons(appEvents);
 
@@ -32,58 +31,60 @@ export async function makeAlbumList(
   const folders = $(".folders", container);
   const events = albumDataSource.emitter;
   let lastSelectedAlbum: Album | undefined;
-  events.on("scrolled", ({ album }) => {
-    lastSelectedAlbum = album;
-    if (lastHighlight && lastHighlight.exists()) {
-      lastHighlight.removeClass("highlight-list");
-    }
-    lastHighlight = elementFromAlbum(album, elementPrefix);
-    if (lastHighlight.exists()) {
-      lastHighlight.addClass("highlight-list");
-      lastHighlight.get().scrollIntoViewIfNeeded(false);
-    }
-  });
-
-  appEvents.on("keyDown", ({ code, win }) => {
-    if (win.isParent(container))
-      switch (code) {
-        case "Space":
-        default:
-      }
-  });
-
-  events.on("filterChanged", (event) => {
-    filter = event.filter;
-    albumDataSource.setFilter(filter);
-  });
-
   const albums: _$[] = [];
-  events.on("invalidateFrom", (event) => {
-    const wasEmpty = albums.length === 0;
-    const toRemove = albums.splice(event.index);
-    toRemove.forEach((elem) => elem.remove());
-    for (let idx = event.index; idx < albumDataSource.length(); idx++) {
-      const album = albumDataSource.albumAtIndex(idx);
-      const node = folder();
-      folderData(node, album);
-      node.attr('separator', album.head || null);
-      setIdForAlbum(node, album, elementPrefix);
-      addListeners(node);
-      albums.push(node);
-      folders.append(node);
 
-      if (wasEmpty && idx === 0) {
-        events.emit("selected", { album });
+  container.attachData(
+    events.on("scrolled", ({ album }) => {
+      lastSelectedAlbum = album;
+      if (lastHighlight && lastHighlight.exists()) {
+        lastHighlight.removeClass("highlight-list");
       }
-    }
-  });
-  events.on("invalidateAt", (event) => {
-    const album = albumDataSource.albumAtIndex(event.index);
-    const toUpdate = elementFromAlbum(album, elementPrefix);
-    if(toUpdate) {
-      folderData(toUpdate, album);
-    }
-  });
+      lastHighlight = elementFromAlbum(album, elementPrefix);
+      if (lastHighlight.exists()) {
+        lastHighlight.addClass("highlight-list");
+        lastHighlight.get().scrollIntoViewIfNeeded(false);
+      }
+    }),
+    appEvents.on("keyDown", ({ code, win }) => {
+      if (win.isParent(container))
+        switch (code) {
+          case "Space":
+          default:
+        }
+    }),
+
+    events.on("filterChanged", (event) => {
+      filter = event.filter;
+      albumDataSource.setFilter(filter);
+    }),
+
+    events.on("invalidateFrom", (event) => {
+      const wasEmpty = albums.length === 0;
+      const toRemove = albums.splice(event.index);
+      toRemove.forEach((elem) => elem.remove());
+      for (let idx = event.index; idx < albumDataSource.length(); idx++) {
+        const album = albumDataSource.albumAtIndex(idx);
+        const node = folder();
+        folderData(node, album);
+        node.attr("separator", album.head || null);
+        setIdForAlbum(node, album, elementPrefix);
+        addListeners(node);
+        albums.push(node);
+        folders.append(node);
+
+        if (wasEmpty && idx === 0) {
+          events.emit("selected", { album });
+        }
+      }
+    }),
+    events.on("invalidateAt", (event) => {
+      const album = albumDataSource.albumAtIndex(event.index);
+      const toUpdate = elementFromAlbum(album, elementPrefix);
+      if (toUpdate) {
+        folderData(toUpdate, album);
+      }
+    })
+  );
 
   function addListeners(item: _$) {
     const img = new Image();

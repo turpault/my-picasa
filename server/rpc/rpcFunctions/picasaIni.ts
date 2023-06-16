@@ -405,7 +405,7 @@ export async function updatePicasaEntry(
   }
 
   if (["filters", "caption", "rotate", "star", "starCount"].includes(field)) {
-    broadcast("picasaFileMetaChanged", {
+    broadcast("albumEntryAspectChanged", {
       ...entry,
       metadata: picasa[entry.name],
     });
@@ -432,7 +432,7 @@ export async function updatePicasaEntries(
   }
 
   if (doBroadcast) {
-    broadcast("picasaFileMetaChanged", {
+    broadcast("albumEntryAspectChanged", {
       ...entry,
       metadata: picasa[entry.name],
     });

@@ -40,7 +40,7 @@ export class ImageController {
     };
     this.context = "";
     this.liveContext = "";
-    this.events = buildEmitter<ImageControllerEvent>();
+    this.events = buildEmitter<ImageControllerEvent>(false);
     this.zoomController = panZoomCtrl;
     this.q = new Queue(1);
     this.identify = false;
@@ -130,17 +130,20 @@ export class ImageController {
     this.entry = albumEntry;
     this.display(albumEntry);
     const s = await getService();
-    return s.on("picasaFileMetaChanged", (e: { payload: AlbumEntryPicasa }) => {
-      if (e.payload.name === this.entry.name) {
-        // Note ignore event for now, to support A/B edits
-        /*
+    return s.on(
+      "albumEntryAspectChanged",
+      (e: { payload: AlbumEntryPicasa }) => {
+        if (e.payload.name === this.entry.name) {
+          // Note ignore event for now, to support A/B edits
+          /*
         if(encodeOperations(this.filters) !== e.payload.metadata.filters) {
           this.filters = decodeOperations(e.payload.metadata.filters || '');
           this.update();
         } 
         */
+        }
       }
-    });
+    );
   }
 
   async display(albumEntry: AlbumEntryPicasa) {
@@ -317,7 +320,6 @@ export class ImageController {
   recenter() {
     const h = this.parent.height;
     const w = this.parent.width;
-    this.zoomController!.setClientSize(w, h);
     this.zoomController!.recenter();
   }
 

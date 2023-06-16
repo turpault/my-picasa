@@ -1,13 +1,16 @@
 import { mkdir } from "fs/promises";
 import { join } from "path";
 import {
+  Album,
   AlbumEntry,
   AlbumEntryWithMetadata,
+  AlbumKind,
   Cell,
   ImageEncoding,
   ImageMimeType,
   MosaicProject,
   Orientation,
+  keyFromID,
 } from "../../../../shared/types/types";
 import { ProjectOutputFolder, imagesRoot } from "../../../utils/constants";
 import { safeWriteFile } from "../../../utils/serverUtils";
@@ -22,72 +25,6 @@ import {
   transform,
 } from "../sharp-processor";
 
-function calculateImagePositions(
-  cell: Cell,
-  gutter: number,
-  left: number,
-  top: number,
-  width: number,
-  height: number
-): {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-  entry: AlbumEntryWithMetadata;
-}[] {
-  if (cell.childs) {
-    if (cell.split === "v") {
-      const totalWeight = cell.childs.left.weight + cell.childs.right.weight;
-      const leftCalc = calculateImagePositions(
-        cell.childs.left,
-        gutter,
-        left,
-        top,
-        (cell.childs.left.weight / totalWeight) * width,
-        height
-      );
-      const rightCalc = calculateImagePositions(
-        cell.childs.right,
-        gutter,
-        left + (cell.childs.left.weight / totalWeight) * width,
-        top,
-        (cell.childs.right.weight / totalWeight) * width,
-        height
-      );
-      return [...leftCalc, ...rightCalc];
-    } else {
-      const totalWeight = cell.childs.left.weight + cell.childs.right.weight;
-      const topCalc = calculateImagePositions(
-        cell.childs.left,
-        gutter,
-        left,
-        top,
-        width,
-        (cell.childs.left.weight / totalWeight) * height
-      );
-      const bottomCalc = calculateImagePositions(
-        cell.childs.right,
-        gutter,
-        left,
-        top + (cell.childs.left.weight / totalWeight) * height,
-        width,
-        (cell.childs.right.weight / totalWeight) * height
-      );
-      return [...topCalc, ...bottomCalc];
-    }
-  } else {
-    return [
-      {
-        left: left + gutter / 2,
-        top: top + gutter / 2,
-        width: width - gutter,
-        height: height - gutter,
-        entry: cell.image!,
-      },
-    ];
-  }
-}
 
 export async function makeMosaic(
   entry: AlbumEntry,
@@ -96,12 +33,14 @@ export async function makeMosaic(
   format: ImageEncoding = "Buffer"
 ): Promise<{ width: number; height: number; data: Buffer | string }> {
   const project = (await getProject(entry)) as MosaicProject;
-  const height =
+  width = Math.floor(width);
+  const height = Math.floor(
     width *
     Math.pow(
       project.payload.format,
       project.payload.orientation === Orientation.PAYSAGE ? -1 : 1
-    );
+    )
+  );
   const gutter =
     (project.payload.gutter / 100) * (Orientation.PAYSAGE ? width : height);
 
@@ -113,7 +52,7 @@ export async function makeMosaic(
     gutter / 2,
     width - gutter,
     height - gutter
-  );
+  ).images;
   const blits: {
     context: string;
     position: {
@@ -140,9 +79,21 @@ export async function makeMosaic(
 export async function generateMosaicFile(
   entry: AlbumEntry,
   width: number = 1920
-): Promise<void> {
+): Promise<AlbumEntry> {
   const res = await makeMosaic(entry, width);
   const targetFolder = join(imagesRoot, ProjectOutputFolder);
   await mkdir(targetFolder, { recursive: true });
-  await safeWriteFile(join(targetFolder, entry.name + ".jpg"), res.data);
+  const targetFile = entry.name + ".jpg";
+  await safeWriteFile(join(targetFolder, targetFile), res.data);
+
+  const album: Album = {
+    name: ProjectOutputFolder,
+    key: keyFromID(ProjectOutputFolder, AlbumKind.FOLDER),
+    kind: AlbumKind.FOLDER,
+  };
+
+  return {
+    name: targetFile,
+    album,
+  };
 }

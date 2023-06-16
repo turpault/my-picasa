@@ -1,152 +1,199 @@
 const { Resizable } = require("../lib/resizable");
 import { buildEmitter } from "../../shared/lib/event";
-import { debounce, uuid, valuesOfEnum } from "../../shared/lib/utils";
 import {
+  debounce,
+  idFromAlbumEntry,
+  lessThanEntry,
+  valuesOfEnum,
+} from "../../shared/lib/utils";
+import {
+  AlbumEntry,
   AlbumEntryPicasa,
   AlbumEntryWithMetadata,
-  AlbumEntry,
+  AlbumKind,
   Cell,
+  Format,
+  GutterSizes,
+  JOBNAMES,
+  Job,
+  Layout,
   Mosaic,
   MosaicProject,
-  Format,
-  Layout,
+  MosaicSizes,
   Orientation,
   ProjectType,
-  AlbumKind,
-  JOBNAMES,
-  MosaicSizes,
-  GutterSizes,
 } from "../../shared/types/types";
-import { thumbnailUrl } from "../imageProcess/client";
-import { $, _$, idFromAlbumEntry } from "../lib/dom";
+import { albumEntriesWithMetadata, thumbnailUrl } from "../imageProcess/client";
+import { $, _$ } from "../lib/dom";
 import { getService } from "../rpc/connect";
-import { SelectionManager } from "../selection/selection-manager";
+import {
+  AlbumEntrySelectionManager,
+  SelectionManager,
+} from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
-import { buildCells, leafs } from "./mosaic-tree-builder";
 import {
   makeChoiceList,
   makeMultiselectImageList,
 } from "./controls/multiselect";
-import { TabEvent, makeGenericTab } from "./tabs";
+import { buildCells, leafs } from "./mosaic-tree-builder";
 import { t } from "./strings";
+import { TabEvent, makeGenericTab } from "./tabs";
 
 const editHTML = `
 <div class="fill mosaic">
   <div class="mosaic-sidebar w3-theme">
     <div class="w3-bar-block mosaic-parameter-block mosaic-parameters">
-      <div class="mosaic-parameters-title">${t("Mosaic Parameters")}</div>
+      <div class="gradient-sidebar-title mosaic-parameters-title">${t(
+        "Mosaic Parameters"
+      )}</div>
     </div>
     <div class="w3-bar-block  mosaic-parameter-block mosaic-actions">
-      <div class="w3-bar-block mosaic-parameters-title">Actions</div>
-      <a class="mosaic-shuffle w3-bar-item w3-button">Shuffle</a>
-      <a class="mosaic-make w3-bar-item w3-button">Make Image</a>
-      <a class="mosaic-choose-folder w3-bar-item w3-button">Choose Folder</a>
-      <a class="mosaic-add-selection w3-bar-item w3-button">Add from selection</a>
-      <div class="mosaic-image-list w3-bar-item editor-image-block">Image List</div>
+      <div class="gradient-sidebar-title w3-bar-block mosaic-parameters-title">${t(
+        "Actions"
+      )}</div>
+      <a class="mosaic-shuffle w3-bar-item w3-button">${t("Shuffle")}</a>
+      <a class="mosaic-import-selection w3-bar-item w3-button">${t(
+        "Import Selection"
+      )}</a>
+      <a class="mosaic-make w3-bar-item w3-button w3-green">${t(
+        "Make Image"
+      )}</a>
     </div>
     <div class="w3-bar-block mosaic-parameter-block mosaic-images">
-      <div class="w3-bar-block mosaic-parameters-title">Images</div>
+      <div class="gradient-sidebar-title mosaic-image-list w3-bar-item">${t(
+        "Image List"
+      )}</div>
     </div>
   </div>
   <div class="mosaic-container centered">
-    <div class="montage-container">
-      <div class="montage"></div>
+    <div class="mosaic-container-child">
+      <div class="mosaic-grid"></div>
     </div>
   </div>
 </div>`;
 
-type MosaicImages = {
-  image: string;
-  key: any;
-  selected: boolean;
-  entry: AlbumEntryWithMetadata;
-}[];
-
+function buildHTMLForNode(node: Cell): string {
+  let res = "";
+  if (node.childs && node.childs.left) {
+    let resizableStyle =
+      node.split === "h" ? "resizable-top" : "resizable-left";
+    res += `<div class="${resizableStyle} mosaic-element ${
+      node.childs!.left.image ? "mosaic-image" : ""
+    } " ${
+      node.childs!.left.image
+        ? `draggable="true" style="background-image: url(${thumbnailUrl(
+            node.childs!.left.image!,
+            "th-large"
+          )});"`
+        : ""
+    } id="${node.childs!.left.id}">${buildHTMLForNode(
+      node.childs!.left
+    )}</div>`;
+  }
+  if (node.childs && node.childs.right) {
+    let resizableStyle =
+      node.split === "h" ? "resizable-bottom" : "resizable-right";
+    res += `<div class="${resizableStyle} mosaic-element ${
+      node.childs!.right.image ? "mosaic-image" : ""
+    }"  ${
+      node.childs!.right.image
+        ? `draggable="true" style="background-image: url(${thumbnailUrl(
+            node.childs!.right.image,
+            "th-large"
+          )});"`
+        : ""
+    } id="${node.childs!.right.id}">${buildHTMLForNode(
+      node.childs!.right
+    )}</div>`;
+  }
+  if (!node.childs) {
+    res = `
+    <button id="${node.id}~rotate-left" class="w3-button w3-theme mosaic-image-button mosaic-image-button-rotate-left"></button>
+    <button id="${node.id}~rotate-right" class="w3-button w3-theme mosaic-image-button mosaic-image-button-rotate-right"></button>
+    <button id="${node.id}~trash" class="w3-button w3-theme mosaic-image-button mosaic-image-button-trash"></button>
+    `;
+  }
+  return res;
+}
+function findCellById(root: Cell, id: string): Cell | undefined {
+  if (root.id === id) {
+    return root;
+  }
+  if (root.childs) {
+    return (
+      findCellById(root.childs.left, id) || findCellById(root.childs.right, id)
+    );
+  }
+  return undefined;
+}
 function rebuildMosaic(
   container: _$,
+  width: number,
+  height: number,
   projectData: Mosaic,
   rebuild: boolean,
-  updated: Function
+  selectionManager: AlbumEntrySelectionManager,
+  updated: (redraw: boolean, rebuild: boolean) => void
 ): { reflow: Function; erase: Function } {
   container.empty();
 
-  const resolutions: { [key: string]: [width: number, height: number] } = {
-    [Format.F10x8]: [1000, 800],
-    [Format.F16x9]: [800, 450],
-    [Format.F5x5]: [1000, 1000],
-    [Format.F6x4]: [1200, 800],
-  };
-  const canvasSize = resolutions[projectData.format];
+  let ratio = projectData.format;
 
   if (projectData.orientation === Orientation.PORTRAIT) {
-    canvasSize.reverse();
+    ratio = 1 / ratio;
+  }
+  let updatedW = height * ratio;
+  let updatedH = height;
+  if (updatedW > width) {
+    updatedW = width;
+    updatedH = width / ratio;
   }
 
   container.css({
-    width: `${canvasSize[0]}px`,
-    height: `${canvasSize[1]}px`,
+    width: `${updatedW}px`,
+    height: `${updatedH}px`,
   });
   const l =
-    projectData.orientation === Orientation.PAYSAGE
-      ? canvasSize[0]
-      : canvasSize[1];
+    projectData.orientation === Orientation.PAYSAGE ? updatedW : updatedH;
   const gutterInPx = (projectData.gutter / 100) * l;
-
-  function buildHTMLForNode(node: Cell): string {
-    let res = "";
-    if (node.childs && node.childs.left) {
-      let resizableStyle =
-        node.split === "h" ? "resizable-top" : "resizable-left";
-      res += `<div class="${resizableStyle} mosaic-element ${
-        node.childs!.left.image ? "mosaic-image" : ""
-      } " ${
-        node.childs!.left.image
-          ? `draggable style="background-image: url(${thumbnailUrl(
-              node.childs!.left.image!,
-              "th-large"
-            )});"`
-          : ""
-      } id="${node.childs!.left.id}">${buildHTMLForNode(
-        node.childs!.left
-      )}</div>`;
-    }
-    if (node.childs && node.childs.right) {
-      let resizableStyle =
-        node.split === "h" ? "resizable-bottom" : "resizable-right";
-      res += `<div class="${resizableStyle} mosaic-element ${
-        node.childs!.right.image ? "mosaic-image" : ""
-      }"  ${
-        node.childs!.right.image
-          ? `draggable style="background-image: url(${thumbnailUrl(
-              node.childs!.right.image,
-              "th-large"
-            )});"`
-          : ""
-      } id="${node.childs!.right.id}">${buildHTMLForNode(
-        node.childs!.right
-      )}</div>`;
-    }
-    if (!node.childs) {
-      res = `
-      <button id="${node.id}~rotate-left" class="w3-button w3-theme mosaic-image-button mosaic-image-button-rotate-left"></button>
-      <button id="${node.id}~rotate-right" class="w3-button w3-theme mosaic-image-button mosaic-image-button-rotate-right"></button>
-      <button id="${node.id}~trash" class="w3-button w3-theme mosaic-image-button mosaic-image-button-trash"></button>
-      `;
-    }
-    return res;
-  }
 
   let root: Cell | undefined;
   if (rebuild || !projectData.root) {
-    root = buildCells(projectData.images);
+    root = buildCells(projectData.images, projectData.seed);
     projectData.root = root;
-    updated(projectData);
+    updated(false, false);
   } else {
     root = projectData.root;
   }
   const html = buildHTMLForNode(root);
   container.innerHTML(html);
   let deleteResizable: (() => {}) | undefined;
+
+  container.get().removeEventListener;
+  container.on("click", async (ev) => {
+    const target = ev.target as HTMLElement;
+    if (target.classList?.contains("mosaic-image-button-rotate-left")) {
+      const nodeId = target.id.split("~")[0];
+      const node = findCellById(root!, nodeId);
+      if (node && node.image) {
+        const s = await getService();
+        s.rotate([node.image], "left");
+      }
+    } else if (target.classList.contains("mosaic-image-button-rotate-right")) {
+      const nodeId = target.id.split("~")[0];
+      const node = findCellById(root!, nodeId);
+      if (node && node.image) {
+        const s = await getService();
+        s.rotate([node.image], "right");
+      }
+    } else if (target.classList.contains("mosaic-image-button-trash")) {
+      const nodeId = target.id.split("~")[0];
+      const node = findCellById(root!, nodeId);
+      if (node && node.image) {
+        selectionManager.deselect(node.image);
+      }
+    }
+  });
 
   const nodes = [root];
   // Now create the div nodes
@@ -176,11 +223,13 @@ function rebuildMosaic(
         for (const node of nodes) {
           if (sizes[node.id]) node.weight = sizes[node.id];
         }
-        updated(projectData);
+        updated(false, false);
       };
-      resizable.events.on("resized", (ev: any) => {
-        debounce(evt, 200, "resize", false);
-      });
+      container.attachData(
+        resizable.events.on("resized", (ev: any) => {
+          debounce(evt, 200, "resize", false);
+        })
+      );
       deleteResizable = resizable.delete;
       container.css({
         position: "relative",
@@ -217,7 +266,11 @@ const GutterLabels: { [key in GutterSizes]: string } = {
   [GutterSizes.Large]: t("Large"),
 };
 
-async function installHandlers(container: _$, projectData: Mosaic) {
+async function installHandlers(
+  container: _$,
+  projectData: Mosaic,
+  redraw: (rebuildTree: boolean) => void
+) {
   function cellImageUpdated(cell: Cell) {
     container.all(`#${cell.id}`)[0]?.css({
       "background-image": `url(${thumbnailUrl(cell.image!, "th-large")})`,
@@ -225,19 +278,48 @@ async function installHandlers(container: _$, projectData: Mosaic) {
   }
   const s = await getService();
   const eventHandlers = [
-    s.on("picasaFileMetaChanged", async (e: { payload: AlbumEntryPicasa }) => {
-      const cell = leafs(projectData.root!).find(
-        (c) =>
-          c.image &&
-          idFromAlbumEntry(c.image, "") === idFromAlbumEntry(e.payload, "")
-      );
-      if (cell) {
-        cellImageUpdated(cell);
+    s.on(
+      "albumEntryAspectChanged",
+      async (e: { payload: AlbumEntryPicasa }) => {
+        const cell = leafs(projectData.root!).find(
+          (c) => c.image && lessThanEntry(c.image, e.payload) === 0
+        );
+        if (cell) {
+          cellImageUpdated(cell);
+        }
       }
-    }),
+    ),
   ];
   container.on("click", (ev: MouseEvent) => {
     console.info("click");
+  });
+  container.on("dragstart", (ev) => {
+    console.log("dragstart-container");
+    const dataTransfer = ev.dataTransfer;
+    if (dataTransfer) {
+      dataTransfer.setData("text/plain", (ev.target as any)?.id || "");
+      dataTransfer.effectAllowed = "move";
+    }
+    ev.stopPropagation();
+  });
+  container.on("dragover", async (ev) => {
+    ev.preventDefault();
+  });
+  container.on("drop", (ev) => {
+    if (!projectData.root) return;
+    const targetId = (ev.target as any)?.id;
+    const sourceId = ev.dataTransfer?.getData("text/plain");
+    const leaves = leafs(projectData.root!);
+    const source = leaves.find((l) => l.id === sourceId);
+    const target = leaves.find((l) => l.id === targetId);
+    if (source?.image && target?.image) {
+      console.info("swaping", source.image.name, target.image.name);
+      const tmp = source.image;
+      source.image = target.image;
+      target.image = tmp;
+    }
+    redraw(false);
+    ev.stopPropagation();
   });
   return eventHandlers;
 }
@@ -258,6 +340,7 @@ export async function newMosaicProject(
     orientation: Orientation.PAYSAGE,
     format: Format.F10x8,
     size: MosaicSizes.HD,
+    seed: Math.random(),
   };
   await s.writeProject(project, "new");
   return project;
@@ -292,9 +375,12 @@ export async function makeMosaicPage(
   entry: AlbumEntry
 ) {
   const e = $(editHTML);
-  const mosaic = $(".montage", e);
+  const mosaic = $(".mosaic-grid", e);
+  const mosaicContainer = $(".mosaic-container", e);
+  const scaled = $(".mosaic-container-child", e);
   let reflow: Function;
   let erase: Function;
+  let browserSelection: AlbumEntry[] = [];
 
   const project = await loadMosaicProject(entry);
 
@@ -304,31 +390,34 @@ export async function makeMosaicPage(
     async (e: { payload: { project: Mosaic; changeType: string } }) => {}
   );
 
-  const mosaicList: MosaicImages = project.payload.pool.map((img) => ({
-    entry: img,
-    key: idFromAlbumEntry(img, "select"),
-    label: "",
-    image: thumbnailUrl(img, "th-small"),
-    selected: project.payload.images.includes(img),
-  }));
-
-  const selectionManager = new SelectionManager(project.payload.pool);
+  const selectionManager = new SelectionManager<AlbumEntry>(
+    project.payload.images,
+    idFromAlbumEntry
+  );
   const parameters = $(".mosaic-parameters", e);
-  async function resized(sizes: any) {
-    // Updated the weights
-    /*const l = leafs(project.payload.root!);
-    for (const node of l) {
-      node.weight = sizes[node.id];
-    }*/
-    return savemosaicProject(project, "updateSize");
+
+  async function projectUpdated(redrawNow: boolean, rebuildTree: boolean) {
+    await savemosaicProject(project, "updateSize");
+    if (redrawNow) {
+      redraw(rebuildTree);
+    }
   }
 
-  function redraw() {
+  function redraw(rebuildTree = true) {
     if (erase) {
       erase();
     }
-    const r = rebuildMosaic(mosaic, project.payload, true, resized);
-    reflow = r.reflow;
+    const r = rebuildMosaic(
+      mosaic,
+      mosaicContainer.width,
+      mosaicContainer.height,
+      project.payload,
+      rebuildTree,
+      selectionManager,
+      projectUpdated
+    );
+    requestAnimationFrame(() => r.reflow());
+    reflow = r.reflow();
     erase = r.erase;
   }
 
@@ -343,8 +432,7 @@ export async function makeMosaicPage(
   orientationDropdown.emitter.on("select", ({ key }) => {
     project.payload.orientation = key;
     savemosaicProject(project, "updateOrientation");
-    redraw();
-    reflow();
+    redraw(true);
   });
   parameters.append(orientationDropdown.element);
 
@@ -372,8 +460,7 @@ export async function makeMosaicPage(
   );
   gutterDropdown.emitter.on("select", ({ key }) => {
     project.payload.gutter = key;
-    redraw();
-    reflow();
+    redraw(false);
     savemosaicProject(project, "updateGutter");
   });
   parameters.append(gutterDropdown.element);
@@ -389,8 +476,7 @@ export async function makeMosaicPage(
   layoutDropdown.emitter.on("select", ({ key }) => {
     project.payload.layout = key;
     savemosaicProject(project, "updateLayout");
-    redraw();
-    reflow();
+    redraw(true);
   });
   parameters.append(layoutDropdown.element);
 
@@ -405,38 +491,56 @@ export async function makeMosaicPage(
   formatDropdown.emitter.on("select", ({ key }) => {
     project.payload.format = key;
     savemosaicProject(project, "updateFormat");
-    redraw();
-    reflow();
+    redraw(true);
   });
   parameters.append(formatDropdown.element);
 
-  const imageControl = makeMultiselectImageList<MosaicImages>(
-    "Images",
-    mosaicList
+  const imageControl = makeMultiselectImageList(
+    t("Images"),
+    project.payload.pool,
+    selectionManager,
+    "th-small",
+    "mosaic-image-control"
   );
 
-  imageControl.emitter.on("multiselect", (e) => {
-    project.payload.images = e.items.map((i) => i.entry);
-    savemosaicProject(project, "updateImages");
-    redraw();
-    reflow();
-  });
-
-  $(".mosaic-images", e).empty().append(imageControl.element);
+  $(".mosaic-images", e).empty().append(imageControl);
   $(".mosaic-make", e).on("click", async () => {
     const s = await getService();
-    s.createJob(JOBNAMES.BUILD_PROJECT, {
+    const jobId = await s.createJob(JOBNAMES.BUILD_PROJECT, {
       source: [project],
-      argument: {
-        width: 1000,
-      },
+      argument: {},
+    });
+    s.waitJob(jobId).then((results: Job) => {
+      if (results.status === "finished") {
+        appEvents.emit("edit", {
+          initialList: [results.out[0]],
+          initialIndex: 0,
+        });
+      }
     });
   });
+  $(".mosaic-shuffle", e).on("click", async () => {
+    project.payload.seed = Math.random();
+    savemosaicProject(project, "updateSeed");
+    redraw(true);
+  });
+  $(".mosaic-import-selection", e).on("click", async () => {
+    const newImages = await albumEntriesWithMetadata(browserSelection);
+    project.payload.pool.push(...newImages);
+    const imageControl = makeMultiselectImageList(
+      t("Images"),
+      project.payload.pool,
+      selectionManager,
+      "th-small",
+      "mosaic-image-control"
+    );
 
-  redraw();
+    $(".mosaic-images", e).empty().append(imageControl);
+    savemosaicProject(project, "updatePool");
+  });
 
   const off = [
-    ...(await installHandlers(e, project.payload)),
+    ...(await installHandlers(e, project.payload, redraw)),
     appEvents.on("tabDeleted", ({ win }) => {
       if (win.get() === e.get()) {
         off.forEach((o) => o());
@@ -450,9 +554,37 @@ export async function makeMosaicPage(
         if (reflow) {
           reflow();
         }
-        //panner.moveTo(0,0);
-        //panner.zoomAbs(0, 0, 1);
       }
+    }),
+    appEvents.on("browserSelectionChanged", ({ selection }) => {
+      browserSelection = selection.filter(
+        (img) =>
+          !project.payload.pool
+            .map((i) => idFromAlbumEntry(i))
+            .includes(idFromAlbumEntry(img)) &&
+          img.album.kind === AlbumKind.FOLDER
+      );
+
+      const ctrl = $(".mosaic-import-selection", e);
+      ctrl.addRemoveClass("disabled", browserSelection.length === 0);
+      ctrl.text(
+        t(`${t("Import Selection")} (${browserSelection.length || t("None")})`)
+      );
+    }),
+    (() => {
+      const observer = new ResizeObserver(() => {
+        redraw(false);
+      });
+      observer.observe(e.get());
+      return () => observer.disconnect();
+    })(),
+    selectionManager.events.on("added", ({ key }) => {
+      project.payload.images = selectionManager.selected() as AlbumEntryWithMetadata[];
+      projectUpdated(true, true);
+    }),
+    selectionManager.events.on("removed", ({ key }) => {
+      project.payload.images = selectionManager.selected() as AlbumEntryWithMetadata[];
+      projectUpdated(true, true);
     }),
   ];
 
