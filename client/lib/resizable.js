@@ -384,9 +384,7 @@ Resizable.ContentWindow = class{
     this.children.push(w2);
 
     this.getTopLevelParent().calculateMinWidthHeight();
-
   }
-
 };
 
 

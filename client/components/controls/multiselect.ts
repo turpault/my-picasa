@@ -1,7 +1,12 @@
 import { buildEmitter, Emitter } from "../../../shared/lib/event";
 import { $, _$ } from "../../lib/dom";
-import { uuid } from "../../../shared/lib/utils";
-import { AlbumEntry } from "../../types/types";
+import { idFromAlbumEntry, uuid } from "../../../shared/lib/utils";
+import { AlbumEntry, ThumbnailSize } from "../../types/types";
+import {
+  AlbumEntrySelectionManager,
+  SelectionManager,
+} from "../../selection/selection-manager";
+import { thumbnailUrl } from "../../imageProcess/client";
 
 const singleLineSelectHTML = `
 <div class="w3-bar multiselect-control">
@@ -10,7 +15,7 @@ const singleLineSelectHTML = `
 </div>
 `;
 
-type SelectionList =  { image: string, key: any, selected: boolean }[];
+type SelectionList = { image: string; key: any; selected: boolean }[];
 type SelectEvents<T extends SelectionList> = {
   select: {
     index: number;
@@ -19,8 +24,7 @@ type SelectEvents<T extends SelectionList> = {
   multiselect: {
     index: number;
     key: any;
-    selected: boolean;
-    items: T
+    items: T;
   };
 };
 
@@ -30,22 +34,24 @@ export function makeChoiceList<T extends SelectionList>(
   currentKey: any
 ): { element: _$; emitter: Emitter<SelectEvents<T>> } {
   const e = $(singleLineSelectHTML);
-  const emitter = buildEmitter<SelectEvents<T>>();
-  const name =  uuid();
+  const emitter = buildEmitter<SelectEvents<T>>(false);
+  const name = uuid();
   $(".multiselect-label", e).text(label);
   items
     .map((item, index) => {
-      const id =  name + '|' + index.toString();
+      const id = name + "|" + index.toString();
       return $(`
     <span class="wrapper-space-evenly-element radio-toggle">
-      <input type="radio" class="radio-button" name="${name}" id="${id}" ${item.key === currentKey ? "checked" : ""}></input>
+      <input type="radio" class="radio-button" name="${name}" id="${id}" ${
+        item.key === currentKey ? "checked" : ""
+      }></input>
       <label for="${id}" class="radio-button-label">${item.label}</label>
     </span>`);
     })
     .forEach((item) => $(".multiselect-values", e).append(item));
 
   $(".multiselect-values", e).on("change", (e) => {
-    const index = parseInt((e.target as HTMLElement).id.split('|').pop()!);
+    const index = parseInt((e.target as HTMLElement).id.split("|").pop()!);
     emitter.emit("select", {
       index,
       key: items[index].key,
@@ -62,37 +68,44 @@ const multiSelectImageHTML = `
 </div>
 `;
 
-export function makeMultiselectImageList<T extends SelectionList>(
+export function makeMultiselectImageList(
   label: string,
-  items: T
-): { element: _$; emitter: Emitter<SelectEvents<T>> } {
+  pool: AlbumEntry[],
+  selectionManager: AlbumEntrySelectionManager,
+  imageThumbnailSize: ThumbnailSize,
+  imageClass: string = ""
+): _$ {
   const e = $(multiSelectImageHTML);
-  const emitter = buildEmitter<SelectEvents<T>>();
-  const name =  uuid();
+  const name = uuid();
   $(".multiselect-label", e).text(label);
-  items
-    .map((item, index) => {
-      const id =  name + '|' + index.toString();
-      return $(`
-      <img class="multiselect-image ${item.selected  ? "multiselect-image-selected" : ""} " loading="lazy" src="${item.image}" style="display: ${item.image ? "inline-block" : "none"}" class="radio-button-label">`);
-    })
-    .forEach((item) => $(".multiselect-values", e).append(item));
+  const vals = $(".multiselect-values", e)!;
 
-  $(".multiselect-values", e).on("click", (e) => {
-    const elem = (e.target as HTMLElement);
-    const index = parseInt(elem.id.split('|').pop()!);
-    if(!Number.isNaN(index)) {
-      items[index].selected = !items[index].selected;
-      $(elem).addRemoveClass("multiselect-image-selected", items[index].selected);
-    
-      emitter.emit("multiselect", {
-        index,
-        key: items[index].key,
-        selected: items[index].selected,
-        items
-      });
-    }
+  vals.empty();
+  pool.forEach((item, index) => {
+    const id = idFromAlbumEntry(item, name);
+    vals.append(
+      $(`
+      <img id="${id}" class="${imageClass} multiselect-image ${
+        selectionManager.isSelected(item) ? "multiselect-image-selected" : ""
+      } " loading="lazy" src="${thumbnailUrl(
+        item,
+        imageThumbnailSize
+      )}" style="display: inline-block" 
+        class="radio-button-label">`).on("click", () => {
+        selectionManager.toggle(item);
+      })
+    );
   });
 
-  return { element: e, emitter };
+  selectionManager.events.on("added", ({ key }) => {
+    const id = idFromAlbumEntry(key, name);
+    $(`#${id}`).optional()?.addRemoveClass("multiselect-image-selected", true);
+  });
+
+  selectionManager.events.on("removed", ({ key }) => {
+    const id = idFromAlbumEntry(key, name);
+    $(`#${id}`).optional()?.addRemoveClass("multiselect-image-selected", false);
+  });
+
+  return e;
 }

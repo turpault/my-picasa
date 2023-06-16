@@ -2,7 +2,10 @@ import { Point } from "ts-2d-geometry/dist";
 import { _$ } from "./lib/dom";
 import { Emitter } from "./lib/event";
 import { PicasaFilter } from "./lib/utils";
-import { SelectionManager } from "./selection/selection-manager";
+import {
+  AlbumEntrySelectionManager,
+  SelectionManager,
+} from "./selection/selection-manager";
 import { Album, AlbumEntry } from "./types/types";
 
 type iconFct = (context: string, original: string) => Promise<boolean>;
@@ -74,6 +77,9 @@ export type AppEvent = {
     alt: boolean;
     win: _$;
   };
+  browserSelectionChanged: {
+    selection: AlbumEntry[];
+  };
   // Well-known events sourced from tabs
   edit: { initialList: AlbumEntry[]; initialIndex: number };
   show: { initialList: AlbumEntry[]; initialIndex: number };
@@ -118,6 +124,6 @@ export type DraggableControlPositionEvent = {
 export type AlbumListEventSource = Emitter<AlbumListEvent>;
 
 export type TabContext = {
-  selectionManager: SelectionManager;
+  selectionManager: AlbumEntrySelectionManager;
   kind: "Browser" | "Editor" | "Mosaic" | "Gallery" | "Error" | "Slideshow";
 };

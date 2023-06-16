@@ -30,7 +30,7 @@ import {
 import {
   generateMosaicFile,
   makeMosaic,
-} from "../imageOperations/image-edits/composition";
+} from "../imageOperations/image-edits/mosaic";
 
 const jobs: Job[] = [];
 type MultiMoveJobArguments = {
@@ -85,7 +85,9 @@ export async function createFSJob(
     completion,
     awaiter: async () => {
       (await lock(jobId))();
+      return job;
     },
+    out: undefined,
   };
   jobs.push(job);
   executeJob(job)
@@ -582,8 +584,12 @@ async function buildProject(job: Job): Promise<Album[]> {
       const projectType = source.album.name as ProjectType;
       switch (projectType) {
         case ProjectType.MOSAIC:
-          await generateMosaicFile(source, job.data.argument.width);
+          const newEntry = await generateMosaicFile(
+            source,
+            job.data.argument.width
+          );
           updatedAlbums.push(source.album);
+          job.out = job.out ? [...job.out, newEntry] : [newEntry];
           break;
       }
     }

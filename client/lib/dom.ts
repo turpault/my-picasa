@@ -1,6 +1,9 @@
+import {
+  albumEntryFromId,
+  cssSplitValue,
+  idFromAlbumEntry,
+} from "../../shared/lib/utils";
 import { Album, AlbumEntry, AlbumKind } from "../types/types";
-import { cssSplitValue } from "../../shared/lib/utils";
-import { off } from "process";
 
 export function NodeListToFirstElem(
   e: HTMLElement | NodeListOf<HTMLElement> | undefined
@@ -62,6 +65,15 @@ export class _$ {
     );
     return this;
   }
+  off<K extends keyof HTMLElementEventMap>(
+    type: K,
+    listener: (this: _$, ev: HTMLElementEventMap[K]) => any
+  ): _$ {
+    this.get().removeEventListener(type, (...args) => {
+      listener.call(this, ...args);
+    });
+    return this;
+  }
   get(): HTMLElement {
     if (!this._e) {
       throw new Error("No element");
@@ -70,6 +82,9 @@ export class _$ {
   }
   exists(): boolean {
     return !!this._e;
+  }
+  optional(): _$ | undefined {
+    return this.exists() ? this : undefined;
   }
   proxy(): _$ {
     if (this._e) {
@@ -83,6 +98,13 @@ export class _$ {
         },
       }
     ) as _$;
+  }
+  attachData(...data: any[]): _$ {
+    (this.get() as any)._data = [...((this.get() as any)._data || []), data];
+    return this;
+  }
+  getData(): any[] {
+    return (this.get() as any)._data || [];
   }
   val(value?: any) {
     if (arguments.length === 0) {
@@ -448,14 +470,4 @@ export function albumEntryFromElementOrChild(
 
 export function setIdForEntry(e: _$, entry: AlbumEntry, qualifier: string) {
   e.id(idFromAlbumEntry(entry, qualifier));
-}
-function albumEntryFromId(id: string): AlbumEntry | null {
-  const [qualifier, valid, key, name, kind, entry] = id.split("|");
-  if (valid === "entry") {
-    return { album: { key, name, kind: kind as AlbumKind }, name: entry };
-  }
-  return null;
-}
-export function idFromAlbumEntry(entry: AlbumEntry, qualifier: string): string {
-  return `${qualifier}|entry|${entry.album.key}|${entry.album.name}|${entry.album.kind}|${entry.name}`;
 }

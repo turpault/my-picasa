@@ -1,7 +1,6 @@
 import { buildEmitter, Emitter } from "../shared/lib/event";
 import {
   albumInFilter,
-  debounce,
   debounced,
   removeDiacritics,
   sortByKey,
@@ -9,7 +8,6 @@ import {
 import {
   Album,
   AlbumChangeEvent,
-  AlbumEntry,
   AlbumKind,
   AlbumWithData,
 } from "../shared/types/types";
@@ -59,7 +57,7 @@ export class AlbumIndexedDataSource {
       s.monitorAlbums();
       let gotEvent = false;
 
-      s.on("shortcutsUpdated", async () => {
+      this.shortcutsUnreg = s.on("shortcutsUpdated", async () => {
         this.shortcuts = await s.getShortcuts();
         invalidations.push(0);
         invalidations.push(10);
@@ -70,6 +68,7 @@ export class AlbumIndexedDataSource {
           if (!gotEvent && event.type !== "albums") {
             continue;
           }
+          console.log("Got event", event.type, ";", event.album?.name);
           switch (event.type) {
             case "albums":
               {
@@ -118,6 +117,7 @@ export class AlbumIndexedDataSource {
   }
   async destroy() {
     if (this.unreg) this.unreg();
+    if (this.shortcutsUnreg) this.shortcutsUnreg();
   }
 
   async setFilter(filter: string) {
@@ -253,4 +253,5 @@ export class AlbumIndexedDataSource {
   public emitter: Emitter<AlbumListEvent>;
   private sort: AlbumSortOrder;
   private unreg: Function | undefined;
+  private shortcutsUnreg: Function | undefined;
 }

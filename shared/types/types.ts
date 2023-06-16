@@ -49,7 +49,8 @@ export type Job = {
   errors: string[];
   changed: Function;
   completion: Function;
-  awaiter: () => Promise<void>;
+  awaiter: () => Promise<any>;
+  out: any;
 };
 
 export enum JOBNAMES {
@@ -230,6 +231,7 @@ export type Mosaic = {
   gutter: number;
   root?: Cell;
   size: number;
+  seed: number;
 };
 
 export enum Layout {

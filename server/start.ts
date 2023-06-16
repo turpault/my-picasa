@@ -129,6 +129,7 @@ export function getPort() {
 
 export async function start(p?: number) {
   try {
+    // No port specified, get a random one
     if (!p) {
       p = getPort();
     }

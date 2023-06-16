@@ -24,9 +24,8 @@ export class ImagePanZoomController {
       //boundsPadding: 1,
       // smoothScroll: false,
     });
-    this.clientWidth = this.clientHeight = 0;
     this.element = c;
-    this.events = buildEmitter<PanZoomEvent>();
+    this.events = buildEmitter<PanZoomEvent>(false);
     this.panner.on("pan", (e: PanZoom) => {
       this.events.emit("pan", e.getTransform());
     });
@@ -39,11 +38,6 @@ export class ImagePanZoomController {
     this.recenter();
   }
 
-  setClientSize(w: number, h: number) {
-    this.clientWidth = w;
-    this.clientHeight = h;
-  }
-  
   screenToCanvasCoords(x: number, y: number): { x: number; y: number } {
     const transform = this.panner.getTransform();
     const offsets = { left: this.element.left, top: this.element.top };
@@ -55,9 +49,12 @@ export class ImagePanZoomController {
     return { x: targetX, y: targetY };
   }
 
-  canvasToScreenCoords(x: number, y: number): { x: number; y: number } {    
+  canvasToScreenCoords(x: number, y: number): { x: number; y: number } {
     const transform = this.panner.getTransform();
-    return {x: (x - transform.x)/transform.scale, y: (y - transform.y)/transform.scale};
+    return {
+      x: (x - transform.x) / transform.scale,
+      y: (y - transform.y) / transform.scale,
+    };
   }
 
   canvasBoundsOnScreen(): Rectangle {
@@ -81,10 +78,8 @@ export class ImagePanZoomController {
     const targetY =
       (canvasRatio * (y - transform.y - offsets.top)) / transform.scale / this.element.height;
     */
-    const targetX =
-      (x) / (transform.scale * this.element.width);
-    const targetY =
-      (y) / (transform.scale * this.element.height);
+    const targetX = x / (transform.scale * this.element.width);
+    const targetY = y / (transform.scale * this.element.height);
     return { x: targetX, y: targetY };
   }
 
@@ -147,15 +142,22 @@ export class ImagePanZoomController {
         top: "",
       });
       this.panner.resume();
-    } else{ 
+    } else {
       this.localTransforms = this.panner.getTransform();
-      const matrix = Matrix3x3.identity().scale(this.localTransforms.scale).timesMatrix(Matrix3x3.translation(-this.localTransforms.x, -this.localTransforms.y));      
-      this.element.css({      
+      const matrix = Matrix3x3.identity()
+        .scale(this.localTransforms.scale)
+        .timesMatrix(
+          Matrix3x3.translation(
+            -this.localTransforms.x,
+            -this.localTransforms.y
+          )
+        );
+      this.element.css({
         "transform-origin": `${0}px ${0}px`,
         position: "relative",
         //left: `${this.localTransforms.x}px`,
         //top: `${this.localTransforms.y}px`,
-        transform: toMatrix(matrix)
+        transform: toMatrix(matrix),
       });
       this.panner.pause();
     }
@@ -173,7 +175,10 @@ export class ImagePanZoomController {
     });*/
 
     //const matrix = JSON.parse(`[${this.localTransforms.slice(7,-1)}]`);
-    let matrix = Matrix3x3.translation(transform.x / transform.scale, transform.y / transform.scale); //Matrix3x3.identity();
+    let matrix = Matrix3x3.translation(
+      transform.x / transform.scale,
+      transform.y / transform.scale
+    ); //Matrix3x3.identity();
     let translation = Matrix3x3.translation(-elemCenter.x, -elemCenter.y);
     let translationBack = Matrix3x3.translation(elemCenter.x, elemCenter.y);
     matrix = matrix.timesMatrix(translationBack);
@@ -185,7 +190,7 @@ export class ImagePanZoomController {
     console.info("Output data", transform, elemCenter, values);
     this.element.css({
       transform: values,
-    });  
+    });
   }
   zoom(zoom: number) {
     const targetZoom = this.panner.getMinZoom() * zoom;
@@ -195,8 +200,6 @@ export class ImagePanZoomController {
     this.panner.smoothZoomAbs(parent.width / 2, parent.height / 2, targetZoom);
   }
   events: Emitter<PanZoomEvent>;
-  private clientWidth: number;
-  private clientHeight: number;
   private localTransforms?: Transform;
 
   private panner: PanZoom;

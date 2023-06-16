@@ -4,7 +4,7 @@ export type Task = (() => PromiseLike<any>) | (() => any);
 
 export type QueueEvent = {
   drain: {};
-  changed: { waiting: number, progress: number, done: number }
+  changed: { waiting: number; progress: number; done: number };
 };
 export class Queue {
   constructor(concurrency: number = 1, options?: { fifo?: boolean }) {
@@ -15,7 +15,7 @@ export class Queue {
     this.active = 0;
     this.total = 0;
     this.options = options || {};
-    this.event = buildEmitter<QueueEvent>();
+    this.event = buildEmitter<QueueEvent>(false);
   }
   add<T>(r: Task): Promise<T> {
     this.promises.push(r);
@@ -28,7 +28,11 @@ export class Queue {
     });
   }
   private changed() {
-    this.event.emit('changed', { waiting: this.promises.length - this.active, progress: this.active, done: this.total })
+    this.event.emit("changed", {
+      waiting: this.promises.length - this.active,
+      progress: this.active,
+      done: this.total,
+    });
   }
   clear() {
     this.promises = [];

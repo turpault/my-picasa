@@ -1,29 +1,35 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
 import { AlbumEntry } from "../../shared/types/types";
 
-export type SelectionEvent = {
-  added: { key: AlbumEntry; selection: AlbumEntry[] };
-  removed: { key: AlbumEntry; selection: AlbumEntry[] };
+export type SelectionEvent<T> = {
+  added: { key: T; selection: T[] };
+  removed: { key: T; selection: T[] };
 };
 
-export type SelectionEventSource = Emitter<SelectionEvent>;
-export class SelectionManager {
-  constructor(selection: AlbumEntry[] = []) {
-    this._selection = selection;
+export type AlbumEntrySelectionManager = SelectionManager<AlbumEntry>;
+export type AlbumEntrySelectionEventSource = Emitter<
+  SelectionEvent<AlbumEntry>
+>;
+export class SelectionManager<T> {
+  constructor(
+    selection: T[] = [],
+    idFct: (e: T) => string = (e) => JSON.stringify(e)
+  ) {
+    this._selection = [...selection];
+    this._idFct = idFct;
     this._debounce = 0;
-    this.events = buildEmitter<SelectionEvent>();
+    this.events = buildEmitter<SelectionEvent<T>>(false);
   }
-  isSelected(key: AlbumEntry): boolean {
+  isSelected(key: T): boolean {
     return (
-      this._selection.findIndex(
-        (e) => e.album.key === key.album.key && e.name === key.name
-      ) !== -1
+      this._selection.findIndex((e) => this._idFct(e) === this._idFct(key)) !==
+      -1
     );
   }
-  selected(): AlbumEntry[] {
+  selected(): T[] {
     return Array.from(this._selection);
   }
-  select(key: AlbumEntry) {
+  select(key: T) {
     this._debounce = new Date().getTime();
     if (!this.isSelected(key)) {
       this._selection.push(key);
@@ -33,7 +39,10 @@ export class SelectionManager {
       });
     }
   }
-  toggle(key: AlbumEntry) {
+  setSelection(keys: T[]) {
+    this._selection.splice(0, this._selection.length, ...keys);
+  }
+  toggle(key: T) {
     this._debounce = new Date().getTime();
     if (!this.isSelected(key)) {
       this.select(key);
@@ -41,13 +50,11 @@ export class SelectionManager {
       this.deselect(key);
     }
   }
-  deselect(key: AlbumEntry) {
+  deselect(key: T) {
     this._debounce = new Date().getTime();
     if (this.isSelected(key)) {
       this._selection.splice(
-        this._selection.findIndex(
-          (e) => e.album.key === key.album.key && e.name === key.name
-        ),
+        this._selection.findIndex((e) => this._idFct(e) === this._idFct(key)),
         1
       );
       this.events.emit("removed", {
@@ -58,8 +65,7 @@ export class SelectionManager {
   }
 
   clear() {
-    if (this._debounce + 500 > new Date().getTime()) 
-    {
+    if (this._debounce + 500 > new Date().getTime()) {
       //debugger;
       //return;
     }
@@ -68,11 +74,12 @@ export class SelectionManager {
       this.deselect(l);
     }
   }
-  last(): AlbumEntry | undefined {
+  last(): T | undefined {
     return this._selection[this._selection.length - 1];
   }
 
-  events: Emitter<SelectionEvent>;
-  private _selection: AlbumEntry[];
+  events: Emitter<SelectionEvent<T>>;
+  private _idFct: (e: T) => string;
+  private _selection: T[];
   private _debounce: number;
 }

@@ -20,7 +20,7 @@ async function toolIconForTool(
   original: string,
   tool: Tool
 ): Promise<string> {
-  const copy = await cloneContext(context, "tool "+tool.filterName);
+  const copy = await cloneContext(context, "tool " + tool.filterName);
   await tool.icon(copy, original);
   const res = await encode(copy, "image/jpeg", "base64url");
   await destroyContext(copy);
@@ -44,7 +44,7 @@ export class ToolRegistrar {
     this.tools = {};
     this.toolButtons = {};
     this.toolListElement = toolListElement;
-    this.events = buildEmitter<ToolRegistrarEvents>();
+    this.events = buildEmitter<ToolRegistrarEvents>(false);
     const ctrl = $(`
     <div class="tool-control tool-filter">
       <select class="filter-groups">
@@ -167,15 +167,14 @@ export class ToolRegistrar {
     });
   }
 
-  toolNameForFilter(filter:string): string | null {
+  toolNameForFilter(filter: string): string | null {
     const res = Object.entries(this.tools).find(
       ([_name, tool]) => tool.filterName === filter
     );
-    if(res) {
+    if (res) {
       return res[0];
     }
     return null;
-
   }
   makeUiForTool(
     filterName: string,
@@ -194,8 +193,8 @@ export class ToolRegistrar {
     return tool.buildUI(index, args, context);
   }
 
-  tool(name: string): Tool {
-    return this.tools[name];
+  tool(name: string): Tool | undefined {
+    return Object.values(this.tools).find((t) => t.filterName === name);
   }
 
   edit(index: number, name: string) {
@@ -231,11 +230,19 @@ export function make(e: _$, ctrl: ImageController): ToolRegistrar {
       if (fct) fct();
     }
     title.empty();
-    if(filters.length >0){
-      title.append($(`<button class='undo-last-operation'>${t('Cancel') + ' ' + registrar.toolNameForFilter(filters.slice(-1)[0].name)}</button>`).on('click', (e) => {
-        ctrl.deleteOperation(filters.length-1);
-        e.stopPropagation();
-      }));
+    if (filters.length > 0) {
+      title.append(
+        $(
+          `<button class='undo-last-operation'>${
+            t("Cancel") +
+            " " +
+            registrar.toolNameForFilter(filters.slice(-1)[0].name)
+          }</button>`
+        ).on("click", (e) => {
+          ctrl.deleteOperation(filters.length - 1);
+          e.stopPropagation();
+        })
+      );
     }
     const newControls = $("<div/>");
     const activeTools = filters;
@@ -269,7 +276,7 @@ export function make(e: _$, ctrl: ImageController): ToolRegistrar {
       // Go through the current list, and find if this tool was already applied
       const activeTools = ctrl.operationList();
       const found = activeTools.findIndex(
-        (t) => registrar.tool(t.name).multipleFamily === tool.multipleFamily
+        (t) => registrar.tool(t.name)?.multipleFamily === tool.multipleFamily
       );
       if (found !== -1) {
         if (activeTools[found].name === tool.filterName) {

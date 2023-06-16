@@ -1,21 +1,26 @@
 import { lock, range } from "../../shared/lib/utils";
 import {
   Album,
-  AlbumEntry, AlbumWithData,
-  JOBNAMES
+  AlbumEntry,
+  AlbumWithData,
+  JOBNAMES,
 } from "../../shared/types/types";
 import { AlbumIndexedDataSource } from "../album-data-source";
 import { getAlbumInfo } from "../folder-utils";
-import {
-  $,
-  albumFromElement, setIdForAlbum,
-  _$
-} from "../lib/dom";
+import { $, albumFromElement, setIdForAlbum, _$ } from "../lib/dom";
 import { toggleStar } from "../lib/handles";
-import { getSettings, getSettingsEmitter, updateFilterByStar, updateFilterByVideos } from "../lib/settings";
+import {
+  getSettings,
+  getSettingsEmitter,
+  updateFilterByStar,
+  updateFilterByVideos,
+} from "../lib/settings";
 import { MAX_STAR } from "../../shared/lib/shared-constants";
 import { getService } from "../rpc/connect";
-import { SelectionManager } from "../selection/selection-manager";
+import {
+  AlbumEntrySelectionManager,
+  SelectionManager,
+} from "../selection/selection-manager";
 import { AlbumListEventSource, AppEventSource } from "../uiTypes";
 import { Button, message } from "./message";
 import { t } from "./strings";
@@ -26,7 +31,7 @@ import {
   makeThumbnailManager,
   onDrop,
   selectThumbnailsInRect,
-  thumbnailData
+  thumbnailData,
 } from "./thumbnail";
 
 const extra = `
@@ -35,7 +40,7 @@ const extra = `
     class="w3-button filter-button"
   >Filtres</button>
   <div class="filter-menu-items w3-dropdown-content w3-bar-block w3-card-4">
-    <a class="filter-videos w3-bar-item w3-button">${t('Only Videos')}</a>
+    <a class="filter-videos w3-bar-item w3-button">${t("Only Videos")}</a>
   </div>
 </div>`;
 // Create two elements, allergic to visibility
@@ -51,7 +56,7 @@ const thumbElementPrefix = "thumb:";
 export async function makePhotoList(
   appEvents: AppEventSource,
   dataSource: AlbumIndexedDataSource,
-  selectionManager: SelectionManager
+  selectionManager: AlbumEntrySelectionManager
 ): Promise<_$> {
   appEvents.emit("ready", { state: false });
   let tabIsActive = false;
@@ -62,19 +67,30 @@ export async function makePhotoList(
   const displayed: _$[] = [];
   const photoList = $(html);
   const topMenu = $(extra);
-  const menuItems = $('.filter-menu-items', topMenu);
-  const filterByVideos = $('.filter-videos', menuItems);
-  filterByVideos.on('click',()=> updateFilterByVideos(!getSettings().filters.video));
-  range(1, MAX_STAR-1).forEach(star =>{
-    const item = $(`<a class="w3-bar-item w3-button filter-favorites-${star}">${t('Only Favorites') + ` ${star}`}</a>`);
-    item.on('click', ()=>updateFilterByStar(getSettings().filters.star === star ? 0 : star));
+  const menuItems = $(".filter-menu-items", topMenu);
+  const filterByVideos = $(".filter-videos", menuItems);
+  filterByVideos.on("click", () =>
+    updateFilterByVideos(!getSettings().filters.video)
+  );
+  range(1, MAX_STAR - 1).forEach((star) => {
+    const item = $(
+      `<a class="w3-bar-item w3-button filter-favorites-${star}">${
+        t("Only Favorites") + ` ${star}`
+      }</a>`
+    );
+    item.on("click", () =>
+      updateFilterByStar(getSettings().filters.star === star ? 0 : star)
+    );
     menuItems.append(item);
   });
   getSettingsEmitter().on("changed", () => {
     const settings = getSettings();
-    filterByVideos.addRemoveClass('list-check', settings.filters.video);
-    range(1, MAX_STAR-1).forEach(star =>{
-      $(`.filter-favorites-${star}`, menuItems).addRemoveClass('list-check', settings.filters.star === star);
+    filterByVideos.addRemoveClass("list-check", settings.filters.video);
+    range(1, MAX_STAR - 1).forEach((star) => {
+      $(`.filter-favorites-${star}`, menuItems).addRemoveClass(
+        "list-check",
+        settings.filters.star === star
+      );
     });
   });
 
@@ -114,7 +130,11 @@ export async function makePhotoList(
           {
             const entry = selectionManager.last();
             if (entry) {
-              const e = entryLeftRight(entry, thumbElementPrefix, code === "ArrowRight");
+              const e = entryLeftRight(
+                entry,
+                thumbElementPrefix,
+                code === "ArrowRight"
+              );
               if (e) {
                 if (!meta && !shift) {
                   selectionManager.clear();
@@ -129,7 +149,11 @@ export async function makePhotoList(
           {
             const entry = selectionManager.last();
             if (entry) {
-              const e = entryAboveBelow(entry, thumbElementPrefix, code === "ArrowDown");
+              const e = entryAboveBelow(
+                entry,
+                thumbElementPrefix,
+                code === "ArrowDown"
+              );
               if (e) {
                 if (!meta && !shift) {
                   selectionManager.clear();
@@ -206,7 +230,9 @@ export async function makePhotoList(
                   sels.length
                 );
               }
-              for (const sel of (fromAlbumIndex < toAlbumIndex ? sels: sels.reverse())) {
+              for (const sel of fromAlbumIndex < toAlbumIndex
+                ? sels
+                : sels.reverse()) {
                 selectionManager.select(sel);
               }
             });
@@ -218,7 +244,7 @@ export async function makePhotoList(
             const end = sels.findIndex((e) => e.name === to.name);
             sels.splice(Math.max(start, end) + 1, sels.length);
             sels.splice(0, Math.min(start, end));
-            for (const sel of (start<end ? sels: sels.reverse())) {
+            for (const sel of start < end ? sels : sels.reverse()) {
               selectionManager.select(sel);
             }
           });
@@ -302,24 +328,25 @@ export async function makePhotoList(
       }px`,
     });
   });
-
-  events.on("invalidateAt", async (event) => {
-    // Check if the album should be redrawn or not
-    const element = elementAtIndex(event.index);
-    if (element) {
-      const hasChanged = await populateElement(
-        element,
-        dataSource.albumAtIndex(event.index),
-        filter
-      );
-      if (hasChanged) {
-        doReflow |= REFLOW_FULL;
+  container.attachData(
+    events.on("invalidateAt", async (event) => {
+      // Check if the album should be redrawn or not
+      const element = elementAtIndex(event.index);
+      if (element) {
+        const hasChanged = await populateElement(
+          element,
+          dataSource.albumAtIndex(event.index),
+          filter
+        );
+        if (hasChanged) {
+          doReflow |= REFLOW_FULL;
+        }
       }
-    }
-  });
-  events.on("invalidateFrom", (event) => {
-    invalidateFrom(event.index);
-  });
+    }),
+    events.on("invalidateFrom", (event) => {
+      invalidateFrom(event.index);
+    })
+  );
   function moveToPool(element: _$) {
     pool.push(element);
     element.remove();
@@ -898,9 +925,11 @@ export async function makePhotoList(
     l();
   }
 
-  events.on("selected", ({ album }) => {
-    rebuildViewStartingFrom(album);
-  });
+  container.attachData(
+    events.on("selected", ({ album }) => {
+      rebuildViewStartingFrom(album);
+    })
+  );
 
   async function startGallery() {
     let initialList: AlbumEntry[] = [];

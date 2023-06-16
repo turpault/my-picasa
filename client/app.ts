@@ -1,6 +1,6 @@
 import { $ } from "../client/lib/dom";
 import { buildEmitter } from "../shared/lib/event";
-import { fromBase64, toBase64 } from "../shared/lib/utils";
+import { fromBase64, idFromAlbumEntry, toBase64 } from "../shared/lib/utils";
 import { AlbumEntry, AlbumKind, ProjectType } from "../shared/types/types";
 import { AlbumIndexedDataSource } from "./album-data-source";
 import { makeBrowser } from "./components/browser";
@@ -16,7 +16,10 @@ import { question } from "./components/question";
 import { initClientSentry } from "./components/sentry";
 import { t } from "./components/strings";
 import { makeTab, makeTabs, selectTab } from "./components/tabs";
-import { albumEntriesWithMetadata } from "./imageProcess/client";
+import {
+  albumEntriesWithMetadata,
+  initCacheBuster,
+} from "./imageProcess/client";
 import { makeSettings } from "./lib/settings";
 import { getService, setServicePort } from "./rpc/connect";
 import { SelectionManager } from "./selection/selection-manager";
@@ -24,7 +27,8 @@ import { AppEvent } from "./uiTypes";
 async function init(port: number) {
   initClientSentry();
   setServicePort(port);
-  const emitter = buildEmitter<AppEvent>();
+  initCacheBuster();
+  const emitter = buildEmitter<AppEvent>(false);
   const s = await getService();
   await consoleOverload();
   const dataSource = new AlbumIndexedDataSource();
@@ -114,6 +118,7 @@ async function init(port: number) {
     selectTab(win);
     await dataSource.init();
   }
+
   const searchParams = new URLSearchParams(location.search || "");
 
   let showInNewWindow = false;
@@ -136,7 +141,10 @@ async function init(port: number) {
       const { win, tab } = await makeErrorPage(e);
       makeTab(win, tab, {
         kind: "Browser",
-        selectionManager: new SelectionManager(),
+        selectionManager: new SelectionManager<AlbumEntry>(
+          [],
+          idFromAlbumEntry
+        ),
       });
     }
   }
@@ -183,6 +191,6 @@ async function init(port: number) {
 
 window.addEventListener("load", () => {
   const searchParams = new URLSearchParams(location.search);
-  const port = parseInt(searchParams.get("port") || "5500");
+  const port = parseInt(searchParams.get("port") || location.port || "5500");
   init(port);
 });
