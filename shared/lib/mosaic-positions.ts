@@ -25,6 +25,14 @@ export function calculateImagePositions(
     leftCell: Cell;
     rightCell: Cell;
   }[];
+  cellBounds: {
+    [id: string]: {
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    };
+  };
 } {
   if (cell.childs) {
     if (cell.split === "v") {
@@ -47,7 +55,8 @@ export function calculateImagePositions(
       );
       const gutterPos = {
         top,
-        left: (cell.childs.left.weight / totalWeight) * width - gutter / 2,
+        left:
+          left + (cell.childs.left.weight / totalWeight) * width - gutter / 2,
         width: gutter,
         height,
         leftCell: cell.childs.left,
@@ -57,6 +66,11 @@ export function calculateImagePositions(
       return {
         images: [...leftCalc.images, ...rightCalc.images],
         gutters: [gutterPos, ...leftCalc.gutters, ...rightCalc.gutters],
+        cellBounds: {
+          [cell.id]: { left, top, width, height },
+          ...leftCalc.cellBounds,
+          ...rightCalc.cellBounds,
+        },
       };
     } else {
       const totalWeight = cell.childs.left.weight + cell.childs.right.weight;
@@ -89,6 +103,11 @@ export function calculateImagePositions(
       return {
         images: [...topCalc.images, ...bottomCalc.images],
         gutters: [gutterPos, ...topCalc.gutters, ...bottomCalc.gutters],
+        cellBounds: {
+          [cell.id]: { left, top, width, height },
+          ...topCalc.cellBounds,
+          ...bottomCalc.cellBounds,
+        },
       };
     }
   } else {
@@ -104,6 +123,9 @@ export function calculateImagePositions(
         },
       ],
       gutters: [],
+      cellBounds: {
+        [cell.id]: { left, top, width, height },
+      },
     };
   }
 }

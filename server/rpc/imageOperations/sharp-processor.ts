@@ -202,11 +202,13 @@ export async function transform(
         break;
       case "rotate":
         {
-          await commit(context);
-          j = getContext(context);
           let r: number;
           if (args[1] && (r = parseInt(args[1])) != 0) {
-            j = j.rotate(-r * 90);
+            if (r % 4 !== 0) {
+              await commit(context);
+              j = getContext(context);
+              j = j.rotate(-r * 90);
+            }
           }
         }
         break;
@@ -218,7 +220,10 @@ export async function transform(
         break;
       case "crop64":
         const crop = decodeRect(args[1]);
-        if (crop) {
+        if (
+          crop &&
+          (crop.left > 0 || crop.top > 0 || crop.right < 1 || crop.bottom < 1)
+        ) {
           const { info } = await j.raw().toBuffer({ resolveWithObject: true });
           const w = info.width!;
           const h = info.height!;
@@ -242,17 +247,19 @@ export async function transform(
         break;
       case "fill":
         {
-          await commit(context);
-          j = getContext(context);
           const amount = parseFloat(args[1]);
-          //j = j.gamma(2.2, 1 + amount);
-          j = j.modulate({ brightness: 1 + amount });
+          if (amount !== 0) {
+            await commit(context);
+            j = getContext(context);
+            //j = j.gamma(2.2, 1 + amount);
+            j = j.modulate({ brightness: 1 + amount });
+          }
         }
         break;
       case "blur":
         {
           const amount = parseFloat(args[1]);
-          j = j.blur(amount);
+          if (amount !== 0) j = j.blur(amount);
         }
         break;
       case "sharpen":
@@ -262,28 +269,29 @@ export async function transform(
 
       case "tilt":
         const angleDeg = 10 * parseFloat(args[1]); // in degrees
-        const angle = (Math.PI * angleDeg) / 180;
-        let scale = parseInt(args[2]);
-        j = await branchContext(j);
-        const metadata = await j.metadata();
-        const w = metadata.width!;
-        const h = metadata.height!;
-        const newRect = rotateRectangle(w, h, angle);
-        if (scale === 0 || Number.isNaN(scale)) {
-          scale = newRect.ratio;
-        }
+        if (angleDeg != 0) {
+          const angle = (Math.PI * angleDeg) / 180;
+          let scale = parseInt(args[2]);
+          j = await branchContext(j);
+          const metadata = await j.metadata();
+          const w = metadata.width!;
+          const h = metadata.height!;
+          const newRect = rotateRectangle(w, h, angle);
+          if (scale === 0 || Number.isNaN(scale)) {
+            scale = newRect.ratio;
+          }
 
-        j = j.rotate(-angleDeg);
-        j = await branchContext(j);
+          j = j.rotate(-angleDeg);
+          j = await branchContext(j);
 
-        const rw = Math.floor(newRect.w * scale);
-        const rh = Math.floor(newRect.h * scale);
-        j = j.resize(rw, rh);
-        j = await branchContext(j);
+          const rw = Math.floor(newRect.w * scale);
+          const rh = Math.floor(newRect.h * scale);
+          j = j.resize(rw, rh);
+          j = await branchContext(j);
 
-        const rl = Math.floor((rw - w) / 2);
-        const rt = Math.floor((rh - h) / 2);
-        /*const layers2: sharp.OverlayOptions[] = [
+          const rl = Math.floor((rw - w) / 2);
+          const rt = Math.floor((rh - h) / 2);
+          /*const layers2: sharp.OverlayOptions[] = [
           {
             input: {
               create: {
@@ -300,12 +308,13 @@ export async function transform(
         ];
 
         j = j.composite(layers2);*/
-        j = j.extract({
-          left: rl,
-          top: rt,
-          width: w,
-          height: h,
-        });
+          j = j.extract({
+            left: rl,
+            top: rt,
+            width: w,
+            height: h,
+          });
+        }
         break;
       case "Orton":
         {

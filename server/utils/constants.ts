@@ -14,7 +14,7 @@ export const PhotoLibraryPath =
   "/Volumes/1TB USB/Phototheque MacOS/Photothèque.photoslibrary";
 export const ProjectOutputFolder = join(
   defaultNewFolder,
-  new Date().getFullYear().toString() + "Mosaic Projects"
+  new Date().getFullYear().toString() + " Mosaic Projects"
 );
 export const ThumbnailSizes = {
   "th-small": 100,

@@ -1,7 +1,6 @@
-const { Resizable } = require("../lib/resizable");
 import { buildEmitter } from "../../shared/lib/event";
 import {
-  debounce,
+  debounced,
   idFromAlbumEntry,
   lessThanEntry,
   valuesOfEnum,
@@ -25,6 +24,7 @@ import {
 } from "../../shared/types/types";
 import { albumEntriesWithMetadata, thumbnailUrl } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
+import { resizable } from "../lib/resizable";
 import { getService } from "../rpc/connect";
 import {
   AlbumEntrySelectionManager,
@@ -75,9 +75,7 @@ const editHTML = `
 function buildHTMLForNode(node: Cell): string {
   let res = "";
   if (node.childs && node.childs.left) {
-    let resizableStyle =
-      node.split === "h" ? "resizable-top" : "resizable-left";
-    res += `<div class="${resizableStyle} mosaic-element ${
+    res += `<div class="mosaic-element ${
       node.childs!.left.image ? "mosaic-image" : ""
     } " ${
       node.childs!.left.image
@@ -91,9 +89,7 @@ function buildHTMLForNode(node: Cell): string {
     )}</div>`;
   }
   if (node.childs && node.childs.right) {
-    let resizableStyle =
-      node.split === "h" ? "resizable-bottom" : "resizable-right";
-    res += `<div class="${resizableStyle} mosaic-element ${
+    res += `<div  class="mosaic-element ${
       node.childs!.right.image ? "mosaic-image" : ""
     }"  ${
       node.childs!.right.image
@@ -134,27 +130,14 @@ function rebuildMosaic(
   rebuild: boolean,
   selectionManager: AlbumEntrySelectionManager,
   updated: (redraw: boolean, rebuild: boolean) => void
-): { reflow: Function; erase: Function } {
+): { reflow: Function } {
   container.empty();
 
-  let ratio = projectData.format;
-
-  if (projectData.orientation === Orientation.PORTRAIT) {
-    ratio = 1 / ratio;
-  }
-  let updatedW = height * ratio;
-  let updatedH = height;
-  if (updatedW > width) {
-    updatedW = width;
-    updatedH = width / ratio;
-  }
-
   container.css({
-    width: `${updatedW}px`,
-    height: `${updatedH}px`,
+    width: `${width}px`,
+    height: `${height}px`,
   });
-  const l =
-    projectData.orientation === Orientation.PAYSAGE ? updatedW : updatedH;
+  const l = projectData.orientation === Orientation.PAYSAGE ? width : height;
   const gutterInPx = (projectData.gutter / 100) * l;
 
   let root: Cell | undefined;
@@ -213,33 +196,9 @@ function rebuildMosaic(
         deleteResizable = undefined;
       }
 
-      const resizable = Resizable.initialise(
-        container.get(),
-        sizes,
-        gutterInPx
-      );
-      const evt = () => {
-        const sizes = Resizable.getSizes(resizable);
-        for (const node of nodes) {
-          if (sizes[node.id]) node.weight = sizes[node.id];
-        }
-        updated(false, false);
-      };
-      container.attachData(
-        resizable.events.on("resized", (ev: any) => {
-          debounce(evt, 200, "resize", false);
-        })
-      );
-      deleteResizable = resizable.delete;
-      container.css({
-        position: "relative",
-      });
-    },
-    erase: () => {
-      if (deleteResizable) {
-        deleteResizable();
-        deleteResizable = undefined;
-      }
+      const debouncedUpdated = debounced(updated, 200, false) as () => void;
+      if (root)
+        resizable(container, root, width, height, gutterInPx, debouncedUpdated);
     },
   };
 }
@@ -370,6 +329,25 @@ export async function savemosaicProject(
   await s.writeProject(project, changeType);
 }
 
+function sanitizeTree(root: Cell) {
+  if (root.childs) {
+    if (!root.childs.left || !root.childs.right) {
+      root.childs = undefined;
+    } else {
+      sanitizeTree(root.childs.left);
+      sanitizeTree(root.childs.right);
+    }
+  }
+  if (
+    Number.isNaN(root.weight) ||
+    root.weight < 0 ||
+    root.weight > 1 ||
+    root.weight === undefined
+  ) {
+    root.weight = 1;
+  }
+}
+
 export async function makeMosaicPage(
   appEvents: AppEventSource,
   entry: AlbumEntry
@@ -377,9 +355,7 @@ export async function makeMosaicPage(
   const e = $(editHTML);
   const mosaic = $(".mosaic-grid", e);
   const mosaicContainer = $(".mosaic-container", e);
-  const scaled = $(".mosaic-container-child", e);
   let reflow: Function;
-  let erase: Function;
   let browserSelection: AlbumEntry[] = [];
 
   const project = await loadMosaicProject(entry);
@@ -404,13 +380,25 @@ export async function makeMosaicPage(
   }
 
   function redraw(rebuildTree = true) {
-    if (erase) {
-      erase();
+    const width = mosaicContainer.width;
+    const height = mosaicContainer.height;
+    let ratio = project.payload.format;
+
+    if (project.payload.orientation === Orientation.PORTRAIT) {
+      ratio = 1 / ratio;
     }
+
+    let updatedW = height * ratio;
+    let updatedH = height;
+    if (updatedW > width) {
+      updatedW = width;
+      updatedH = width / ratio;
+    }
+
     const r = rebuildMosaic(
       mosaic,
-      mosaicContainer.width,
-      mosaicContainer.height,
+      updatedW,
+      updatedH,
       project.payload,
       rebuildTree,
       selectionManager,
@@ -418,7 +406,6 @@ export async function makeMosaicPage(
     );
     requestAnimationFrame(() => r.reflow());
     reflow = r.reflow();
-    erase = r.erase;
   }
 
   const orientationDropdown = makeChoiceList(
@@ -544,9 +531,6 @@ export async function makeMosaicPage(
     appEvents.on("tabDeleted", ({ win }) => {
       if (win.get() === e.get()) {
         off.forEach((o) => o());
-        if (erase) {
-          erase();
-        }
       }
     }),
     appEvents.on("tabDisplayed", ({ win }) => {
