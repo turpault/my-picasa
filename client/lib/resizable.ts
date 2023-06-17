@@ -19,7 +19,14 @@ export function resizable(
   gutter: number,
   onResized: () => void
 ) {
-  let pos = calculateImagePositions(root, gutter, 0, 0, width, height);
+  let pos = calculateImagePositions(
+    root,
+    gutter,
+    gutter / 2,
+    gutter / 2,
+    width - gutter,
+    height - gutter
+  );
   // create gutters
   parent.all(".gutter").forEach((e) => e.remove());
   let movingGutter: _$ | undefined;
@@ -99,7 +106,14 @@ export function resizable(
       gutterPos.leftCell.weight = weight;
       gutterPos.rightCell.weight = 1 - weight;
     }
-    pos = calculateImagePositions(root, gutter, 0, 0, width, height);
+    pos = calculateImagePositions(
+      root,
+      gutter,
+      gutter / 2,
+      gutter / 2,
+      width - gutter,
+      height - gutter
+    );
     reposition();
     onResized();
   }

@@ -1,4 +1,4 @@
-import { prng, uuid } from "../../shared/lib/utils";
+import { prng, range, uuid } from "../../shared/lib/utils";
 import { AlbumEntryWithMetadata, Cell } from "../../shared/types/types";
 
 export function leaves(nodes: Cell[]) {
@@ -17,7 +17,66 @@ export function leafs(node: Cell): Cell[] {
   return [...leafs(node.childs.left), ...leafs(node.childs.right)];
 }
 
-export function buildCells(list: AlbumEntryWithMetadata[], seed: number): Cell {
+export function buildSquareCells(
+  list: AlbumEntryWithMetadata[],
+  seed: number,
+  ratio: number
+): Cell {
+  const rnd = prng(parseInt(seed.toString(10).replace(".", "")));
+  const imgCount = list.length;
+  const n = Math.floor(Math.sqrt(imgCount * ratio));
+  const m = Math.floor(imgCount / n);
+  // Only one image
+  if (n === m && n === 1) {
+    return {
+      id: uuid(),
+      split: "v",
+      weight: 1,
+      image: list[0],
+    };
+  }
+  function splitCell(
+    split: "h" | "v",
+    count: number
+  ): { left: Cell; right: Cell } {
+    return {
+      left: { id: uuid(), split, weight: 1 / count },
+      right: {
+        id: uuid(),
+        split,
+        weight: 1 - 1 / count,
+        childs: count > 2 ? splitCell(split, count - 1) : undefined,
+      },
+    };
+  }
+  let split: "h" | "v" = m < n ? "h" : "v";
+  let root: Cell = {
+    id: uuid(),
+    split,
+    weight: 1,
+    childs: n > 1 ? splitCell(split, n) : undefined,
+  };
+  if (m > 1) {
+    split = split === "h" ? "v" : "h";
+    leafs(root).forEach((leaf) => {
+      leaf.split = split;
+      leaf.childs = splitCell(split, m);
+    });
+  }
+  const randomLeaves = leafs(root).sort(() => (rnd() > 0.5 ? -1 : 1));
+  for (const img of list) {
+    const leaf = randomLeaves.pop();
+    if (leaf) {
+      leaf.image = img;
+    }
+  }
+  return root;
+}
+
+export function buildMosaicCells(
+  list: AlbumEntryWithMetadata[],
+  seed: number
+): Cell {
   const rnd = prng(parseInt(seed.toString(10).replace(".", "")));
   // 1- sort images as portrait/paysage/square
   const portrait: AlbumEntryWithMetadata[] = [];
@@ -71,7 +130,7 @@ export function buildCells(list: AlbumEntryWithMetadata[], seed: number): Cell {
     throw new Error("Wrong number of leaves");
   }
 
-  const randomized1 = [...allNodes].sort(() => ((rnd() >0.5) ? -1 : 1));
+  const randomized1 = [...allNodes].sort(() => (rnd() > 0.5 ? -1 : 1));
   // Remove extra nodes
   let extraNodeCount = Math.pow(2, depth) - list.length;
   for (const node of randomized1) {
@@ -92,7 +151,7 @@ export function buildCells(list: AlbumEntryWithMetadata[], seed: number): Cell {
     throw new Error("Wrong number of leaves");
   }
   // Assign a picture to leaf nodes
-  const randomLeaves = leafs(root).sort(() => ((rnd() >0.5 ) ? -1 : 1));
+  const randomLeaves = leafs(root).sort(() => (rnd() > 0.5 ? -1 : 1));
   const paysagePool = [...paysage];
   const portraitPool = [...portrait];
   const squarePool = [...square];

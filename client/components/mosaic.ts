@@ -24,6 +24,7 @@ import {
 } from "../../shared/types/types";
 import { albumEntriesWithMetadata, thumbnailUrl } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
+import { update } from "../lib/idb-keyval";
 import { resizable } from "../lib/resizable";
 import { getService } from "../rpc/connect";
 import {
@@ -35,7 +36,11 @@ import {
   makeChoiceList,
   makeMultiselectImageList,
 } from "./controls/multiselect";
-import { buildCells, leafs } from "./mosaic-tree-builder";
+import {
+  buildMosaicCells,
+  buildSquareCells,
+  leafs,
+} from "./mosaic-tree-builder";
 import { t } from "./strings";
 import { TabEvent, makeGenericTab } from "./tabs";
 
@@ -142,7 +147,18 @@ function rebuildMosaic(
 
   let root: Cell | undefined;
   if (rebuild || !projectData.root) {
-    root = buildCells(projectData.images, projectData.seed);
+    switch (projectData.layout) {
+      case Layout.MOSAIC:
+        root = buildMosaicCells(projectData.images, projectData.seed);
+        break;
+      case Layout.SQUARE:
+        root = buildSquareCells(
+          projectData.images,
+          projectData.seed,
+          width / height
+        );
+        break;
+    }
     projectData.root = root;
     updated(false, false);
   } else {
@@ -228,7 +244,7 @@ const GutterLabels: { [key in GutterSizes]: string } = {
 async function installHandlers(
   container: _$,
   projectData: Mosaic,
-  redraw: (rebuildTree: boolean) => void
+  projectUpdated: (redraw: boolean, rebuildTree: boolean) => void
 ) {
   function cellImageUpdated(cell: Cell) {
     container.all(`#${cell.id}`)[0]?.css({
@@ -276,8 +292,8 @@ async function installHandlers(
       const tmp = source.image;
       source.image = target.image;
       target.image = tmp;
+      projectUpdated(true, false);
     }
-    redraw(false);
     ev.stopPropagation();
   });
   return eventHandlers;
@@ -527,7 +543,7 @@ export async function makeMosaicPage(
   });
 
   const off = [
-    ...(await installHandlers(e, project.payload, redraw)),
+    ...(await installHandlers(e, project.payload, projectUpdated)),
     appEvents.on("tabDeleted", ({ win }) => {
       if (win.get() === e.get()) {
         off.forEach((o) => o());
@@ -552,7 +568,7 @@ export async function makeMosaicPage(
       const ctrl = $(".mosaic-import-selection", e);
       ctrl.addRemoveClass("disabled", browserSelection.length === 0);
       ctrl.text(
-        t(`${t("Import Selection")} (${browserSelection.length || t("None")})`)
+        `${t("Import Selection")} (${browserSelection.length || t("None")})`
       );
     }),
     (() => {
