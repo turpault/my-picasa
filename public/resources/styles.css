@@ -1270,7 +1270,7 @@ body {
 }
 
 .mosaic-grid {
-  background: rgb(221, 221, 221);
+  background: white;
   position: relative;
   width: 1000px;
   height: 800px;
@@ -1287,8 +1287,8 @@ body {
 }
 
 .gutter {
-  background-color: darkgray;
-  border:1px solid blue
+  background-color: white;
+  /* border:1px solid blue; */
 }
 .mosaic-element {
   background-position: center center;
