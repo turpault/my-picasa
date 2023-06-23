@@ -1,12 +1,8 @@
-import { Point } from "ts-2d-geometry/dist";
 import { _$ } from "./lib/dom";
 import { Emitter } from "./lib/event";
 import { PicasaFilter } from "./lib/utils";
-import {
-  AlbumEntrySelectionManager,
-  SelectionManager,
-} from "./selection/selection-manager";
-import { Album, AlbumEntry } from "./types/types";
+import { AlbumEntrySelectionManager } from "./selection/selection-manager";
+import { Album, AlbumEntry, Node } from "./types/types";
 
 type iconFct = (context: string, original: string) => Promise<boolean>;
 type activateFct = (index: number, args?: string[]) => Promise<boolean>;
@@ -49,6 +45,7 @@ export type ImageControllerEvent = {
   busy: {};
   operationListChanged: {};
   displayed: {};
+  visible: { info: any; entry: AlbumEntry };
 };
 
 export type AppEvent = {
@@ -113,6 +110,10 @@ export type AlbumListEvent = {
     filter: string;
   };
   ready: {};
+  nodeChanged: {
+    node: Node;
+  };
+  reset: {};
 };
 
 export type DraggableControlPositionEvent = {

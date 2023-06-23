@@ -99,12 +99,19 @@ export class _$ {
       }
     ) as _$;
   }
-  attachData(...data: any[]): _$ {
-    (this.get() as any)._data = [...((this.get() as any)._data || []), ...data];
+  attachData(data: { [key: string]: any }): _$ {
+    (this.get() as any)._data = {
+      ...((this.get() as any)._data || {}),
+      ...data,
+    };
     return this;
   }
-  getData(): any[] {
-    return (this.get() as any)._data || [];
+  replaceWith(e: _$): _$ {
+    this.get().replaceWith(e.get());
+    return this;
+  }
+  getData(): { [key: string]: any } {
+    return (this.get() as any)._data || {};
   }
   val(value?: any) {
     if (arguments.length === 0) {
@@ -121,14 +128,15 @@ export class _$ {
     this.css("top", `${pos.y}px`);
     return this;
   }
-  text(value?: any) {
+  text(value: any): _$;
+  text(value?: any): _$ | string {
     const nodes = this.get().childNodes;
     let found = false;
     for (var i = 0; i < nodes.length; i++) {
       // Check for a text node
       if (nodes[i].nodeType === 3) {
         if (arguments.length === 0) {
-          return nodes[i].textContent;
+          return nodes[i].textContent || "";
         }
         nodes[i].textContent = value;
         found = true;
@@ -217,6 +225,7 @@ export class _$ {
     } else {
       this.removeClass(name);
     }
+    return this;
   }
   all(selector: string): _$[] {
     return Array.from(this.get().querySelectorAll(selector)).map((e) =>

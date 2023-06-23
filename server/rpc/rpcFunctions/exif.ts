@@ -2,11 +2,12 @@ import exifr from "exifr";
 import { Stats } from "fs";
 import { stat } from "fs/promises";
 import { join } from "path";
-import { isPicture, isVideo } from "../../../shared/lib/utils";
+import { isPicture, isVideo, lock } from "../../../shared/lib/utils";
 import { AlbumEntry, idFromKey } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { entryFilePath } from "../../utils/serverUtils";
 import { readPicasaEntry, updatePicasaEntry } from "./picasaIni";
+import { dimensionsFromFile } from "../imageOperations/sharp-processor";
 
 export async function exifDataAndStats(
   entry: AlbumEntry
@@ -80,22 +81,35 @@ function filterExifTags(tags: any): any {
 export async function exifData(entry: AlbumEntry): Promise<any> {
   const picasaEntry = await readPicasaEntry(entry);
   if (isPicture(entry)) {
-    if (picasaEntry.exif) {
-      return JSON.parse(picasaEntry.exif);
-    }
-    const path = join(imagesRoot, idFromKey(entry.album.key).id, entry.name);
-    console.info(`Read exif from ${path}`);
-    const tags = await exifr.parse(entryFilePath(entry)).catch((e: any) => {
-      console.error(`Exception while reading exif for ${path}: ${e}`);
-      return {};
-    });
-    const filtered = filterExifTags(tags || {});
-    updatePicasaEntry(entry, "exif", JSON.stringify(filtered));
+    const path = entryFilePath(entry);
+    const r = await lock(`exifData/${path}`);
+    try {
+      const stats = await stat(path);
+      if (picasaEntry.exif) {
+        return { ...JSON.parse(picasaEntry.exif), ...stats };
+      }
+      console.info(`Read exif from ${path}`);
+      const tags = await exifr.parse(path).catch((e: any) => {
+        console.error(`Exception while reading exif for ${path}: ${e}`);
+        return {};
+      });
+      const dimensions = await dimensionsFromFile(path);
+      const filtered = {
+        ...filterExifTags(tags || {}),
+        imageWidth: dimensions.width,
+        imageHeight: dimensions.height,
+      };
+      updatePicasaEntry(entry, "exif", JSON.stringify(filtered));
 
-    return filtered;
+      return { ...filtered, ...stats };
+    } finally {
+      r();
+    }
   } else if (isVideo(entry)) {
+    const path = entryFilePath(entry);
+    const stats = await stat(path);
     // no tags yet
-    return {};
+    return { ...stats };
   }
   // Not a video or picture
   return {};

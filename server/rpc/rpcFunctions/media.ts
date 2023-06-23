@@ -143,19 +143,22 @@ export async function assetsInFolderAlbum(
   const entries: AlbumEntry[] = [];
   const folders: string[] = [];
 
-  for (const i of items) {
-    if (!i.startsWith(".")) {
-      const entry = { album, name: i };
-      if (isPicture(entry) || isVideo(entry)) {
-        entries.push(entry);
-      } else {
-        const s = await stat(join(imagesRoot, idFromKey(album.key).id, i));
-        if (s.isDirectory()) {
-          folders.push(i);
+  await Promise.all(
+    items
+      .filter((i) => !i.startsWith("."))
+      .map(async (i) => {
+        const entry = { album, name: i };
+        if (isPicture(entry) || isVideo(entry)) {
+          entries.push(entry);
+        } else {
+          const s = await stat(join(imagesRoot, idFromKey(album.key).id, i));
+          if (s.isDirectory()) {
+            folders.push(i);
+          }
         }
-      }
-    }
-  }
+      })
+  );
+
   return { entries, folders };
 }
 

@@ -113,7 +113,10 @@ export type Album = {
   kind: AlbumKind;
 };
 
-export type AlbumWithData = Album & { count: number; shortcut?: string };
+export type AlbumWithData = Album & {
+  count: number;
+  shortcut?: string;
+};
 
 const sep = "»";
 export function keyFromID(id: string, kind: AlbumKind) {
@@ -130,7 +133,7 @@ export type AlbumChangeType =
   | "albumDeleted"
   | "albumAdded"
   | "albumInfoUpdated"
-  | "albumMoved"
+  | "albumRenamed"
   | "albumOrderUpdated"
   | "shortcutsUpdated";
 export type AlbumChangeEvent = {
@@ -138,6 +141,13 @@ export type AlbumChangeEvent = {
   album?: AlbumWithData;
   albums?: AlbumWithData[];
   altAlbum?: AlbumWithData;
+};
+
+export type Node = {
+  name: string;
+  childs: Node[];
+  albums: AlbumWithData[];
+  collapsed: boolean;
 };
 
 export type AlbumEntry = {

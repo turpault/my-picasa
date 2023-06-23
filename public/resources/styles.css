@@ -2,6 +2,16 @@
   --thumbnail-size: 300px;  
 }
 
+::-webkit-scrollbar {
+    -webkit-appearance: none;
+    width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: rgba(0,0,0,.5);
+    -webkit-box-shadow: 0 0 1px rgba(255,255,255,.5);
+}
+
 .thumbnail-size {
   width: var(--thumbnail-size, 300px);
   height: var(--thumbnail-size, 300px);
@@ -454,24 +464,6 @@ body {
   display: inline-block;
 }
 
-.browser-list-text {
-  position: relative;
-  display: inline-block;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-  width: 244px;
-  pointer-events: none;
-}
-
-.browser-list-count {
-  right: 14px;
-  position: absolute;
-  font-style: italic;
-  font-weight: bold;
-  pointer-events: none;
-}
-
 .filterAlbum {
   border: none;
   padding: 11px 16px;
@@ -576,38 +568,87 @@ body {
 .folder-pane {
   background-color: rgb(243, 243, 243);
   color: rgb(80, 80, 80);
-  font-family: sans-serif;
-  overflow: hidden scroll;
-  width: 300px;
+  /* font-family: sans-serif; */
+  /* overflow: hidden scroll; */
+  overflow-x: clip;
+  overflow-y: scroll;
+  width: 308px;
+  scroll-padding: 0px;
+  scroll-margin: 0px;
 }
 
-.folders li {
+.browser-list-count {
+  right: 14px;
+  position: absolute;
+  font-style: italic;
+  font-weight: bold;
+  pointer-events: none;
+}
+.browser-list-label {
+  text-overflow: ellipsis;
+  width: 261px;
+  overflow: hidden;
+}
+
+.browser-list-text {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  width: 300px;
+  /* pointer-events: none; */
   position: relative;
   white-space: nowrap;
   list-style-type: none;
   cursor: pointer;
   font-size: 12px;
-  line-height: 14px;
-  padding-top: 4px;
-  padding-bottom: 4px;  
+  padding-top: 0px;
+  padding-bottom: 4px;
+  text-indent: 4px;
+  /* font-weight: bold; */
+  transition: all 0.15s ease 0s;
 }
 
-.folders li[separator] {
-  border-top: 15px solid black;
-}
-
-
-.folders li[separator] {
-  border-top: 15px solid black;
-  position: relative;
-}
-
-.folders li[separator]::before {
-  content: attr(separator);
+.browser-list-text:hover {
+  background-color: rgb(80, 80, 80);
   color: white;
-  position: absolute;
-  top: -15px;
 }
+.browser-list-text > * {
+  pointer-events: none;
+}
+
+.browser-list-head {
+  border-left: 15px solid rgb(80, 80, 80);
+  /* border-right: 16px solid black; */
+  margin-bottom: 5px;
+  height: 21px;
+  line-height: 21px;
+  width: 308px;
+  position: relative;
+  left: -16px;
+  /* right: 119px; */
+  color: white;
+  background-color: rgb(80, 80, 80);
+}
+
+.folder-collapsed .browser-list-head   {
+  background-color: rgb(39 39 39);
+}
+
+.folder-collapsed .browser-list-albums {
+  display: none;
+}
+
+.browser-list-head-0 {
+  text-indent: 10px;
+}
+
+.browser-list-head-1 {
+  text-indent: 14px;
+}
+
+.browser-list-head-2 {
+  text-indent: 5px;
+}
+
 
 .folders .highlight-list span {
   right: 3px;
@@ -623,6 +664,8 @@ body {
   padding-bottom: 10px;
   width: 100%;
 }
+
+
 
 .images {
   overflow-y: scroll;

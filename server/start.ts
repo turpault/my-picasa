@@ -17,6 +17,7 @@ import {
   albumWithData,
   startAlbumUpdateNotification,
   updateLastWalkLoop,
+  waitUntilWalk,
 } from "./rpc/rpcFunctions/walker";
 import { startSentry } from "./sentry";
 import { busy, measureCPULoad } from "./utils/busy";
@@ -166,6 +167,9 @@ export async function start(p?: number) {
     startAlbumUpdateNotification();
     parseLUTs();
     initProjects();
+    waitUntilWalk().then(() => {
+      console.info("Initial walk complete.");
+    });
   } catch (err) {
     console.error(err);
     process.exit(1);

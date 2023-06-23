@@ -328,25 +328,27 @@ export async function makePhotoList(
       }px`,
     });
   });
-  container.attachData(
-    events.on("invalidateAt", async (event) => {
-      // Check if the album should be redrawn or not
-      const element = elementAtIndex(event.index);
-      if (element) {
-        const hasChanged = await populateElement(
-          element,
-          dataSource.albumAtIndex(event.index),
-          filter
-        );
-        if (hasChanged) {
-          doReflow |= REFLOW_FULL;
+  container.attachData({
+    events: [
+      events.on("invalidateAt", async (event) => {
+        // Check if the album should be redrawn or not
+        const element = elementAtIndex(event.index);
+        if (element) {
+          const hasChanged = await populateElement(
+            element,
+            dataSource.albumAtIndex(event.index),
+            filter
+          );
+          if (hasChanged) {
+            doReflow |= REFLOW_FULL;
+          }
         }
-      }
-    }),
-    events.on("invalidateFrom", (event) => {
-      invalidateFrom(event.index);
-    })
-  );
+      }),
+      events.on("invalidateFrom", (event) => {
+        invalidateFrom(event.index);
+      }),
+    ],
+  });
   function moveToPool(element: _$) {
     pool.push(element);
     element.remove();
@@ -925,11 +927,13 @@ export async function makePhotoList(
     l();
   }
 
-  container.attachData(
-    events.on("selected", ({ album }) => {
-      rebuildViewStartingFrom(album);
-    })
-  );
+  container.attachData({
+    events: [
+      events.on("selected", ({ album }) => {
+        rebuildViewStartingFrom(album);
+      }),
+    ],
+  });
 
   async function startGallery() {
     let initialList: AlbumEntry[] = [];

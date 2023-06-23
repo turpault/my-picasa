@@ -24,7 +24,11 @@ import {
   keyFromID,
 } from "../../../shared/types/types";
 import { PICASA, imagesRoot } from "../../utils/constants";
-import { safeWriteFile } from "../../utils/serverUtils";
+import {
+  entryFilePath,
+  fileExists,
+  safeWriteFile,
+} from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { rate } from "../../utils/stats";
 import { media } from "./media";
@@ -36,6 +40,7 @@ let faces = new Map<
   string,
   AlbumWithData & { hash: { [key: string]: string } } & { [key: string]: any }
 >();
+const faceProcessorQueue = new Queue(5);
 let parsedFaces = new Set<string>();
 let shortcuts: { [shotcut: string]: Album } = {};
 const GRACE_DELAY = 120000;
@@ -101,7 +106,7 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
     // Read&fix data
     if (album.kind === AlbumKind.FOLDER) {
       // Parse faces asynchronously
-      processFaces(album, i);
+      faceProcessorQueue.add(() => processFaces(album, i));
 
       if (i.Picasa && i.Picasa.name && i.Picasa.name !== album.name) {
         i.Picasa.name = album.name;
@@ -113,15 +118,15 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
     }
 
     picasaMap.set(album.key, i);
+    return i;
   } catch (e: any) {
     console.error(`Error reading .ini file: ${e.message}`);
-    picasaMap.set(album.key, {});
+    const res = {};
+    picasaMap.set(album.key, res);
+    return res;
   } finally {
     l();
   }
-  // If we get there, we either read the ini, or created a new one, return it
-  const res = await readAlbumIni(album);
-  return res;
 }
 
 export function getFaceAlbumFromHash(
@@ -171,6 +176,7 @@ async function processFaces(album: Album, picasaIni: AlbumMetaData) {
     }
 
     for (const section of Object.keys(picasaIni)) {
+      const exists = await fileExists(entryFilePath({ album, name: section }));
       const iniFaces = picasaIni[section].faces;
       if (iniFaces) {
         // Example:faces=rect64(9bff22f6ad443ebb),d04ca592f8868c2;rect64(570c6e79670c8820),4f3f1b40e69b2537;rect64(b8512924c7ae41f2),69618ff17d8c570f
@@ -182,8 +188,13 @@ async function processFaces(album: Album, picasaIni: AlbumMetaData) {
             const sectionName = toBase64(
               JSON.stringify([album.key, section, rect, id])
             );
-            updatePicasa(faceAlbum, "album", album.key, sectionName);
-            updatePicasa(faceAlbum, "key", section, sectionName);
+            if (exists) {
+              updatePicasa(faceAlbum, "album", album.key, sectionName);
+              updatePicasa(faceAlbum, "key", section, sectionName);
+            } else {
+              updatePicasa(faceAlbum, "album", null, sectionName);
+              updatePicasa(faceAlbum, "key", null, sectionName);
+            }
           }
         }
       }
@@ -191,6 +202,7 @@ async function processFaces(album: Album, picasaIni: AlbumMetaData) {
   });
 }
 
+export function eraseFace(entry: AlbumEntry) {}
 export function getFaceAlbums(): AlbumWithData[] {
   return Array.from(faces.values());
 }
@@ -371,7 +383,7 @@ export async function updatePicasa(
       return;
     }
     section[field] = value;
-  } else {
+  } else if (section[field]) {
     delete section[field];
   }
   await writePicasaIni(album, picasa);
