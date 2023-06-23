@@ -38,7 +38,7 @@ const dimensionsFilterKey: Record<ThumbnailSize, extraFields> = {
   "th-large": "cached:dimensions:th-large",
 };
 
-async function shouldMakeImageThumbnail(
+export async function shouldMakeImageThumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize,
   animated: boolean

@@ -430,7 +430,8 @@ export async function makeMosaicPage(
       label: t(OrientationLabels[k as Orientation]),
       key: k,
     })),
-    project.payload.orientation
+    project.payload.orientation,
+    "dropdown"
   );
   orientationDropdown.emitter.on("select", ({ key }) => {
     project.payload.orientation = key;
@@ -445,7 +446,8 @@ export async function makeMosaicPage(
       label: MosaicSizes[k],
       key: k,
     })),
-    project.payload.size
+    project.payload.size,
+    "dropdown"
   );
   sizeDropdown.emitter.on("select", ({ key }) => {
     project.payload.size = key;
@@ -459,7 +461,8 @@ export async function makeMosaicPage(
       label: t(GutterLabels[k as GutterSizes]),
       key: k,
     })),
-    project.payload.gutter
+    project.payload.gutter,
+    "dropdown"
   );
   gutterDropdown.emitter.on("select", ({ key }) => {
     project.payload.gutter = key;
@@ -474,7 +477,8 @@ export async function makeMosaicPage(
       label: LayoutLabels[k as Layout],
       key: k,
     })),
-    project.payload.layout
+    project.payload.layout,
+    "dropdown"
   );
   layoutDropdown.emitter.on("select", ({ key }) => {
     project.payload.layout = key;
@@ -489,7 +493,8 @@ export async function makeMosaicPage(
       label: FormatLabels[k as Format],
       key: k,
     })),
-    project.payload.format
+    project.payload.format,
+    "dropdown"
   );
   formatDropdown.emitter.on("select", ({ key }) => {
     project.payload.format = key;

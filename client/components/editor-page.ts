@@ -165,7 +165,6 @@ export async function makeEditorPage(
         entries,
         entries[initialIndex]
       );
-      refreshMetadataFct(entries[initialIndex], [entries[initialIndex]]);
       const offStrip = await makeImageStrip(
         $(".image-strip", tool),
         activeManager
@@ -187,11 +186,13 @@ export async function makeEditorPage(
         imageController.events.on("busy", () => {
           $(".busy-spinner", editor).css("display", "block");
         }),
-        activeManager.event.on("changed", (entry) => {
+        imageController.events.on("visible", async ({ info, entry }) => {
+          refreshMetadataFct(entry, [entry], info);
+        }),
+        activeManager.event.on("changed", async (entry) => {
           imageController.display(entry);
           tabEvent.emit("rename", { name: entry.name });
           updateStarCount(entry);
-          refreshMetadataFct(entry, [entry]);
           selectionManager.clear();
           selectionManager.select(entry);
         }),

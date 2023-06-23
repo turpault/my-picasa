@@ -12,6 +12,10 @@ const section: { [k: string]: any } = {
   DateTimeOriginal: () => t("Original Date"),
   ExifImageHeight: () => t("Height (pixels)"),
   ExifImageWidth: () => t("Width (pixels)"),
+  birthtime: () => t("Created"),
+  ctime: () => t("Changed"),
+  mtime: () => t("Modified"),
+  size: () => t("Size"),
 };
 const metaHTML = ` <div>
 <div class="metadata"></div>
@@ -64,7 +68,11 @@ export function makeMetadata(e: _$) {
 
   function refreshMetadata(
     latest: AlbumEntry | undefined,
-    selection: AlbumEntry[]
+    selection: AlbumEntry[],
+    info: {
+      width: number;
+      height: number;
+    }
   ) {
     meta.empty();
     selection.forEach((sel, idx) =>
@@ -91,16 +99,28 @@ export function makeMetadata(e: _$) {
             GPSLongitude,
           });
         }
+        meta.append(
+          `<div><div class="exif-name">${t(
+            "Width"
+          )}</div><div class="exif-value">${info.width}</div></div>`
+        );
+        meta.append(
+          `<div><div class="exif-name">${t(
+            "Height"
+          )}</div><div class="exif-value">${info.height}</div></div>`
+        );
         for (const idx in data) {
           if (Number.isNaN(parseInt(idx)))
             if (section.hasOwnProperty(idx)) {
               // exclude unknown tags
               let val = data[idx];
-              if (idx.includes("Date")) {
+              if (idx.toLowerCase().includes("date")) {
                 val = new Date(data[idx]).toLocaleString();
               } else if (idx.includes("Time")) {
                 const v = parseFloat(data[idx]);
                 val = v < 1 ? `1/${Math.round(1 / v)} s` : `${v} s`;
+              } else if (idx.includes("time")) {
+                val = new Date(data[idx]).toLocaleString();
               }
               meta.append(
                 `<div><div class="exif-name">${section[

@@ -64,9 +64,15 @@ export class ImageController {
       this.image.css("display", "");
       this.recenter();
       this.events.emit("idle", {});
+      this.events.emit("visible", { entry: this.entry, info: this.info() });
     }
   }
-
+  info() {
+    return {
+      width: this.image.width,
+      height: this.image.height,
+    };
+  }
   operations(): PicasaFilter[] {
     if (this.mute !== -1) {
       return this.operationList().slice(0, this.mute);

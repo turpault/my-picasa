@@ -33,7 +33,7 @@ export function resizable(
   for (const gutterPos of pos.gutters) {
     const gutterId = `${gutterPos.leftCell.id}-${gutterPos.rightCell.id}`;
     const gutterElement = $(`<div id="${gutterId}" class="gutter"/>`);
-    gutterElement.attachData(gutterPos);
+    gutterElement.attachData({ gutterPos });
     parent.append(
       gutterElement
         .css({
@@ -83,7 +83,7 @@ export function resizable(
       ((ev as MouseEvent).y || (ev as TouchEvent).touches[0].clientY) -
       parentRect.top;
     if (!movingGutter) return;
-    const gutterPos = movingGutter.getData()[0];
+    const gutterPos = movingGutter.getData().gutterPos;
     if (!gutterPos || !gutterPos.leftCell || !gutterPos.rightCell) return;
     const leftId = gutterPos.leftCell.id;
     const rightId = gutterPos.rightCell.id;

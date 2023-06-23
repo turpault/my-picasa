@@ -110,13 +110,15 @@ export async function refreshAlbums(albums: AlbumWithData[]) {
 
 export async function onRenamedAlbums(from: Album, to: Album) {
   const idx = lastWalk.findIndex((f) => f.key == from.key);
-  const old = { ...lastWalk[idx] };
-  lastWalk[idx] = { ...lastWalk[idx], ...to };
-  queueNotification({
-    type: "albumMoved",
-    album: old,
-    altAlbum: lastWalk[idx],
-  });
+  if (idx === -1) {
+    const old = { ...lastWalk[idx] };
+    lastWalk[idx] = { ...lastWalk[idx], ...to };
+    queueNotification({
+      type: "albumRenamed",
+      album: old,
+      altAlbum: lastWalk[idx],
+    });
+  }
 }
 
 const ALLOW_EMPTY_ALBUM_CREATED_SINCE = 1000 * 60 * 60; // one hour
@@ -176,7 +178,7 @@ export async function readAlbumMetadata(album: Album) {
           const faceData = await getFaceData({ album, name });
           const originalAlbum = albumWithData(faceData.albumKey);
           if (!originalAlbum) {
-            throw new Error(`Unknown album ${faceData.albumKey}`);
+            return;
           }
           const originalAlbumData = await readAlbumIni(originalAlbum);
           const originalEntry = originalAlbumData[faceData.name];

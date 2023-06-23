@@ -1,4 +1,4 @@
-import { buildEmitter } from "../../shared/lib/event";
+import { buildEmitter } from "./event";
 
 export const Resizable = {};
 Resizable.activeContentWindows = [];

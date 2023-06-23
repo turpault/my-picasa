@@ -15,6 +15,13 @@ const singleLineSelectHTML = `
 </div>
 `;
 
+const dropdownSelectHTML = `
+<div class="w3-bar multiselect-control">
+  <div class="w3-bar-block multiselect-label"></div>
+  <select class="w3-bar-block multiselect-values"></select>
+</div>
+`;
+
 type SelectionList = { image: string; key: any; selected: boolean }[];
 type SelectEvents<T extends SelectionList> = {
   select: {
@@ -31,27 +38,45 @@ type SelectEvents<T extends SelectionList> = {
 export function makeChoiceList<T extends SelectionList>(
   label: string,
   items: { label: string; key: any }[],
-  currentKey: any
+  currentKey: any,
+  mode: "buttons" | "radio" | "dropdown" = "buttons"
 ): { element: _$; emitter: Emitter<SelectEvents<T>> } {
-  const e = $(singleLineSelectHTML);
   const emitter = buildEmitter<SelectEvents<T>>(false);
+
+  const html = mode === "buttons" ? singleLineSelectHTML : dropdownSelectHTML;
+  const e = $(html);
   const name = uuid();
   $(".multiselect-label", e).text(label);
+
   items
     .map((item, index) => {
       const id = name + "|" + index.toString();
-      return $(`
+      if (mode === "buttons" || mode === "radio") {
+        return $(`
     <span class="wrapper-space-evenly-element radio-toggle">
       <input type="radio" class="radio-button" name="${name}" id="${id}" ${
-        item.key === currentKey ? "checked" : ""
-      }></input>
+          item.key === currentKey ? "checked" : ""
+        }></input>
       <label for="${id}" class="radio-button-label">${item.label}</label>
     </span>`);
+      } else if (mode === "dropdown") {
+        return $(
+          `<option value="${id}" name="${name}" ${
+            item.key === currentKey ? "selected" : ""
+          }>${item.label}</option>`
+        );
+      } else {
+        throw new Error("Invalid mode");
+      }
     })
     .forEach((item) => $(".multiselect-values", e).append(item));
 
   $(".multiselect-values", e).on("change", (e) => {
-    const index = parseInt((e.target as HTMLElement).id.split("|").pop()!);
+    const index = parseInt(
+      ((e.target as HTMLSelectElement).value || (e.target as HTMLElement).id)
+        .split("|")
+        .pop()!
+    );
     emitter.emit("select", {
       index,
       key: items[index].key,

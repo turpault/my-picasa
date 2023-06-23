@@ -11,6 +11,22 @@ export async function sleep(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));
 }
 
+export function groupBy<T, K>(
+  a: T[],
+  field: keyof T,
+  transform?: (v: any) => K
+) {
+  const result = new Map<K, T[]>();
+  for (const item of a) {
+    let value = (item[field] as unknown) as K;
+    if (transform) value = transform(value);
+    if (!result.has(value as K)) {
+      result.set(value as K, []);
+    }
+    result.get(value as K)!.push(item);
+  }
+  return result;
+}
 export function sortByKey<T>(
   array: T[],
   keys: (keyof T)[],
