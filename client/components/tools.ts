@@ -1,4 +1,10 @@
-import { decodeOperation, PicasaFilter, sleep } from "../../shared/lib/utils";
+import { buildEmitter, Emitter } from "../../shared/lib/event";
+import {
+  decodeOperations,
+  encodeOperations,
+  PicasaFilter,
+  sleep,
+} from "../../shared/lib/utils";
 import { AlbumEntry } from "../../shared/types/types";
 import { toolHeader } from "../element-templates";
 import {
@@ -9,7 +15,6 @@ import {
   execute,
 } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
-import { buildEmitter, Emitter } from "../../shared/lib/event";
 import { Tool } from "../uiTypes";
 import { ImageController } from "./image-controller";
 import { t } from "./strings";
@@ -176,6 +181,39 @@ export class ToolRegistrar {
     }
     return null;
   }
+  ensurePermanentTools(filter: string): string | undefined {
+    const operations = decodeOperations(filter);
+
+    let updated = false;
+    for (const [name, tool] of Object.entries(this.tools)) {
+      if (tool.permanent) {
+        if (operations[tool.permanent - 1]) {
+          if (operations[tool.permanent - 1].name === tool.filterName) {
+            // No such tool at this position
+            // Is it elsewhere ?
+            updated = true;
+            const pos = operations.findIndex((o) => o.name === tool.filterName);
+            if (pos !== -1) {
+              // It is elsewhere, swap it
+              const tmp = operations[tool.permanent - 1];
+              operations[tool.permanent - 1] = operations[pos];
+              operations[pos] = tmp;
+            } else {
+              // It is not present, add it
+              operations.splice(tool.permanent - 1, 0, tool.build());
+            }
+          }
+        } else {
+          updated = true;
+          operations[tool.permanent - 1] = tool.build();
+        }
+      }
+    }
+    if (updated) {
+      return encodeOperations(operations);
+    }
+    return undefined;
+  }
   makeUiForTool(
     filterName: string,
     index: number,
@@ -207,11 +245,12 @@ export class ToolRegistrar {
   private toolListElement: _$;
 }
 
-export function make(e: _$, ctrl: ImageController): ToolRegistrar {
+export function makeTools(e: _$, ctrl: ImageController): ToolRegistrar {
   const title = $(".effects-title", e);
   const registrar = new ToolRegistrar($(".effects", e));
 
   const history = $(".history", e);
+  const adjustmentHistory = $(".adjustment-history", e);
   const description = $(".description", e);
   description.on("input", () => {
     ctrl.updateCaption(description.val());
@@ -245,6 +284,7 @@ export function make(e: _$, ctrl: ImageController): ToolRegistrar {
       );
     }
     const newControls = $("<div/>");
+    const newAdjustmentHistory = $(`<div/>`);
     const activeTools = filters;
     let toolCount = 0;
     for (const { name: name, args } of activeTools) {
@@ -256,8 +296,16 @@ export function make(e: _$, ctrl: ImageController): ToolRegistrar {
         context
       );
       clearList.push(toolUi.clearFct);
-      if (toolUi.ui)
-        newControls.get().insertBefore(toolUi.ui, newControls.get().firstChild);
+      if (toolUi.ui) {
+        toolUi.ui.classList.add("multiple");
+        if (registrar.tool(name)?.permanent) {
+          newAdjustmentHistory.append(toolUi.ui);
+        } else {
+          newControls
+            .get()
+            .insertBefore(toolUi.ui, newControls.get().firstChild);
+        }
+      }
     }
     if (newControls.innerHTML() !== history.innerHTML()) {
       history.empty();
@@ -265,6 +313,11 @@ export function make(e: _$, ctrl: ImageController): ToolRegistrar {
         c.remove();
         history.append(c);
       }
+    }
+    adjustmentHistory.empty();
+    for (const c of newAdjustmentHistory.children()) {
+      c.remove();
+      adjustmentHistory.append(c);
     }
   });
   registrar.events.on("preview", async ({ operation }) => {

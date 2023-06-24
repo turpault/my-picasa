@@ -51,12 +51,13 @@ export function setupCrop(
 
   toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
     multipleFamily: null,
+    permanent: 1,
     filterName: "crop64",
     enable: (e) => isPicture(e),
     icon: async function (context) {
       // Crop at 50%
       await transform(context, [
-        this.build({ left: 0.25, top: 0.25, right: 0.75, bottom: 0.75 }),
+        this.build({ left: 0, top: 0, right: 1, bottom: 1 }),
       ]);
       return true;
     },

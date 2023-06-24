@@ -56,6 +56,7 @@ export function setupTilt(
 
   toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
     multipleFamily: null,
+    permanent: 2,
     filterName: "tilt",
     enable: (e) => isPicture(e),
     icon: async function (context) {
@@ -74,11 +75,11 @@ export function setupTilt(
         _deactivate = resolve;
       });
     },
-    build: function (angle: number = 0.1, zoom: number = 0) {
+    build: function (angle: number = 0, zoom: number = 0) {
       return {
         name: this.filterName,
-        args:['1', angle.toString(), zoom.toString()]
-      }
+        args: ["1", angle.toString(), zoom.toString()],
+      };
     },
     buildUI: function (index: number, args: string[]) {
       const e = toolHeader(name, index, imageCtrl, toolRegistrar);
@@ -94,31 +95,43 @@ export function setupTilt(
       </div>`);
       $(".rotation", e).val(valueToSlider(args[1]));
       const clearFcts: Function[] = [];
-      clearFcts.push(emitter.on("updated", (event) => {
-        if (index === event.index) {
-
-          if (event.origin !== 'control') {
-            console.info('Setting value', valueToSlider(event.value));
+      clearFcts.push(
+        emitter.on("updated", (event) => {
+          if (index === event.index) {
+            if (event.origin !== "control") {
+              console.info("Setting value", valueToSlider(event.value));
+              $(".rotation", e).val(valueToSlider(event.value));
+            }
+            imageCtrl.updateOperation(index, this.build(event.value, 0));
+            hide(true);
+          }
+        })
+      );
+      clearFcts.push(
+        emitter.on("preview", (event) => {
+          if (index === event.index) {
+            console.info("Setting value", valueToSlider(event.value));
             $(".rotation", e).val(valueToSlider(event.value));
           }
-          imageCtrl.updateOperation(index, this.build(event.value, 0));
-          hide(true);
-        }
-      }));
-      clearFcts.push(emitter.on("preview", (event) => {
-        if (index === event.index) {
-          console.info('Setting value', valueToSlider(event.value));
-          $(".rotation", e).val(valueToSlider(event.value));
-        }
-      }));
+        })
+      );
       $(".rotation", e).on("change", function () {
         if (activeIndex === index) {
           emitter.emit("preview", { index, value: sliderToValue(this.val()) });
         } else {
-          emitter.emit("updated", { index, value: sliderToValue(this.val()), origin: 'control' });
+          emitter.emit("updated", {
+            index,
+            value: sliderToValue(this.val()),
+            origin: "control",
+          });
         }
       });
-      return { ui: e.get()!, clearFcts: () => { clearFcts.forEach(f => f()) } };
+      return {
+        ui: e.get()!,
+        clearFcts: () => {
+          clearFcts.forEach((f) => f());
+        },
+      };
     },
   });
 }

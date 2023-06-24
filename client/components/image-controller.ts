@@ -168,6 +168,13 @@ export class ImageController {
 
     const data = this.entry.metadata;
     this.filters = data.filters ? decodeOperations(data.filters) : [];
+    if (this.filterSetupFct) {
+      const f = this.filterSetupFct(this.filters);
+      if (f) {
+        this.filters = f;
+        await this.saveFilterInfo();
+      }
+    }
     this.caption = data.caption || "";
     if (isPicture(this.entry)) {
       console.info(this.entry.name, "1. display, will build context");
@@ -333,8 +340,13 @@ export class ImageController {
     return this.entry;
   }
 
+  filterSetup(fct: Function) {
+    this.filterSetupFct = fct;
+  }
+
   private image: _$;
   private video: _$;
+  private filterSetupFct?: Function;
   private entry: AlbumEntryPicasa;
   private context: string;
   private liveContext: string;
