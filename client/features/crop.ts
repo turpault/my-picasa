@@ -22,8 +22,8 @@ export function setupCrop(
 ) {
   const name = t("Crop");
 
-  const emitter = buildEmitter<ValueChangeEvent>();
-  const preview = setupCropPreview(container, emitter, panZoomCtrl);
+  const previewEmitter = buildEmitter<ValueChangeEvent>();
+  const preview = setupCropPreview(container, previewEmitter, panZoomCtrl);
 
   let activeIndex: number = -1;
   let _deactivate: ((commit: boolean) => void) | undefined;
@@ -32,12 +32,14 @@ export function setupCrop(
     activeIndex = index;
     panZoomCtrl.recenter();
     panZoomCtrl.enable(false);
+    imageController.muteAt(index);
     preview.show(activeIndex, initialValue);
   }
 
   function hide(commit: boolean) {
     activeIndex = -1;
     panZoomCtrl.enable(true);
+    imageController.unmute();
     preview.hide();
     if (_deactivate) {
       _deactivate(commit);
@@ -45,7 +47,7 @@ export function setupCrop(
     }
   }
 
-  emitter.on("cancel", () => {
+  previewEmitter.on("cancel", () => {
     hide(false);
   });
 
@@ -55,18 +57,22 @@ export function setupCrop(
     filterName: "crop64",
     enable: (e) => isPicture(e),
     icon: async function (context) {
-      // Crop at 50%
+      // Crop at 50% in the icon
       await transform(context, [
-        this.build({ left: 0, top: 0, right: 1, bottom: 1 }),
+        this.build({ left: 0.2, top: 0.2, right: 0.8, bottom: 0.8 }),
       ]);
       return true;
     },
     editable: true,
     activate: async function (index: number, args?: string[]) {
+      if (index !== 0) {
+        debugger;
+      }
       let initialValue = args
         ? decodeRect(args[1])
-        : { left: 0.1, right: 0.9, top: 0.1, bottom: 0.9 };
+        : { left: 0, right: 1, top: 0, bottom: 1 };
       if (!args) {
+        debugger;
         imageController.addOperation(this.build(initialValue));
       }
       show(index, initialValue);
@@ -92,7 +98,7 @@ export function setupCrop(
       </div>`);
       const clearFcts: Function[] = [];
       clearFcts.push(
-        emitter.on("updated", (event) => {
+        previewEmitter.on("updated", (event) => {
           if (index === event.index) {
             imageController.updateOperation(index, this.build(event.value, 0));
             hide(true);
@@ -100,7 +106,7 @@ export function setupCrop(
         })
       );
       clearFcts.push(
-        emitter.on("preview", (event) => {
+        previewEmitter.on("preview", (event) => {
           if (index === event.index) {
           }
         })

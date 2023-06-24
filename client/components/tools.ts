@@ -181,8 +181,10 @@ export class ToolRegistrar {
     }
     return null;
   }
-  ensurePermanentTools(filter: string): string | undefined {
-    const operations = decodeOperations(filter);
+  ensurePermanentTools(
+    originalOperations: PicasaFilter[]
+  ): PicasaFilter[] | undefined {
+    const operations = [...originalOperations];
 
     let updated = false;
     for (const [name, tool] of Object.entries(this.tools)) {
@@ -210,7 +212,7 @@ export class ToolRegistrar {
       }
     }
     if (updated) {
-      return encodeOperations(operations);
+      return operations;
     }
     return undefined;
   }
@@ -261,6 +263,9 @@ export function makeTools(e: _$, ctrl: ImageController): ToolRegistrar {
     registrar.refreshToolIcons(context, original, entry);
   });
   const clearList: (Function | undefined)[] = [];
+  ctrl.filterSetup((operations: PicasaFilter[]) =>
+    registrar.ensurePermanentTools(operations)
+  );
   ctrl.events.on("updated", ({ context, caption, filters }) => {
     description.val(caption || "");
     // Update the operation list
