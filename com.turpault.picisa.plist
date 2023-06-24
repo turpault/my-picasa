@@ -15,7 +15,7 @@
     <key>EnvironmentVariables</key>
     <dict>
         <key>PICISA_PICTURE_FOLDER</key>
-        <string>/Volumes/1TB USB/Photos</string>
+        <string>/Volumes/Photos/Photos</string>
     </dict>
     <key>StandardErrorPath</key>
     <string>/tmp/picisa.job.out</string>
