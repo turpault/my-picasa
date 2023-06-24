@@ -46,7 +46,7 @@ export class ImageController {
     this.identify = false;
     this.q.event.on("drain", () => {});
     this.filters = [];
-    this.mute = -1;
+    this.mute = undefined;
     this.caption = "";
     this.faces = [];
     this.parent = this.image.parent()!;
@@ -74,7 +74,7 @@ export class ImageController {
     };
   }
   operations(): PicasaFilter[] {
-    if (this.mute !== -1) {
+    if (this.mute !== undefined) {
       return this.operationList().slice(0, this.mute);
     }
     return this.operationList();
@@ -86,8 +86,12 @@ export class ImageController {
       this.update();
     }
   }
-  muted() {
+  mutedIndex() {
     return this.mute;
+  }
+  unmute() {
+    this.mute = undefined;
+    this.update();
   }
 
   setIdentifyMode(enable: boolean) {
@@ -356,7 +360,7 @@ export class ImageController {
   private q: Queue;
   private identify: boolean;
   private parent: _$;
-  private mute: number;
+  private mute: number | undefined;
   private faces: FaceData[];
   private previewOperation: PicasaFilter | null = null;
   events: Emitter<ImageControllerEvent>;

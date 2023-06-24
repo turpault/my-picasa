@@ -22,7 +22,7 @@ export type Tool = {
   ) => { ui: HTMLElement; clearFct?: Function };
   activate: activateFct;
   multipleFamily: string | null;
-  permanent?: boolean;
+  permanent?: number;
 };
 
 export type PanZoomEvent = {

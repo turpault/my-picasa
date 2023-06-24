@@ -45,7 +45,7 @@
     "start:server": "nodemon --watch ./dist/server --watch ./dist/shared dist/server/index.js",
     "start-fav": "ts-node --esm server/rpc/rpcFunctions/fileJob-export-favorites.ts",
     "electron": "electron .",
-    "preinstall": "npm run build:server",
+    "preinstall": "npm run build",
     "prebuild": "npm run clean",
     "install": "rm -rf deployed ; cp -R dist deployed; sudo cp com.turpault.picisa.plist /Library/LaunchDaemons && sudo chmod 600 /Library/LaunchDaemons/com.turpault.picisa.plist ; sudo launchctl unload /Library/LaunchDaemons/com.turpault.picisa.plist ; sudo launchctl load /Library/LaunchDaemons/com.turpault.picisa.plist"
   },
