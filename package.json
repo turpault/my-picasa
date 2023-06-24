@@ -29,7 +29,7 @@
   "scripts": {
     "build": "run-p build:*",
     "build:server": "tsc -d -p tsconfig-server.json && npm run build-filters",
-    "build:client": "webpack",
+    "build:client": "webpack --mode production",
     "build:icons": "png2icons resources/picisa.png resources/picisa -icns",
     "build:ico": "png2icons resources/picisa.png public/favicon -ico",
     "build:splashbase64url": "node server/toBase64Url.mjs public/resources/images/splash.png",
@@ -46,7 +46,8 @@
     "start-fav": "ts-node --esm server/rpc/rpcFunctions/fileJob-export-favorites.ts",
     "electron": "electron .",
     "preinstall": "npm run build:server",
-    "install:daemon": "sudo cp com.turpault.picisa.plist /Library/LaunchDaemons && sudo chmod 600 /Library/LaunchDaemons/com.turpault.picisa.plist && sudo launchctl load /Library/LaunchDaemons/com.turpault.picisa.plist || launchctl kickstart -k com.turpault.picisa.plist"
+    "prebuild": "npm run clean",
+    "install": "rm -rf deployed ; cp -R dist deployed; sudo cp com.turpault.picisa.plist /Library/LaunchDaemons && sudo chmod 600 /Library/LaunchDaemons/com.turpault.picisa.plist ; sudo launchctl unload /Library/LaunchDaemons/com.turpault.picisa.plist ; sudo launchctl load /Library/LaunchDaemons/com.turpault.picisa.plist"
   },
   "devDependencies": {
     "@types/draggabilly": "^2.1.3",
