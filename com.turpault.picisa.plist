@@ -7,7 +7,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/node</string>
-        <string>/Users/turpault/dev/picisa/dist/server/index.js</string>
+        <string>/Users/turpault/dev/picisa/deployed/server/index.js</string>
         <string>8010</string>
     </array>
     <key>KeepAlive</key>
