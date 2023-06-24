@@ -32,7 +32,7 @@ import { makeImageStrip } from "./image-strip";
 import { makeMetadata } from "./metadata";
 import { t } from "./strings";
 import { TabEvent, deleteTabWin, makeGenericTab } from "./tabs";
-import { GENERAL_TOOL_TAB, make as makeTools } from "./tools";
+import { GENERAL_TOOL_TAB, makeTools } from "./tools";
 
 import { idFromAlbumEntry } from "../../shared/lib/utils";
 import { makeIdentify } from "./identify";
@@ -52,6 +52,12 @@ const editHTML = `
       />
     </div>
     <div class="collapsible gradient-sidebar-title">${t(
+      "Adjustments"
+    )}<div class="effects-title"></div></div>
+    <div class="collapsable">
+      <div class="adjustment-history"></div>
+    </div>
+    <div class="collapsible collapsed gradient-sidebar-title">${t(
       "Effects"
     )}<div class="effects-title"></div></div>
     <div class="collapsable">
@@ -140,10 +146,10 @@ export async function makeEditorPage(
       // Add all the activable features
       setupCrop(imageContainer, zoomController, imageController, toolRegistrar);
       setupTilt(imageContainer, zoomController, imageController, toolRegistrar);
+      setupBrightness(imageController, toolRegistrar);
       setupAutocolor(imageController, toolRegistrar);
       setupBW(imageController, toolRegistrar);
       setupContrast(imageController, toolRegistrar);
-      setupBrightness(imageController, toolRegistrar);
       setupFill(imageController, toolRegistrar);
       setupSepia(imageController, toolRegistrar);
       setupPolaroid(imageController, toolRegistrar);
