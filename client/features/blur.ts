@@ -16,7 +16,7 @@ export function setupBlur(
     filterName: "blur",
     enable: (e) => isPicture(e),
     build: function (amount: number = 10) {
-      return {name: this.filterName, args:['1',amount.toString()]};
+      return { name: this.filterName, args: ["1", amount.toString()] };
     },
     icon: async function (context) {
       await transform(context, [this.build(10)]);
@@ -29,7 +29,7 @@ export function setupBlur(
       return true;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController, toolRegistrar);
+      const e = toolHeader(name, index, imageController, toolRegistrar, this);
       e.append(`<div>
       <div class="tool-control slidecontainer">
           <label>Radius</label>

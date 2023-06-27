@@ -16,13 +16,16 @@ function valueToSlider(v: any) {
 }
 
 export type ValueChangeEvent = {
-  updated: { index: number; value: number, origin: 'preview' | 'control' };
+  updated: { index: number; value: number; origin: "preview" | "control" };
   preview: { index: number; value: number };
-  cancel: {}
+  cancel: {};
 };
 
-export function setupTiltPreview(container: _$, emitter: Emitter<ValueChangeEvent>, panZoomCtrl: ImagePanZoomController)
-{  
+export function setupTiltPreview(
+  container: _$,
+  emitter: Emitter<ValueChangeEvent>,
+  panZoomCtrl: ImagePanZoomController
+) {
   const tiltAreaId = uuid();
   const elem = $(`<div class="tilt fill" style="display: none">
   <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
@@ -40,7 +43,6 @@ export function setupTiltPreview(container: _$, emitter: Emitter<ValueChangeEven
   <rect id="${tiltAreaId}" x="0" y="0" width="0" height="0" style="fill: transparent; stroke:red; stroke-width:5" />
 </svg>
   <div class="rotation-tool-inner-control slidecontainer">
-  <label>Rotation</label>
   <input type="range" min="-100" max="100" value="0" class="rotation slider">
   <div class="tilt-accept-buttons">
     <button class="btn-ok-tilt w3-button w3-bar-item override-pointer-active">
@@ -64,12 +66,12 @@ export function setupTiltPreview(container: _$, emitter: Emitter<ValueChangeEven
   $(".btn-ok-tilt", container).on("click", function () {
     emitter.emit("updated", {
       index: activeIndex,
-      value: sliderToValue($(".rotation", container).val()
-      ),origin: 'preview'
+      value: sliderToValue($(".rotation", container).val()),
+      origin: "preview",
     });
   });
   $(".btn-cancel-tilt", container).on("click", function () {
-    emitter.emit('cancel', {});
+    emitter.emit("cancel", {});
   });
 
   function updatePreview(value: number) {
@@ -78,17 +80,23 @@ export function setupTiltPreview(container: _$, emitter: Emitter<ValueChangeEven
     // Calculate the cropped area
     const rectArea = panZoomCtrl.canvasBoundsOnScreen();
     const rect = rectArea.bottomRight.minus(rectArea.topLeft);
-    const rotatedData = rotateRectangle(rect.x, rect.y, value * 10 * Math.PI / 180 );
+    const rotatedData = rotateRectangle(
+      rect.x,
+      rect.y,
+      (value * 10 * Math.PI) / 180
+    );
     const xOffset = (rect.x - rect.x / rotatedData.ratio) / 2;
     const yOffset = (rect.y - rect.y / rotatedData.ratio) / 2;
     const targetTopLeft = rectArea.topLeft.plus(new Vector(xOffset, yOffset));
-    const targetBottomRight = rectArea.bottomRight.plus(new Vector(-xOffset, -yOffset));
+    const targetBottomRight = rectArea.bottomRight.plus(
+      new Vector(-xOffset, -yOffset)
+    );
 
     $(`#${tiltAreaId}`).attr({
       x: targetTopLeft.x,
       y: targetTopLeft.y,
       width: targetBottomRight.x - targetTopLeft.x,
-      height: targetBottomRight.y - targetTopLeft.y
+      height: targetBottomRight.y - targetTopLeft.y,
     });
   }
   emitter.on("preview", (event) => {
@@ -97,13 +105,13 @@ export function setupTiltPreview(container: _$, emitter: Emitter<ValueChangeEven
     }
   });
   return {
-    show: (index:number , initialValue: number)=> {
+    show: (index: number, initialValue: number) => {
       activeIndex = index;
       updatePreview(initialValue);
       elem.css({ display: "block" });
     },
-    hide: ()=> {
+    hide: () => {
       elem.css({ display: "none" });
-    }
-  }
+    },
+  };
 }

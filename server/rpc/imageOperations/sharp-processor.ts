@@ -680,10 +680,8 @@ export async function transform(
         j = getContext(context);
         const metadata = await j.metadata();
         const w = metadata.width!;
-        const h = metadata.height!;
         const text = decodeURIComponent(args[1]);
         const size = parseInt(args[2]);
-        const gravity = args[3];
         /*const { data, info } = await j
           .raw()
           .toBuffer({ resolveWithObject: true });
@@ -703,7 +701,8 @@ export async function transform(
         ];*/
 
         const fontSize = Math.floor((size * w) / 1000);
-        const txtSvg = `<svg width="${w}" height="100"> 
+        const svgHeight = fontSize * 1.6;
+        const txtSvg = `<svg width="${w}" height="${svgHeight}"> 
         <rect x="0" cy="0" width="${w}" height="${fontSize}" fill="#FFFFFF" style="fill-opacity: .35;" />
         <text  x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}" fill="#000000">${text}</text> 
         </svg>`;
@@ -832,10 +831,9 @@ export async function encode(
         return { width: 1, height: 1, data: emptyPng };
     }
   }
-
   switch (mime) {
     case "image/jpeg":
-      j = j.jpeg();
+      j = j.jpeg({ quality: 95 });
       break;
     case "image/png":
       j = j.png();
@@ -850,6 +848,7 @@ export async function encode(
       j = j.gif();
       break;
   }
+
   //const exif = exifToSharpMeta(getExif(context));
   //j.withMetadata({exif: {IFD0: exif, IFD1: exif, IFD2: exif, GPSIFD: exif, ExifIFD:exif, ImageIFD: exif}})
   switch (format) {

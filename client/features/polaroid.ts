@@ -18,19 +18,24 @@ export function setupPolaroid(
     build: function (angle: number, bgcolor: string, text: string) {
       return {
         name: this.filterName,
-        args:['1', angle.toString(), bgcolor.replace("#", ""), encodeURIComponent(text)]
-      }
+        args: [
+          "1",
+          angle.toString(),
+          bgcolor.replace("#", ""),
+          encodeURIComponent(text),
+        ],
+      };
     },
     icon: async function (context) {
-      await transform(context, [this.build(10, "#ffffff", 'preview')]);
+      await transform(context, [this.build(10, "#ffffff", "preview")]);
       return true;
     },
     activate: async function () {
-      imageController.addOperation(this.build(10, "#000000", ''));
+      imageController.addOperation(this.build(10, "#000000", ""));
       return true;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController, toolRegistrar);
+      const e = toolHeader(name, index, imageController, toolRegistrar, this);
 
       e.append(`<div><div class="tool-control slidecontainer">
           <label>Angle</label>

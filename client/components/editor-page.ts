@@ -57,10 +57,10 @@ const editHTML = `
     <div class="collapsable">
       <div class="adjustment-history"></div>
     </div>
-    <div class="collapsible collapsed gradient-sidebar-title">${t(
+    <div class="collapsible gradient-sidebar-title">${t(
       "Effects"
     )}<div class="effects-title"></div></div>
-    <div class="collapsable">
+    <div class="collapsable collapsable-collapsed">
       <div class="effects"></div>
       <div class="history"></div>
     </div>

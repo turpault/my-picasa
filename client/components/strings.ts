@@ -19,7 +19,7 @@ const stringTable: { [key: string]: any } = {
   Metadata: { fr: "Données" },
   "Delete Album": { fr: "Effacer l'album" },
   "Edit Album Name": { fr: "Modifier le nom de l'album" },
-  Crop: { fr: "Rogner" },
+  Crop: { fr: "Recadrer" },
   Tilt: { fr: "Pencher" },
   Autocolor: { fr: "Couleur auto" },
   Greyscale: { fr: "Noir et blanc" },

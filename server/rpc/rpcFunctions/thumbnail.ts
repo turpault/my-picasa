@@ -1,15 +1,15 @@
-import { readFile, stat, writeFile } from "fs/promises";
+import { readFile, stat } from "fs/promises";
 import { extname, join } from "path";
 import { isVideo, lock } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
   AlbumKind,
-  extraFields,
   ThumbnailSize,
-  ThumbnailSizeVals,
+  extraFields,
   videoExtensions,
 } from "../../../shared/types/types";
 import { ThumbnailSizes, imagesRoot } from "../../utils/constants";
+import { safeWriteFile } from "../../utils/serverUtils";
 import { dec, inc } from "../../utils/stats";
 import { entryRelativePath } from "../imageOperations/info";
 import {
@@ -17,6 +17,7 @@ import {
   buildImage,
   dimensionsFromFile,
 } from "../imageOperations/sharp-processor";
+import { makeProjectThumbnail } from "../projects";
 import { createGif } from "../videoOperations/gif";
 import { readAlbumIni, updatePicasaEntries } from "./picasaIni";
 import {
@@ -24,8 +25,6 @@ import {
   thumbnailPathFromEntryAndSize,
   writeThumbnailToCache,
 } from "./thumbnailCache";
-import { makeProjectThumbnail } from "../projects";
-import { safeWriteFile } from "../../utils/serverUtils";
 
 const cachedFilterKey: Record<ThumbnailSize, extraFields> = {
   "th-small": "cached:filters:th-small",

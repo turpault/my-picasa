@@ -159,6 +159,7 @@ export class AlbumIndexedDataSource {
       index: 0,
       to: this.albums.length - 1,
     });
+    this.emitter.emit("reset", {});
   }
 
   private addAlbum(album: AlbumWithData) {
@@ -195,6 +196,10 @@ export class AlbumIndexedDataSource {
   }
 
   toggleCollapse(node: Node) {
+    if (node.childs.length !== 0) {
+      node.childs.forEach((n) => this.toggleCollapse(n));
+      return;
+    }
     node.collapsed = !node.collapsed;
     this.emitter.emit("invalidateFrom", {
       index: this.albumIndex(firstAlbum(node)!),
@@ -214,7 +219,7 @@ export class AlbumIndexedDataSource {
       for (const child of Object.values(node.childs)) {
         const c = this.isCollapsed(album, child);
         if (c !== undefined) {
-          return c || node.collapsed;
+          return node.collapsed;
         }
       }
     }
@@ -269,7 +274,7 @@ export class AlbumIndexedDataSource {
     const shortcuts = folders.filter((a) => a.shortcut).map((f) => ({ ...f }));
     sortByKey(shortcuts, ["name"], ["alpha"]);
 
-    const faces = groups.get(AlbumKind.FACE)!;
+    const faces = groups.get(AlbumKind.FACE) || [];
     sortByKey(faces, ["name"], ["alpha"]);
 
     const foldersByYear = groupBy(folders, "name", (n: string) =>

@@ -17,8 +17,8 @@ export function setupBW(
     build: function () {
       return {
         name: this.filterName,
-        args:['1']
-      }
+        args: ["1"],
+      };
     },
     icon: async function (context) {
       await transform(context, [this.build()]);
@@ -31,7 +31,7 @@ export function setupBW(
       return true;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController, toolRegistrar);
+      const e = toolHeader(name, index, imageController, toolRegistrar, this);
       return { ui: e.get()! };
     },
   });

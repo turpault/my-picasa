@@ -22,7 +22,7 @@ export function setupFilters(
           enable: (e) => isPicture(e),
           preview: true,
           build: function () {
-            return {name: this.filterName, args:['1', name]};
+            return { name: this.filterName, args: ["1", name] };
           },
           icon: async function (context) {
             await transform(context, [this.build()]);
@@ -35,7 +35,13 @@ export function setupFilters(
             return true;
           },
           buildUI: function (index: number, args: string[], context: string) {
-            const e = toolHeader(`${name} : ${filter}`, index, imageController, toolRegistrar);
+            const e = toolHeader(
+              `${name} : ${filter}`,
+              index,
+              imageController,
+              toolRegistrar,
+              this
+            );
             return { ui: e.get()! };
           },
         });

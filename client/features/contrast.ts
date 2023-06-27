@@ -18,7 +18,7 @@ export function setupContrast(
     build: function (amount: number) {
       return {
         name: this.filterName,
-        args:['1', amount.toString()]
+        args: ["1", amount.toString()],
       };
     },
     icon: async function (context) {
@@ -32,7 +32,7 @@ export function setupContrast(
       return true;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController, toolRegistrar);
+      const e = toolHeader(name, index, imageController, toolRegistrar, this);
       e.append(`<div>
       <div class="tool-control slidecontainer">
           <label>Constrast level</label>

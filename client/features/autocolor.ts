@@ -15,7 +15,7 @@ export function setupAutocolor(
     filterName: "autocolor",
     enable: (e) => isPicture(e),
     build: function () {
-      return {name: this.filterName, args:['1']};
+      return { name: this.filterName, args: ["1"] };
     },
     icon: async function (context) {
       await transform(context, [this.build()]);
@@ -28,7 +28,7 @@ export function setupAutocolor(
       return true;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController, toolRegistrar);
+      const e = toolHeader(name, index, imageController, toolRegistrar, this);
       return { ui: e.get()! };
     },
   });

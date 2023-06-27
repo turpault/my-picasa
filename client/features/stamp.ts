@@ -90,13 +90,12 @@ export function setupStamp(
       };
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageCtrl, toolRegistrar);
+      const e = toolHeader(name, index, imageCtrl, toolRegistrar, this);
       e.append(`<div>
       </div>`);
       return {
         ui: e.get()!,
-        clearFcts: () => {          
-        },
+        clearFcts: () => {},
       };
     },
   });

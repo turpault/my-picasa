@@ -18,9 +18,8 @@ export function setupSharpen(
     build: function (amount: number) {
       return {
         name: this.filterName,
-        args:['1', amount.toString()]
-      }
-
+        args: ["1", amount.toString()],
+      };
     },
     icon: async function (context) {
       await transform(context, [this.build(10)]);
@@ -33,7 +32,7 @@ export function setupSharpen(
       return true;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController, toolRegistrar);
+      const e = toolHeader(name, index, imageController, toolRegistrar, this);
       e.append(`<div>
       <div class="tool-control slidecontainer">
           <label>Radius</label>
