@@ -11,6 +11,7 @@ import {
   AlbumEntryWithMetadata,
   keyFromID,
   ThumbnailSize,
+  ThumbnailSizeVals,
 } from "../../shared/types/types";
 import { getService, getServicePort } from "../rpc/connect";
 
@@ -26,6 +27,22 @@ export async function execute(
 ): Promise<string> {
   const c = await getService();
   await c.execute(context, operations as any[][]);
+  return context;
+}
+
+export async function resizeContext(context: string, size: number) {
+  const c = await getService();
+  await execute(context, [
+    ["resize", size, size, { fit: "cover", kernel: "nearest" }],
+  ]);
+  return context;
+}
+
+export async function resizeContextInside(context: string, size: number) {
+  const c = await getService();
+  await execute(context, [
+    ["resize", size, size, { fit: "inside", kernel: "nearest" }],
+  ]);
   return context;
 }
 

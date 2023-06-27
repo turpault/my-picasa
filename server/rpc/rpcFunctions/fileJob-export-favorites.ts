@@ -85,19 +85,11 @@ export async function exportAllFavoritesJob(job: Job): Promise<Album[]> {
               // resize + rename + label
               const imageLabel = mediaName(entry);
               const transform = p[entry.name].filters || "";
-              /*              const exif = {
-                IFD0: {
-                  DateTime: toExifDate(p[entry.name].dateTaken!),
-                },
-                IFD2: {
-                  DateTimeOriginal: toExifDate(p[entry.name].dateTaken!),
-                }
-              };*/
               const res = await buildImage(
                 entry,
                 p[entry.name],
                 transform +
-                  `;resize=1,${RESIZE_ON_EXPORT_SIZE};label=1,${encodeURIComponent(
+                  `;label=1,${encodeURIComponent(
                     imageLabel
                   )},25,south` /*;exif=${encodeURIComponent(JSON.stringify(exif))}`*/,
                 []

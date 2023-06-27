@@ -18,8 +18,8 @@ export function setupRotate(
     build: function (angle: number) {
       return {
         name: this.filterName,
-        args:['1', angle.toString()]
-      }
+        args: ["1", angle.toString()],
+      };
     },
     icon: async function (context) {
       await transform(context, [this.build(1)]);
@@ -32,7 +32,7 @@ export function setupRotate(
       return true;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController, toolRegistrar);
+      const e = toolHeader(name, index, imageController, toolRegistrar, this);
       e.append(`<div class="tool-control">
           <label>Type</label>
           <a class="rotate-left w3-button">90 ⟲</a>

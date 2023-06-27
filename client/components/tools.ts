@@ -1,10 +1,5 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
-import {
-  decodeOperations,
-  encodeOperations,
-  PicasaFilter,
-  sleep,
-} from "../../shared/lib/utils";
+import { PicasaFilter, sleep } from "../../shared/lib/utils";
 import { AlbumEntry } from "../../shared/types/types";
 import { toolHeader } from "../element-templates";
 import {
@@ -12,7 +7,7 @@ import {
   commit,
   destroyContext,
   encode,
-  execute,
+  resizeContext,
 } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
 import { Tool } from "../uiTypes";
@@ -132,9 +127,7 @@ export class ToolRegistrar {
     this.activeEntry = entry;
     // Initial copy, resized
     const copy = await cloneContext(context, "toolminiicon");
-    await execute(copy, [
-      ["resize", 60, 60, { fit: "cover", kernel: "nearest" }],
-    ]);
+    await resizeContext(copy, 60);
     await commit(copy);
 
     // First get the active tab tools
@@ -142,6 +135,7 @@ export class ToolRegistrar {
     await Promise.allSettled(
       Object.entries(this.tools)
         .filter(([name]) => this.pages[page].includes(name))
+        .filter(([_name, tool]) => tool.permanentIndex !== undefined)
         .map(async ([name, tool]) => {
           const data = await toolIconForTool(copy, original, tool);
           const target = this.toolButtons[name];
@@ -188,26 +182,26 @@ export class ToolRegistrar {
 
     let updated = false;
     for (const [name, tool] of Object.entries(this.tools)) {
-      if (tool.permanent) {
-        if (operations[tool.permanent - 1]) {
-          if (operations[tool.permanent - 1].name === tool.filterName) {
+      if (tool.permanentIndex) {
+        if (operations[tool.permanentIndex - 1]) {
+          if (operations[tool.permanentIndex - 1].name === tool.filterName) {
             // No such tool at this position
             // Is it elsewhere ?
             updated = true;
             const pos = operations.findIndex((o) => o.name === tool.filterName);
             if (pos !== -1) {
               // It is elsewhere, swap it
-              const tmp = operations[tool.permanent - 1];
-              operations[tool.permanent - 1] = operations[pos];
+              const tmp = operations[tool.permanentIndex - 1];
+              operations[tool.permanentIndex - 1] = operations[pos];
               operations[pos] = tmp;
             } else {
               // It is not present, add it
-              operations.splice(tool.permanent - 1, 0, tool.build());
+              operations.splice(tool.permanentIndex - 1, 0, tool.build());
             }
           }
         } else {
           updated = true;
-          operations[tool.permanent - 1] = tool.build();
+          operations[tool.permanentIndex - 1] = tool.build();
         }
       }
     }
@@ -227,7 +221,7 @@ export class ToolRegistrar {
       (t) => t.filterName === filterName
     )[0];
     if (!tool) {
-      const e = toolHeader(filterName, index, ctrl, this);
+      const e = toolHeader(filterName, index, ctrl, this, tool);
       return { ui: e.get()! };
     }
     return tool.buildUI(index, args, context);
@@ -274,16 +268,19 @@ export function makeTools(e: _$, ctrl: ImageController): ToolRegistrar {
       if (fct) fct();
     }
     title.empty();
-    if (filters.length > 0) {
+    const lastFilterIndex = [...filters]
+      .reverse()
+      .findIndex((f) => registrar.tool(f.name)?.permanentIndex === undefined);
+    if (lastFilterIndex !== -1) {
       title.append(
         $(
           `<button class='undo-last-operation'>${
             t("Cancel") +
             " " +
-            registrar.toolNameForFilter(filters.slice(-1)[0].name)
+            registrar.toolNameForFilter(filters[lastFilterIndex].name)
           }</button>`
         ).on("click", (e) => {
-          ctrl.deleteOperation(filters.length - 1);
+          ctrl.deleteOperation(lastFilterIndex);
           e.stopPropagation();
         })
       );
@@ -303,7 +300,7 @@ export function makeTools(e: _$, ctrl: ImageController): ToolRegistrar {
       clearList.push(toolUi.clearFct);
       if (toolUi.ui) {
         toolUi.ui.classList.add("multiple");
-        if (registrar.tool(name)?.permanent) {
+        if (registrar.tool(name)?.permanentIndex) {
           newAdjustmentHistory.append(toolUi.ui);
         } else {
           newControls

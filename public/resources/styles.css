@@ -2,12 +2,12 @@
   --thumbnail-size: 300px;  
 }
 
-::-webkit-scrollbar {
+.folders::-webkit-scrollbar {
     -webkit-appearance: none;
-    width: 8px;
+    width: 16px;
 }
 
-::-webkit-scrollbar-thumb {
+.folders::-webkit-scrollbar-thumb {
     background-color: rgba(0,0,0,.5);
     -webkit-box-shadow: 0 0 1px rgba(255,255,255,.5);
 }
@@ -570,8 +570,8 @@ body {
   color: rgb(80, 80, 80);
   /* font-family: sans-serif; */
   /* overflow: hidden scroll; */
-  overflow-x: clip;
-  overflow-y: scroll;
+  /* overflow-x: clip; */
+  /* overflow-y: scroll; */
   width: 308px;
   scroll-padding: 0px;
   scroll-margin: 0px;
@@ -626,11 +626,13 @@ body {
   left: -16px;
   /* right: 119px; */
   color: white;
-  background-color: rgb(18 56 200);
+  background-color: #0f4c81;
 }
 
 .folder-collapsed .browser-list-head   {
-  background-color: rgb(39 39 39);
+  /* background-color: rgb(39 39 39); */
+  font-style: italic;
+  color: lightgrey;
 }
 
 .folder-collapsed .browser-list-albums {
@@ -659,7 +661,8 @@ body {
   top: 0px;
   bottom: 0px;
   position: absolute;
-  overflow: scroll;
+  overflow-y: scroll;
+  overflow-x: hidden;
   padding-top: 10px;
   padding-bottom: 10px;
   width: 100%;

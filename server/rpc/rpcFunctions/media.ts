@@ -49,7 +49,8 @@ async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {
       if (current !== undefined) {
         rank = Math.max(rank + 1, parseInt(current));
       }
-      updatePicasaEntry(entry, "rank", rank);
+      if (current !== undefined && rank !== parseInt(current))
+        updatePicasaEntry(entry, "rank", rank);
     }
   }
 }

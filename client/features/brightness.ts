@@ -45,7 +45,7 @@ export function setupBrightness(
       return true;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController, toolRegistrar);
+      const e = toolHeader(name, index, imageController, toolRegistrar, this);
       e.append(`<div><div class="tool-control slidecontainer">
           <label>Brightness</label>
           <input type="range" min="0" max="100" value="0" class="brightness slider">

@@ -13,7 +13,7 @@ export function setupFill(
   const name = t("Extra Light");
   toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
     multipleFamily: name,
-    permanent: 3,
+    permanentIndex: 3,
     filterName: "fill",
     enable: (e) => isPicture(e),
     build: function (amount: number = 0) {
@@ -33,10 +33,9 @@ export function setupFill(
       return true;
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController, toolRegistrar);
+      const e = toolHeader(name, index, imageController, toolRegistrar, this);
       e.append(`<div>
       <div class="tool-control slidecontainer">
-          <label>Gamma</label>
           <input type="range" min="0" max="100" value="50" class="amount slider">
         </div>
       <div>

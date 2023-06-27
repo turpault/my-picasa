@@ -56,7 +56,7 @@ export function setupTilt(
 
   toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
     multipleFamily: null,
-    permanent: 2,
+    permanentIndex: 2,
     filterName: "tilt",
     enable: (e) => isPicture(e),
     icon: async function (context) {
@@ -82,15 +82,17 @@ export function setupTilt(
       };
     },
     buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageCtrl, toolRegistrar);
+      const e = toolHeader(name, index, imageCtrl, toolRegistrar, this);
       e.append(`<div>
         <div class="tool-control>
           <label>Show/Hide Grid</label>
           <input type="checkbox">
         </div>
         <div class="tool-control slidecontainer">
-          <label>Rotation</label>
-          <input type="range" min="-100" max="100" value="0" class="rotation slider">
+        <datalist id="snap-to-0">
+          <option value="0">
+        </datalist>
+          <input type="range" min="-100" max="100" value="0" class="rotation slider" list="snap-to-0">
         </div>
       </div>`);
       $(".rotation", e).val(valueToSlider(args[1]));
