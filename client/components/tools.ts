@@ -64,6 +64,7 @@ export class ToolRegistrar {
   events: Emitter<ToolRegistrarEvents>;
   registerTool(toolName: string, page: string, tool: Tool) {
     this.tools[toolName] = tool;
+    if (tool.permanentIndex !== undefined) return;
     const newPage = !this.pages[page];
     if (newPage) {
       this.pages[page] = [toolName];
@@ -135,7 +136,7 @@ export class ToolRegistrar {
     await Promise.allSettled(
       Object.entries(this.tools)
         .filter(([name]) => this.pages[page].includes(name))
-        .filter(([_name, tool]) => tool.permanentIndex !== undefined)
+        .filter(([_name, tool]) => tool.permanentIndex === undefined)
         .map(async ([name, tool]) => {
           const data = await toolIconForTool(copy, original, tool);
           const target = this.toolButtons[name];
@@ -154,12 +155,14 @@ export class ToolRegistrar {
           continue;
         }
         if (!this.pages[page].includes(name)) {
-          const data = await toolIconForTool(copy, original, tool);
           const target = this.toolButtons[name];
-          target.css({
-            "background-image": `url(${data})`,
-            display: tool.enable(entry) ? "" : "none",
-          });
+          if (target) {
+            const data = await toolIconForTool(copy, original, tool);
+            target.css({
+              "background-image": `url(${data})`,
+              display: tool.enable(entry) ? "" : "none",
+            });
+          }
         }
       }
       destroyContext(copy);
@@ -234,6 +237,9 @@ export class ToolRegistrar {
   edit(index: number, name: string) {
     this.events.emit("activate", { index, tool: this.tools[name] });
   }
+  reset(index: number, name: string) {
+    this.tools[name]!.reset!(index);
+  }
 
   private tools: {
     [name: string]: Tool;
@@ -252,76 +258,76 @@ export function makeTools(e: _$, ctrl: ImageController): ToolRegistrar {
     ctrl.updateCaption(description.val());
   });
 
-  ctrl.events.on("liveViewUpdated", ({ context, original, entry }) => {
-    // Refresh the icons
-    registrar.refreshToolIcons(context, original, entry);
-  });
   const clearList: (Function | undefined)[] = [];
   ctrl.filterSetup((operations: PicasaFilter[]) =>
     registrar.ensurePermanentTools(operations)
   );
-  ctrl.events.on("updated", ({ context, caption, filters }) => {
-    description.val(caption || "");
-    // Update the operation list
-    while (clearList.length > 0) {
-      const fct = clearList.pop();
-      if (fct) fct();
-    }
-    title.empty();
-    const lastFilterIndex = [...filters]
-      .reverse()
-      .findIndex((f) => registrar.tool(f.name)?.permanentIndex === undefined);
-    if (lastFilterIndex !== -1) {
-      title.append(
-        $(
-          `<button class='undo-last-operation'>${
-            t("Cancel") +
-            " " +
-            registrar.toolNameForFilter(filters[lastFilterIndex].name)
-          }</button>`
-        ).on("click", (e) => {
-          ctrl.deleteOperation(lastFilterIndex);
-          e.stopPropagation();
-        })
-      );
-    }
-    const newControls = $("<div/>");
-    const newAdjustmentHistory = $(`<div/>`);
-    const activeTools = filters;
-    let toolCount = 0;
-    for (const { name: name, args } of activeTools) {
-      const toolUi = registrar.makeUiForTool(
-        name,
-        toolCount++,
-        args,
-        ctrl,
-        context
-      );
-      clearList.push(toolUi.clearFct);
-      if (toolUi.ui) {
-        toolUi.ui.classList.add("multiple");
-        if (registrar.tool(name)?.permanentIndex) {
-          newAdjustmentHistory.append(toolUi.ui);
-        } else {
-          newControls
-            .get()
-            .insertBefore(toolUi.ui, newControls.get().firstChild);
+  ctrl.events.on(
+    "updated",
+    ({ context, caption, filters, entry, liveContext }) => {
+      registrar.refreshToolIcons(liveContext, context, entry);
+      description.val(caption || "");
+      // Update the operation list
+      while (clearList.length > 0) {
+        const fct = clearList.pop();
+        if (fct) fct();
+      }
+      title.empty();
+      const lastFilterIndex = [...filters]
+        .reverse()
+        .findIndex((f) => registrar.tool(f.name)?.permanentIndex === undefined);
+      if (lastFilterIndex !== -1) {
+        title.append(
+          $(
+            `<button class='undo-last-operation'>${
+              t("Cancel") +
+              " " +
+              registrar.toolNameForFilter(filters[lastFilterIndex].name)
+            }</button>`
+          ).on("click", (e) => {
+            ctrl.deleteOperation(lastFilterIndex);
+            e.stopPropagation();
+          })
+        );
+      }
+      const newControls = $("<div/>");
+      const newAdjustmentHistory = $(`<div/>`);
+      const activeTools = filters;
+      let toolCount = 0;
+      for (const { name: name, args } of activeTools) {
+        const toolUi = registrar.makeUiForTool(
+          name,
+          toolCount++,
+          args,
+          ctrl,
+          context
+        );
+        clearList.push(toolUi.clearFct);
+        if (toolUi.ui) {
+          toolUi.ui.classList.add("multiple");
+          if (registrar.tool(name)?.permanentIndex) {
+            newAdjustmentHistory.append(toolUi.ui);
+          } else {
+            newControls
+              .get()
+              .insertBefore(toolUi.ui, newControls.get().firstChild);
+          }
         }
       }
-    }
-    if (newControls.innerHTML() !== history.innerHTML()) {
-      history.empty();
-      for (const c of newControls.children()) {
+      if (newControls.innerHTML() !== history.innerHTML()) {
+        history.empty();
+        for (const c of newControls.children()) {
+          c.remove();
+          history.append(c);
+        }
+      }
+      adjustmentHistory.empty();
+      for (const c of newAdjustmentHistory.children()) {
         c.remove();
-        history.append(c);
+        adjustmentHistory.append(c);
       }
     }
-    adjustmentHistory.empty();
-    for (const c of newAdjustmentHistory.children()) {
-      c.remove();
-      adjustmentHistory.append(c);
-    }
-  });
+  );
   registrar.events.on("preview", async ({ operation }) => {
     ctrl.preview(operation);
   });
@@ -345,9 +351,9 @@ export function makeTools(e: _$, ctrl: ImageController): ToolRegistrar {
     }
     const toolCount = activeTools.length;
     if (tool.editable) {
-      ctrl.muteAt(toolCount);
+      await ctrl.muteAt(toolCount);
       const commited = await tool.activate(toolCount);
-      ctrl.muteAt(-1);
+      await ctrl.unmute();
       if (!commited) {
         ctrl.deleteOperation(toolCount);
       }
@@ -357,8 +363,10 @@ export function makeTools(e: _$, ctrl: ImageController): ToolRegistrar {
   });
   registrar.events.on("activate", async ({ index, tool }) => {
     ctrl.muteAt(index);
-    await tool.activate(index, ctrl.operationList()[index].args);
-    ctrl.muteAt(-1);
+    ctrl.events.once("visible", async () => {
+      await tool.activate(index, ctrl.operationList()[index].args);
+      await ctrl.unmute();
+    });
   });
   return registrar;
 }

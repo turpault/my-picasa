@@ -11,6 +11,7 @@ import {
   destroyContext,
   encode,
   execute,
+  histogram,
   setOptions,
   transform,
 } from "./imageOperations/sharp-processor";
@@ -248,6 +249,10 @@ export const MyPicasa: ServiceMap = {
     buildMosaic: {
       handler: generateMosaicFile,
       arguments: ["entry:object", "width:number", "height:number"],
+    },
+    histogram: {
+      handler: histogram,
+      arguments: ["context:string"],
     },
   },
 };

@@ -195,6 +195,7 @@ async function copyJob(job: Job): Promise<Album[]> {
   job.progress.start = steps;
   job.progress.remaining = steps;
   job.changed();
+  job.out = [];
   await Promise.allSettled(
     source.map(async (s) => {
       try {
@@ -214,11 +215,13 @@ async function copyJob(job: Job): Promise<Album[]> {
           }
         }
 
+        const newEntry = { album: dest, name: targetName };
         await copyFile(
           entryFilePath(s),
           join(imagesRoot, idFromKey(dest.key).id, targetName)
         );
-        await copyMetadata(s, { album: dest, name: targetName }, false);
+        await copyMetadata(s, newEntry, false);
+        job.out.push(newEntry);
         albumChanged(dest, updatedAlbums);
       } catch (e: any) {
         job.errors.push(e.message as string);

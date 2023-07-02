@@ -20,7 +20,7 @@ const stringTable: { [key: string]: any } = {
   "Delete Album": { fr: "Effacer l'album" },
   "Edit Album Name": { fr: "Modifier le nom de l'album" },
   Crop: { fr: "Recadrer" },
-  Tilt: { fr: "Pencher" },
+  Tilt: { fr: "Redresser" },
   Autocolor: { fr: "Couleur auto" },
   Greyscale: { fr: "Noir et blanc" },
   Contrast: { fr: "Contraste" },
@@ -97,19 +97,35 @@ const stringTable: { [key: string]: any } = {
   Changed: { fr: "Changé" },
   Created: { fr: "Créé" },
   Cancel: { fr: "Annuler" },
+  Adjustments: { fr: "Ajustements" },
+  Reset: { fr: "Annuler" },
+  Modify: { fr: "Modifier" },
+  "Rotate Left": { fr: "Tourner à gauche" },
+  "Rotate Right": { fr: "Tourner à droite" },
+  "Export $1 item(s)": { fr: "Exporter $1 elements(s)" },
+  "Duplicate $1 item(s)": { fr: "Dupliquer $1 elements(s)" },
+  "Move $1 item(s) to a new album": {
+    fr: "Déplacer $1 elements(s) vers un nouvel album",
+  },
+  "Delete $1 item(s)": { fr: "Supprimer $1 elements(s)" },
 };
 const lang = window.navigator.language.split("-")[0];
 let str = new Set<string>();
-export function t(s: string) {
-  const elements = s.split("|");
-  let res = stringTable[elements[0]]?.[lang];
+export function t(s: string, ...args: any[]): string {
+  const sp = s.split("|");
+  if (sp.length > 1) return t(sp[0], ...sp.slice(1), ...args);
+
+  let res = stringTable[s]?.[lang];
   if (!res) {
     if (lang !== "en") {
       str.add(`"${s}": {fr:"${s}"},`);
       console.log("Missing strings", Array.from(str).join("\n"));
     }
-    res = elements[0];
+    res = s;
   }
-  elements.slice(1).forEach((v, idx) => (res = res.replace(`$${idx + 1}`, v)));
+  // Replace positional arguments
+  if (args.length > 0) {
+    args.forEach((v, idx) => (res = res.replace(`$${idx + 1}`, v)));
+  }
   return res;
 }

@@ -23,6 +23,7 @@ export type Tool = {
   activate: activateFct;
   multipleFamily: string | null;
   permanentIndex?: number;
+  reset?: (index: number) => void;
 };
 
 export type PanZoomEvent = {
@@ -36,17 +37,15 @@ export type ImageControllerEvent = {
     liveContext: string;
     caption: string;
     filters: PicasaFilter[];
-  };
-  liveViewUpdated: {
-    context: string;
-    original: string;
     entry: AlbumEntry;
   };
   idle: {};
   busy: {};
   operationListChanged: {};
   displayed: {};
+  resized: { info: any; entry: AlbumEntry };
   visible: { info: any; entry: AlbumEntry };
+  zoom: { scale: number };
 };
 
 export type AppEvent = {
@@ -74,6 +73,7 @@ export type AppEvent = {
     shift: boolean;
     alt: boolean;
     win: _$;
+    preventDefault: () => void;
   };
   browserSelectionChanged: {
     selection: AlbumEntry[];
@@ -83,6 +83,7 @@ export type AppEvent = {
   show: { initialList: AlbumEntry[]; initialIndex: number };
   editSelect: { entry: AlbumEntry };
   mosaic: { initialList: AlbumEntry[]; initialIndex: number };
+  gallery: { initialList: AlbumEntry[]; initialIndex: number };
 };
 
 export type AppEventSource = Emitter<AppEvent>;

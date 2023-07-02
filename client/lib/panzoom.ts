@@ -116,7 +116,7 @@ export class ImagePanZoomController {
     return { width: this.element.width, height: this.element.height };
   }
 
-  recenter() {
+  async recenter() {
     const [width, height] = [this.element.width, this.element.height];
     if (width === 0 || height === 0) {
       return;
@@ -133,15 +133,24 @@ export class ImagePanZoomController {
     //this.panner.moveTo(initialLeft, initialTop);
     this.panner.zoomAbs(initialLeft, initialTop, initialZoom);
     this.panner.moveTo(initialLeft, initialTop);
+
+    await this.waitNextFrame();
+
+    if (this.rotation !== 0) {
+      this.localTransforms = this.panner.getTransform();
+      this.rotate(this.rotation);
+    }
   }
-  enable(enabled: boolean) {
+  async enable(enabled: boolean) {
     if (enabled) {
+      this.rotation = 0;
       this.element.css({
         position: "",
         left: "",
         top: "",
       });
       this.panner.resume();
+      await this.waitNextFrame();
     } else {
       this.localTransforms = this.panner.getTransform();
       const matrix = Matrix3x3.identity()
@@ -160,15 +169,22 @@ export class ImagePanZoomController {
         transform: toMatrix(matrix),
       });
       this.panner.pause();
+      await this.waitNextFrame();
+      if (this.rotation !== 0) {
+        await this.rotate(this.rotation);
+      }
     }
   }
   rotate(angleDeg: number) {
-    const transform = this.localTransforms!;
+    if (!this.panner.isPaused()) {
+      throw new Error("Cannot rotate while panning");
+    }
+    this.rotation = angleDeg;
+    const transform = { ...this.localTransforms! };
     const elemCenter = {
       x: this.element.width / 2,
       y: this.element.height / 2,
     };
-    console.info("Input data", transform, elemCenter);
     /*this.element.css({
       "transform-origin": `${this.element.width*transform.scale/2}px ${this.element.height*transform.scale/2}px`,
       "transform": `scale(${transform.scale}) rotate(${angle}rad) translate(${transform.x/transform.scale}px, ${transform.y/transform.scale}px)`
@@ -187,21 +203,24 @@ export class ImagePanZoomController {
     matrix = matrix.timesMatrix(rotation);
     matrix = matrix.timesMatrix(translation);
     const values = toMatrix(matrix);
-    console.info("Output data", transform, elemCenter, values);
     this.element.css({
       transform: values,
     });
   }
-  zoom(zoom: number) {
+
+  async zoom(zoom: number) {
     const targetZoom = this.panner.getMinZoom() * zoom;
     //this.recenter();
     const parent = this.element.parent()!;
-
     this.panner.smoothZoomAbs(parent.width / 2, parent.height / 2, targetZoom);
+  }
+  private async waitNextFrame() {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
   }
   events: Emitter<PanZoomEvent>;
   private localTransforms?: Transform;
 
   private panner: PanZoom;
+  private rotation = 0;
   private element: _$;
 }

@@ -68,6 +68,7 @@ export async function makeBrowser(
             source: selectionManager.selected(),
             destination: target,
           });
+          e.preventDefault();
           return;
         }
       }

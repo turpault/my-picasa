@@ -5,6 +5,7 @@ import {
   AlbumEntry,
   AlbumMetaData,
   JOBNAMES,
+  Job,
   undoStep,
 } from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
@@ -29,10 +30,12 @@ const html = `<div class="bottom-list-tools">
 </div>
 <div class="selection-thumbs">
 </div>
+<!--
 <div class="brightness-photo-list">
   <label>${t("Brightness")}</label>
   <input type="range" min="0" max="20" class="photos-brightness-ctrl slider">
 </div>
+-->
 <div class="zoom-photo-list">
   <label>${t("Icon Size")}</label>
   <input type="range" min="75" max="250" class="photos-zoom-ctrl slider">
@@ -71,44 +74,32 @@ export function makeButtons(appEvents: AppEventSource): _$ {
         icon: string;
         element?: _$;
         type?: "button" | "dropdown";
-        click?: (ev: MouseEvent) => any;
+        execute?: () => any;
+        hotKey?: string;
         tooltip?: () => string;
         visible?: () => boolean;
         enabled?: () => boolean;
         highlight?: () => boolean;
         dropdownReady?: (emitter: Emitter<DropListEvents>) => any;
       }
-    | { element?: _$; click?: (ev: MouseEvent) => any; type: "sep" }
+    | { element?: _$; execute?: () => any; type: "sep"; hotKey?: string }
   )[] = [
     {
       name: t("Export All Favorites"),
       icon: "resources/images/icons/actions/export-favorites-50.png",
       visible: () => state.tabKind === "Browser",
-      click: async (ev: MouseEvent) => {
+      execute: async () => {
         const s = await getService();
         return s.createJob(JOBNAMES.EXPORT_TO_IPHOTO, {});
       },
     },
     {
-      name: t("Export selection to folder"),
-      icon: "resources/images/icons/actions/export-50.png",
-      visible: () => state.tabKind === "Browser",
-      enabled: () => state.selection.length > 0,
-      click: async (ev: MouseEvent) => {
-        if (state.selection.length > 0) {
-          const s = await getService();
-          return s.createJob(JOBNAMES.EXPORT, {
-            source: state.selection,
-          });
-        }
-      },
-    },
-    {
-      name: t("Export displayed image to folder"),
+      name: JOBNAMES.EXPORT,
       icon: "resources/images/icons/actions/export-50.png",
       enabled: () => state.selection.length > 0,
       visible: () => state.tabKind === "Editor",
-      click: async (ev: MouseEvent) => {
+      tooltip: () => `${t("Export $1 item(s)", state.selection.length)}`,
+      execute: async () => {
         if (state.selection.length > 0) {
           const s = await getService();
           return s.createJob(JOBNAMES.EXPORT, {
@@ -119,22 +110,32 @@ export function makeButtons(appEvents: AppEventSource): _$ {
     },
     { type: "sep" },
     {
-      name: t("Clone Selection"),
+      name: JOBNAMES.DUPLICATE,
       icon: "resources/images/icons/actions/duplicate-50.png",
-      visible: () => state.tabKind === "Browser",
-      click: async (ev: MouseEvent) => {
+      visible: () => state.selection.length > 0,
+      hotKey: "Ctrl+D",
+      tooltip: () => `${t("Duplicate $1 item(s)", state.selection.length)}`,
+      execute: async () => {
         const s = await getService();
-        return s.createJob(JOBNAMES.DUPLICATE, {
+        const jobId = await s.createJob(JOBNAMES.DUPLICATE, {
           source: state.selection,
+        });
+        s.waitJob(jobId).then((results: Job) => {
+          appEvents.emit("edit", {
+            initialList: results.out as AlbumEntry[],
+            initialIndex: 0,
+          });
         });
       },
     },
     {
-      name: t("Move selection to new Album"),
+      name: JOBNAMES.MOVE,
       icon: "resources/images/icons/actions/move-to-new-album-50.png",
       enabled: () => state.selection.length > 0,
       visible: () => state.tabKind === "Browser",
-      click: (ev: MouseEvent) => {
+      tooltip: () =>
+        `${t("Move $1 item(s) to a new album", state.selection.length)}`,
+      execute: () => {
         question("New album name", "Please type the new album name").then(
           async (newAlbum) => {
             if (newAlbum) {
@@ -154,30 +155,33 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       name: t("Add/Remove favorite"),
       icon: "resources/images/icons/actions/favorites-50.png",
       enabled: () => state.selection.length > 0,
+      hotKey: "Space",
       highlight: () =>
         state.selection.length > 0
           ? !!state.albumMetaData[state.selection[0].name]?.star
           : false,
-      click: async (ev: MouseEvent) => {
+      execute: async () => {
         toggleStar(state.selection);
       },
     },
     {
-      name: t("Rotate Selected Left"),
+      name: t("Rotate Left"),
       icon: "resources/images/icons/actions/rotate-left-50.png",
       enabled: () => state.selection.length > 0,
       visible: () => state.tabKind === "Browser",
-      click: async (ev: MouseEvent) => {
+      hotKey: "Ctrl+ArrowLeft",
+      execute: async () => {
         const s = await getService();
         s.rotate(state.selection, "left");
       },
     },
     {
-      name: t("Rotate Selected Right"),
+      name: t("Rotate Right"),
       icon: "resources/images/icons/actions/rotate-right-50.png",
       enabled: () => state.selection.length > 0,
       visible: () => state.tabKind === "Browser",
-      click: async (ev: MouseEvent) => {
+      hotKey: "Ctrl+ArrowRight",
+      execute: async () => {
         const s = await getService();
         s.rotate(state.selection, "right");
       },
@@ -188,7 +192,7 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       icon: "resources/images/icons/actions/composition-50.png",
       enabled: () => state.selection.length > 0,
       visible: () => state.tabKind === "Browser",
-      click: (ev: MouseEvent) => {
+      execute: () => {
         appEvents.emit("mosaic", {
           initialList: state.selection,
           initialIndex: 0,
@@ -200,8 +204,8 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       icon: "resources/images/icons/actions/slideshow-50.png",
       enabled: () => state.selection.length > 0,
       visible: () => false,
-      click: (ev: MouseEvent) => {
-        appEvents.emit("mosaic", {
+      execute: () => {
+        appEvents.emit("gallery", {
           initialList: state.selection,
           initialIndex: 0,
         });
@@ -213,11 +217,12 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       icon: "resources/images/icons/actions/undo-50.png",
       enabled: () => state.undo.length > 0,
       visible: () => state.tabKind === "Browser",
+      hotKey: "Ctrl+Z",
       tooltip: () =>
         state.undo.length > 0
           ? `${t("Undo")} ${t(state.undo[0].description)}`
           : t("Nothing to undo"),
-      click: async (_ev: MouseEvent) => {
+      execute: async () => {
         const s = await getService();
         const undo = state.undo[0];
         return s.undo(undo.uuid);
@@ -228,8 +233,9 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       name: t("Open in Finder"),
       icon: "resources/images/icons/actions/finder-50.png",
       enabled: () => state.selection.length > 0,
-      visible: () => state.tabKind === "Browser" || state.tabKind === "Editor",
-      click: async (ev: MouseEvent) => {
+      visible: () =>
+        false && (state.tabKind === "Browser" || state.tabKind === "Editor"),
+      execute: async () => {
         const s = await getService();
         const firstSelection = state.selection[0];
         if (firstSelection) s.openEntryInFinder(firstSelection);
@@ -240,7 +246,8 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       icon: "resources/images/icons/actions/trash-50.png",
       enabled: () => state.selection.length > 0,
       visible: () => state.tabKind === "Browser",
-      click: async (ev: MouseEvent) => {
+      tooltip: () => `${t("Delete $1 item(s)", state.selection.length)}`,
+      execute: async () => {
         const s = await getService();
         return s.createJob(JOBNAMES.DELETE, {
           source: state.selection,
@@ -260,18 +267,24 @@ export function makeButtons(appEvents: AppEventSource): _$ {
         if (action.dropdownReady) {
           action.dropdownReady(emitter);
         }
-
         break;
-
       case "button":
       case undefined:
-        action.element = $(`<button data-tooltip-above="${action.name}"
-      class="w3-button bottom-bar-button" style="background-image: url(${action.icon})"></button>`);
+        action.element = $(
+          `
+        <button 
+          data-tooltip-above="${action.name}${
+            action.hotKey ? " (" + action.hotKey + ")" : ""
+          }"
+          class="w3-button bottom-bar-button" 
+          style="background-image: url(${action.icon})">
+        </button>`
+        );
         break;
     }
-    if (action.click !== undefined) {
-      action.element.on("click", async (ev: MouseEvent) => {
-        const res = await action.click!(ev);
+    if (action.execute !== undefined) {
+      action.element.on("click", async () => {
+        const res = await action.execute!();
         if (typeof res === "string") {
           action.element?.addClass("job-running");
           const s = await getService();
@@ -282,6 +295,17 @@ export function makeButtons(appEvents: AppEventSource): _$ {
     }
     buttons.append(action.element);
   }
+  appEvents.on("keyDown", (ev) => {
+    for (const action of actions) {
+      if (action.type !== "sep") {
+        if (action.visible && action.visible() && ev.code === action.hotKey) {
+          action.execute!();
+          ev.preventDefault();
+          break;
+        }
+      }
+    }
+  });
 
   async function refreshState() {
     const s = await getService();

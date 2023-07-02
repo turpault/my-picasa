@@ -869,12 +869,14 @@ body {
   position: fixed;
   z-index: 100;
   display: none;
-  top: 10px;
+  bottom: 70px;
   font-weight: lighter;
+  border: 3px solid black;
+  border-radius: 3px;
   background-color: rgb(72, 172, 72);
   min-width: 200px;
   color: black;
-  right: 74px;
+  right: 7px;
 }
 
 .job {
@@ -1266,7 +1268,9 @@ body {
   overflow-x: hidden;
   margin-bottom: 20px;
 }
-
+.canvas-histogram {
+  margin: 9px;
+}
 .centered {
   display: flex;
   justify-content: center;

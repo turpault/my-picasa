@@ -62,11 +62,6 @@ export async function makeImageStrip(e: _$, selector: ActiveImageManager) {
       "albumEntryAspectChanged",
       async (e: { payload: AlbumEntryPicasa }) => {
         const changed = elementFromEntry(e.payload, prefix);
-        console.info(
-          "Changed event for id",
-          idFromAlbumEntry(e.payload, prefix),
-          changed.exists()
-        );
         if (changed.exists()) {
           changed.css({
             "background-image": `url("${thumbnailUrl(e.payload, "th-small")}")`,

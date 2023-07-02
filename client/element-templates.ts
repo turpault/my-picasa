@@ -1,4 +1,5 @@
 import { ImageController } from "./components/image-controller";
+import { t } from "./components/strings";
 import { ToolRegistrar } from "./components/tools";
 import { $ } from "./lib/dom";
 import { Tool } from "./uiTypes";
@@ -13,8 +14,13 @@ export function toolHeader(
   const e = $(`<div class="tool-box">
   <div class="w3-bar">
     <a class="w3-bar-item inline">${displayName}</a>
+    <a class="inline reset-tool w3-button w3-bar-item w3-right">${t(
+      "Reset"
+    )}</a>
     <a class="inline delete-tool w3-button w3-bar-item w3-right fa fa-times"></a>
-    <a class="inline edit-tool w3-button w3-bar-item w3-right fa fa-eye"></a>
+    <a class="inline edit-tool w3-button w3-bar-item w3-right">${t(
+      "Modify"
+    )}</a>
     <a class="inline up-tool w3-button w3-bar-item w3-right fa fa-arrow-up"></a>
     <a class="inline down-tool w3-button w3-bar-item w3-right fa fa-arrow-down"></a>
   </div>
@@ -56,6 +62,13 @@ export function toolHeader(
     })
     .on("click", () => {
       toolRegistrar.edit(index, displayName);
+    });
+  $(".reset-tool", e)
+    .css({
+      display: tool.reset ? "" : ["none", "important"],
+    })
+    .on("click", () => {
+      toolRegistrar.reset(index, displayName);
     });
   return e;
 }

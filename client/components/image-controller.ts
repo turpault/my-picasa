@@ -31,7 +31,7 @@ import { getService } from "../rpc/connect";
 import { ImageControllerEvent } from "../uiTypes";
 
 export class ImageController {
-  constructor(image: _$, video: _$, panZoomCtrl: ImagePanZoomController) {
+  constructor(image: _$, video: _$) {
     this.image = image;
     this.video = video;
     this.entry = {
@@ -43,7 +43,7 @@ export class ImageController {
     this.thumbContext = "";
     this.liveContext = "";
     this.events = buildEmitter<ImageControllerEvent>(false);
-    this.zoomController = panZoomCtrl;
+    this.zoomController = new ImagePanZoomController(this.image);
     this.identify = false;
     this.filters = [];
     this.mute = undefined;
@@ -51,7 +51,10 @@ export class ImageController {
     this.faces = [];
     this.parent = this.image.parent()!;
     this.image.on("load", () => this.loaded());
-    new ResizeObserver(() => this.recenter()).observe(this.parent.get()!);
+    new ResizeObserver(async () => {
+      await this.recenter();
+      this.events.emit("resized", { entry: this.entry, info: this.info() });
+    }).observe(this.parent.get()!);
   }
 
   operationList(): PicasaFilter[] {
@@ -62,9 +65,10 @@ export class ImageController {
     if (this.image.attr("src")) {
       console.info("Loaded image", this.image.attr("src"));
       this.image.css("display", "");
-      this.recenter();
-      this.events.emit("idle", {});
-      this.events.emit("visible", { entry: this.entry, info: this.info() });
+      this.recenter().then(() => {
+        this.events.emit("idle", {});
+        this.events.emit("visible", { entry: this.entry, info: this.info() });
+      });
     }
   }
   info() {
@@ -80,24 +84,24 @@ export class ImageController {
     return this.operationList();
   }
 
-  muteAt(indexToMute: number) {
+  async muteAt(indexToMute: number) {
     if (this.mute !== indexToMute) {
       this.mute = indexToMute;
-      this.update();
+      await this.update();
     }
   }
   mutedIndex() {
     return this.mute;
   }
-  unmute() {
+  async unmute() {
     this.mute = undefined;
-    this.update();
+    await this.update();
   }
 
-  setIdentifyMode(enable: boolean) {
+  async setIdentifyMode(enable: boolean) {
     if (this.identify !== enable) {
       this.identify = enable;
-      this.update();
+      await this.update();
     }
   }
 
@@ -297,6 +301,7 @@ export class ImageController {
         liveContext,
         caption: this.caption,
         filters: this.filters,
+        entry: this.entry,
       });
     }
     if (isVideo(this.entry)) {
@@ -311,37 +316,43 @@ export class ImageController {
 
   async addOperation(operation: PicasaFilter) {
     this.filters.push(operation);
-    await Promise.all([this.saveFilterInfo(), this.update()]);
+    await this.saveFilterInfo();
+    await this.update();
   }
 
   async updateCaption(caption: string) {
     this.caption = caption;
-    await Promise.all([this.saveCaption(), this.update()]);
+    await this.saveCaption();
+    await this.update();
   }
 
   async deleteOperation(idx: number) {
     this.filters.splice(idx, 1);
-    await Promise.all([this.saveFilterInfo(), this.update()]);
+    await this.saveFilterInfo();
+    await this.update();
   }
   async moveDown(idx: number) {
     if (idx < this.filters.length - 1) {
       const op = this.filters.splice(idx, 1)[0];
       this.filters.splice(idx + 1, 0, op);
-      await Promise.all([this.saveFilterInfo(), this.update()]);
+      await this.saveFilterInfo();
+      await this.update();
     }
   }
   async moveUp(idx: number) {
     if (idx > 0) {
       const op = this.filters.splice(idx, 1)[0];
       this.filters.splice(idx - 1, 0, op);
-      await Promise.all([this.saveFilterInfo(), this.update()]);
+      await this.saveFilterInfo();
+      await this.update();
     }
   }
 
   async updateOperation(idx: number, op: PicasaFilter) {
     if (JSON.stringify(this.filters[idx]) !== JSON.stringify(op)) {
       this.filters[idx] = op;
-      await Promise.all([this.saveFilterInfo(), this.update()]);
+      await this.saveFilterInfo();
+      await this.update();
     }
   }
 
@@ -359,10 +370,15 @@ export class ImageController {
     await s.updatePicasaEntry(this.entry, "caption", this.caption);
   }
 
-  recenter() {
-    const h = this.parent.height;
-    const w = this.parent.width;
-    this.zoomController!.recenter();
+  async recenter() {
+    await this.zoomController.recenter();
+  }
+  async enableZoom(enable: boolean) {
+    return this.zoomController.enable(enable);
+  }
+
+  zoom(ratio: number) {
+    this.zoomController.zoom(ratio);
   }
 
   getCurrentEntry() {
@@ -383,7 +399,7 @@ export class ImageController {
   private updateCount: number = 0;
   private filters: PicasaFilter[];
   private caption: string;
-  private zoomController?: ImagePanZoomController;
+  public zoomController: ImagePanZoomController;
   private identify: boolean;
   private parent: _$;
   private mute: number | undefined;

@@ -36,6 +36,7 @@ import { GENERAL_TOOL_TAB, makeTools } from "./tools";
 
 import { idFromAlbumEntry } from "../../shared/lib/utils";
 import { makeIdentify } from "./identify";
+import { makeHistogram } from "./histogram";
 
 const editHTML = `
 <div class="fill">
@@ -57,7 +58,7 @@ const editHTML = `
     <div class="collapsable">
       <div class="adjustment-history"></div>
     </div>
-    <div class="collapsible gradient-sidebar-title">${t(
+    <div class="collapsible collapsed gradient-sidebar-title">${t(
       "Effects"
     )}<div class="effects-title"></div></div>
     <div class="collapsable collapsable-collapsed">
@@ -72,6 +73,10 @@ const editHTML = `
       "Metadata"
     )}</div>
     <div class="collapsable collapsable-collapsed metadata"></div>
+    <div class="collapsible collapsed gradient-sidebar-title">${t(
+      "Histogram"
+    )}</div>
+    <div class="collapsable collapsable-collapsed histogram"></div>
     <div class="collapsible collapsed gradient-sidebar-title">${t(
       "Identify"
     )}</div>
@@ -131,6 +136,7 @@ export async function makeEditorPage(
   }
 
   const metadata = $(".metadata", editor);
+  const histogram = $(".histogram", editor);
   const identify = $(".identify", editor);
   const album = $(".album-contents", editor);
   album.append(tool);
@@ -140,12 +146,11 @@ export async function makeEditorPage(
   tabEvent.emit("rename", { name: initialList[initialIndex].name });
   appEvents.on("tabDisplayed", async (event) => {
     if (event.win.get() === editor.get()) {
-      const zoomController = new ImagePanZoomController(image);
-      const imageController = new ImageController(image, video, zoomController);
+      const imageController = new ImageController(image, video);
       const toolRegistrar = makeTools(editor, imageController);
       // Add all the activable features
-      setupCrop(imageContainer, zoomController, imageController, toolRegistrar);
-      setupTilt(imageContainer, zoomController, imageController, toolRegistrar);
+      setupCrop(imageContainer, imageController, toolRegistrar);
+      setupTilt(imageContainer, imageController, toolRegistrar);
       setupBrightness(imageController, toolRegistrar);
       setupAutocolor(imageController, toolRegistrar);
       setupBW(imageController, toolRegistrar);
@@ -162,6 +167,7 @@ export async function makeEditorPage(
 
       toolRegistrar.selectPage(GENERAL_TOOL_TAB);
       const refreshMetadataFct = makeMetadata(metadata);
+      const refreshHistogramFct = makeHistogram(histogram);
       makeIdentify(identify, imageController);
 
       const entries = await buildAlbumEntryEx(initialList);
@@ -195,6 +201,11 @@ export async function makeEditorPage(
         imageController.events.on("visible", async ({ info, entry }) => {
           refreshMetadataFct(entry, [entry], info);
         }),
+
+        imageController.events.on("updated", async ({ liveContext }) => {
+          refreshHistogramFct(liveContext);
+        }),
+
         activeManager.event.on("changed", async (entry) => {
           imageController.display(entry);
           tabEvent.emit("rename", { name: entry.name });
@@ -202,37 +213,49 @@ export async function makeEditorPage(
           selectionManager.clear();
           selectionManager.select(entry);
         }),
-        appEvents.on("keyDown", async ({ code, win, ctrl, key }) => {
-          if (win.get() === editor.get()) {
-            switch (code) {
-              case "Space":
-                await toggleStar([activeManager.active()]);
-                break;
-              case "ArrowLeft":
-                activeManager.selectPrevious();
-                appEvents.emit("editSelect", { entry: activeManager.active() });
-                break;
-              case "ArrowRight":
-                activeManager.selectNext();
-                appEvents.emit("editSelect", { entry: activeManager.active() });
-                break;
-              case "Escape":
-                deleteTabWin(win);
-            }
-            if (ctrl) {
-              const s = await getService();
-              const shortcuts = await s.getShortcuts();
-              if (shortcuts[key]) {
-                const target = shortcuts[key];
-                s.createJob(JOBNAMES.EXPORT, {
-                  source: selectionManager.selected(),
-                  destination: target,
-                });
-                return;
+        appEvents.on(
+          "keyDown",
+          async ({ code, win, ctrl, key, preventDefault }) => {
+            if (win.get() === editor.get()) {
+              switch (code) {
+                case "Space":
+                  await toggleStar([activeManager.active()]);
+                  preventDefault();
+                  break;
+                case "ArrowLeft":
+                  activeManager.selectPrevious();
+                  appEvents.emit("editSelect", {
+                    entry: activeManager.active(),
+                  });
+                  preventDefault();
+                  break;
+                case "ArrowRight":
+                  activeManager.selectNext();
+                  appEvents.emit("editSelect", {
+                    entry: activeManager.active(),
+                  });
+                  preventDefault();
+                  break;
+                case "Escape":
+                  deleteTabWin(win);
+                  preventDefault();
+              }
+              if (ctrl) {
+                const s = await getService();
+                const shortcuts = await s.getShortcuts();
+                if (shortcuts[key]) {
+                  const target = shortcuts[key];
+                  s.createJob(JOBNAMES.EXPORT, {
+                    source: selectionManager.selected(),
+                    destination: target,
+                  });
+                  preventDefault();
+                  return;
+                }
               }
             }
           }
-        }),
+        ),
         appEvents.on("tabDeleted", ({ win }) => {
           if (win.get() === editor.get()) {
             off.forEach((o) => o());
@@ -253,9 +276,9 @@ export async function makeEditorPage(
       ];
       const z = $(".zoom-ctrl", tool);
       z.on("input", () => {
-        zoomController.zoom(z.val() / 10);
+        imageController.zoom(z.val() / 10);
       });
-      zoomController.events.on("zoom", (zoom) => {
+      imageController.events.on("zoom", (zoom) => {
         z.val(zoom.scale * 10);
       });
     }
