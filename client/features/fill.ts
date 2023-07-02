@@ -16,6 +16,9 @@ export function setupFill(
     permanentIndex: 3,
     filterName: "fill",
     enable: (e) => isPicture(e),
+    reset: async function (index: number) {
+      imageController.updateOperation(index, this.build());
+    },
     build: function (amount: number = 0) {
       return {
         name: this.filterName,

@@ -97,13 +97,6 @@ export async function makeAlbumList(
           lastHighlight.get().scrollIntoViewIfNeeded(false);
         }
       }),
-      appEvents.on("keyDown", ({ code, win }) => {
-        if (win.isParent(container))
-          switch (code) {
-            case "Space":
-            default:
-          }
-      }),
       events.on("filterChanged", (event) => {
         filter = event.filter;
         albumDataSource.setFilter(filter);
@@ -142,7 +135,6 @@ export async function makeAlbumList(
         events.emit("selected", { album });
       })
       .on("dragover", (ev: any) => {
-        //console.info("dragover");
         ev.preventDefault();
       })
       .on("dragenter", (ev: any) => {
@@ -150,7 +142,6 @@ export async function makeAlbumList(
         if (ev.currentTarget.contains(ev.relatedTarget)) {
           return;
         }
-        console.info("dragenter");
         item.addClass("drop-area");
         ev.dataTransfer.setDragImage(img, 10, 10);
       })
@@ -158,13 +149,11 @@ export async function makeAlbumList(
         if (ev.currentTarget.contains(ev.relatedTarget)) {
           return;
         }
-        console.info("dragleave");
         const item = $(ev.target as HTMLElement);
         item.removeClass("drop-area");
         ev.preventDefault();
       })
       .on("drop", async (ev: any) => {
-        console.info("drop");
         const item = $(ev.target as HTMLElement);
         const selection = selectionManager.selected();
         const album = albumFromElement(item, elementPrefix)!;

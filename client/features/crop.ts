@@ -16,30 +16,29 @@ import { t } from "../components/strings";
 
 export function setupCrop(
   container: _$,
-  panZoomCtrl: ImagePanZoomController,
   imageController: ImageController,
   toolRegistrar: ToolRegistrar
 ) {
   const name = t("Crop");
 
   const previewEmitter = buildEmitter<ValueChangeEvent>();
-  const preview = setupCropPreview(container, previewEmitter, panZoomCtrl);
+  const preview = setupCropPreview(container, previewEmitter, imageController);
 
   let activeIndex: number = -1;
   let _deactivate: ((commit: boolean) => void) | undefined;
 
-  function show(index: number, initialValue: RectRange) {
+  async function show(index: number, initialValue: RectRange) {
     activeIndex = index;
-    panZoomCtrl.recenter();
-    panZoomCtrl.enable(false);
-    imageController.muteAt(index);
+    await imageController.recenter();
+    await imageController.enableZoom(false);
+    await imageController.muteAt(index);
     preview.show(activeIndex, initialValue);
   }
 
-  function hide(commit: boolean) {
+  async function hide(commit: boolean) {
     activeIndex = -1;
-    panZoomCtrl.enable(true);
-    imageController.unmute();
+    await imageController.enableZoom(true);
+    await imageController.unmute();
     preview.hide();
     if (_deactivate) {
       _deactivate(commit);
@@ -56,6 +55,9 @@ export function setupCrop(
     permanentIndex: 1,
     filterName: "crop64",
     enable: (e) => isPicture(e),
+    reset: async function (index: number) {
+      imageController.updateOperation(index, this.build());
+    },
     icon: async function (context) {
       // Crop at 50% in the icon
       await transform(context, [

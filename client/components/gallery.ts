@@ -68,16 +68,19 @@ export async function makeGallery(
   var slideIndex = initialIndex;
   showSlides(slideIndex);
   const off = [
-    appEvents.on("keyDown", ({ code, win }) => {
+    appEvents.on("keyDown", ({ code, win, preventDefault }) => {
       switch (code) {
         case "Escape":
           deleteTabWin(win);
+          preventDefault();
           break;
         case "ArrowLeft":
           showSlides(slideIndex - 1);
+          preventDefault();
           break;
         case "ArrowRight":
           showSlides(slideIndex + 1);
+          preventDefault();
           break;
       }
     }),

@@ -21,7 +21,6 @@ function valueToSlider(v: any) {
 
 export function setupTilt(
   container: _$,
-  panZoomCtrl: ImagePanZoomController,
   imageCtrl: ImageController,
   toolRegistrar: ToolRegistrar
 ) {
@@ -30,20 +29,18 @@ export function setupTilt(
   let _deactivate: ((commit: boolean) => void) | undefined;
   const emitter = buildEmitter<ValueChangeEvent>();
 
-  const preview = setupTiltPreview(container, emitter, panZoomCtrl);
+  const preview = setupTiltPreview(container, emitter, imageCtrl);
 
-  function show(index: number, initialValue: number) {
+  async function show(index: number, initialValue: number) {
     activeIndex = index;
-    panZoomCtrl.recenter();
-    panZoomCtrl.enable(false);
+    await imageCtrl.recenter();
+    await imageCtrl.enableZoom(false);
     preview.show(activeIndex, initialValue);
-    //console.info('Setting value', valueToSlider(initialValue));
-    //$(".rotation", container).val(valueToSlider(initialValue));
   }
 
-  function hide(commit: boolean) {
+  async function hide(commit: boolean) {
     activeIndex = -1;
-    panZoomCtrl.enable(true);
+    await imageCtrl.enableZoom(true);
     preview.hide();
     if (_deactivate) {
       _deactivate(commit);
@@ -65,6 +62,9 @@ export function setupTilt(
       return true;
     },
     editable: true,
+    reset: async function (index: number) {
+      imageCtrl.updateOperation(index, this.build());
+    },
     activate: async function (index: number, args?: string[]) {
       let initialValue = args ? parseFloat(args[1]) : 0;
       if (!args) {
@@ -83,26 +83,12 @@ export function setupTilt(
     },
     buildUI: function (index: number, args: string[]) {
       const e = toolHeader(name, index, imageCtrl, toolRegistrar, this);
-      e.append(`<div>
-        <div class="tool-control>
-          <label>Show/Hide Grid</label>
-          <input type="checkbox">
-        </div>
-        <div class="tool-control slidecontainer">
-        <datalist id="snap-to-0">
-          <option value="0">
-        </datalist>
-          <input type="range" min="-100" max="100" value="0" class="rotation slider" list="snap-to-0">
-        </div>
-      </div>`);
-      $(".rotation", e).val(valueToSlider(args[1]));
       const clearFcts: Function[] = [];
       clearFcts.push(
         emitter.on("updated", (event) => {
           if (index === event.index) {
             if (event.origin !== "control") {
               console.info("Setting value", valueToSlider(event.value));
-              $(".rotation", e).val(valueToSlider(event.value));
             }
             imageCtrl.updateOperation(index, this.build(event.value, 0));
             hide(true);
@@ -113,21 +99,9 @@ export function setupTilt(
         emitter.on("preview", (event) => {
           if (index === event.index) {
             console.info("Setting value", valueToSlider(event.value));
-            $(".rotation", e).val(valueToSlider(event.value));
           }
         })
       );
-      $(".rotation", e).on("change", function () {
-        if (activeIndex === index) {
-          emitter.emit("preview", { index, value: sliderToValue(this.val()) });
-        } else {
-          emitter.emit("updated", {
-            index,
-            value: sliderToValue(this.val()),
-            origin: "control",
-          });
-        }
-      });
       return {
         ui: e.get()!,
         clearFcts: () => {

@@ -1,24 +1,26 @@
 import { Line, LineSegment, Point, Rectangle, Vector } from "ts-2d-geometry";
-import { RectRange } from "../../../shared/lib/utils";
-import { $, _$ } from "../../lib/dom";
 import { Emitter } from "../../../shared/lib/event";
-import { ImagePanZoomController } from "../../lib/panzoom";
-import { del } from "../../lib/idb-keyval";
-import { PanZoomController } from "panzoom";
-import { EventEmitter } from "stream";
+import { RectRange } from "../../../shared/lib/utils";
+import { ImageController } from "../../components/image-controller";
+import { $, _$ } from "../../lib/dom";
 
 export type ValueChangeEvent = {
   updated: { index: number; value: RectRange };
   preview: { index: number; value: RectRange };
   cancel: {};
 };
-
+function bounds(point: Point, area: Rectangle) {
+  return new Point(
+    Math.max(area.topLeft.x, Math.min(area.bottomRight.x, point.x)),
+    Math.max(area.topLeft.y, Math.min(area.bottomRight.y, point.y))
+  );
+}
 //export function draggableElement(e: _$, zoomController: PanZoomController): EventEmitter<
 
 export function setupCropPreview(
   container: _$,
   emitter: Emitter<ValueChangeEvent>,
-  panZoomCtrl: ImagePanZoomController
+  imageController: ImageController
 ) {
   let currentValue: RectRange;
   let activeIndex: number = -1;
@@ -54,6 +56,11 @@ export function setupCropPreview(
       16x9
     </button>
     <button
+      class="btn-xy w3-button override-pointer-active w3-bar-item"
+    >
+      XxY
+    </button>
+    <button
       class="btn-ok-crop w3-button w3-bar-item override-pointer-active"
     >
       <i class="fa fa-check-circle"></i>
@@ -74,12 +81,13 @@ export function setupCropPreview(
   const bl = $(".crop-bottom-left", elem);
   const br = $(".crop-bottom-right", elem);
 
-  type modes = "6x4" | "4x3" | "16x9" | "5x5";
+  type modes = "6x4" | "4x3" | "16x9" | "5x5" | "XY";
   const ratios = {
     "6x4": 6 / 4,
     "4x3": 4 / 3,
     "16x9": 16 / 9,
     "5x5": 1,
+    XY: 0,
   };
   let mode: modes = "4x3";
   let orientation: "paysage" | "portrait" = "paysage";
@@ -111,11 +119,14 @@ export function setupCropPreview(
         };
       },
       updateValue: (value: RectRange, projected: Point) => {
-        const toValue = panZoomCtrl.screenToCanvasRatio(projected.x, projected.y);
+        const toValue = imageController.zoomController.screenToCanvasRatio(
+          projected.x,
+          projected.y
+        );
         return {
-          ...value,          
+          ...value,
           right: toValue.x,
-          top: toValue.y
+          top: toValue.y,
         };
       },
     },
@@ -138,11 +149,14 @@ export function setupCropPreview(
         };
       },
       updateValue: (value: RectRange, projected: Point) => {
-        const toValue = panZoomCtrl.screenToCanvasRatio(projected.x, projected.y);
+        const toValue = imageController.zoomController.screenToCanvasRatio(
+          projected.x,
+          projected.y
+        );
         return {
-          ...value,          
+          ...value,
           right: toValue.x,
-          bottom: toValue.y
+          bottom: toValue.y,
         };
       },
     },
@@ -165,11 +179,14 @@ export function setupCropPreview(
         };
       },
       updateValue: (value: RectRange, projected: Point) => {
-        const toValue = panZoomCtrl.screenToCanvasRatio(projected.x, projected.y);
+        const toValue = imageController.zoomController.screenToCanvasRatio(
+          projected.x,
+          projected.y
+        );
         return {
-          ...value,          
+          ...value,
           left: toValue.x,
-          top: toValue.y
+          top: toValue.y,
         };
       },
     },
@@ -192,11 +209,14 @@ export function setupCropPreview(
         };
       },
       updateValue: (value: RectRange, projected: Point) => {
-        const toValue = panZoomCtrl.screenToCanvasRatio(projected.x, projected.y);
+        const toValue = imageController.zoomController.screenToCanvasRatio(
+          projected.x,
+          projected.y
+        );
         return {
-          ...value,          
+          ...value,
           left: toValue.x,
-          bottom: toValue.y
+          bottom: toValue.y,
         };
       },
     },
@@ -244,17 +264,25 @@ export function setupCropPreview(
       if (initialMousePosMove) {
         const deltaX = Math.round(currentPos.x - initialMousePosMove.x);
         const deltaY = Math.round(currentPos.y - initialMousePosMove.y);
-        
+
         if ((ev.buttons === 1 && deltaX !== 0) || deltaY !== 0) {
-          const deltaInRatio = panZoomCtrl.deltaScreenToCanvasRatio(deltaX, deltaY);
+          const deltaInRatio = imageController.zoomController.deltaScreenToCanvasRatio(
+            deltaX,
+            deltaY
+          );
           const updated = {
             left: currentValue.left + deltaInRatio.x,
             right: currentValue.right + deltaInRatio.x,
             top: currentValue.top + deltaInRatio.y,
             bottom: currentValue.bottom + deltaInRatio.y,
           };
-          if(updated.left >=0 && updated.top >= 0 && updated.bottom <= 1 && updated.right <=1) {
-            emitter.emit('preview', {index: activeIndex, value:updated});
+          if (
+            updated.left >= 0 &&
+            updated.top >= 0 &&
+            updated.bottom <= 1 &&
+            updated.right <= 1
+          ) {
+            emitter.emit("preview", { index: activeIndex, value: updated });
           }
           initialMousePosMove = currentPos;
         }
@@ -287,6 +315,23 @@ export function setupCropPreview(
           const current = br2rect(elem.get().getBoundingClientRect());
           const parent = br2rect(container.get()!.getBoundingClientRect());
           if (ev.buttons === 1) {
+            if (ratios[mode] === 0) {
+              const mouseInContainerCoordinates = new Point(
+                ev.clientX,
+                ev.clientY
+              ).translate(-parent.topLeft.x, -parent.topLeft.y);
+
+              const corner = imageController.zoomController.canvasBoundsOnScreen();
+              const updatedValue = c.updateValue(
+                currentValue,
+                bounds(mouseInContainerCoordinates, corner)
+              );
+              emitter.emit("preview", {
+                index: activeIndex,
+                value: updatedValue,
+              });
+              return;
+            }
             const opposite = c
               .opposite(current)
               .translate(-parent.topLeft.x, -parent.topLeft.y);
@@ -296,17 +341,18 @@ export function setupCropPreview(
               ev.clientY
             ).translate(-parent.topLeft.x, -parent.topLeft.y);
 
-            const corner = panZoomCtrl.canvasBoundsOnScreen();
+            const corner = imageController.zoomController.canvasBoundsOnScreen();
 
             const intersect = (p: Point, v: Vector): Point => {
               const l = new Line(p, v);
               return c
                 .limits(corner)
                 .map((lim) => l.intersect(lim).get())
-                .sort((a: Point, b: Point) =>
-                  p.distanceSquare(a) - p.distanceSquare(b)
+                .sort(
+                  (a: Point, b: Point) =>
+                    p.distanceSquare(a) - p.distanceSquare(b)
                 )[0];
-            }
+            };
 
             let seg1 = new LineSegment(
               opposite,
@@ -332,7 +378,10 @@ export function setupCropPreview(
                 : projected2;
 
             const updatedValue = c.updateValue(currentValue, projected);
-            emitter.emit('preview', {index: activeIndex, value: updatedValue});
+            emitter.emit("preview", {
+              index: activeIndex,
+              value: updatedValue,
+            });
             /*draw.empty();
             draw.append(`<svg xmlns="http://www.w3.org/2000/svg">
               <line stroke-width="5" stroke="black" x1="${opposite.x}" y1="${opposite.y}" x2="${projected.x}"  y2="${projected.y}"/>
@@ -353,25 +402,40 @@ export function setupCropPreview(
   }
 
   function refreshButtonStates() {
-    const inBounds = currentValue.left>= 0 && currentValue.top >=0 && currentValue.right <=1 && currentValue.bottom <= 1;
+    const inBounds =
+      currentValue.left >= 0 &&
+      currentValue.top >= 0 &&
+      currentValue.right <= 1 &&
+      currentValue.bottom <= 1;
     ok.addRemoveClass("disabled", !inBounds);
     ok.addRemoveClass("w3-red", !inBounds);
   }
-  
+
   function modeChanged() {
     // recalculate a good approximation based on the mode and current orientation
-    const ratio = orientation == "paysage" ? ratios[mode] : 1/ratios[mode];
-    const imageRatio = panZoomCtrl.naturalDimensions().width / panZoomCtrl.naturalDimensions().height;
-    if(ratio < imageRatio) {
-      currentValue.top = 0.1; currentValue.bottom = 0.9;
-      const w = 0.8 * ratio / imageRatio ;
-      currentValue.left = (1-w)/2;
-      currentValue.right = (1+w)/2;
+    if (ratios[mode] === 0) {
+      let tmp = currentValue.right;
+      currentValue.right = currentValue.bottom;
+      currentValue.bottom = tmp;
+      updatePreview();
+      return;
+    }
+    const ratio = orientation == "paysage" ? ratios[mode] : 1 / ratios[mode];
+    const imageRatio =
+      imageController.zoomController.naturalDimensions().width /
+      imageController.zoomController.naturalDimensions().height;
+    if (ratio < imageRatio) {
+      currentValue.top = 0.1;
+      currentValue.bottom = 0.9;
+      const w = (0.8 * ratio) / imageRatio;
+      currentValue.left = (1 - w) / 2;
+      currentValue.right = (1 + w) / 2;
     } else {
-      currentValue.left = 0.1; currentValue.right = 0.9;
-      const h = 0.8 / ratio * imageRatio ;
-      currentValue.top = (1-h)/2;
-      currentValue.bottom = (1+h)/2;
+      currentValue.left = 0.1;
+      currentValue.right = 0.9;
+      const h = (0.8 / ratio) * imageRatio;
+      currentValue.top = (1 - h) / 2;
+      currentValue.bottom = (1 + h) / 2;
     }
     updatePreview();
   }
@@ -380,10 +444,19 @@ export function setupCropPreview(
     if (activeIndex == -1) {
       return;
     }
-    const topLeft = panZoomCtrl.ratioToScreen(initialValue.left, initialValue.top);
-    const bottomRight = panZoomCtrl.ratioToScreen(initialValue.right, initialValue.bottom);
-    const parentSize = {width: container.width, height: container.height};
-    const fromBottomAndRight = { x: parentSize.width - bottomRight.x, y: parentSize.height - bottomRight.y};
+    const topLeft = imageController.zoomController.ratioToScreen(
+      initialValue.left,
+      initialValue.top
+    );
+    const bottomRight = imageController.zoomController.ratioToScreen(
+      initialValue.right,
+      initialValue.bottom
+    );
+    const parentSize = { width: container.width, height: container.height };
+    const fromBottomAndRight = {
+      x: parentSize.width - bottomRight.x,
+      y: parentSize.height - bottomRight.y,
+    };
 
     elem.css({
       top: `${topLeft.y}px`,
@@ -405,16 +478,20 @@ export function setupCropPreview(
     mode = "16x9";
     modeChanged();
   });
+  $(".btn-xy", elem).on("click", () => {
+    mode = "XY";
+    modeChanged();
+  });
   $(".btn-5x5", elem).on("click", () => {
     mode = "5x5";
     modeChanged();
   });
   const ok = $(".btn-ok-crop", elem);
   const cancel = $(".btn-cancel-crop", elem);
-  panZoomCtrl.events.on("pan", () => {
+  imageController.zoomController.events.on("pan", () => {
     if (activeIndex != -1) refreshButtonStates();
   });
-  panZoomCtrl.events.on("zoom", () => {
+  imageController.zoomController.events.on("zoom", () => {
     if (activeIndex != -1) refreshButtonStates();
   });
 
@@ -438,8 +515,13 @@ export function setupCropPreview(
       refreshButtonStates();
     }
   });
-  const observer = new ResizeObserver(()=>{
-    if (activeIndex!==-1) {
+  imageController.events.on("visible", () => {
+    if (activeIndex !== -1) {
+      updatePreview();
+    }
+  });
+  const observer = new ResizeObserver(() => {
+    if (activeIndex !== -1) {
       moveCornersFromValue(currentValue);
       refreshButtonStates();
     }
@@ -449,8 +531,11 @@ export function setupCropPreview(
     show: (index: number, initialValue: RectRange) => {
       currentValue = initialValue;
       activeIndex = index;
-      const dimensions = panZoomCtrl.naturalDimensions();
+      mode = "XY";
+      orientation = "portrait";
+      /*
       // calculate ratio
+      const dimensions = imageController.zoomController.naturalDimensions();
       const w = (initialValue.right - initialValue.left) * dimensions.width;
       const h = (initialValue.bottom - initialValue.top) * dimensions.height;
       const ratio = w / h;
@@ -478,15 +563,16 @@ export function setupCropPreview(
       }
       mode = closestPair[0];
       orientation = closestPair[2];
+      */
       moveCornersFromValue(initialValue);
-      elem.removeClass('hidden');
-      draw.removeClass('hidden');
+      elem.removeClass("hidden");
+      draw.removeClass("hidden");
       observer.observe(elem.parentElement()!);
     },
     hide: () => {
       activeIndex = -1;
-      elem.addClass('hidden');
-      draw.addClass('hidden');
+      elem.addClass("hidden");
+      draw.addClass("hidden");
       observer.unobserve(elem.parentElement()!);
     },
   };

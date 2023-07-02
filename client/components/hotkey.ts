@@ -9,14 +9,14 @@ export function makeHotkeys(emitter: AppEventSource) {
       return;
     }
 
-    if (document.activeElement && 
+    if (
+      document.activeElement &&
       (document.activeElement.tagName === "INPUT" ||
-      $(document.activeElement).attr("contenteditable") === "true"
-      )) {
+        $(document.activeElement).attr("contenteditable") === "true")
+    ) {
       return;
     }
     const _activeTab = activeTab();
-    ev.preventDefault();
     emitter.emit("keyDown", {
       code: ev.code,
       key: ev.key,
@@ -25,6 +25,7 @@ export function makeHotkeys(emitter: AppEventSource) {
       shift: ev.shiftKey,
       alt: ev.altKey,
       win: _activeTab.win,
+      preventDefault: () => ev.preventDefault(),
     });
   });
 }

@@ -2,8 +2,8 @@ import { Vector } from "ts-2d-geometry";
 import { Emitter } from "../../../shared/lib/event";
 import { rotateRectangle } from "../../../shared/lib/geometry";
 import { uuid } from "../../../shared/lib/utils";
+import { ImageController } from "../../components/image-controller";
 import { $, _$ } from "../../lib/dom";
-import { ImagePanZoomController } from "../../lib/panzoom";
 
 function sliderToValue(v: number) {
   const value = v / 100;
@@ -24,7 +24,7 @@ export type ValueChangeEvent = {
 export function setupTiltPreview(
   container: _$,
   emitter: Emitter<ValueChangeEvent>,
-  panZoomCtrl: ImagePanZoomController
+  imageCtrl: ImageController
 ) {
   const tiltAreaId = uuid();
   const elem = $(`<div class="tilt fill" style="display: none">
@@ -74,11 +74,11 @@ export function setupTiltPreview(
     emitter.emit("cancel", {});
   });
 
-  function updatePreview(value: number) {
+  async function updatePreview(value: number) {
     $(".rotation", container).val(valueToSlider(value));
-    panZoomCtrl.rotate(value * 10); // value is [-1, 1]
+    await imageCtrl.zoomController.rotate(value * 10); // value is [-1, 1]
     // Calculate the cropped area
-    const rectArea = panZoomCtrl.canvasBoundsOnScreen();
+    const rectArea = imageCtrl.zoomController.canvasBoundsOnScreen();
     const rect = rectArea.bottomRight.minus(rectArea.topLeft);
     const rotatedData = rotateRectangle(
       rect.x,
@@ -104,6 +104,11 @@ export function setupTiltPreview(
       updatePreview(event.value);
     }
   });
+  imageCtrl.events.on("visible", () => {
+    if (activeIndex !== -1) {
+      updatePreview(sliderToValue($(".rotation", container).val()));
+    }
+  });
   return {
     show: (index: number, initialValue: number) => {
       activeIndex = index;
@@ -111,6 +116,7 @@ export function setupTiltPreview(
       elem.css({ display: "block" });
     },
     hide: () => {
+      activeIndex = -1;
       elem.css({ display: "none" });
     },
   };

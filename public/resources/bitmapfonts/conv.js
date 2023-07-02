@@ -3,7 +3,6 @@ const fs = require('fs');
 
 const dat = fs.readFileSync(process.argv[2]);
 parseString(dat).then(xml =>{
-console.info(JSON.stringify(xml,null,2));
 fs.renameSync(process.argv[2], 'orig/'+process.argv[2])
 outputDestFile(process.argv[2], xml.font);
 });

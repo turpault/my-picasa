@@ -1,6 +1,7 @@
 import { $ } from "../lib/dom";
 import { getService } from "../rpc/connect";
 import { Job } from "../../shared/types/types";
+import { t } from "./strings";
 
 export async function makeJobList(e: HTMLElement) {
   const el = $(e);
@@ -13,9 +14,9 @@ export async function makeJobList(e: HTMLElement) {
     });
     for (const job of Object.values(jobs)) {
       el.append(
-        `<div class="job"><span>${
+        `<div class="job"><span>${t(
           job.name
-        }:</span><span style="float:right">${Math.floor(
+        )}:</span><span style="float:right">${Math.floor(
           (100 * (job.progress.start - job.progress.remaining)) /
             job.progress.start
         )}%</span><br>${job.errors.join("<br>")}</div>`

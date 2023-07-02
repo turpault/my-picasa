@@ -25,7 +25,7 @@ import {
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { getFaceData } from "../rpcFunctions/picasaIni";
-import { applyAllFilters, applyFilter } from "./imageFilters";
+import { applyAllFilters, applyFilter, getHistogram } from "./imageFilters";
 import { entryRelativePath } from "./info";
 
 const s = promisify(sizeOf);
@@ -794,6 +794,16 @@ export async function blit(
   setContext(target, targetContext);
 }
 
+export async function histogram(
+  context: string
+): Promise<{ r: number[]; g: number[]; b: number[] }> {
+  const sourceContext = getContext(context);
+  const pixels = await sourceContext
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  return getHistogram(pixels.data, pixels.info.channels as 3 | 4);
+}
 export async function setOptions(
   context: string,
   _options: AlbumEntryMetaData
