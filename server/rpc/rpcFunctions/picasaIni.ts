@@ -178,6 +178,7 @@ async function processFaces(album: Album, picasaIni: AlbumMetaData) {
     for (const section of Object.keys(picasaIni)) {
       const exists = await fileExists(entryFilePath({ album, name: section }));
       const iniFaces = picasaIni[section].faces;
+
       if (iniFaces) {
         // Example:faces=rect64(9bff22f6ad443ebb),d04ca592f8868c2;rect64(570c6e79670c8820),4f3f1b40e69b2537;rect64(b8512924c7ae41f2),69618ff17d8c570f
         for (const face of iniFaces.split(";")) {
@@ -202,7 +203,33 @@ async function processFaces(album: Album, picasaIni: AlbumMetaData) {
   });
 }
 
-export function eraseFace(entry: AlbumEntry) {}
+export function eraseFace(entry: AlbumEntry) {
+  if(entry.album.kind !== AlbumKind.FACE) {
+    throw new Error("Not a face album");
+  }
+  const d = await getFaceData(entry);
+
+  const originalImageEntry = {
+    album: {
+      key: d.albumKey,
+      name: "",
+      kind: AlbumKind.FOLDER,
+    },
+    name: d.name,
+  };
+  // entry.name is the face hash
+  updatePicasa(entry.album, null, null, entry.name);
+
+  // Update entry in orignal picasa.ini
+  const iniFaces = (await readPicasaEntry(originalImageEntry)).faces;
+  if(iniFaces) {
+    iniFaces = iniFaces.split(';').filter(f => 
+  }
+
+
+  updatePicasaEntry(originalImageEntry, "faces",  )
+
+}
 export function getFaceAlbums(): AlbumWithData[] {
   return Array.from(faces.values());
 }
@@ -371,20 +398,24 @@ export async function toggleStar(entries: AlbumEntry[]) {
 
 export async function updatePicasa(
   album: Album,
-  field: string,
+  field: string | null,
   value: string | null,
   group: string = "Picasa"
 ) {
   const picasa = await readAlbumIni(album);
   const section = (picasa[group] = (picasa[group] || {}) as PicasaSection);
-  if (value !== null) {
+  if (value !== null && field !== null) {
     if (section[field] === value) {
       // no change
       return;
     }
     section[field] = value;
-  } else if (section[field]) {
-    delete section[field];
+  } else if (field !== null) {
+    if(section[field]) {
+      delete section[field];
+    } 
+  } else {
+    delete picasa[group];
   }
   await writePicasaIni(album, picasa);
 }
@@ -450,4 +481,24 @@ export async function updatePicasaEntries(
     });
   }
   writePicasaIni(entry.album, picasa);
+}
+
+export async function consolidateFaces(face: string, withFace: string) {
+  const picasa = await 
+  const faces = picasa.faces || {};
+  const faces2 = picasa.faces2 || {};
+  const face2 = faces2[withFace];
+  if (!face2) {
+    return;
+  }
+  for (const f of Object.keys(faces)) {
+    if (faces[f] === face2) {
+      faces[f] = face;
+    }
+  }
+  faces2[face] = faces2[withFace];
+  delete faces2[withFace];
+  picasa.faces = faces;
+  picasa.faces2 = faces2;
+  writePicasa(picasa);
 }
