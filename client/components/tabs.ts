@@ -27,15 +27,16 @@ export function makeGenericTab(tabEvent: TabEventEmitter): _$ {
 }
 
 let tabs: _$;
-let tabElements: { tab: _$; win: _$, context: TabContext }[] = [];
+let tabElements: { tab: _$; win: _$; context: TabContext }[] = [];
 let emitter: AppEventSource;
-export  function makeTabs(_emitter: AppEventSource) {
+export function makeTabs(_emitter: AppEventSource) {
   emitter = _emitter;
   const html = $(`
   <div class="fill">
     <div class="w3-bar main-tab-bar">
-      <span class="tabs">
-      </span>
+      <div class="underline-bar"></div>
+      <div class="tabs">
+      </div>
     </div>
     <div class="workarea">
     </div>
@@ -61,6 +62,7 @@ export function selectTab(_tab: _$) {
 
   last.tab.addClass("tab-button-highlight");
   last.win.css("z-index", 1);
+  _tab.get().scrollIntoView();
   emitter.emit("tabChanged", last);
 }
 

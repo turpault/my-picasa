@@ -5,18 +5,19 @@ import {
   Album,
   AlbumEntry,
   AlbumKind,
-  idFromKey,
+  JOBNAMES,
   Job,
   JobData,
-  JOBNAMES,
-  keyFromID,
   ProjectType,
+  idFromKey,
+  keyFromID,
 } from "../../../shared/types/types";
 import { exportsRoot, imagesRoot } from "../../utils/constants";
 import { entryFilePath, fileExists } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { addToUndo, registerUndoProvider } from "../../utils/undo";
 import { exportToFolder } from "../imageOperations/export";
+import { generateMosaicFile } from "../imageOperations/image-edits/mosaic";
 import { exportAllFavoritesJob } from "./fileJob-export-favorites";
 import { setRank } from "./media";
 import { openWithFinder } from "./osascripts";
@@ -27,10 +28,6 @@ import {
   onRenamedAlbums,
   refreshAlbumKeys,
 } from "./walker";
-import {
-  generateMosaicFile,
-  makeMosaic,
-} from "../imageOperations/image-edits/mosaic";
 
 const jobs: Job[] = [];
 type MultiMoveJobArguments = {
@@ -38,6 +35,8 @@ type MultiMoveJobArguments = {
   destination: Album;
   rank: Number;
 }[];
+const numberedOutRegex = /\([0-9+]\)\./;
+const numberedOutRegexReplacer = /[ ]*\([0-9+]\)\./;
 
 export async function getJob(id: string): Promise<object> {
   const j = jobs.filter((j) => j.id === id);
@@ -202,14 +201,19 @@ async function copyJob(job: Job): Promise<Album[]> {
         let targetName = s.name;
         let found = false;
         let idx = 1;
+        if (numberedOutRegex.test(targetName)) {
+          idx = parseInt(targetName.match(numberedOutRegex)![0].slice(1));
+        }
+        targetName = targetName.replace(numberedOutRegexReplacer, ".");
         while (!found) {
           let destPath = join(imagesRoot, idFromKey(dest.key).id, targetName);
           found = true;
           if (await fileExists(destPath)) {
             // target already exists
             found = false;
-            const ext = extname(s.name);
-            const base = basename(s.name, ext);
+            targetName = targetName.replace(numberedOutRegexReplacer, ".");
+            const ext = extname(targetName);
+            const base = basename(targetName, ext);
             targetName = base + ` (${idx++})` + ext;
             destPath = join(imagesRoot, idFromKey(dest.key).id);
           }

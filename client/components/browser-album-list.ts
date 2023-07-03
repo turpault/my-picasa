@@ -1,3 +1,4 @@
+import { uuid } from "../../shared/lib/utils";
 import { Album, JOBNAMES, Node } from "../../shared/types/types";
 import { AlbumIndexedDataSource } from "../album-data-source";
 import {
@@ -7,11 +8,9 @@ import {
   elementFromAlbum,
   setIdForAlbum,
 } from "../lib/dom";
-import { uuid } from "../../shared/lib/utils";
 import { getService } from "../rpc/connect";
 import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
-import { makeButtons } from "./browser-photo-list-buttons";
 
 const elementPrefix = "albumlist:";
 const html = `<div class="w3-theme fill folder-pane">
@@ -25,7 +24,6 @@ export async function makeAlbumList(
   selectionManager: AlbumEntrySelectionManager
 ) {
   const container = $(html);
-  await makeButtons(appEvents);
 
   let lastHighlight: any;
   let filter = "";
