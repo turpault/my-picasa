@@ -41,9 +41,19 @@ export function setupCropPreview(
       5x5
     </button>
     <button
-      class="btn-6x4 w3-button override-pointer-active w3-bar-item"
+      class="btn-4x6 w3-button override-pointer-active w3-bar-item"
     >
-      6x4
+      4x6
+    </button>
+    <button
+      class="btn-5x7 w3-button override-pointer-active w3-bar-item"
+    >
+      5x7
+    </button>
+    <button
+      class="btn-8x10 w3-button override-pointer-active w3-bar-item"
+    >
+      8x10
     </button>
     <button
       class="btn-4x3 w3-button override-pointer-active w3-bar-item"
@@ -81,15 +91,17 @@ export function setupCropPreview(
   const bl = $(".crop-bottom-left", elem);
   const br = $(".crop-bottom-right", elem);
 
-  type modes = "6x4" | "4x3" | "16x9" | "5x5" | "XY";
+  type modes = "5x7" | "8x10" | "4x6" | "4x3" | "16x9" | "5x5" | "XY";
   const ratios = {
-    "6x4": 6 / 4,
+    "4x6": 4 / 6,
+    "5x7": 5 / 7,
+    "8x10": 8 / 10,
     "4x3": 4 / 3,
     "16x9": 16 / 9,
     "5x5": 1,
     XY: 0,
   };
-  let mode: modes = "4x3";
+  let mode: modes = "4x6";
   let orientation: "paysage" | "portrait" = "paysage";
 
   const corners: {
@@ -466,8 +478,16 @@ export function setupCropPreview(
     });
   }
 
-  $(".btn-6x4", elem).on("click", () => {
-    mode = "6x4";
+  $(".btn-4x6", elem).on("click", () => {
+    mode = "4x6";
+    modeChanged();
+  });
+  $(".btn-5x7", elem).on("click", () => {
+    mode = "5x7";
+    modeChanged();
+  });
+  $(".btn-8x10", elem).on("click", () => {
+    mode = "8x10";
     modeChanged();
   });
   $(".btn-4x3", elem).on("click", () => {

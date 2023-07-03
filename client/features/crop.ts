@@ -1,3 +1,4 @@
+import { buildEmitter } from "../../shared/lib/event";
 import {
   decodeRect,
   encodeRect,
@@ -5,14 +6,12 @@ import {
   RectRange,
 } from "../../shared/lib/utils";
 import { ImageController } from "../components/image-controller";
+import { t } from "../components/strings";
 import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
 import { toolHeader } from "../element-templates";
 import { transform } from "../imageProcess/client";
-import { $, _$ } from "../lib/dom";
-import { buildEmitter } from "../../shared/lib/event";
-import { ImagePanZoomController } from "../lib/panzoom";
+import { _$ } from "../lib/dom";
 import { setupCropPreview, ValueChangeEvent } from "./previews/crop-preview";
-import { t } from "../components/strings";
 
 export function setupCrop(
   container: _$,

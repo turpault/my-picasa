@@ -12,11 +12,9 @@ import { thumbnailUrl } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
 import { toggleStar } from "../lib/handles";
 import {
+  Settings,
   getSettings,
   getSettingsEmitter,
-  Settings,
-  updateFilterByStar,
-  updateFilterByVideos,
   updateIconSize,
 } from "../lib/settings";
 import { getService } from "../rpc/connect";
@@ -41,6 +39,31 @@ const html = `<div class="bottom-list-tools">
   <input type="range" min="75" max="250" class="photos-zoom-ctrl slider">
 </div>
 </div>`;
+
+function hotKeyToCode(hotKey: string) {
+  const parts = hotKey.split("+");
+  const key = parts[parts.length - 1].toLowerCase();
+  const modifierString = parts.slice(0, parts.length - 1);
+  const modifiers = Object.fromEntries(
+    modifierString
+      .map((m) => {
+        switch (m) {
+          case "Ctrl":
+            return "ctrl";
+          case "Shift":
+            return "shift";
+          case "Alt":
+            return "alt";
+          case "Meta":
+            return "meta";
+          default:
+            throw new Error(`Unknown modifier ${m}`);
+        }
+      })
+      .map((n) => [n, true])
+  );
+  return { modifiers, key };
+}
 
 export function makeButtons(appEvents: AppEventSource): _$ {
   const container = $(html);
@@ -274,7 +297,7 @@ export function makeButtons(appEvents: AppEventSource): _$ {
           `
         <button 
           data-tooltip-above="${action.name}${
-            action.hotKey ? " (" + action.hotKey + ")" : ""
+            action.hotKey ? " (" + t(action.hotKey) + ")" : ""
           }"
           class="w3-button bottom-bar-button" 
           style="background-image: url(${action.icon})">
@@ -295,13 +318,27 @@ export function makeButtons(appEvents: AppEventSource): _$ {
     }
     buttons.append(action.element);
   }
+  console.warn("Register keydown");
   appEvents.on("keyDown", (ev) => {
+    console.info("keyDown", ev.key, ev.code, ev);
     for (const action of actions) {
       if (action.type !== "sep") {
-        if (action.visible && action.visible() && ev.code === action.hotKey) {
-          action.execute!();
-          ev.preventDefault();
-          break;
+        if (action.hotKey) {
+          const codeMod = hotKeyToCode(action.hotKey);
+          if (
+            action.visible &&
+            action.visible() &&
+            !!ev.alt === !!codeMod.modifiers.alt &&
+            !!ev.shift === !!codeMod.modifiers.shift &&
+            !!ev.ctrl === !!codeMod.modifiers.ctrl &&
+            !!ev.meta === !!codeMod.modifiers.meta &&
+            ev.key === codeMod.key
+          ) {
+            console.info("executing", action.name, action.hotKey, ev.key);
+            action.execute!();
+            ev.preventDefault();
+            break;
+          }
         }
       }
     }

@@ -4,7 +4,8 @@ import { questionIsDisplayed } from "./question";
 import { activeTab } from "./tabs";
 
 export function makeHotkeys(emitter: AppEventSource) {
-  document.addEventListener("keydown", (ev: KeyboardEvent) => {
+  document.addEventListener("keyup", (ev: KeyboardEvent) => {
+    console.warn("keyup", ev.code);
     if (questionIsDisplayed()) {
       return;
     }

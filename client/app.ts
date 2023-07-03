@@ -113,7 +113,6 @@ async function init(port: number) {
       dataSource
     );
     makeTab(win, tab, { kind: "Browser", selectionManager });
-    makeButtons(emitter);
 
     selectTab(win);
     await dataSource.init();
