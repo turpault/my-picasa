@@ -7,7 +7,7 @@ import { AlbumEntry, idFromKey } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { entryFilePath } from "../../utils/serverUtils";
 import { readPicasaEntry, updatePicasaEntry } from "./picasaIni";
-import { dimensionsFromFile } from "../imageOperations/sharp-processor";
+import { dimensionsFromFile as dimensionsFromFileBuffer } from "../imageOperations/sharp-processor";
 
 export async function exifDataAndStats(
   entry: AlbumEntry
@@ -34,42 +34,64 @@ export function toExifDate(isoDate: string) {
   )}`;
 }
 
-const exifTags = [
-  "ApertureValue",
-  "ColorSpace",
-  "CreateDate",
-  "DateTimeOriginal",
-  "DigitalZoomRatio",
-  "DigitalZoomRatio",
-  "ExifImageHeight",
-  "ExifImageWidth",
-  "ExifVersion",
-  "FileSource",
-  "Flash",
-  "FNumber",
-  "FocalLength",
-  "GPSLatitude",
-  "GPSLatitudeRef",
-  "GPSLongitude",
-  "GPSLongitudeRef",
-  "ISO",
-  "LightSource",
-  "Make",
-  "MeteringMode",
-  "Model",
-  "Orientation",
-  "ResolutionUnit",
-  "SceneCaptureType",
-  "SceneType",
-  "SensingMethod",
-  "ShutterSpeedValue",
-  "Software",
-  "WhiteBalance",
-];
+const exifTags = Object.fromEntries(
+  [
+    "ApertureValue",
+    "BrightnessValue",
+    "ColorSpace",
+    "ComponentsConfiguration",
+    "CreateDate",
+    "DateTimeOriginal",
+    "DigitalZoomRatio",
+    "DigitalZoomRatio",
+    "ExifImageHeight",
+    "ExifImageWidth",
+    "ExifVersion",
+    "ExposureMode",
+    "ExposureMode",
+    "ExposureProgram",
+    "ExposureTime",
+    "FileSource",
+    "Flash",
+    "FlashpixVersion",
+    "FNumber",
+    "FocalLength",
+    "GPSAltitude",
+    "GPSImgDirection",
+    "GPSImgDirectionRef",
+    "GPSLatitude",
+    "GPSLatitudeRef",
+    "GPSLongitude",
+    "GPSLongitudeRef",
+    "GPSTimeStamp",
+    "ImageUniqueID",
+    "ISO",
+    "latitude",
+    "LightSource",
+    "longitude",
+    "Make",
+    "MeteringMode",
+    "Model",
+    "ModifyDate",
+    "Orientation",
+    "ResolutionUnit",
+    "SceneCaptureType",
+    "SceneType",
+    "SensingMethod",
+    "ShutterSpeedValue",
+    "Software",
+    "SubjectArea",
+    "SubSecTimeDigitized",
+    "SubSecTimeOriginal",
+    "WhiteBalance",
+    "XResolution",
+    "YResolution",
+  ].map((k) => [k, true])
+);
 function filterExifTags(tags: any): any {
   const filtered: { [tag: string]: any } = {};
   for (const key in tags) {
-    if (tags[key] && exifTags.includes(key)) {
+    if (tags[key] && exifTags[key]) {
       filtered[key] = tags[key];
     } else {
       console.warn("Tag not included in exif: " + key);
@@ -93,7 +115,7 @@ export async function exifData(entry: AlbumEntry): Promise<any> {
         console.error(`Exception while reading exif for ${path}: ${e}`);
         return {};
       });
-      const dimensions = await dimensionsFromFile(path);
+      const dimensions = await dimensionsFromFileBuffer(path);
       const filtered = {
         ...filterExifTags(tags || {}),
         imageWidth: dimensions.width,

@@ -6,7 +6,10 @@ export type PicasaSection = { [name: string]: string };
 
 export type extraFields =
   | `cached:filters:${ThumbnailSize}`
-  | `cached:dimensions:${ThumbnailSize}`;
+  | `cached:dimensions:${ThumbnailSize}`
+  | `originalAlbumName`
+  | `originalAlbumKey`
+  | `originalName`;
 export type AlbumEntryMetaData = {
   dateTaken?: string; // ISO date
   geoPOI?: string; // a JSON-encoded string with a list of POIs around the photo
@@ -19,7 +22,7 @@ export type AlbumEntryMetaData = {
   text?: string;
   textactive?: string;
   dimensions?: string;
-  dimensionsFromFilter?: string;
+  dimensionsFromFilter?: string; // Filters used to generate the dimensions
   rank?: string;
   rotate?: string; // f.e. rotate(angle)
   faces?: string; // f.e. rect64(5a6b0000c28ab778),42d7ff00b9602bb9
@@ -120,7 +123,7 @@ export type AlbumWithData = Album & {
 
 const sep = "»";
 export function keyFromID(id: string, kind: AlbumKind) {
-  return `${kind}${sep}${id}`;
+  return `${kind}${sep}${id}`.normalize();
 }
 
 export function idFromKey(key: string): { id: string; kind: AlbumKind } {
@@ -172,10 +175,11 @@ export type FolderEvent = {
 };
 
 export type FaceData = {
-  album: Album;
+  faceAlbum: Album;
   hash: string;
   rect: string;
   label: string;
+  originalEntry: AlbumEntry;
 };
 export const pictureExtensions = [
   "jpeg",

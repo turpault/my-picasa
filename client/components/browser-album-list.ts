@@ -158,6 +158,10 @@ export async function makeAlbumList(
         if (!album) return;
         const s = await getService();
 
+        if (selection.length === 0) {
+          throw new Error("No selection");
+        }
+
         s.createJob(JOBNAMES.MOVE, {
           source: selection,
           destination: { album },

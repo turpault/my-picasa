@@ -20,20 +20,20 @@ import {
   AlbumEntry,
   AlbumEntryMetaData,
   AlbumKind,
+  FaceData,
   ImageEncoding,
   ImageMimeType,
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
-import { getFaceData } from "../rpcFunctions/picasaIni";
 import { applyAllFilters, applyFilter, getHistogram } from "./imageFilters";
 import { entryRelativePath } from "./info";
-
-const s = promisify(sizeOf);
 
 const contexts = new Map<string, Sharp>();
 const options = new Map<string, AlbumEntryMetaData>();
 const debug = true;
 const debugInfo = debug ? console.info : noop;
+
+const s = promisify(sizeOf);
 
 function getContext(context: string): Sharp {
   const j = contexts.get(context);
@@ -45,6 +45,13 @@ function getContext(context: string): Sharp {
 
 function setContext(context: string, j: Sharp) {
   contexts.set(context, j);
+}
+
+export async function dimensionsFromFileBuffer(
+  file: Buffer
+): Promise<{ width: number; height: number }> {
+  const d = await sizeOf(file);
+  return { width: d!.width!, height: d!.height! };
 }
 
 export async function dimensionsFromFile(
@@ -964,22 +971,15 @@ export async function buildImage(
 
 const buildFaceImageQueue = new Queue(4, { fifo: false });
 export async function buildFaceImage(
-  entry: AlbumEntry
+  entry: AlbumEntry,
+  faceData: FaceData
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
   return buildFaceImageQueue.add(async () => {
     const label = `Thumbnail for face ${entry.album.name} / ${entry.name}`;
     console.time(label);
     debugInfo(label);
     try {
-      const faceData = await getFaceData(entry);
-      const originalImageEntry = {
-        album: {
-          key: faceData.albumKey,
-          name: "",
-          kind: AlbumKind.FOLDER,
-        },
-        name: faceData.name,
-      };
+      const originalImageEntry = faceData.originalEntry;
       const context = await buildContext(originalImageEntry);
 
       await transform(context, `crop64=1,${faceData.rect}`);

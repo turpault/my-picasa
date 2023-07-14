@@ -108,6 +108,13 @@ const stringTable: { [key: string]: any } = {
     fr: "Déplacer $1 elements(s) vers un nouvel album",
   },
   "Delete $1 item(s)": { fr: "Supprimer $1 elements(s)" },
+  Histogram: { fr: "Histogramme" },
+  "Ctrl+D": { fr: "Ctrl+D" },
+  Space: { fr: "Espace" },
+  "Ctrl+ArrowLeft": { fr: "Ctrl+FlecheGauche" },
+  "Ctrl+ArrowRight": { fr: "Ctrl+FlecheDroite" },
+  "Ctrl+Z": { fr: "Ctrl+Z" },
+  Move: { fr: "Déplacement" },
 };
 const lang = window.navigator.language.split("-")[0];
 let str = new Set<string>();

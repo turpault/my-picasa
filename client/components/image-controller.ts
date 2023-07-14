@@ -197,10 +197,11 @@ export class ImageController {
           };
           if (faceAlbum.album) {
             faces.push({
-              album: faceAlbum.album,
+              faceAlbum: faceAlbum.album,
               rect,
               hash,
               label: `${idx}: ${faceAlbum.album.name}`,
+              originalEntry: this.entry,
             });
           }
         })

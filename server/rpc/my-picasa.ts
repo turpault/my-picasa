@@ -1,6 +1,14 @@
 /* eslint-disable @typescript-eslint/camelcase */
 import { Exceptions } from "../../shared/types/exceptions";
 import { undo, undoList } from "../utils/undo";
+import { getFaceAlbumFromHash } from "./albumTypes/faces";
+import { folders, setAlbumShortcut } from "./albumTypes/fileAndFolders";
+import {
+  createProject,
+  getProject,
+  getProjects,
+  writeProject,
+} from "./albumTypes/projects";
 import { generateMosaicFile } from "./imageOperations/image-edits/mosaic";
 import { getFilterGroups, getFilterList } from "./imageOperations/imageFilters";
 import { imageInfo } from "./imageOperations/info";
@@ -16,11 +24,14 @@ import {
   transform,
 } from "./imageOperations/sharp-processor";
 import {
-  createProject,
-  getProject,
-  getProjects,
-  writeProject,
-} from "./projects";
+  getSourceEntry,
+  media,
+  mediaCount,
+  monitorAlbums,
+  readAlbumMetadata,
+  setRank,
+  sortAlbum,
+} from "./rpcFunctions/albumUtils";
 import { clientException, clientLog } from "./rpcFunctions/clientLog";
 import { exifData } from "./rpcFunctions/exif";
 import { createFSJob, getJob, waitJob } from "./rpcFunctions/fileJobs";
@@ -32,9 +43,7 @@ import {
   readFileContents,
   writeFileContents,
 } from "./rpcFunctions/fs";
-import { media, mediaCount, setRank, sortAlbum } from "./rpcFunctions/media";
 import {
-  getFaceAlbumFromHash,
   getShortcuts,
   readPicasaEntry,
   rotate,
@@ -42,13 +51,6 @@ import {
   updatePicasaEntry,
 } from "./rpcFunctions/picasaIni";
 import { clientReady } from "./rpcFunctions/ready";
-import {
-  folders,
-  getSourceEntry,
-  monitorAlbums,
-  readAlbumMetadata,
-  setAlbumShortcut,
-} from "./rpcFunctions/walker";
 import { ServiceMap } from "./rpcHandler";
 
 /**

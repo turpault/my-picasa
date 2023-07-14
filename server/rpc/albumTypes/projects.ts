@@ -6,7 +6,7 @@ import {
   idFromAlbumEntry,
   lock,
   valuesOfEnum,
-} from "../../shared/lib/utils";
+} from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
@@ -18,12 +18,12 @@ import {
   ThumbnailSizeVals,
   idFromKey,
   keyFromID,
-} from "../../shared/types/types";
-import { ThumbnailSizes, imagesRoot } from "../utils/constants";
-import { fileExists, safeWriteFile } from "../utils/serverUtils";
-import { broadcast } from "../utils/socketList";
-import { makeMosaic } from "./imageOperations/image-edits/mosaic";
-import { queueNotification } from "./rpcFunctions/walker";
+} from "../../../shared/types/types";
+import { ThumbnailSizes, imagesRoot } from "../../utils/constants";
+import { fileExists, safeWriteFile } from "../../utils/serverUtils";
+import { broadcast } from "../../utils/socketList";
+import { makeMosaic } from "../imageOperations/image-edits/mosaic";
+import { queueNotification } from "./fileAndFolders";
 
 const projectFolder = join(imagesRoot, ".projects");
 type ProjectFile = Album & { projects: { [id: string]: AlbumEntry } };

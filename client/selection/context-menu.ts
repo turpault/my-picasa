@@ -51,6 +51,10 @@ async function moveSelectionInNewAlbum(
   if (newAlbum) {
     const s = await getService();
     const a: Album = await s.makeAlbum(newAlbum);
+    if (selectionManager.selected().length === 0) {
+      throw new Error("No selection");
+    }
+
     s.createJob(JOBNAMES.MOVE, {
       source: selectionManager.selected(),
       destination: a,

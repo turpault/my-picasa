@@ -14,17 +14,18 @@ import { asset } from "./rpc/routes/asset";
 import { thumbnail } from "./rpc/routes/thumbnail";
 import { picasaIniCleaner } from "./rpc/rpcFunctions/picasaIni";
 import {
-  albumWithData,
   startAlbumUpdateNotification,
   updateLastWalkLoop,
   waitUntilWalk,
-} from "./rpc/rpcFunctions/walker";
+} from "./rpc/albumTypes/fileAndFolders";
 import { startSentry } from "./sentry";
 import { busy, measureCPULoad } from "./utils/busy";
 import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
 import { buildGeolocation } from "./rpc/background/bg-geolocate";
-import { initProjects } from "./rpc/projects";
+import { initProjects } from "./rpc/albumTypes/projects";
+import { keepFaceAlbumUpdated, scanFaces } from "./rpc/albumTypes/faces";
+import { albumWithData } from "./rpc/rpcFunctions/albumUtils";
 
 /** */
 
@@ -165,11 +166,12 @@ export async function start(p?: number) {
     picasaIniCleaner();
     startLockMonitor();
     startAlbumUpdateNotification();
+    keepFaceAlbumUpdated();
     parseLUTs();
     initProjects();
-    waitUntilWalk().then(() => {
-      console.info("Initial walk complete.");
-    });
+    await waitUntilWalk();
+    await scanFaces();
+    console.info("Initial walk complete.");
   } catch (err) {
     console.error(err);
     process.exit(1);

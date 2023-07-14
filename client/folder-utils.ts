@@ -75,7 +75,7 @@ export async function getAlbumInfo(
 
   if (settings.filters.star) {
     entries = entries.filter((v) => {
-      return settings.filters.star <= parseInt(picasa[v.name].starCount || "1");
+      return settings.filters.star <= parseInt(picasa[v.name].starCount || "0");
     });
   }
   if (settings.filters.video) {

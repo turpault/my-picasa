@@ -145,7 +145,7 @@ const unsafe = (val) => {
   if (isQuoted(val2)) {
     val2 = val2.substr(1, val2.length - 2);
   }
-  val2 = val2.replace(regBackslash, '');
+  val2 = val2.replace(regBackslash, '').normalize();
   /*const val3 = unsafe2(val);
   if(val3 !== val2) {
     console.error('Needs parsing !!!', val, val2, ' -> ', val3);

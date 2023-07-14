@@ -30,7 +30,7 @@ export function groupBy<T, K>(
 export function sortByKey<T>(
   array: T[],
   keys: (keyof T)[],
-  order: ("alpha" | "reverse" | string[])[]
+  order: ("alpha" | string[] | "numeric")[]
 ) {
   array.sort(alphaSorter(false, keys as string[], order));
 }
@@ -39,7 +39,7 @@ export const noop = (..._a: any[]) => {};
 export function alphaSorter(
   caseSensitive: boolean = true,
   keys: (string | undefined)[] = [undefined],
-  order: ("alpha" | "reverse" | string[])[] = ["alpha"]
+  order: ("alpha" | string[] | "numeric")[] = ["alpha"]
 ): (a: any, b: any) => number {
   return (_a, _b) => {
     for (const [idx, key] of keys.entries()) {
@@ -66,13 +66,26 @@ export function alphaSorter(
           continue;
         }
       }
-      const m = order[idx] === "alpha" ? 1 : -1;
-      const a = removeDiacritics(va);
-      const b = removeDiacritics(vb);
+      let a, b;
+      if (order[idx] === "numeric") {
+        a = parseFloat(va);
+        b = parseFloat(vb);
+        if (Number.isNaN(a)) {
+          a = 0;
+        }
+        if (Number.isNaN(b)) {
+          b = 0;
+        }
+      } else if (order[idx] === "alpha") {
+        a = removeDiacritics(va);
+        b = removeDiacritics(vb);
+      } else {
+        throw new Error(`Unknown order ${order[idx]}`);
+      }
       if (a === b) {
         continue;
       }
-      return m * (a < b ? -1 : 1);
+      return a < b ? -1 : 1;
     }
     return 0;
   };
@@ -109,14 +122,14 @@ export function cssSplitValue(v: string): { value: number; unit: string } {
 
 const debounceFcts = new Map<
   Function | string,
-  { f: Function; elapse: number }
+  { f: Function; elapse: number; res?: any }
 >();
 /**
  * Make sure that the function f is called at most every <delay> milliseconds
  * @param f
  * @param delay
  */
-export function debounce(
+export async function debounce(
   f: Function,
   delay?: number,
   guid?: string,
@@ -125,19 +138,25 @@ export function debounce(
   delay = delay ? delay : 1000;
   const key = guid || f;
   if (debounceFcts.has(key)) {
-    debounceFcts.get(key)!.f = f;
+    const fct = debounceFcts.get(key)!;
+    fct.f = f;
+    return fct.res;
   } else {
-    debounceFcts.set(key, { elapse: Date.now() + delay, f });
-    (async () => {
+    const p = new Promise(async (resolve) => {
+      await sleep(0);
       if (atStart) {
-        debounceFcts.get(key)?.f();
+        const r = debounceFcts.get(key)?.f();
+        if (r instanceof Promise) r.then(resolve);
       }
-      await sleep(delay / 1000);
+      await sleep(delay! / 1000);
       if (!atStart) {
-        debounceFcts.get(key)?.f();
+        const r = debounceFcts.get(key)?.f();
+        if (r instanceof Promise) r.then(resolve);
       }
       debounceFcts.delete(key);
-    })();
+    });
+    debounceFcts.set(key, { elapse: Date.now() + delay!, f, res: p });
+    return p;
   }
 }
 /**

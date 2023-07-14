@@ -1,3 +1,4 @@
+import { MAX_STAR } from "../../shared/lib/shared-constants";
 import { lock, range } from "../../shared/lib/utils";
 import {
   Album,
@@ -7,7 +8,7 @@ import {
 } from "../../shared/types/types";
 import { AlbumIndexedDataSource } from "../album-data-source";
 import { getAlbumInfo } from "../folder-utils";
-import { $, albumFromElement, setIdForAlbum, _$ } from "../lib/dom";
+import { $, _$, albumFromElement, setIdForAlbum } from "../lib/dom";
 import { toggleStar } from "../lib/handles";
 import {
   getSettings,
@@ -15,12 +16,8 @@ import {
   updateFilterByStar,
   updateFilterByVideos,
 } from "../lib/settings";
-import { MAX_STAR } from "../../shared/lib/shared-constants";
 import { getService } from "../rpc/connect";
-import {
-  AlbumEntrySelectionManager,
-  SelectionManager,
-} from "../selection/selection-manager";
+import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { AlbumListEventSource, AppEventSource } from "../uiTypes";
 import { Button, message } from "./message";
 import { t } from "./strings";
@@ -46,12 +43,13 @@ const extra = `
 // Create two elements, allergic to visibility
 const elementPrefix = "photolist:";
 const html = `<div class="w3-theme images-area">
-<div class="images disable-scrollbar"></div>
+<div class="images disable-scrollbar"><div class="invisible-pixel"/></div>
 <div style="display: none" class="dragregion"></div>
 </div>
 `;
 
 const thumbElementPrefix = "thumb:";
+const initialVerticalPosition = 10000;
 
 export async function makePhotoList(
   appEvents: AppEventSource,
@@ -328,6 +326,15 @@ export async function makePhotoList(
       }px`,
     });
   });
+
+  function moveToPool(element: _$) {
+    pool.push(element);
+    element.remove();
+    const i = displayed.findIndex((e) => e.get() === element.get());
+    if (i !== -1) {
+      displayed.splice(i, 1);
+    }
+  }
   container.attachData({
     events: [
       events.on("invalidateAt", async (event) => {
@@ -345,32 +352,46 @@ export async function makePhotoList(
         }
       }),
       events.on("invalidateFrom", (event) => {
-        invalidateFrom(event.index);
+        invalidateFrom(event.index, event.to);
       }),
     ],
   });
-  function moveToPool(element: _$) {
-    pool.push(element);
-    element.remove();
-    const i = displayed.findIndex((e) => e.get() === element.get());
-    if (i !== -1) {
-      displayed.splice(i, 1);
-    }
-  }
-  async function invalidateFrom(index: number) {
+
+  async function invalidateFrom(index: number, to: number) {
     if (displayed.length === 0) {
       // Nothing to invalidate, nothing is displayed
       return;
     }
+    if (
+      indexOf(displayed[0]) > to ||
+      indexOf(displayed[displayed.length - 1]) < index
+    ) {
+      // Nothing to invalidate, the invalidated data is not displayed
+      return;
+    }
 
     const l = await lock("invalidateFrom");
-    for (const d of displayed.slice()) {
-      if (indexOf(d) >= index) {
-        moveToPool(d);
-        doReflow |= REFLOW_FULL;
+    try {
+      // Keep the visible element visible, potentially draw around it
+      const visible = visibleIndex();
+      // The visible might be impacted, let's clear what's after it
+      for (const d of [...displayed]) {
+        if (indexOf(d) >= index && indexOf(d) <= to) {
+          if (indexOf(d) === visible) {
+            await populateElement(
+              visibleElement()!,
+              dataSource.albumAtIndex(index),
+              filter
+            );
+          } else {
+            moveToPool(d);
+          }
+        }
       }
+    } finally {
+      l();
     }
-    l();
+    doReflow |= REFLOW_FULL;
   }
 
   function visibleIndex(): number {
@@ -481,11 +502,14 @@ export async function makePhotoList(
         const album = dataSource.albumAtIndex(topIndex);
         const albumElement = getElement();
         await populateElement(albumElement, album, filter);
-        $(albumElement).css("top", "0"); //index === 0 ? "0" : "100px");
+        $(albumElement).css("top", `${initialVerticalPosition}px`); //index === 0 ? "0" : "100px");
+        $(".invisible-pixel", container).css({
+          top: `${initialVerticalPosition + container.height}px`,
+        });
         albumElement.attr("index", topIndex.toString());
         albumElement.css("opacity", "1");
         container.append(albumElement);
-        container.get().scrollTo({ top: 0 });
+        container.get().scrollTo({ top: initialVerticalPosition });
         displayed.push(albumElement);
         updateHighlighted();
       }
@@ -521,7 +545,7 @@ export async function makePhotoList(
                 visibleScrollArea.bottom + minDistancesAboveBelowFold * 1.5
             ) {
               console.info(
-                `Pruning album ${album.name} : Visible Area = ${visibleScrollArea.top}/${visibleScrollArea.bottom} - Element (${elemPos.top}/${elemPos.bottom}`
+                `Pruning album ${album.name} : Visible Area = ${visibleScrollArea.top}/${visibleScrollArea.bottom} - Element (${elemPos.top}/${elemPos.bottom})`
               );
               prune.push(elem);
             } else {
@@ -586,6 +610,7 @@ export async function makePhotoList(
       return;
     }
     if (displayed.length === 0) return;
+    // full reflow
     if (doReflow & REFLOW_FULL) {
       const active = updateHighlighted();
       if (active) {
@@ -644,7 +669,7 @@ export async function makePhotoList(
       parseInt(lastItem.css("top")) + lastItem.get().clientHeight;
 
     // Offset, we are < 0
-    if (displayedTop < 0 || displayedTop > 1000) {
+    if (displayedTop < 0) {
       const currentPos = container.get().scrollTop;
       console.info(`top is ${displayedTop} - shifting contents`);
       for (const c of container.children()) {
