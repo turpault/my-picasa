@@ -10,7 +10,7 @@ import {
 import { defaultNewFolder, imagesRoot } from "../../utils/constants";
 import { safeWriteFile } from "../../utils/serverUtils";
 import { openWithFinder } from "./osascripts";
-import { addOrRefreshOrDeleteAlbum } from "./walker";
+import { addOrRefreshOrDeleteAlbum } from "../albumTypes/fileAndFolders";
 
 export async function readFileContents(file: string): Promise<string> {
   const p = join(imagesRoot, file);

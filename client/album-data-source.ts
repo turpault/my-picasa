@@ -3,6 +3,7 @@ import {
   albumInFilter,
   debounced,
   groupBy,
+  range,
   removeDiacritics,
   sortByKey,
 } from "../shared/lib/utils";
@@ -65,11 +66,15 @@ export class AlbumIndexedDataSource {
         if (filtered.length > 0) {
           const min = Math.min(...filtered);
           const max = Math.max(...filtered);
-          if (min === max) {
-            this.emitter.emit("invalidateAt", { index: min });
+          // Less than 10 albums changed, just invalidate them
+          if (max - min <= 10) {
+            for (const index of range(min, max))
+              this.emitter.emit("invalidateAt", { index });
           } else if (min === 0 && max === this.albums.length - 1) {
+            // All albums changed, reset
             this.emitter.emit("reset", {});
           } else {
+            // More than 10 albums changed, invalidate the whole range
             console.warn(`Invalidating from ${min} / ${max}`);
             this.emitter.emit("invalidateFrom", {
               index: min,
@@ -188,9 +193,14 @@ export class AlbumIndexedDataSource {
   }
   private updatedAlbum(from: AlbumWithData, to: AlbumWithData) {
     const idxAll = this.allAlbums.findIndex((a) => a.key === from.key);
+    const idx = this.albums.findIndex((a) => a.key === from.key);
     if (idxAll !== -1) {
       this.allAlbums[idxAll] = { ...this.allAlbums[idxAll], ...to };
-      return { idx: idxAll, idx2: idxAll };
+      this.sortFolders();
+      const idx2 = this.albums.findIndex((a) => a.key === from.key);
+      if (idx2 !== -1) {
+        return { idx: idx !== -1 ? idx : 0, idx2 };
+      }
     }
     return;
   }
@@ -269,7 +279,8 @@ export class AlbumIndexedDataSource {
     const groups = groupBy(filteredAlbums, "kind");
 
     let folders = groups.get(AlbumKind.FOLDER)!;
-    sortByKey(folders, ["name"], ["reverse"]);
+    sortByKey(folders, ["name"], ["alpha"]);
+    folders.reverse();
 
     const shortcuts = folders.filter((a) => a.shortcut).map((f) => ({ ...f }));
     sortByKey(shortcuts, ["name"], ["alpha"]);

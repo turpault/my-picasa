@@ -1,16 +1,13 @@
 import { readFile } from "fs/promises";
 import { join } from "path";
 import ini from "../../../shared/lib/ini";
-import { Queue } from "../../../shared/lib/queue";
 import { MAX_STAR } from "../../../shared/lib/shared-constants";
 import {
   decodeOperations,
   encodeOperations,
-  fromBase64,
   lock,
   removeDiacritics,
   sleep,
-  toBase64,
 } from "../../../shared/lib/utils";
 import {
   Album,
@@ -18,38 +15,20 @@ import {
   AlbumEntryMetaData,
   AlbumKind,
   AlbumMetaData,
-  AlbumWithData,
   PicasaSection,
   idFromKey,
-  keyFromID,
 } from "../../../shared/types/types";
 import { PICASA, imagesRoot } from "../../utils/constants";
-import {
-  entryFilePath,
-  fileExists,
-  safeWriteFile,
-} from "../../utils/serverUtils";
+import { safeWriteFile } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { rate } from "../../utils/stats";
-import { media } from "./media";
+import { media } from "./albumUtils";
 
 let picasaMap = new Map<string, AlbumMetaData>();
 let lastAccessPicasaMap = new Map<string, number>();
 let dirtyPicasaSet = new Map<string, Album>();
-let faces = new Map<
-  string,
-  AlbumWithData & { hash: { [key: string]: string } } & { [key: string]: any }
->();
-const faceProcessorQueue = new Queue(5);
-let parsedFaces = new Set<string>();
 let shortcuts: { [shotcut: string]: Album } = {};
 const GRACE_DELAY = 120000;
-
-function normalizeName(name: string): string {
-  return name.toLowerCase().replace(/^[a-z]|[\s|-][a-z]/gi, (s) => {
-    return s.toUpperCase();
-  });
-}
 
 export async function picasaIniCleaner() {
   while (true) {
@@ -81,6 +60,14 @@ export async function picasaIniCleaner() {
   }
 }
 
+export async function readAlbumEntries(album: Album): Promise<AlbumEntry[]> {
+  const data = await readAlbumIni(album);
+  return Object.keys(data).map((key) => ({
+    album,
+    name: key,
+  }));
+}
+
 export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
   lastAccessPicasaMap.set(album.key, Date.now());
   if (picasaMap.has(album.key)) {
@@ -105,11 +92,13 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
     const i = ini.parse(iniData);
     // Read&fix data
     if (album.kind === AlbumKind.FOLDER) {
-      // Parse faces asynchronously
-      faceProcessorQueue.add(() => processFaces(album, i));
-
       if (i.Picasa && i.Picasa.name && i.Picasa.name !== album.name) {
         i.Picasa.name = album.name;
+      }
+      for (const key in i) {
+        if (i[key]["star"] && i[key]["starCount"] === undefined) {
+          i[key]["starCount"] = "1";
+        }
       }
     }
     if (i?.Picasa?.shortcut !== undefined && !shortcuts[i.Picasa.shortcut]) {
@@ -129,116 +118,6 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
   }
 }
 
-export function getFaceAlbumFromHash(
-  hash: string
-): { album: AlbumWithData | undefined; hash: string } {
-  for (const face of faces.values()) {
-    if (face.hash[hash] !== undefined) {
-      return { album: face, hash };
-    }
-  }
-  return { album: undefined, hash };
-}
-
-// Limit the parallelism for the face parsing
-const faceProcessingQueue = new Queue();
-async function processFaces(album: Album, picasaIni: AlbumMetaData) {
-  if (parsedFaces.has(album.key)) {
-    return;
-  }
-  parsedFaces.add(album.key);
-  return faceProcessingQueue.add(async () => {
-    const localhashes: { [hash: string]: AlbumWithData } = {};
-    if (picasaIni.Contacts2) {
-      // includes a map of faces/ids
-      for (const [hash, value] of Object.entries(
-        picasaIni.Contacts2 as { [key: string]: string }
-      )) {
-        const [originalName, email, something] = value.split(";");
-        const name = normalizeName(originalName);
-
-        const key = keyFromID(name, AlbumKind.FACE);
-        if (!faces.has(key)) {
-          faces.set(key, {
-            key,
-            name,
-            count: 0,
-            hash: {},
-            email,
-            something,
-            originalName,
-            kind: AlbumKind.FACE,
-          });
-        }
-        faces.get(key)!.hash[hash] = "";
-        localhashes[hash] = faces.get(key)!;
-      }
-    }
-
-    for (const section of Object.keys(picasaIni)) {
-      const exists = await fileExists(entryFilePath({ album, name: section }));
-      const iniFaces = picasaIni[section].faces;
-
-      if (iniFaces) {
-        // Example:faces=rect64(9bff22f6ad443ebb),d04ca592f8868c2;rect64(570c6e79670c8820),4f3f1b40e69b2537;rect64(b8512924c7ae41f2),69618ff17d8c570f
-        for (const face of iniFaces.split(";")) {
-          const [rect, id] = face.split(",");
-          const faceAlbum = localhashes[id];
-          if (faceAlbum) {
-            faceAlbum.count++;
-            const sectionName = toBase64(
-              JSON.stringify([album.key, section, rect, id])
-            );
-            if (exists) {
-              updatePicasa(faceAlbum, "album", album.key, sectionName);
-              updatePicasa(faceAlbum, "key", section, sectionName);
-            } else {
-              updatePicasa(faceAlbum, "album", null, sectionName);
-              updatePicasa(faceAlbum, "key", null, sectionName);
-            }
-          }
-        }
-      }
-    }
-  });
-}
-
-export function eraseFace(entry: AlbumEntry) {
-  if(entry.album.kind !== AlbumKind.FACE) {
-    throw new Error("Not a face album");
-  }
-  const d = await getFaceData(entry);
-
-  const originalImageEntry = {
-    album: {
-      key: d.albumKey,
-      name: "",
-      kind: AlbumKind.FOLDER,
-    },
-    name: d.name,
-  };
-  // entry.name is the face hash
-  updatePicasa(entry.album, null, null, entry.name);
-
-  // Update entry in orignal picasa.ini
-  const iniFaces = (await readPicasaEntry(originalImageEntry)).faces;
-  if(iniFaces) {
-    iniFaces = iniFaces.split(';').filter(f => 
-  }
-
-
-  updatePicasaEntry(originalImageEntry, "faces",  )
-
-}
-export function getFaceAlbums(): AlbumWithData[] {
-  return Array.from(faces.values());
-}
-
-export async function getFaceData(entry: AlbumEntry) {
-  const [albumKey, name, rect, id] = JSON.parse(fromBase64(entry.name));
-  return { albumKey, name, rect, id };
-}
-
 export async function albumInFilter(
   album: Album,
   normalizedFilter: string
@@ -247,37 +126,6 @@ export async function albumInFilter(
     return (await media(album)).entries;
   }
   return [];
-
-  let data = { ...(await readAlbumIni(album)) };
-
-  const faceIds: string[] = [];
-  for (const [id, val] of faces.entries()) {
-    if (val.name.toLowerCase().includes(normalizedFilter)) {
-      faceIds.push(id);
-    }
-  }
-  const res: AlbumEntry[] = [];
-  Object.entries(data).forEach(([name, picasaEntry]) => {
-    if (name.toLowerCase().includes(normalizedFilter)) {
-      res.push({ album, name });
-      return;
-    }
-    if (album.name.toLowerCase().includes(normalizedFilter)) {
-      res.push({ album, name });
-      return;
-    }
-    if (picasaEntry.faces) {
-      for (const id of faceIds) {
-        if (picasaEntry.faces.includes(id)) {
-          res.push({ album, name });
-          return;
-        }
-      }
-    }
-  });
-  if (res.length > 0) {
-  }
-  return res;
 }
 
 function writePicasaIni(album: Album, data: AlbumMetaData): void {
@@ -314,15 +162,14 @@ export async function readShortcut(album: Album): Promise<string | undefined> {
 }
 
 export async function touchPicasaEntry(entry: AlbumEntry) {
+  if (entry.name.normalize() !== entry.name) {
+    debugger;
+  }
   const picasa = await readAlbumIni(entry.album);
   if (picasa[entry.name] === undefined) {
     picasa[entry.name] = {} as AlbumEntryMetaData;
     writePicasaIni(entry.album, picasa);
   }
-}
-
-export function getFaces() {
-  return faces;
 }
 
 export async function setPicasaAlbumShortcut(album: Album, shortcut: string) {
@@ -402,6 +249,9 @@ export async function updatePicasa(
   value: string | null,
   group: string = "Picasa"
 ) {
+  if (group.normalize() !== group) {
+    debugger;
+  }
   const picasa = await readAlbumIni(album);
   const section = (picasa[group] = (picasa[group] || {}) as PicasaSection);
   if (value !== null && field !== null) {
@@ -411,9 +261,9 @@ export async function updatePicasa(
     }
     section[field] = value;
   } else if (field !== null) {
-    if(section[field]) {
+    if (section[field]) {
       delete section[field];
-    } 
+    }
   } else {
     delete picasa[group];
   }
@@ -425,6 +275,9 @@ export async function updatePicasaEntry(
   field: keyof AlbumEntryMetaData | "*",
   value: any
 ) {
+  if (entry.name.normalize() !== entry.name) {
+    debugger;
+  }
   const picasa = await readAlbumIni(entry.album);
   picasa[entry.name] = picasa[entry.name] || ({} as AlbumEntryMetaData);
   if (value === "toggle") {
@@ -461,15 +314,25 @@ export async function updatePicasaEntries(
   kv: AlbumEntryMetaData
 ) {
   const picasa = await readAlbumIni(entry.album);
+  let dirty = false;
   let doBroadcast = false;
+  if (entry.name.normalize() !== entry.name) {
+    debugger;
+  }
   picasa[entry.name] = picasa[entry.name] || ({} as AlbumEntryMetaData);
   for (const k of Object.keys(kv) as (keyof AlbumEntryMetaData)[]) {
     if (kv[k] !== undefined && kv[k] !== null) {
-      picasa[entry.name][k] = kv[k]!.toString();
+      if (kv[k] !== picasa[entry.name][k]) {
+        picasa[entry.name][k] = kv[k]!.toString();
+        dirty = true;
+      }
     } else {
       delete picasa[entry.name][k];
     }
-    if (["filters", "caption", "rotate", "star", "starCount"].includes(k)) {
+    if (
+      dirty &&
+      ["filters", "caption", "rotate", "star", "starCount"].includes(k)
+    ) {
       doBroadcast = true;
     }
   }
@@ -480,25 +343,5 @@ export async function updatePicasaEntries(
       metadata: picasa[entry.name],
     });
   }
-  writePicasaIni(entry.album, picasa);
-}
-
-export async function consolidateFaces(face: string, withFace: string) {
-  const picasa = await 
-  const faces = picasa.faces || {};
-  const faces2 = picasa.faces2 || {};
-  const face2 = faces2[withFace];
-  if (!face2) {
-    return;
-  }
-  for (const f of Object.keys(faces)) {
-    if (faces[f] === face2) {
-      faces[f] = face;
-    }
-  }
-  faces2[face] = faces2[withFace];
-  delete faces2[withFace];
-  picasa.faces = faces;
-  picasa.faces2 = faces2;
-  writePicasa(picasa);
+  if (dirty) writePicasaIni(entry.album, picasa);
 }

@@ -3,6 +3,7 @@ import { join } from "path";
 // Should be made configurable
 export const realImagesRoot = "/Volumes/Photos/Photos";
 export const imagesRoot = process.env.PICISA_PICTURE_FOLDER || realImagesRoot;
+export const targetFaceRootFolder = join(imagesRoot, ".faces");
 
 export const defaultNewFolder = new Date().getFullYear().toString();
 export const PICASA = ".picasa.ini";

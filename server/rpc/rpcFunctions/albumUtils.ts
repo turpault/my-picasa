@@ -1,28 +1,43 @@
-import { readdir, stat } from "fs/promises";
-import { join } from "path";
 import {
   debounce,
   idFromAlbumEntry,
   isPicture,
   isVideo,
+  sortByKey,
 } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
   AlbumKind,
+  AlbumWithData,
   idFromKey,
 } from "../../../shared/types/types";
-import { imagesRoot } from "../../utils/constants";
+import {
+  getFaceAlbums,
+  getFaceAlbumsWithData,
+  getFaceData,
+  readFaceAlbumEntries,
+} from "../albumTypes/faces";
+import {
+  getProjectAlbum,
+  getProjectAlbums,
+  getProjects,
+} from "../albumTypes/projects";
 import { exifDataAndStats } from "./exif";
+import {
+  getFolderAlbums,
+  assetsInFolderAlbum,
+  getFolderAlbumData,
+  queueNotification,
+  waitUntilWalk,
+} from "../albumTypes/fileAndFolders";
 import { readAlbumIni, readPicasaEntry, updatePicasaEntry } from "./picasaIni";
-import { albumWithData, queueNotification } from "./walker";
-import { getProjects } from "../projects";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
   const entries = (await media(entry.album)).entries.filter(
     (e) => idFromAlbumEntry(e, "") !== idFromAlbumEntry(entry, "")
   );
-  await sortAssetsByRank(entries, entry, rank);
+  entries.splice(rank, 0, entry);
   await assignRanks(entries);
   notifyAlbumOrderUpdated(entry.album);
 }
@@ -45,12 +60,11 @@ async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {
   let rank = 0;
   for (const entry of filesInFolder) {
     if (isPicture(entry) || isVideo(entry)) {
-      let current = (await readPicasaEntry(entry)).rank;
-      if (current !== undefined) {
-        rank = Math.max(rank + 1, parseInt(current));
-      }
-      if (current !== undefined && rank !== parseInt(current))
+      let current = (await readPicasaEntry(entry)).rank || "0";
+      if (rank !== parseInt(current)) {
         updatePicasaEntry(entry, "rank", rank);
+      }
+      rank++;
     }
   }
 }
@@ -62,7 +76,6 @@ export async function sortAlbum(album: Album, order: string): Promise<void> {
   switch (order) {
     case "reverse":
       {
-        await sortAssetsByRank(entries);
         await assignRanks(entries.reverse());
         notifyAlbumOrderUpdated(album);
       }
@@ -134,35 +147,11 @@ export async function mediaCount(album: Album): Promise<{ count: number }> {
   } else throw new Error(`Unknown kind ${album.kind}`);
 }
 
-export async function assetsInFolderAlbum(
-  album: Album
-): Promise<{ entries: AlbumEntry[]; folders: string[] }> {
-  if (album.kind !== AlbumKind.FOLDER) {
-    throw new Error("Can only scan folders");
-  }
-  const items = await readdir(join(imagesRoot, idFromKey(album.key).id));
-  const entries: AlbumEntry[] = [];
-  const folders: string[] = [];
-
-  await Promise.all(
-    items
-      .filter((i) => !i.startsWith("."))
-      .map(async (i) => {
-        const entry = { album, name: i };
-        if (isPicture(entry) || isVideo(entry)) {
-          entries.push(entry);
-        } else {
-          const s = await stat(join(imagesRoot, idFromKey(album.key).id, i));
-          if (s.isDirectory()) {
-            folders.push(i);
-          }
-        }
-      })
-  );
-
-  return { entries, folders };
-}
-
+/**
+ * Returns the contents of an album, sorted by its rank
+ * @param album
+ * @returns
+ */
 export async function media(album: Album): Promise<{ entries: AlbumEntry[] }> {
   if (album.kind === AlbumKind.FOLDER) {
     let [picasa, assets] = await Promise.all([
@@ -197,8 +186,9 @@ export async function media(album: Album): Promise<{ entries: AlbumEntry[] }> {
     await assignRanks(entries);
     return { entries };
   } else if (album.kind === AlbumKind.FACE) {
-    const ini = await readAlbumIni(album);
-    const entries = Object.keys(ini).map((name) => ({ album, name }));
+    //const ini = await readAlbumIni(album);
+    //const entries = Object.keys(ini).map((name) => ({ album, name }));
+    const entries = await readFaceAlbumEntries(album);
     await sortAssetsByRank(entries);
     await assignRanks(entries);
     return { entries };
@@ -208,29 +198,76 @@ export async function media(album: Album): Promise<{ entries: AlbumEntry[] }> {
   } else throw new Error(`Unknown kind ${album.kind}`);
 }
 
-async function sortAssetsByRank(
-  entries: AlbumEntry[],
-  extra?: AlbumEntry,
-  rank?: any
-) {
-  const e = extra ? { ...extra, rank: parseInt(rank || "0") } : undefined;
-  const ranks = (
-    await Promise.all(entries.map((entry) => readPicasaEntry(entry)))
-  ).map((e) => e.rank);
-  entries.forEach((entry, index) => {
-    (entry as any).rank = parseInt(ranks[index] || "0");
-  });
-  if (e) entries.push(e);
-  entries.sort((a: any, b: any) => {
-    if (a.rank === b.rank) {
-      if (a === e) return -1;
-      if (b === e) return 1;
+async function sortAssetsByRank(entries: AlbumEntry[]) {
+  await Promise.all(
+    entries.map(async (entry) => {
+      const meta = await readPicasaEntry(entry);
+      Object.assign(entry, { rank: meta.rank });
+    })
+  );
+
+  sortByKey(entries as (AlbumEntry & { rank: any })[], ["rank"], ["numeric"]);
+}
+
+export function albumWithData(
+  album: Album | string
+): AlbumWithData | undefined {
+  const kind = typeof album === "string" ? idFromKey(album).kind : album.kind;
+  const key = typeof album === "string" ? album : album.key;
+  if (kind === AlbumKind.FOLDER) {
+    return getFolderAlbumData(key);
+  } else if (kind === AlbumKind.PROJECT) {
+    return getProjectAlbum(key);
+  } else if (kind === AlbumKind.FACE) {
+    return getFaceAlbums().find((f) => f.key == key);
+  } else throw new Error(`Unknown kind ${kind}`);
+}
+
+export async function readAlbumMetadata(album: Album) {
+  switch (album.kind) {
+    case AlbumKind.FOLDER: {
+      const ini = await readAlbumIni(album);
+      return ini;
     }
-    if (a.rank !== undefined && b.rank !== undefined) {
-      return parseInt(a.rank!) - parseInt(b.rank!);
+    case AlbumKind.PROJECT:
+      return {};
+    case AlbumKind.FACE: {
+      const ini = await readAlbumIni(album);
+      await Promise.all(
+        Object.keys(ini).map(async (name) => {
+          const faceData = await getFaceData({ album, name });
+
+          const originalEntry = await readPicasaEntry(faceData.originalEntry);
+          if (originalEntry) {
+            if (originalEntry.dateTaken)
+              ini[name].dateTaken = originalEntry.dateTaken;
+            if (originalEntry.star) ini[name].star = originalEntry.star;
+          }
+        })
+      );
+      return ini;
     }
-    if (a.rank) return -1;
-    if (b.rank) return 1;
-    return 0;
-  });
+    default:
+      throw new Error(`Unkown kind ${album.kind}`);
+  }
+}
+
+export async function monitorAlbums(): Promise<{}> {
+  const lastWalk = await getFolderAlbums();
+  const f = await getFaceAlbumsWithData("");
+  const p = await getProjectAlbums();
+  queueNotification({ type: "albums", albums: [...lastWalk, ...f, ...p] });
+  return {};
+}
+
+export async function getSourceEntry(entry: AlbumEntry) {
+  switch (entry.album.kind) {
+    case AlbumKind.FOLDER:
+      return entry;
+    case AlbumKind.FACE:
+      const faceData = await getFaceData(entry);
+      return faceData.originalEntry;
+    default:
+      throw new Error(`Unkown kind ${entry.album.kind}`);
+  }
 }

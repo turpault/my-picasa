@@ -4,18 +4,15 @@ import {
   AlbumEntry,
   AlbumEntryWithMetadata,
   Filetype,
-  idFromKey
+  idFromKey,
 } from "../../../shared/types/types";
-import {
-  readAlbumIni,
-  updatePicasaEntries
-} from "../rpcFunctions/picasaIni";
+import { readAlbumIni, updatePicasaEntries } from "../rpcFunctions/picasaIni";
 import {
   buildContext,
   destroyContext,
   encode,
   setOptions,
-  transform
+  transform,
 } from "./sharp-processor";
 
 export async function imageInfo(

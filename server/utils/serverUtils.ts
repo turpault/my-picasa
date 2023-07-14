@@ -25,8 +25,11 @@ export function removeExtension(fileName: string) {
 
 export async function safeWriteFile(fileName: string, data: any) {
   const unlock = await lock("safeWriteFile: " + fileName);
-  const tmp = fileName + ".tmp";
-  await writeFile(tmp, data);
-  await rename(tmp, fileName);
-  unlock();
+  try {
+    const tmp = fileName + ".tmp";
+    await writeFile(tmp, data);
+    await rename(tmp, fileName);
+  } finally {
+    unlock();
+  }
 }

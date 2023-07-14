@@ -6,12 +6,12 @@ import { AlbumEntry, ThumbnailSizeVals } from "../../../shared/types/types";
 import { isIdle } from "../../utils/busy";
 import { imagesRoot } from "../../utils/constants";
 import { imageInfo } from "../imageOperations/info";
-import { media } from "../rpcFunctions/media";
+import { media } from "../rpcFunctions/albumUtils";
 import {
   makeThumbnail,
   shouldMakeImageThumbnail,
 } from "../rpcFunctions/thumbnail";
-import { folders, waitUntilWalk } from "../rpcFunctions/walker";
+import { folders, waitUntilWalk } from "../albumTypes/fileAndFolders";
 
 export async function buildThumbs() {
   let spinnerName = Date.now().toString();

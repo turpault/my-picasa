@@ -6,9 +6,9 @@ import { isIdle } from "../../utils/busy";
 import { imagesRoot } from "../../utils/constants";
 import { fileExists, safeWriteFile } from "../../utils/serverUtils";
 import { exifData } from "../rpcFunctions/exif";
-import { media } from "../rpcFunctions/media";
+import { media } from "../rpcFunctions/albumUtils";
 import { readPicasaEntry, updatePicasaEntry } from "../rpcFunctions/picasaIni";
-import { folders, waitUntilWalk } from "../rpcFunctions/walker";
+import { folders, waitUntilWalk } from "../albumTypes/fileAndFolders";
 
 const cacheFolder = `${imagesRoot}/.cacheGeoLocation`;
 const precision = 0.0001;

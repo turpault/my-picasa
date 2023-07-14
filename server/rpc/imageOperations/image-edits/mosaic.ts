@@ -14,8 +14,8 @@ import {
 } from "../../../../shared/types/types";
 import { ProjectOutputFolder, imagesRoot } from "../../../utils/constants";
 import { safeWriteFile } from "../../../utils/serverUtils";
-import { getProject } from "../../projects";
-import { addOrRefreshOrDeleteAlbum } from "../../rpcFunctions/walker";
+import { getProject } from "../../albumTypes/projects";
+import { addOrRefreshOrDeleteAlbum } from "../../albumTypes/fileAndFolders";
 import {
   blitMultiple,
   buildContext,

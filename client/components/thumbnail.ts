@@ -55,6 +55,9 @@ export async function onDrop(
     });
 
     const selection = selectionManager.selected();
+    if (selection.length === 0) {
+      throw new Error("No selection");
+    }
     if (entry) {
       const s = await getService();
 
@@ -94,7 +97,7 @@ function buildThumbnail(
     }
   });
   e.on("mouseleave", (_ev: any) => {
-    if (img.attr("src-original")) {
+    if (img.attr("src-hover") && img.attr("src-original")) {
       img.attr("src", img.attr("src-original"));
     }
   });
@@ -306,13 +309,14 @@ export async function thumbnailData(
     $(e).removeClass("selected");
   }
   thumb.attr("src", thumbnailUrl(entry, "th-medium", false));
-  thumb.attr("src-original", thumbnailUrl(entry, "th-medium", false));
   if (isVideo(entry)) {
     e.attr("is-video", "");
     thumb.attr("src-hover", thumbnailUrl(entry, "th-medium", true));
+    thumb.attr("src-original", thumbnailUrl(entry, "th-medium", false));
   } else {
     e.attr("is-video", null);
     thumb.attr("src-hover", null);
+    thumb.attr("src-original", null);
   }
 
   // could be improved

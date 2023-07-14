@@ -13,10 +13,10 @@ import {
   safeWriteFile,
 } from "../../utils/serverUtils";
 import { buildImage } from "../imageOperations/sharp-processor";
-import { media } from "./media";
+import { media } from "./albumUtils";
 import { importScript, openWithFinder } from "./osascripts";
 import { readAlbumIni } from "./picasaIni";
-import { folders, waitUntilWalk } from "./walker";
+import { folders, waitUntilWalk } from "../albumTypes/fileAndFolders";
 
 function photoLibrary() {
   return join(PhotoLibraryPath, "database", "Photos.sqlite");

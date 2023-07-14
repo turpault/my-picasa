@@ -19,7 +19,7 @@ import { addToUndo, registerUndoProvider } from "../../utils/undo";
 import { exportToFolder } from "../imageOperations/export";
 import { generateMosaicFile } from "../imageOperations/image-edits/mosaic";
 import { exportAllFavoritesJob } from "./fileJob-export-favorites";
-import { setRank } from "./media";
+import { setRank } from "./albumUtils";
 import { openWithFinder } from "./osascripts";
 import { readAlbumIni, readPicasaEntry, updatePicasaEntry } from "./picasaIni";
 import { copyThumbnails } from "./thumbnailCache";
@@ -27,7 +27,8 @@ import {
   addOrRefreshOrDeleteAlbum,
   onRenamedAlbums,
   refreshAlbumKeys,
-} from "./walker";
+} from "../albumTypes/fileAndFolders";
+import { eraseFace } from "../albumTypes/faces";
 
 const jobs: Job[] = [];
 type MultiMoveJobArguments = {
@@ -425,11 +426,15 @@ async function deleteJob(job: Job): Promise<Album[]> {
   await Promise.allSettled(
     source.map(async (s) => {
       try {
-        const from = entryFilePath(s);
-        const to = join(imagesRoot, idFromKey(s.album.key).id, "." + s.name);
-        await rename(from, to);
-        undoDeletePayload.source.push({ album: s.album, name: "." + s.name });
-        albumChanged(s.album, updatedAlbums);
+        if (s.album.kind === AlbumKind.FOLDER) {
+          const from = entryFilePath(s);
+          const to = join(imagesRoot, idFromKey(s.album.key).id, "." + s.name);
+          await rename(from, to);
+          undoDeletePayload.source.push({ album: s.album, name: "." + s.name });
+          albumChanged(s.album, updatedAlbums);
+        } else if (s.album.kind === AlbumKind.FACE) {
+          eraseFace(s);
+        }
       } catch (e: any) {
         job.errors.push(e.message as string);
       } finally {

@@ -164,6 +164,9 @@ export function makeButtons(appEvents: AppEventSource): _$ {
             if (newAlbum) {
               const s = await getService();
               s.makeAlbum(newAlbum).then((album: Album) => {
+                if (state.selection.length === 0) {
+                  throw new Error("No selection");
+                }
                 return s.createJob(JOBNAMES.MOVE, {
                   source: state.selection,
                   destination: { album },
