@@ -68,8 +68,9 @@ export class AlbumIndexedDataSource {
           const max = Math.max(...filtered);
           // Less than 10 albums changed, just invalidate them
           if (max - min <= 10) {
-            for (const index of range(min, max))
+            for (const index of range(min, max)) {
               this.emitter.emit("invalidateAt", { index });
+            }
           } else if (min === 0 && max === this.albums.length - 1) {
             // All albums changed, reset
             this.emitter.emit("reset", {});
