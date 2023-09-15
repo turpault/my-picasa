@@ -12,29 +12,28 @@ import {
   idFromKey,
   keyFromID,
 } from "../../../shared/types/types";
-import { exportsRoot, imagesRoot } from "../../utils/constants";
-import { entryFilePath, fileExists } from "../../utils/serverUtils";
-import { broadcast } from "../../utils/socketList";
-import { addToUndo, registerUndoProvider } from "../../utils/undo";
-import { exportToFolder } from "../imageOperations/export";
-import { generateMosaicFile } from "../imageOperations/image-edits/mosaic";
-import { exportAllFavoritesJob } from "./fileJob-export-favorites";
-import { setRank } from "./albumUtils";
-import { openWithFinder } from "./osascripts";
-import { readAlbumIni, readPicasaEntry, updatePicasaEntry } from "./picasaIni";
-import { copyThumbnails } from "./thumbnailCache";
 import {
   addOrRefreshOrDeleteAlbum,
   onRenamedAlbums,
   refreshAlbumKeys,
-} from "../albumTypes/fileAndFolders";
+} from "../../background/bg-walker";
+import { exportToFolder } from "../../imageOperations/export";
+import { generateMosaicFile } from "../../imageOperations/image-edits/mosaic";
+import { exportsFolder, imagesRoot } from "../../utils/constants";
+import { entryFilePath, fileExists } from "../../utils/serverUtils";
+import { broadcast } from "../../utils/socketList";
+import { addToUndo, registerUndoProvider } from "../../utils/undo";
 import { eraseFace } from "../albumTypes/faces";
+import { setRank } from "./albumUtils";
+import { openWithFinder } from "./osascripts";
+import { readAlbumIni, readPicasaEntry, updatePicasaEntry } from "./picasaIni";
+import { copyThumbnails } from "./thumbnailCache";
 
 const jobs: Job[] = [];
 type MultiMoveJobArguments = {
   source: AlbumEntry;
   destination: Album;
-  rank: Number;
+  rank: number | undefined;
 }[];
 const numberedOutRegex = /\([0-9+]\)\./;
 const numberedOutRegexReplacer = /[ ]*\([0-9+]\)\./;
@@ -131,8 +130,6 @@ async function executeJob(job: Job): Promise<Album[]> {
       return restoreAlbumJob(job);
     case JOBNAMES.RENAME_ALBUM:
       return renameAlbumJob(job);
-    case JOBNAMES.EXPORT_TO_IPHOTO:
-      return exportAllFavoritesJob(job);
     case JOBNAMES.BUILD_PROJECT:
       return buildProject(job);
     default:
@@ -163,17 +160,10 @@ function albumChanged(album: Album, list: Album[]) {
 async function moveJob(job: Job): Promise<Album[]> {
   // convert to a multi-move
   const source = job.data.source as AlbumEntry[];
-  const { album, at, before } = job.data.destination as {
+  const { album, rank } = job.data.destination as {
     album: Album;
-    at: AlbumEntry;
-    before: boolean;
+    rank: number | undefined;
   };
-  let rank: number;
-  if (at) {
-    const p1 = await readPicasaEntry(at);
-    const rank1 = parseInt(p1.rank || "0");
-    rank = rank1 + (before ? 0 : 1);
-  }
   const mmArgs: MultiMoveJobArguments = source.map((entry, index) => ({
     source: entry,
     destination: album,
@@ -556,7 +546,7 @@ async function exportJob(job: Job): Promise<Album[]> {
   const targetFolder = destination
     ? join(imagesRoot, idFromKey(destination.key).id)
     : join(
-        exportsRoot,
+        exportsFolder,
         "exports-" + new Date().toLocaleString().replace(/\//g, "-")
       );
   job.name = "Exporting to " + (destination ? destination.name : targetFolder);

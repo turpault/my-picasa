@@ -22,7 +22,9 @@ import { PICASA, imagesRoot } from "../../utils/constants";
 import { safeWriteFile } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { rate } from "../../utils/stats";
-import { media } from "./albumUtils";
+import { albumWithData, media } from "./albumUtils";
+import { addOrRefreshOrDeleteAlbum } from "../../background/bg-walker";
+import { events } from "../../events/events";
 
 let picasaMap = new Map<string, AlbumMetaData>();
 let lastAccessPicasaMap = new Map<string, number>();
@@ -118,7 +120,7 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
   }
 }
 
-export async function albumInFilter(
+export async function albumentriesInFilter(
   album: Album,
   normalizedFilter: string
 ): Promise<AlbumEntry[]> {
@@ -240,6 +242,12 @@ export async function toggleStar(entries: AlbumEntry[]) {
       star = undefined;
     }
     updatePicasaEntries(entry, { star, starCount });
+    for (const entry of entries) {
+      events.emit("favoriteChanged", {
+        entry,
+        starCount: starCount ? parseInt(starCount) : 0,
+      });
+    }
   }
 }
 

@@ -1,12 +1,16 @@
 import { join } from "path";
-import { isPicture, isVideo } from "../../../shared/lib/utils";
+import { isPicture, isVideo } from "../../shared/lib/utils";
 import {
   AlbumEntry,
   AlbumEntryWithMetadata,
   Filetype,
   idFromKey,
-} from "../../../shared/types/types";
-import { readAlbumIni, updatePicasaEntries } from "../rpcFunctions/picasaIni";
+} from "../../shared/types/types";
+import {
+  readAlbumIni,
+  updatePicasaEntries,
+} from "../rpc/rpcFunctions/picasaIni";
+import { TagValues, dump, insert, load } from "./piexif/index";
 import {
   buildContext,
   destroyContext,
@@ -58,4 +62,19 @@ export async function imageInfo(
 
 export function entryRelativePath(entry: AlbumEntry): string {
   return join(idFromKey(entry.album.key).id, entry.name);
+}
+
+export function addImageInfo(
+  image: Buffer,
+  value: { softwareInfo: string; imageDescription: string }
+): Buffer {
+  const imageStr = image.toString("binary");
+  const exif = load(imageStr);
+  exif["0th"] = {
+    ...exif["0th"],
+    [TagValues.ImageIFD.ProcessingSoftware]: value.softwareInfo,
+    [TagValues.ImageIFD.ImageDescription]: value.imageDescription,
+  };
+  var exifStr = dump(exif);
+  return Buffer.from(insert(exifStr, imageStr), "binary");
 }

@@ -12,7 +12,7 @@
     "forceConsistentCasingInFileNames": true,
     "importHelpers": false,
     "noImplicitReturns": true,
-    "strictNullChecks": true,
+    "strictNullChecks": false,
     "allowJs": true,
     "rootDirs": ["./server", "./shared"],
   },

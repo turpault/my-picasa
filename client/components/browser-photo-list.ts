@@ -43,7 +43,10 @@ const extra = `
 // Create two elements, allergic to visibility
 const elementPrefix = "photolist:";
 const html = `<div class="w3-theme images-area">
-<div class="images disable-scrollbar"><div class="invisible-pixel"/></div>
+  <div class="images disable-scrollbar">
+    <div class="invisible-pixel">
+    </div>
+  </div>
 <div style="display: none" class="dragregion"></div>
 </div>
 `;
@@ -314,9 +317,10 @@ export async function makePhotoList(
 
     dragging = true;
     e.preventDefault();
+    const cRect = container.get().getBoundingClientRect();
     dragElement.css({
-      left: `${Math.min(dragStartPos.x, newPos.x)}px`,
-      top: `${Math.min(dragStartPos.y, newPos.y)}px`,
+      left: `${Math.min(dragStartPos.x, newPos.x) + cRect.left}px`,
+      top: `${Math.min(dragStartPos.y, newPos.y) + cRect.top}px`,
       display: "",
       width: `${
         Math.max(dragStartPos.x, newPos.x) - Math.min(dragStartPos.x, newPos.x)

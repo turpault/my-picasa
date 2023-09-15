@@ -1,14 +1,17 @@
 import { watch } from "fs";
 import { mkdir, readFile } from "fs/promises";
-import { isMediaUrl, sleep } from "../../../shared/lib/utils";
-import { AlbumEntry } from "../../../shared/types/types";
-import { isIdle } from "../../utils/busy";
-import { imagesRoot } from "../../utils/constants";
-import { fileExists, safeWriteFile } from "../../utils/serverUtils";
-import { exifData } from "../rpcFunctions/exif";
-import { media } from "../rpcFunctions/albumUtils";
-import { readPicasaEntry, updatePicasaEntry } from "../rpcFunctions/picasaIni";
-import { folders, waitUntilWalk } from "../albumTypes/fileAndFolders";
+import { isMediaUrl, sleep } from "../../shared/lib/utils";
+import { AlbumEntry } from "../../shared/types/types";
+import { isIdle } from "../utils/busy";
+import { imagesRoot } from "../utils/constants";
+import { fileExists, safeWriteFile } from "../utils/serverUtils";
+import { exifData } from "../rpc/rpcFunctions/exif";
+import { media } from "../rpc/rpcFunctions/albumUtils";
+import {
+  readPicasaEntry,
+  updatePicasaEntry,
+} from "../rpc/rpcFunctions/picasaIni";
+import { getFolderAlbums, waitUntilWalk } from "./bg-walker";
 
 const cacheFolder = `${imagesRoot}/.cacheGeoLocation`;
 const precision = 0.0001;
@@ -55,7 +58,8 @@ async function geoLocationFromCache(latitude: number, longitude: number) {
   const lon = Math.round(longitude / precision) * precision;
   const filename = `${cacheFolder}/${lat}_${lon}.json`;
   if (await fileExists(filename)) {
-    return readFile(filename).then((data) => JSON.parse(data.toString()));
+    const data = await readFile(filename);
+    return JSON.parse(data.toString());
   }
 }
 
@@ -158,7 +162,7 @@ export async function buildGeolocation() {
 
   await sleep(10);
   while (true) {
-    const albums = await folders("");
+    const albums = await getFolderAlbums();
     for (const album of albums.reverse()) {
       let m: { entries: AlbumEntry[] };
       try {

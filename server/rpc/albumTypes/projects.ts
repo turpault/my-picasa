@@ -19,13 +19,16 @@ import {
   idFromKey,
   keyFromID,
 } from "../../../shared/types/types";
-import { ThumbnailSizes, imagesRoot } from "../../utils/constants";
+import {
+  ThumbnailSizes,
+  imagesRoot,
+  projectFolder,
+} from "../../utils/constants";
 import { fileExists, safeWriteFile } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
-import { makeMosaic } from "../imageOperations/image-edits/mosaic";
 import { queueNotification } from "./fileAndFolders";
+import { makeMosaic } from "../../imageOperations/image-edits/mosaic";
 
-const projectFolder = join(imagesRoot, ".projects");
 type ProjectFile = Album & { projects: { [id: string]: AlbumEntry } };
 
 const allProjects: {

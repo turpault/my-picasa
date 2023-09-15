@@ -13,8 +13,9 @@ import {
   FaceData,
   keyFromID,
 } from "../../../shared/types/types";
+import { getFolderAlbums, waitUntilWalk } from "../../background/bg-walker";
 import { entryFilePath, fileExists } from "../../utils/serverUtils";
-import { albumWithData, media } from "../rpcFunctions/albumUtils";
+import { media } from "../rpcFunctions/albumUtils";
 import {
   readAlbumEntries,
   readAlbumIni,
@@ -23,7 +24,6 @@ import {
   updatePicasaEntry,
 } from "../rpcFunctions/picasaIni";
 import { deleteFaceImage, getFaceImage } from "../rpcFunctions/thumbnail";
-import { getFolderAlbums, waitUntilWalk } from "./fileAndFolders";
 
 /**
  * all the known face albums

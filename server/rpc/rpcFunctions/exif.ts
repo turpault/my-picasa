@@ -7,7 +7,7 @@ import { AlbumEntry, idFromKey } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { entryFilePath } from "../../utils/serverUtils";
 import { readPicasaEntry, updatePicasaEntry } from "./picasaIni";
-import { dimensionsFromFile as dimensionsFromFileBuffer } from "../imageOperations/sharp-processor";
+import { dimensionsFromFile as dimensionsFromFileBuffer } from "../../imageOperations/sharp-processor";
 
 export async function exifDataAndStats(
   entry: AlbumEntry
@@ -94,7 +94,7 @@ function filterExifTags(tags: any): any {
     if (tags[key] && exifTags[key]) {
       filtered[key] = tags[key];
     } else {
-      console.warn("Tag not included in exif: " + key);
+      // console.warn("Tag not included in exif: " + key);
     }
   }
   return filtered;

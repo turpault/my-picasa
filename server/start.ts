@@ -1,31 +1,28 @@
 import fastifystatic from "@fastify/static";
 import { default as websocketPlugin } from "@fastify/websocket";
 import Fastify, { FastifyInstance, RouteShorthandOptions } from "fastify";
-import { basename, join } from "path";
+import { join } from "path";
 import { lockedLocks, startLockMonitor } from "../shared/lib/utils";
 import { SocketAdaptorInterface } from "../shared/socket/socketAdaptorInterface";
 import { WsAdaptor } from "../shared/socket/wsAdaptor";
-import { idFromKey } from "../shared/types/types";
-import { buildThumbs } from "./rpc/background/bg-thumbgen";
-import { parseLUTs } from "./rpc/imageOperations/imageFilters";
-import { encode } from "./rpc/imageOperations/sharp-processor";
+import { keepFaceAlbumUpdated, scanFaces } from "./rpc/albumTypes/faces";
+import { initProjects } from "./rpc/albumTypes/projects";
 import { RPCInit } from "./rpc/index";
 import { asset } from "./rpc/routes/asset";
 import { thumbnail } from "./rpc/routes/thumbnail";
+import { albumWithData } from "./rpc/rpcFunctions/albumUtils";
 import { picasaIniCleaner } from "./rpc/rpcFunctions/picasaIni";
-import {
-  startAlbumUpdateNotification,
-  updateLastWalkLoop,
-  waitUntilWalk,
-} from "./rpc/albumTypes/fileAndFolders";
 import { startSentry } from "./sentry";
 import { busy, measureCPULoad } from "./utils/busy";
 import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
-import { buildGeolocation } from "./rpc/background/bg-geolocate";
-import { initProjects } from "./rpc/albumTypes/projects";
-import { keepFaceAlbumUpdated, scanFaces } from "./rpc/albumTypes/faces";
-import { albumWithData } from "./rpc/rpcFunctions/albumUtils";
+import { encode } from "./imageOperations/sharp-processor";
+import { buildThumbs } from "./background/bg-thumbgen";
+import { buildGeolocation } from "./background/bg-geolocate";
+import { updateLastWalkLoop, waitUntilWalk } from "./background/bg-walker";
+import { parseLUTs } from "./imageOperations/imageFilters";
+import { buildFavoriteFolder } from "./background/bg-favorites";
+import { startAlbumUpdateNotification } from "./rpc/albumTypes/fileAndFolders";
 
 /** */
 
@@ -91,7 +88,7 @@ function setupRoutes(server: FastifyInstance) {
       if (!album) {
         reply.code(404);
         reply.send();
-        return;
+        return {};
       }
       const entry = {
         album,
@@ -169,6 +166,7 @@ export async function start(p?: number) {
     keepFaceAlbumUpdated();
     parseLUTs();
     initProjects();
+    buildFavoriteFolder();
     await waitUntilWalk();
     await scanFaces();
     console.info("Initial walk complete.");

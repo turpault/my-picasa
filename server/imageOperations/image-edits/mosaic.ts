@@ -1,7 +1,13 @@
 import { mkdir } from "fs/promises";
 import { basename, join } from "path";
-import { calculateImagePositions } from "../../../../shared/lib/mosaic-positions";
-import { namify } from "../../../../shared/lib/utils";
+import {
+  blitMultiple,
+  buildContext,
+  buildNewContext,
+  destroyContext,
+  encode,
+  transform,
+} from "../sharp-processor";
 import {
   Album,
   AlbumEntry,
@@ -11,19 +17,13 @@ import {
   MosaicProject,
   Orientation,
   keyFromID,
-} from "../../../../shared/types/types";
-import { ProjectOutputFolder, imagesRoot } from "../../../utils/constants";
-import { safeWriteFile } from "../../../utils/serverUtils";
-import { getProject } from "../../albumTypes/projects";
-import { addOrRefreshOrDeleteAlbum } from "../../albumTypes/fileAndFolders";
-import {
-  blitMultiple,
-  buildContext,
-  buildNewContext,
-  destroyContext,
-  encode,
-  transform,
-} from "../sharp-processor";
+} from "../../../shared/types/types";
+import { getProject } from "../../rpc/albumTypes/projects";
+import { calculateImagePositions } from "../../../shared/lib/mosaic-positions";
+import { ProjectOutputFolder, imagesRoot } from "../../utils/constants";
+import { namify } from "../../../shared/lib/utils";
+import { safeWriteFile } from "../../utils/serverUtils";
+import { addOrRefreshOrDeleteAlbum } from "../../background/bg-walker";
 
 export async function makeMosaic(
   entry: AlbumEntry,

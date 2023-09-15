@@ -11,14 +11,14 @@ import {
 import { ThumbnailSizes, imagesRoot } from "../../utils/constants";
 import { fileExists, safeWriteFile } from "../../utils/serverUtils";
 import { dec, inc } from "../../utils/stats";
-import { entryRelativePath } from "../imageOperations/info";
+import { entryRelativePath } from "../../imageOperations/info";
 import {
   buildFaceImage,
   buildImage,
   dimensionsFromFileBuffer,
-} from "../imageOperations/sharp-processor";
+} from "../../imageOperations/sharp-processor";
 import { makeProjectThumbnail } from "../albumTypes/projects";
-import { createGif } from "../videoOperations/gif";
+import { createGif } from "../../videoOperations/gif";
 import { readAlbumIni, updatePicasaEntries } from "./picasaIni";
 import {
   readThumbnailFromCache,

@@ -1,17 +1,12 @@
 /* eslint-disable @typescript-eslint/camelcase */
 import { Exceptions } from "../../shared/types/exceptions";
-import { undo, undoList } from "../utils/undo";
-import { getFaceAlbumFromHash } from "./albumTypes/faces";
-import { folders, setAlbumShortcut } from "./albumTypes/fileAndFolders";
+import { folders } from "../background/bg-walker";
+import { generateMosaicFile } from "../imageOperations/image-edits/mosaic";
 import {
-  createProject,
-  getProject,
-  getProjects,
-  writeProject,
-} from "./albumTypes/projects";
-import { generateMosaicFile } from "./imageOperations/image-edits/mosaic";
-import { getFilterGroups, getFilterList } from "./imageOperations/imageFilters";
-import { imageInfo } from "./imageOperations/info";
+  getFilterGroups,
+  getFilterList,
+} from "../imageOperations/imageFilters";
+import { imageInfo } from "../imageOperations/info";
 import {
   buildContext,
   cloneContext,
@@ -22,7 +17,15 @@ import {
   histogram,
   setOptions,
   transform,
-} from "./imageOperations/sharp-processor";
+} from "../imageOperations/sharp-processor";
+import { undo, undoList } from "../utils/undo";
+import { getFaceAlbumFromHash } from "./albumTypes/faces";
+import {
+  createProject,
+  getProject,
+  getProjects,
+  writeProject,
+} from "./albumTypes/projects";
 import {
   getSourceEntry,
   media,
@@ -51,6 +54,7 @@ import {
   updatePicasaEntry,
 } from "./rpcFunctions/picasaIni";
 import { clientReady } from "./rpcFunctions/ready";
+import { setAlbumShortcut } from "./rpcFunctions/shortcuts";
 import { ServiceMap } from "./rpcHandler";
 
 /**
