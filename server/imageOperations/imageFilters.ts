@@ -1,8 +1,8 @@
 import { readFile } from "fs/promises";
 import { join, relative, sep } from "path";
-import { sleep } from "../../../shared/lib/utils";
-import { imagesRoot } from "../../utils/constants";
-import { folder } from "../rpcFunctions/fs";
+import { folder } from "../rpc/rpcFunctions/fs";
+import { sleep } from "../../shared/lib/utils";
+import { imagesRoot } from "../utils/constants";
 const { applyLUT } = require("./native-filters/build/Release/lut3d");
 const { histogram } = require("./native-filters/build/Release/histogram");
 

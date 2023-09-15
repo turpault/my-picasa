@@ -507,3 +507,17 @@ export function prng(a: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+const readys: { [key: string]: Promise<void> } = {};
+const readyResolves: { [key: string]: Function } = {};
+
+export function setReady(readyLabel: string) {
+  readyResolves[readyLabel]();
+}
+
+export function buildReadySemaphore(readyLabel: string) {
+  readys[readyLabel] = new Promise((resolve) => {
+    readyResolves[readyLabel] = resolve;
+  });
+  return readys[readyLabel];
+}

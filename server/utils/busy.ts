@@ -3,6 +3,12 @@ import { sleep } from "../../shared/lib/utils";
 
 let lastActivity: number = 0;
 
+export async function waitUntilIdle() {
+  while (!isIdle()) {
+    await sleep(1);
+  }
+}
+
 export function isIdle() {
   return new Date().getTime() - lastActivity > 10000;
 }

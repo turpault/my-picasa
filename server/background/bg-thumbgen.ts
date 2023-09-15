@@ -1,17 +1,17 @@
 import { bouncingBall } from "cli-spinners";
 import { watch } from "fs";
 import Spinnies from "spinnies";
-import { isMediaUrl, sleep } from "../../../shared/lib/utils";
-import { AlbumEntry, ThumbnailSizeVals } from "../../../shared/types/types";
-import { isIdle } from "../../utils/busy";
-import { imagesRoot } from "../../utils/constants";
 import { imageInfo } from "../imageOperations/info";
-import { media } from "../rpcFunctions/albumUtils";
+import { folders, waitUntilWalk } from "./bg-walker";
+import { imagesRoot } from "../utils/constants";
+import { isMediaUrl, sleep } from "../../shared/lib/utils";
+import { AlbumEntry, ThumbnailSizeVals } from "../../shared/types/types";
+import { media } from "../rpc/rpcFunctions/albumUtils";
+import { isIdle, waitUntilIdle } from "../utils/busy";
 import {
   makeThumbnail,
   shouldMakeImageThumbnail,
-} from "../rpcFunctions/thumbnail";
-import { folders, waitUntilWalk } from "../albumTypes/fileAndFolders";
+} from "../rpc/rpcFunctions/thumbnail";
 
 export async function buildThumbs() {
   let spinnerName = Date.now().toString();
@@ -50,9 +50,7 @@ export async function buildThumbs() {
         continue;
       }
       for (const picture of m.entries) {
-        while (!isIdle()) {
-          await sleep(1);
-        }
+        await waitUntilIdle();
         await imageInfo(picture);
         const should = await Promise.all(
           sizes.map(({ size, animated }) =>

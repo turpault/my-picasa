@@ -119,6 +119,7 @@ export async function makeAlbumList(
   function addListeners(container: _$) {
     const img = new Image();
     img.src = "resources/images/icons/actions/duplicate-50.png";
+    let dropTarget: HTMLElement | undefined;
     container
       .on("click", function (ev): any {
         const item = $(ev.target as HTMLElement);
@@ -132,41 +133,61 @@ export async function makeAlbumList(
         lastSelectedAlbum = album;
         events.emit("selected", { album });
       })
-      .on("dragover", (ev: any) => {
+      .on("dragenter", (ev: DragEvent) => {
         ev.preventDefault();
+        ev.dataTransfer?.setDragImage(img, 0, 0);
       })
-      .on("dragenter", (ev: any) => {
-        const item = $(ev.target as HTMLElement);
-        if (ev.currentTarget.contains(ev.relatedTarget)) {
-          return;
-        }
-        item.addClass("drop-area");
-        ev.dataTransfer.setDragImage(img, 10, 10);
-      })
-      .on("dragleave", (ev: any) => {
-        if (ev.currentTarget.contains(ev.relatedTarget)) {
-          return;
-        }
-        const item = $(ev.target as HTMLElement);
-        item.removeClass("drop-area");
+      .on("dragleave", (ev: DragEvent) => {
         ev.preventDefault();
+        ev.stopPropagation();
+        if (
+          ev.target &&
+          $(ev.target! as HTMLElement).hasClass("browser-list-text")
+        ) {
+          if (dropTarget) {
+            $(dropTarget).removeClass("drop-area");
+            dropTarget = undefined;
+          }
+        }
+      })
+      .on("dragover", (ev: DragEvent) => {
+        ev.stopPropagation();
+        ev.preventDefault();
+        if (
+          ev.target &&
+          $(ev.target! as HTMLElement).hasClass("browser-list-text") &&
+          ev.target !== dropTarget
+        ) {
+          if (dropTarget) {
+            $(dropTarget).removeClass("drop-area");
+          }
+          dropTarget = ev.target! as HTMLElement;
+          const item = $(dropTarget);
+          item.addClass("drop-area");
+          ev.dataTransfer!.setDragImage(img, 10, 10);
+        }
       })
       .on("drop", async (ev: any) => {
-        const item = $(ev.target as HTMLElement);
-        const selection = selectionManager.selected();
-        const album = albumFromElement(item, elementPrefix)!;
-        if (!album) return;
-        const s = await getService();
+        ev.stopPropagation();
+        if (dropTarget) {
+          $(dropTarget).removeClass("drop-area");
+          const item = $(dropTarget);
+          const selection = selectionManager.selected();
+          const album = albumFromElement(item, elementPrefix)!;
+          if (!album) return;
+          const s = await getService();
 
-        if (selection.length === 0) {
-          throw new Error("No selection");
+          if (selection.length === 0) {
+            throw new Error("No selection");
+          }
+          console.info("Moving selection to album", selection, album);
+
+          s.createJob(JOBNAMES.MOVE, {
+            source: selection,
+            destination: { album },
+          });
+          selectionManager.clear();
         }
-
-        s.createJob(JOBNAMES.MOVE, {
-          source: selection,
-          destination: { album },
-        });
-        selectionManager.clear();
       });
   }
 

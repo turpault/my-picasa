@@ -1,8 +1,8 @@
 import { spawn } from "child_process";
-import { lock } from "../../../shared/lib/utils";
-import { AlbumEntry } from "../../../shared/types/types";
-import { entryFilePath, fileExists } from "../../utils/serverUtils";
-import { delayEnd, delayStart, rate } from "../../utils/stats";
+import { lock } from "../../shared/lib/utils";
+import { AlbumEntry } from "../../shared/types/types";
+import { entryFilePath, fileExists } from "../utils/serverUtils";
+import { delayEnd, delayStart, rate } from "../utils/stats";
 
 var pathToFfmpeg = require("ffmpeg-static");
 

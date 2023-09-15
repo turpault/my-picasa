@@ -25,13 +25,14 @@ import {
 } from "../albumTypes/projects";
 import { exifDataAndStats } from "./exif";
 import {
-  getFolderAlbums,
   assetsInFolderAlbum,
-  getFolderAlbumData,
   queueNotification,
-  waitUntilWalk,
 } from "../albumTypes/fileAndFolders";
 import { readAlbumIni, readPicasaEntry, updatePicasaEntry } from "./picasaIni";
+import {
+  getFolderAlbumData,
+  getFolderAlbums,
+} from "../../background/bg-walker";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
   const entries = (await media(entry.album)).entries.filter(

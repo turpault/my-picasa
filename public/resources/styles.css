@@ -609,7 +609,7 @@ body {
   padding-bottom: 4px;
   text-indent: 4px;
   /* font-weight: bold; */
-  transition: all 0.15s ease 0s;
+  transition: background-color 0.15s ease 0s;
 }
 
 .browser-list-text:hover {
@@ -893,7 +893,7 @@ body {
 }
 
 .dragregion {
-  position: absolute;
+  position: fixed;
   border: 4px dotted blue;
   pointer-events: none;
 }
@@ -939,6 +939,7 @@ body {
   background-color: rgba(0, 0, 0, 0.1);
   user-select: none;
   display: block;
+  border-radius: 5px;
 }
 
 [data-tooltip]::before {

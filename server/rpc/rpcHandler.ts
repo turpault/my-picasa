@@ -105,31 +105,27 @@ const validators: ValidatorMap = {
   },
 };
 
-async function getConvertedArguments(
-  service: Service,
-  args: any
-): Promise<Array<any>> {
+function getConvertedArguments(service: Service, args: any): Array<any> {
   const convertedArguments: any[] = [];
-  await Promise.all(
-    service.arguments.map((argument) => {
-      const splitArgument = argument.split(":");
-      const argumentName = splitArgument[0];
-      const argumentType = splitArgument[1];
-      const validator = validators[argumentType];
-      if (!validator) {
-        throw new Error(
-          `Validator for type ${argumentType} does not exist, please validate the spec (Argument name is ${argumentName})`
-        );
-      }
-      const newValue = validator(args[argumentName]);
-      if (newValue instanceof Error) {
-        throw new Error(
-          `Argument ${argumentName} fails the validation checks : ${newValue.message}`
-        );
-      }
-      convertedArguments.push(newValue);
-    })
-  );
+
+  service.arguments.forEach((argument) => {
+    const splitArgument = argument.split(":");
+    const argumentName = splitArgument[0];
+    const argumentType = splitArgument[1];
+    const validator = validators[argumentType];
+    if (!validator) {
+      throw new Error(
+        `Validator for type ${argumentType} does not exist, please validate the spec (Argument name is ${argumentName})`
+      );
+    }
+    const newValue = validator(args[argumentName]);
+    if (newValue instanceof Error) {
+      throw new Error(
+        `Argument ${argumentName} fails the validation checks : ${newValue.message}`
+      );
+    }
+    convertedArguments.push(newValue);
+  });
 
   return convertedArguments;
 }
@@ -152,10 +148,10 @@ export function registerServices(
           const serviceFunc = service.functions[name];
           const commandArgs = payload.args;
           let label: string = "";
-          const lockName = name + '/' + uuid();
+          const lockName = name + "/" + uuid();
           const l = await lock(lockName);
           try {
-            const convertedArguments = await getConvertedArguments(
+            const convertedArguments = getConvertedArguments(
               serviceFunc,
               commandArgs
             );

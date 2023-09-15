@@ -3,8 +3,15 @@ import sizeOf from "image-size";
 import { join } from "path";
 import sharp, { OverlayOptions, Sharp } from "sharp";
 import { promisify } from "util";
-import { rotateRectangle } from "../../../shared/lib/geometry";
-import { Queue } from "../../../shared/lib/queue";
+import { applyAllFilters, applyFilter, getHistogram } from "./imageFilters";
+import { entryRelativePath } from "./info";
+import {
+  AlbumEntry,
+  AlbumEntryMetaData,
+  FaceData,
+  ImageEncoding,
+  ImageMimeType,
+} from "../../shared/types/types";
 import {
   clipColor,
   decodeOperations,
@@ -15,18 +22,10 @@ import {
   noop,
   toHex2,
   uuid,
-} from "../../../shared/lib/utils";
-import {
-  AlbumEntry,
-  AlbumEntryMetaData,
-  AlbumKind,
-  FaceData,
-  ImageEncoding,
-  ImageMimeType,
-} from "../../../shared/types/types";
-import { imagesRoot } from "../../utils/constants";
-import { applyAllFilters, applyFilter, getHistogram } from "./imageFilters";
-import { entryRelativePath } from "./info";
+} from "../../shared/lib/utils";
+import { imagesRoot } from "../utils/constants";
+import { rotateRectangle } from "../../shared/lib/geometry";
+import { Queue } from "../../shared/lib/queue";
 
 const contexts = new Map<string, Sharp>();
 const options = new Map<string, AlbumEntryMetaData>();
@@ -667,6 +666,12 @@ export async function transform(
         const sizeW = args[1] ? parseInt(args[1]) : undefined;
         const sizeH = args[2] ? parseInt(args[2]) : undefined;
         j = j.resize(sizeW, sizeH, { fit: "inside" });
+        break;
+      }
+      case "compress": {
+        const sizeW = args[1] ? parseInt(args[1]) : undefined;
+        const sizeH = args[2] ? parseInt(args[2]) : undefined;
+        j = j.resize(sizeW, sizeH, { fit: "inside", withoutEnlargement: true });
         break;
       }
       case "cover": {

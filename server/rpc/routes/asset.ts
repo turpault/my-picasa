@@ -9,7 +9,7 @@ import {
   encode,
   setOptions,
   transform,
-} from "../imageOperations/sharp-processor";
+} from "../../imageOperations/sharp-processor";
 import { readAlbumIni } from "../rpcFunctions/picasaIni";
 
 export async function asset(entry: AlbumEntry): Promise<string> {

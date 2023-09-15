@@ -1,11 +1,11 @@
 import { spawn } from "child_process";
 import { writeFile } from "fs/promises";
 import { basename, dirname, join } from "path";
-import { exportsRoot } from "../../utils/constants";
+import { exportsFolder } from "../../utils/constants";
 
 async function runScript(script: string) {
   const scriptName = join(
-    exportsRoot,
+    exportsFolder,
     "script-" + new Date().toLocaleString().replace(/\//g, "-")
   );
   await writeFile(scriptName, script);
@@ -16,7 +16,12 @@ async function runScript(script: string) {
 export async function importScript(files: string[]) {
   const script = `
 set imageList to {}
-${files.map((file) => 'copy (POSIX FILE "' + file + '") as alias to the end of |imageList|').join("\n")}
+${files
+  .map(
+    (file) =>
+      'copy (POSIX FILE "' + file + '") as alias to the end of |imageList|'
+  )
+  .join("\n")}
 tell application "Photos"
 activate
 delay 2

@@ -2,7 +2,7 @@
   "name": "picisa",
   "version": "1.1.0",
   "description": "Picasa replacement in pure JS",
-  "author": "Jocelyn Turapult (turpault@gmail.com)",
+  "author": "Jocelyn Turpault (turpault@gmail.com)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/turpault/my-picasa/issues"
@@ -34,7 +34,7 @@
     "build:ico": "png2icons resources/picisa.png public/favicon -ico",
     "build:splashbase64url": "node server/toBase64Url.mjs public/resources/images/splash.png",
     "build:rpc": "ts-node server/rpc/generate.ts client/rpc/generated-rpc",
-    "build-filters": "(cd server/rpc/imageOperations/native-filters ; npm run configure ; npm run build) ; mkdir -p dist/server/rpc/imageOperations/native-filters/build/Release ; cp server/rpc/imageOperations/native-filters/build/Release/*.node dist/server/rpc/imageOperations/native-filters/build/Release/",
+    "build-filters": "(cd server/imageOperations/native-filters ; npm run configure ; npm run build) ; mkdir -p dist/server/imageOperations/native-filters/build/Release ; cp server/imageOperations/native-filters/build/Release/*.node dist/server/imageOperations/native-filters/build/Release/",
     "package": "electron-packager . --icon resources/picisa.icns --app-version 1.0.0 --appname Picisa --no-deref-symlinks --overwrite --ignore='\\.d\\.ts|\\.map'",
     "deploy": "osascript -e 'do shell script \"rm -rf /Applications/picisa.app ; cp -Rf  picisa-darwin-x64/picisa.app /Applications/\" with administrator privileges'",
     "clean": "rimraf dist",
@@ -98,6 +98,7 @@
     "js-base64": "^3.7.4",
     "leaflet": "^1.9.3",
     "panzoom": "^9.4.3",
+    "piexifjs": "^1.0.6",
     "sharp": "^0.31.2",
     "spinnies": "^0.5.1",
     "ts-2d-geometry": "^6.3.2",

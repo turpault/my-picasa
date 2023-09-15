@@ -61,15 +61,17 @@ export async function onDrop(
     if (entry) {
       const s = await getService();
 
-      if (entry.album.key !== album.key) {
-        entry = undefined;
+      let rank = 0;
+      const p = (await s.readPicasaEntry(entry)) as AlbumEntryMetaData;
+      if (p) {
+        rank = parseInt(p.rank || "0");
       }
+
       s.createJob(JOBNAMES.MOVE, {
         source: selection,
         destination: {
           album: album,
-          at: entry,
-          before: true,
+          rank,
         },
       });
       selectionManager.clear();

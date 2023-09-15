@@ -108,15 +108,6 @@ export function makeButtons(appEvents: AppEventSource): _$ {
     | { element?: _$; execute?: () => any; type: "sep"; hotKey?: string }
   )[] = [
     {
-      name: t("Export All Favorites"),
-      icon: "resources/images/icons/actions/export-favorites-50.png",
-      visible: () => state.tabKind === "Browser",
-      execute: async () => {
-        const s = await getService();
-        return s.createJob(JOBNAMES.EXPORT_TO_IPHOTO, {});
-      },
-    },
-    {
       name: JOBNAMES.EXPORT,
       icon: "resources/images/icons/actions/export-50.png",
       enabled: () => state.selection.length > 0,
