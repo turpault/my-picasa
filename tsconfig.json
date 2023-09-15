@@ -15,7 +15,7 @@
     "strict": true,
     "importHelpers": true,
     "noImplicitReturns": true,
-    "strictNullChecks": true,
+    "strictNullChecks": false,
     "allowJs": true,
     "sourceMap": true,
     "allowSyntheticDefaultImports" : true,

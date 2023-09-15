@@ -172,7 +172,7 @@ export class AlbumIndexedDataSource {
     // Find at which index the album should be added
     let index = this.allAlbums.findIndex((a) => a.key === album.key);
     if (index !== -1) {
-      return;
+      return 0;
     }
     this.allAlbums.push({ ...album });
     this.sortFolders();
@@ -190,7 +190,7 @@ export class AlbumIndexedDataSource {
       this.albums.splice(idx, 1);
       return idx;
     }
-    return;
+    return 0;
   }
   private updatedAlbum(from: AlbumWithData, to: AlbumWithData) {
     const idxAll = this.allAlbums.findIndex((a) => a.key === from.key);
@@ -203,7 +203,7 @@ export class AlbumIndexedDataSource {
         return { idx: idx !== -1 ? idx : 0, idx2 };
       }
     }
-    return;
+    return { idx: 0, idx2: 0 };
   }
 
   toggleCollapse(node: Node) {
@@ -292,33 +292,33 @@ export class AlbumIndexedDataSource {
     const foldersByYear = groupBy(folders, "name", (n: string) =>
       n.slice(0, 4)
     );
-    const hierarchy = {
+    const hierarchy: Node = {
       name: "",
       collapsed: false,
-      albums: [],
+      albums: [] as AlbumWithData[],
       childs: [
         {
           name: t("shortcuts"),
           collapsed: false,
           albums: shortcuts,
-          childs: [],
+          childs: [] as Node[],
         },
         {
           name: t("folders"),
-          albums: [],
+          albums: [] as AlbumWithData[],
           collapsed: false,
           childs: Array.from(foldersByYear.keys()).map((key) => ({
             name: key,
             collapsed: false,
             albums: foldersByYear.get(key)!,
-            childs: [],
+            childs: [] as Node[],
           })),
         },
         {
           name: t("faces"),
           collapsed: false,
           albums: faces,
-          childs: [],
+          childs: [] as Node[],
         },
       ],
     };
