@@ -12,7 +12,7 @@ import {
 } from "../../shared/lib/utils";
 import { AlbumEntry } from "../../shared/types/types";
 import { events } from "../events/events";
-import { addImageInfo } from "../imageOperations/info";
+import { addImageInfo, updateImageDate } from "../imageOperations/info";
 import { buildImage } from "../imageOperations/sharp-processor";
 import { media } from "../rpc/rpcFunctions/albumUtils";
 import { readAlbumIni } from "../rpc/rpcFunctions/picasaIni";
@@ -29,6 +29,7 @@ import { folders, waitUntilWalk } from "./bg-walker";
 
 const readyLabelKey = "favorites";
 const ready = buildReadySemaphore(readyLabelKey);
+const originDate = new Date(1900, 0, 1);
 
 function albumNameToDate(name: string): Date {
   let [y, m, d] = name
@@ -40,7 +41,7 @@ function albumNameToDate(name: string): Date {
   }
   if (y > 3000 || y < 1800 || Number.isNaN(y)) {
     // No date information, return an old date
-    return new Date(1900, 0, 1);
+    return originDate;
   }
 
   if (m === undefined || m < 0 || m > 11 || Number.isNaN(m)) {
@@ -150,7 +151,11 @@ async function exportFavorite(entry: AlbumEntry): Promise<void> {
         return {};
       });
       if (tags.DateTimeOriginal) {
-        const dateTimeOriginal = new Date(tags.DateTimeOriginal);
+        let dateTimeOriginal = new Date(tags.DateTimeOriginal);
+        if (dateTimeOriginal < originDate) {
+          dateTimeOriginal = originDate;
+          updateImageDate(targetFileName, dateTimeOriginal);
+        }
         await utimes(targetFileName, dateTimeOriginal, dateTimeOriginal);
       } /* decode from folder */ else {
         await utimes(
