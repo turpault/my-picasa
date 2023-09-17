@@ -1,13 +1,11 @@
 import exifr from "exifr";
 import { Stats } from "fs";
 import { stat } from "fs/promises";
-import { join } from "path";
 import { isPicture, isVideo, lock } from "../../../shared/lib/utils";
-import { AlbumEntry, idFromKey } from "../../../shared/types/types";
-import { imagesRoot } from "../../utils/constants";
+import { AlbumEntry } from "../../../shared/types/types";
+import { dimensionsFromFile as dimensionsFromFileBuffer } from "../../imageOperations/sharp-processor";
 import { entryFilePath } from "../../utils/serverUtils";
 import { readPicasaEntry, updatePicasaEntry } from "./picasaIni";
-import { dimensionsFromFile as dimensionsFromFileBuffer } from "../../imageOperations/sharp-processor";
 
 export async function exifDataAndStats(
   entry: AlbumEntry

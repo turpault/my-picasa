@@ -1,5 +1,5 @@
 import { join } from "path";
-import { isPicture, isVideo } from "../../shared/lib/utils";
+import { isPicture, isVideo, removeDiacritics } from "../../shared/lib/utils";
 import {
   AlbumEntry,
   AlbumEntryWithMetadata,
@@ -73,7 +73,9 @@ export function addImageInfo(
   exif["0th"] = {
     ...exif["0th"],
     [TagValues.ImageIFD.ProcessingSoftware]: value.softwareInfo,
-    [TagValues.ImageIFD.ImageDescription]: value.imageDescription,
+    [TagValues.ImageIFD.ImageDescription]: removeDiacritics(
+      `${value.softwareInfo}: ${value.imageDescription}`
+    ),
   };
   var exifStr = dump(exif);
   return Buffer.from(insert(exifStr, imageStr), "binary");

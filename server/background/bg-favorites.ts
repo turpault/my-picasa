@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import exifr from "exifr";
 import { copyFile, mkdir, unlink, utimes } from "fs/promises";
 import { join } from "path";
 import { Queue } from "../../shared/lib/queue";
@@ -30,15 +31,26 @@ const readyLabelKey = "favorites";
 const ready = buildReadySemaphore(readyLabelKey);
 
 function albumNameToDate(name: string): Date {
-  let [y, m, d] = name.split("-").map(parseInt);
-  if (y > 1800) {
-    if (m <= 0 || m > 12 || Number.isNaN(m)) {
-      // deepcode ignore DateMonthIndex: <please specify a reason of ignoring this>
-      m = 1;
-    }
-    if (d <= 0 || d > 31 || Number.isNaN(d)) {
-      d = 1;
-    }
+  let [y, m, d] = name
+    .split(" ")[0]
+    .split("-")
+    .map((v) => parseInt(v));
+  if (y < 1900) {
+    y = 1900;
+  }
+  if (y > 3000 || y < 1800 || Number.isNaN(y)) {
+    // No date information, return an old date
+    return new Date(1900, 0, 1);
+  }
+
+  if (m === undefined || m < 0 || m > 11 || Number.isNaN(m)) {
+    m = 0;
+  } else {
+    // Month are 1-based
+    m++;
+  }
+  if (d === undefined || d <= 0 || d > 31 || Number.isNaN(d)) {
+    d = 1;
   }
   return new Date(y, m, d, 12);
 }
@@ -131,6 +143,22 @@ async function exportFavorite(entry: AlbumEntry): Promise<void> {
           imageDescription: entry.album.name,
         })
       );
+      const tags = await exifr.parse(targetFileName).catch((e: any) => {
+        console.error(
+          `Exception while reading exif for ${targetFileName}: ${e}`
+        );
+        return {};
+      });
+      if (tags.DateTimeOriginal) {
+        const dateTimeOriginal = new Date(tags.DateTimeOriginal);
+        await utimes(targetFileName, dateTimeOriginal, dateTimeOriginal);
+      } /* decode from folder */ else {
+        await utimes(
+          targetFileName,
+          albumNameToDate(entry.album.name),
+          albumNameToDate(entry.album.name)
+        );
+      }
     }
     if (isVideo(entry)) {
       // copy file
