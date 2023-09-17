@@ -18,6 +18,8 @@ import {
   setOptions,
   transform,
 } from "./sharp-processor";
+import { readFile } from "fs/promises";
+import { safeWriteFile } from "../utils/serverUtils";
 
 export async function imageInfo(
   entry: AlbumEntry
@@ -79,4 +81,18 @@ export function addImageInfo(
   };
   var exifStr = dump(exif);
   return Buffer.from(insert(exifStr, imageStr), "binary");
+}
+
+export async function updateImageDate(fileName: string, time: Date) {
+  const imageStr = (await readFile(fileName)).toString("binary");
+  const exif = load(imageStr);
+  exif["0th"] = {
+    ...exif["0th"],
+    [TagValues.ExifIFD.DateTimeOriginal]: time.toISOString(),
+  };
+  var exifStr = dump(exif);
+  await safeWriteFile(
+    fileName,
+    Buffer.from(insert(exifStr, imageStr), "binary")
+  );
 }
