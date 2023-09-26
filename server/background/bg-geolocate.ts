@@ -10,7 +10,7 @@ import { media } from "../rpc/rpcFunctions/albumUtils";
 import {
   readPicasaEntry,
   updatePicasaEntry,
-} from "../rpc/rpcFunctions/picasaIni";
+} from "../rpc/rpcFunctions/picasa-ini";
 import { getFolderAlbums, waitUntilWalk } from "./bg-walker";
 
 const cacheFolder = `${imagesRoot}/.cacheGeoLocation`;

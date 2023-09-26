@@ -5,7 +5,7 @@ import { isPicture, isVideo, lock } from "../../../shared/lib/utils";
 import { AlbumEntry } from "../../../shared/types/types";
 import { dimensionsFromFile as dimensionsFromFileBuffer } from "../../imageOperations/sharp-processor";
 import { entryFilePath } from "../../utils/serverUtils";
-import { readPicasaEntry, updatePicasaEntry } from "./picasaIni";
+import { readPicasaEntry, updatePicasaEntry } from "./picasa-ini";
 
 export async function exifDataAndStats(
   entry: AlbumEntry

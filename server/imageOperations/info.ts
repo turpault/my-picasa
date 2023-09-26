@@ -9,7 +9,7 @@ import {
 import {
   readAlbumIni,
   updatePicasaEntries,
-} from "../rpc/rpcFunctions/picasaIni";
+} from "../rpc/rpcFunctions/picasa-ini";
 import { TagValues, dump, insert, load } from "./piexif/index";
 import {
   buildContext,

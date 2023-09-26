@@ -3,7 +3,7 @@ import sizeOf from "image-size";
 import { join } from "path";
 import sharp, { OverlayOptions, Sharp } from "sharp";
 import { promisify } from "util";
-import { applyAllFilters, applyFilter, getHistogram } from "./imageFilters";
+import { applyAllFilters, applyFilter, getHistogram } from "./image-filters";
 import { entryRelativePath } from "./info";
 import {
   AlbumEntry,
