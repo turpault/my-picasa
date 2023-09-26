@@ -9,7 +9,7 @@ import {
   commit,
 } from "./sharp-processor";
 import { AlbumEntry } from "../../shared/types/types";
-import { readAlbumIni } from "../rpc/rpcFunctions/picasaIni";
+import { readAlbumIni } from "../rpc/rpcFunctions/picasa-ini";
 import { isPicture, isVideo, namify } from "../../shared/lib/utils";
 import { entryFilePath, safeWriteFile } from "../utils/serverUtils";
 

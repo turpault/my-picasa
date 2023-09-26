@@ -24,7 +24,7 @@ import { mediaCount } from "../rpc/rpcFunctions/albumUtils";
 import {
   albumentriesInFilter,
   readShortcut,
-} from "../rpc/rpcFunctions/picasaIni";
+} from "../rpc/rpcFunctions/picasa-ini";
 import { imagesRoot, specialFolders } from "../utils/constants";
 
 const readyLabelKey = "fileWalker";

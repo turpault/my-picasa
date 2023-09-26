@@ -28,7 +28,7 @@ import {
   assetsInFolderAlbum,
   queueNotification,
 } from "../albumTypes/fileAndFolders";
-import { readAlbumIni, readPicasaEntry, updatePicasaEntry } from "./picasaIni";
+import { readAlbumIni, readPicasaEntry, updatePicasaEntry } from "./picasa-ini";
 import {
   getFolderAlbumData,
   getFolderAlbums,

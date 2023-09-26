@@ -15,7 +15,7 @@ import { events } from "../events/events";
 import { addImageInfo, updateImageDate } from "../imageOperations/info";
 import { buildImage } from "../imageOperations/sharp-processor";
 import { media } from "../rpc/rpcFunctions/albumUtils";
-import { readAlbumIni } from "../rpc/rpcFunctions/picasaIni";
+import { readAlbumIni } from "../rpc/rpcFunctions/picasa-ini";
 import { waitUntilIdle } from "../utils/busy";
 import { PhotoLibraryPath, imagesRoot } from "../utils/constants";
 import {

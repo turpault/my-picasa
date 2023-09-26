@@ -5,7 +5,7 @@ import { generateMosaicFile } from "../imageOperations/image-edits/mosaic";
 import {
   getFilterGroups,
   getFilterList,
-} from "../imageOperations/imageFilters";
+} from "../imageOperations/image-filters";
 import { imageInfo } from "../imageOperations/info";
 import {
   buildContext,
@@ -52,16 +52,16 @@ import {
   rotate,
   toggleStar,
   updatePicasaEntry,
-} from "./rpcFunctions/picasaIni";
+} from "./rpcFunctions/picasa-ini";
 import { clientReady } from "./rpcFunctions/ready";
 import { setAlbumShortcut } from "./rpcFunctions/shortcuts";
-import { ServiceMap } from "./rpcHandler";
+import { ServiceMap } from "./rpc-handler";
 
 /**
  * ConcurrencyService IDL
  */
-export const MyPicasa: ServiceMap = {
-  name: "MyPicasa",
+export const PicasaClient: ServiceMap = {
+  name: "PicasaClient",
   constants: {
     Exceptions,
   },

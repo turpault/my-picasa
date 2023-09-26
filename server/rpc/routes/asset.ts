@@ -10,7 +10,7 @@ import {
   setOptions,
   transform,
 } from "../../imageOperations/sharp-processor";
-import { readAlbumIni } from "../rpcFunctions/picasaIni";
+import { readAlbumIni } from "../rpcFunctions/picasa-ini";
 
 export async function asset(entry: AlbumEntry): Promise<string> {
   if (isVideo(entry)) {

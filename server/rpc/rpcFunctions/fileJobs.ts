@@ -26,8 +26,8 @@ import { addToUndo, registerUndoProvider } from "../../utils/undo";
 import { eraseFace } from "../albumTypes/faces";
 import { setRank } from "./albumUtils";
 import { openWithFinder } from "./osascripts";
-import { readAlbumIni, readPicasaEntry, updatePicasaEntry } from "./picasaIni";
-import { copyThumbnails } from "./thumbnailCache";
+import { readAlbumIni, readPicasaEntry, updatePicasaEntry } from "./picasa-ini";
+import { copyThumbnails } from "./thumbnail-cache";
 
 const jobs: Job[] = [];
 type MultiMoveJobArguments = {

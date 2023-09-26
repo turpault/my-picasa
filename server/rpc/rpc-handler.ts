@@ -1,6 +1,6 @@
 import { inspect } from "util";
 import { lock, uuid } from "../../shared/lib/utils";
-import { SocketAdaptorInterface } from "../../shared/socket/socketAdaptorInterface";
+import { SocketAdaptorInterface } from "../../shared/socket/socket-adaptor-interface";
 import { busy } from "../utils/busy";
 import { inc, rate } from "../utils/stats";
 /* eslint-disable @typescript-eslint/no-explicit-any */

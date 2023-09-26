@@ -22,7 +22,7 @@ import {
   readPicasaEntry,
   updatePicasa,
   updatePicasaEntry,
-} from "../rpcFunctions/picasaIni";
+} from "../rpcFunctions/picasa-ini";
 import { deleteFaceImage, getFaceImage } from "../rpcFunctions/thumbnail";
 
 /**

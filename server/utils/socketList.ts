@@ -1,4 +1,4 @@
-import { SocketAdaptorInterface } from "../../shared/socket/socketAdaptorInterface";
+import { SocketAdaptorInterface } from "../../shared/socket/socket-adaptor-interface";
 import { dec, inc, rate } from "./stats";
 
 const socketList: SocketAdaptorInterface[] = [];

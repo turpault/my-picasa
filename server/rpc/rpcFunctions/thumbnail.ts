@@ -19,12 +19,12 @@ import {
 } from "../../imageOperations/sharp-processor";
 import { makeProjectThumbnail } from "../albumTypes/projects";
 import { createGif } from "../../videoOperations/gif";
-import { readAlbumIni, updatePicasaEntries } from "./picasaIni";
+import { readAlbumIni, updatePicasaEntries } from "./picasa-ini";
 import {
   readThumbnailFromCache,
   thumbnailPathFromEntryAndSize,
   writeThumbnailToCache,
-} from "./thumbnailCache";
+} from "./thumbnail-cache";
 import { getFaceData } from "../albumTypes/faces";
 
 const cachedFilterKey: Record<ThumbnailSize, extraFields> = {

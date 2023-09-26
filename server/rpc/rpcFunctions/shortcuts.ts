@@ -2,7 +2,7 @@ import { Album } from "../../../shared/types/types";
 import { addOrRefreshOrDeleteAlbum } from "../../background/bg-walker";
 import { broadcast } from "../../utils/socketList";
 import { albumWithData } from "./albumUtils";
-import { getShortcuts, setPicasaAlbumShortcut } from "./picasaIni";
+import { getShortcuts, setPicasaAlbumShortcut } from "./picasa-ini";
 
 export async function setAlbumShortcut(album: Album, shortcut: string) {
   const a = albumWithData(album);

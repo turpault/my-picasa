@@ -186,25 +186,26 @@ export class ToolRegistrar {
     let updated = false;
     for (const [name, tool] of Object.entries(this.tools)) {
       if (tool.permanentIndex) {
-        if (operations[tool.permanentIndex - 1]) {
-          if (operations[tool.permanentIndex - 1].name === tool.filterName) {
+        const index = operations.length - tool.permanentIndex;
+        if (operations[index]) {
+          if (operations[index].name !== tool.filterName) {
             // No such tool at this position
             // Is it elsewhere ?
             updated = true;
             const pos = operations.findIndex((o) => o.name === tool.filterName);
             if (pos !== -1) {
               // It is elsewhere, swap it
-              const tmp = operations[tool.permanentIndex - 1];
-              operations[tool.permanentIndex - 1] = operations[pos];
+              const tmp = operations[index];
+              operations[index] = operations[pos];
               operations[pos] = tmp;
             } else {
               // It is not present, add it
-              operations.splice(tool.permanentIndex - 1, 0, tool.build());
+              operations.splice(index, 0, tool.build());
             }
           }
         } else {
           updated = true;
-          operations[tool.permanentIndex - 1] = tool.build();
+          operations[index] = tool.build();
         }
       }
     }
