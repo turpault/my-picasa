@@ -407,16 +407,16 @@ export function preLoadImage(url: string): Promise<HTMLImageElement> {
     i.onload = () => {
       resolve(i);
     };
-    i.decode()
-      .then(() => {})
-      .catch((e) => {
-        console.error(`While loading ${url}`, e);
-      });
     i.onerror = () => {
       i.remove();
       reject();
     };
     i.src = url;
+    i.decode()
+      .then(() => {})
+      .catch((e) => {
+        console.error(`While loading ${url}`, e);
+      });
   });
 }
 

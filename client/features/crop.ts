@@ -66,9 +66,6 @@ export function setupCrop(
     },
     editable: true,
     activate: async function (index: number, args?: string[]) {
-      if (index !== 0) {
-        debugger;
-      }
       let initialValue = args
         ? decodeRect(args[1])
         : { left: 0, right: 1, top: 0, bottom: 1 };

@@ -108,7 +108,6 @@ export async function exifData(entry: AlbumEntry): Promise<any> {
       if (picasaEntry.exif) {
         return { ...JSON.parse(picasaEntry.exif), ...stats };
       }
-      console.info(`Read exif from ${path}`);
       const tags = await exifr.parse(path).catch((e: any) => {
         console.error(`Exception while reading exif for ${path}: ${e}`);
         return {};

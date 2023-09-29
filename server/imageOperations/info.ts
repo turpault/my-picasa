@@ -86,9 +86,10 @@ export function addImageInfo(
 export async function updateImageDate(fileName: string, time: Date) {
   const imageStr = (await readFile(fileName)).toString("binary");
   const exif = load(imageStr);
-  exif["0th"] = {
-    ...exif["0th"],
+  exif["Exif"] = {
+    ...exif["Exif"],
     [TagValues.ExifIFD.DateTimeOriginal]: time.toISOString(),
+    [TagValues.ExifIFD.DateTimeDigitized]: time.toISOString(),
   };
   var exifStr = dump(exif);
   await safeWriteFile(
