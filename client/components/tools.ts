@@ -183,31 +183,35 @@ export class ToolRegistrar {
   ): PicasaFilter[] | undefined {
     const operations = [...originalOperations];
 
+    let needsUpdate = false;
     let updated = false;
     for (const [name, tool] of Object.entries(this.tools)) {
       if (tool.permanentIndex) {
         const index = operations.length - tool.permanentIndex;
         if (operations[index]) {
           if (operations[index].name !== tool.filterName) {
-            // No such tool at this position
-            // Is it elsewhere ?
-            updated = true;
-            const pos = operations.findIndex((o) => o.name === tool.filterName);
-            if (pos !== -1) {
-              // It is elsewhere, swap it
-              const tmp = operations[index];
-              operations[index] = operations[pos];
-              operations[pos] = tmp;
-            } else {
-              // It is not present, add it
-              operations.splice(index, 0, tool.build());
-            }
+            needsUpdate = true;
+            break;
           }
-        } else {
-          updated = true;
-          operations[index] = tool.build();
         }
       }
+    }
+    if (needsUpdate) {
+      const newOps: PicasaFilter[] = [];
+      for (const [name, tool] of Object.entries(this.tools)) {
+        if (tool.permanentIndex === undefined) continue;
+        const oldIndex = operations.findIndex(
+          (o) => o.name === tool.filterName
+        );
+        if (oldIndex !== -1) {
+          newOps[tool.permanentIndex] = operations[oldIndex];
+          operations.splice(oldIndex, 1);
+        } else {
+          newOps[tool.permanentIndex] = tool.build();
+        }
+      }
+      operations.push(...newOps.reverse().filter((v) => v));
+      updated = true;
     }
     if (updated) {
       return operations;

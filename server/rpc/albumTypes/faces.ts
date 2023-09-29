@@ -1,7 +1,9 @@
 import { Queue } from "../../../shared/lib/queue";
 import {
+  buildReadySemaphore,
   debounce,
   fromBase64,
+  setReady,
   sleep,
   toBase64,
 } from "../../../shared/lib/utils";
@@ -17,6 +19,7 @@ import { getFolderAlbums, waitUntilWalk } from "../../background/bg-walker";
 import { entryFilePath, fileExists } from "../../utils/serverUtils";
 import { media } from "../rpcFunctions/albumUtils";
 import {
+  listAlbumsOfKind,
   readAlbumEntries,
   readAlbumIni,
   readPicasaEntry,
@@ -83,7 +86,7 @@ export function getFaceAlbumFromHash(
 }
 
 // Limit the parallelism for the face parsing
-const faceProcessingQueue = new Queue(5);
+const faceProcessingQueue = new Queue(20);
 async function processFaces(album: Album) {
   if (album.key.normalize() !== album.key) {
     debugger;
@@ -218,24 +221,35 @@ export async function readFaceAlbumEntries(
  *
  * @returns
  */
+const readyLabelKey = "faceWalker";
+const ready = buildReadySemaphore(readyLabelKey);
+
 export async function scanFaces() {
-  return debounce(
-    async () => {
-      // Only do it once
-      const albums = await getFolderAlbums();
-      await Promise.all(albums.map((album) => processFaces(album)));
-    },
-    3600 * 1000 * 24 * 7,
-    "scanFaces",
-    true
+  const faceAlbums = await listAlbumsOfKind(AlbumKind.FACE);
+  const albumAndData: [Album, AlbumEntry[]][] = await Promise.all(
+    faceAlbums.map(async (album) => [album, await readFaceAlbumEntries(album)])
   );
+  const albumWithData: AlbumWithData[] = albumAndData.map((a) => ({
+    ...a[0],
+    count: a[1].length,
+  }));
+  for (const albumData of albumWithData)
+    faces.set(albumData.key, { ...albumData, hash: {} });
+  setReady(readyLabelKey);
+  await waitUntilWalk();
+
+  while (true) {
+    const albums = await getFolderAlbums();
+    await Promise.all(albums.map((album) => processFaces(album)));
+    await sleep(24 * 60 * 60);
+  }
 }
 
 export async function getFaceAlbumsWithData(
   _filter: string = ""
 ): Promise<AlbumWithData[]> {
   // Create 'fake' albums with the faces
-  await scanFaces();
+  await ready;
   return getFaceAlbums();
 }
 

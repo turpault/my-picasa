@@ -1,5 +1,5 @@
-import { readFile } from "fs/promises";
-import { join } from "path";
+import { mkdir, readFile, readdir } from "fs/promises";
+import { basename, join, sep } from "path";
 import ini from "../../../shared/lib/ini";
 import { MAX_STAR } from "../../../shared/lib/shared-constants";
 import {
@@ -17,14 +17,19 @@ import {
   AlbumMetaData,
   PicasaSection,
   idFromKey,
+  keyFromID,
 } from "../../../shared/types/types";
-import { PICASA, imagesRoot } from "../../utils/constants";
-import { safeWriteFile } from "../../utils/serverUtils";
+import { events } from "../../events/events";
+import {
+  PICASA,
+  facesFolder,
+  imagesRoot,
+  projectFolder,
+} from "../../utils/constants";
+import { fileExists, safeWriteFile } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { rate } from "../../utils/stats";
-import { albumWithData, media } from "./albumUtils";
-import { addOrRefreshOrDeleteAlbum } from "../../background/bg-walker";
-import { events } from "../../events/events";
+import { media } from "./albumUtils";
 
 let picasaMap = new Map<string, AlbumMetaData>();
 let lastAccessPicasaMap = new Map<string, number>();
@@ -32,17 +37,42 @@ let dirtyPicasaSet = new Map<string, Album>();
 let shortcuts: { [shotcut: string]: Album } = {};
 const GRACE_DELAY = 120000;
 
+function albumPath(album: Album): string {
+  const { id } = idFromKey(album.key);
+  switch (album.kind) {
+    case AlbumKind.FOLDER:
+      return join(imagesRoot, idFromKey(album.key).id, PICASA);
+    case AlbumKind.FACE:
+      return join(facesFolder, id + ".ini");
+    case AlbumKind.PROJECT:
+      return join(projectFolder, id + ".ini");
+  }
+}
+
+function albumFromPath(path: string): Album {
+  let kind: AlbumKind;
+  if (path.startsWith(facesFolder)) {
+    kind = AlbumKind.FACE;
+  } else if (path.startsWith(projectFolder)) {
+    kind = AlbumKind.PROJECT;
+  } else {
+    kind = AlbumKind.FOLDER;
+  }
+  const fileName = basename(path);
+  const name = fileName.split(".ini")[0];
+  return {
+    kind,
+    key: keyFromID(name, kind),
+    name,
+  };
+}
+
 export async function picasaIniCleaner() {
   while (true) {
     const i = dirtyPicasaSet;
     dirtyPicasaSet = new Map<string, Album>();
     i.forEach(async (album) => {
-      let target: string = "";
-      if (album.kind === AlbumKind.FOLDER) {
-        target = join(imagesRoot, idFromKey(album.key).id, PICASA);
-      } else {
-        target = join(imagesRoot, "." + idFromKey(album.key).id + ".ini");
-      }
+      let target: string = albumPath(album);
       rate("writePicasa");
       console.info(`\nWriting file ${target}`);
       const out = ini.encode(picasaMap.get(album.key));
@@ -70,6 +100,21 @@ export async function readAlbumEntries(album: Album): Promise<AlbumEntry[]> {
   }));
 }
 
+export async function listAlbumsOfKind(kind: AlbumKind): Promise<Album[]> {
+  const d = {
+    [AlbumKind.FACE]: facesFolder,
+    [AlbumKind.PROJECT]: projectFolder,
+    [AlbumKind.FOLDER]: imagesRoot,
+  }[kind];
+
+  if (!(await fileExists(d))) {
+    await mkdir(d, { recursive: true });
+  }
+  const files = await readdir(d);
+  const iniFiles = files.filter((file) => file.endsWith(".ini"));
+  return iniFiles.map((ini) => join(d, ini)).map(albumFromPath);
+}
+
 export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
   lastAccessPicasaMap.set(album.key, Date.now());
   if (picasaMap.has(album.key)) {
@@ -81,12 +126,7 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
     if (picasaMap.has(album.key)) {
       return picasaMap.get(album.key)!;
     }
-    let target: string = "";
-    if (album.kind === AlbumKind.FOLDER) {
-      target = join(imagesRoot, idFromKey(album.key).id, PICASA);
-    } else {
-      target = join(imagesRoot, "." + idFromKey(album.key).id + ".ini");
-    }
+    let target: string = albumPath(album);
     // Not in the map, read it
     const iniData = await readFile(target, {
       encoding: "utf8",
@@ -271,6 +311,9 @@ export async function updatePicasa(
   } else if (field !== null) {
     if (section[field]) {
       delete section[field];
+    } else {
+      // value is null, field is not, but the section wasn't there anyway, nothing to do
+      return;
     }
   } else {
     delete picasa[group];

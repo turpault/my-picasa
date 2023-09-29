@@ -312,7 +312,6 @@ export function makeButtons(appEvents: AppEventSource): _$ {
     }
     buttons.append(action.element);
   }
-  console.warn("Register keydown");
   appEvents.on("keyDown", (ev) => {
     console.info("keyDown", ev.key, ev.code, ev);
     for (const action of actions) {
