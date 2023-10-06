@@ -5,24 +5,24 @@ import { join } from "path";
 import { lockedLocks, startLockMonitor } from "../shared/lib/utils";
 import { SocketAdaptorInterface } from "../shared/socket/socket-adaptor-interface";
 import { WsAdaptor } from "../shared/socket/ws-adaptor";
-import { keepFaceAlbumUpdated, scanFaces } from "./rpc/albumTypes/faces";
+import { buildFavoriteFolder } from "./background/bg-favorites";
+import { buildGeolocation } from "./background/bg-geolocate";
+import { buildThumbs } from "./background/bg-thumbgen";
+import { updateLastWalkLoop, waitUntilWalk } from "./background/bg-walker";
+import { parseLUTs } from "./imageOperations/image-filters";
+import { encode } from "./imageOperations/sharp-processor";
+import { startFaceScan } from "./rpc/albumTypes/faces";
+import { startAlbumUpdateNotification } from "./rpc/albumTypes/fileAndFolders";
 import { initProjects } from "./rpc/albumTypes/projects";
 import { RPCInit } from "./rpc/index";
 import { asset } from "./rpc/routes/asset";
 import { thumbnail } from "./rpc/routes/thumbnail";
 import { albumWithData } from "./rpc/rpcFunctions/albumUtils";
-import { picasaIniCleaner } from "./rpc/rpcFunctions/picasa-ini";
 import { startSentry } from "./sentry";
 import { busy, measureCPULoad } from "./utils/busy";
 import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
-import { encode } from "./imageOperations/sharp-processor";
-import { buildThumbs } from "./background/bg-thumbgen";
-import { buildGeolocation } from "./background/bg-geolocate";
-import { updateLastWalkLoop, waitUntilWalk } from "./background/bg-walker";
-import { parseLUTs } from "./imageOperations/image-filters";
-import { buildFavoriteFolder } from "./background/bg-favorites";
-import { startAlbumUpdateNotification } from "./rpc/albumTypes/fileAndFolders";
+import { picasaIniCacheWriter } from "./rpc/rpcFunctions/picasa-ini";
 
 /** */
 
@@ -160,15 +160,14 @@ export async function start(p?: number) {
     buildGeolocation();
     updateLastWalkLoop();
     measureCPULoad();
-    picasaIniCleaner();
+    picasaIniCacheWriter();
     startLockMonitor();
     startAlbumUpdateNotification();
-    keepFaceAlbumUpdated();
     parseLUTs();
     initProjects();
     buildFavoriteFolder();
     await waitUntilWalk();
-    await scanFaces();
+    startFaceScan();
     console.info("Initial walk complete.");
   } catch (err) {
     console.error(err);

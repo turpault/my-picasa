@@ -1,12 +1,12 @@
 import { Line, LineSegment, Point, Rectangle, Vector } from "ts-2d-geometry";
 import { Emitter } from "../../../shared/lib/event";
-import { RectRange } from "../../../shared/lib/utils";
+import { RectArea } from "../../../shared/lib/utils";
 import { ImageController } from "../../components/image-controller";
 import { $, _$ } from "../../lib/dom";
 
 export type ValueChangeEvent = {
-  updated: { index: number; value: RectRange };
-  preview: { index: number; value: RectRange };
+  updated: { index: number; value: RectArea };
+  preview: { index: number; value: RectArea };
   cancel: {};
 };
 function bounds(point: Point, area: Rectangle) {
@@ -22,7 +22,7 @@ export function setupCropPreview(
   emitter: Emitter<ValueChangeEvent>,
   imageController: ImageController
 ) {
-  let currentValue: RectRange;
+  let currentValue: RectArea;
   let activeIndex: number = -1;
   const elem = $(`<div class="crop hidden">
   <div draggable class="crop-top-left crop-corner"></div>
@@ -110,7 +110,7 @@ export function setupCropPreview(
     dir: Vector;
     limits: (c: Rectangle) => Line[];
     css: (p: Point) => any;
-    updateValue: (value: RectRange, projected: Point) => RectRange;
+    updateValue: (value: RectArea, projected: Point) => RectArea;
   }[] = [
     {
       handle: tr,
@@ -130,7 +130,7 @@ export function setupCropPreview(
           top: `${projected.y}px`,
         };
       },
-      updateValue: (value: RectRange, projected: Point) => {
+      updateValue: (value: RectArea, projected: Point) => {
         const toValue = imageController.zoomController.screenToCanvasRatio(
           projected.x,
           projected.y
@@ -160,7 +160,7 @@ export function setupCropPreview(
           bottom: `${container.height - projected.y}px`,
         };
       },
-      updateValue: (value: RectRange, projected: Point) => {
+      updateValue: (value: RectArea, projected: Point) => {
         const toValue = imageController.zoomController.screenToCanvasRatio(
           projected.x,
           projected.y
@@ -190,7 +190,7 @@ export function setupCropPreview(
           top: `${projected.y}px`,
         };
       },
-      updateValue: (value: RectRange, projected: Point) => {
+      updateValue: (value: RectArea, projected: Point) => {
         const toValue = imageController.zoomController.screenToCanvasRatio(
           projected.x,
           projected.y
@@ -220,7 +220,7 @@ export function setupCropPreview(
           bottom: `${container.height - projected.y}px`,
         };
       },
-      updateValue: (value: RectRange, projected: Point) => {
+      updateValue: (value: RectArea, projected: Point) => {
         const toValue = imageController.zoomController.screenToCanvasRatio(
           projected.x,
           projected.y
@@ -452,7 +452,7 @@ export function setupCropPreview(
     updatePreview();
   }
 
-  function moveCornersFromValue(initialValue: RectRange) {
+  function moveCornersFromValue(initialValue: RectArea) {
     if (activeIndex == -1) {
       return;
     }
@@ -548,7 +548,7 @@ export function setupCropPreview(
   });
 
   return {
-    show: (index: number, initialValue: RectRange) => {
+    show: (index: number, initialValue: RectArea) => {
       currentValue = initialValue;
       activeIndex = index;
       mode = "XY";

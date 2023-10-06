@@ -3,7 +3,7 @@ import {
   decodeRect,
   encodeRect,
   isPicture,
-  RectRange,
+  RectArea,
 } from "../../shared/lib/utils";
 import { ImageController } from "../components/image-controller";
 import { t } from "../components/strings";
@@ -26,7 +26,7 @@ export function setupCrop(
   let activeIndex: number = -1;
   let _deactivate: ((commit: boolean) => void) | undefined;
 
-  async function show(index: number, initialValue: RectRange) {
+  async function show(index: number, initialValue: RectArea) {
     activeIndex = index;
     await imageController.recenter();
     await imageController.enableZoom(false);

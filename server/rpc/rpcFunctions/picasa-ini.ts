@@ -67,7 +67,7 @@ function albumFromPath(path: string): Album {
   };
 }
 
-export async function picasaIniCleaner() {
+export async function picasaIniCacheWriter() {
   while (true) {
     const i = dirtyPicasaSet;
     dirtyPicasaSet = new Map<string, Album>();
