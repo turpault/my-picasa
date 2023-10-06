@@ -1,7 +1,7 @@
 import { readFile } from "fs/promises";
 import sizeOf from "image-size";
 import { join } from "path";
-import sharp, { OverlayOptions, Sharp } from "sharp";
+import sharp, { Metadata, OverlayOptions, Sharp } from "sharp";
 import { promisify } from "util";
 import { applyAllFilters, applyFilter, getHistogram } from "./image-filters";
 import { entryRelativePath } from "./info";
@@ -1001,4 +1001,22 @@ export async function buildFaceImage(
       throw e;
     }
   });
+}
+
+export async function imageMetadata(
+  data: Buffer
+): Promise<Metadata | undefined> {
+  try {
+    let s = sharp(data, {
+      limitInputPixels: false,
+      failOnError: false,
+    })
+      .withMetadata()
+      .rotate();
+    const meta = await s.metadata();
+    s.destroy();
+    return meta;
+  } catch (e) {
+    return undefined;
+  }
 }

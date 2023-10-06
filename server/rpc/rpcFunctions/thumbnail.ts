@@ -4,12 +4,17 @@ import { isPicture, isVideo, lock } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
   AlbumKind,
+  FaceData,
   ThumbnailSize,
   extraFields,
   videoExtensions,
 } from "../../../shared/types/types";
-import { ThumbnailSizes, imagesRoot } from "../../utils/constants";
-import { fileExists, safeWriteFile } from "../../utils/serverUtils";
+import { ThumbnailSizes, facesFolder, imagesRoot } from "../../utils/constants";
+import {
+  fileExists,
+  removeExtension,
+  safeWriteFile,
+} from "../../utils/serverUtils";
 import { dec, inc } from "../../utils/stats";
 import { entryRelativePath } from "../../imageOperations/info";
 import {
@@ -236,6 +241,25 @@ async function readOrMakeVideoThumbnail(
   }
 }
 
+function faceImagePath(
+  entry: AlbumEntry,
+  faceData: FaceData
+): { folder: string; path: string } {
+  const folder = join(
+    facesFolder,
+    "thumbnails",
+    faceData.originalEntry.album.name
+  );
+  return {
+    folder,
+    path: join(
+      folder,
+      `${faceData.hash}-${faceData.rect}-${removeExtension(
+        faceData.originalEntry.name
+      )}.jpg`
+    ),
+  };
+}
 export async function getFaceImage(entry: AlbumEntry): Promise<Buffer>;
 export async function getFaceImage(
   entry: AlbumEntry,
@@ -245,31 +269,28 @@ export async function getFaceImage(
   entry: AlbumEntry,
   onlyCheck: boolean = false
 ): Promise<void | Buffer> {
-  const targetFaceRootFolder = join(imagesRoot, ".faces");
-  const faceFolder = join(targetFaceRootFolder, entry.album.name);
-  const out = join(faceFolder, entry.name);
+  const faceData = await getFaceData(entry);
+  const { folder, path } = faceImagePath(entry, faceData);
   const unlock = await lock(
     "getFaceImage: " + entry.album.key + " " + entry.name
   );
   try {
-    if (!(await fileExists(out))) {
-      await mkdir(faceFolder, { recursive: true });
-      const faceData = await getFaceData(entry);
+    if (!(await fileExists(path))) {
+      await mkdir(folder, { recursive: true });
 
       const image = await buildFaceImage(entry, faceData);
-      await safeWriteFile(out, image.data);
+      await safeWriteFile(path, image.data);
     }
-    if (!onlyCheck) return await readFile(out);
+    if (!onlyCheck) return await readFile(path);
   } finally {
     unlock();
   }
 }
 
 export async function deleteFaceImage(entry: AlbumEntry) {
-  const targetFaceRootFolder = join(imagesRoot, ".faces");
-  const faceFolder = join(targetFaceRootFolder, entry.album.name);
-  const out = join(faceFolder, entry.name);
-  if (await fileExists(out)) {
-    await unlink(out);
+  const faceData = await getFaceData(entry);
+  const { path } = faceImagePath(entry, faceData);
+  if (await fileExists(path)) {
+    await unlink(path);
   }
 }

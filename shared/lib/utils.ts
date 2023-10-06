@@ -3,6 +3,7 @@ import {
   Album,
   AlbumEntry,
   AlbumKind,
+  animatedPictureExtensions,
   pictureExtensions,
   videoExtensions,
 } from "../types/types";
@@ -185,6 +186,12 @@ export function isPicture(entry: AlbumEntry): boolean {
   return !!pictureExtensions.find((e) => entry.name.toLowerCase().endsWith(e));
 }
 
+export function isAnimated(entry: AlbumEntry): boolean {
+  return !!animatedPictureExtensions.find((e) =>
+    entry.name.toLowerCase().endsWith(e)
+  );
+}
+
 export function isVideo(entry: AlbumEntry): boolean {
   return !!videoExtensions.find((e) => entry.name.toLowerCase().endsWith(e));
 }
@@ -217,7 +224,7 @@ export function rectanglesIntersect(
 /**
  * Rectangle expressed as a set of 0->1 values
  */
-export type RectRange = {
+export type RectArea = {
   left: number;
   top: number;
   right: number;
@@ -247,13 +254,15 @@ export type RectRange = {
 # parseInt("5941",16)/65536 //0.3486480712890625 - right (measured from left)
 # parseInt("8507",16)/65536 //0.5196380615234375 - bottom (measured from top)
 */
-export function decodeRect(rect: string): RectRange {
+export function decodeRect(rect: string): RectArea {
   if (!rect) {
     throw new Error("No Rect");
   }
-  const rectData =
-    rect.toLowerCase().match(/rect64\(([0-9a-f]*)\)/) ||
-    rect.toLowerCase().match(/([0-9a-f]*)/);
+  const rectData = [
+    rect.toLowerCase().match(/^rect64\(([0-9a-f]*)\)/),
+    rect.toLowerCase().match(/^([0-9a-f]*)/),
+    rect.toLowerCase().match(/^-([0-9a-f]*)/),
+  ].find((v) => v && v[1]);
   if (rectData && rectData[1]) {
     const split = rectData[1].padStart(16, "0").match(/.{4}/g)!;
     return {
@@ -289,7 +298,7 @@ export function clipColor(c: number): number {
   return c < 0 ? 0 : c > 255 ? 255 : c;
 }
 
-export function encodeRect(rect: RectRange): string {
+export function encodeRect(rect: RectArea): string {
   return (
     Math.floor(rect.left * 65535)
       .toString(16)
@@ -331,6 +340,21 @@ export function decodeOperations(operations: string): PicasaFilter[] {
     res.push(decodeOperation(cmd));
   }
   return res;
+}
+
+export type FaceList = { hash: string; rect: string }[];
+export function decodeFaces(faces: string): FaceList {
+  return faces
+    .split(";")
+    .map((faceSpec) => {
+      const [rect, hash] = faceSpec.split(",");
+      return { rect, hash };
+    })
+    .filter((v) => v.hash && v.rect);
+}
+
+export function encodeFaces(faces: FaceList): string {
+  return faces.map(({ hash, rect }) => `${rect},${hash}`).join(";");
 }
 
 export function decodeOperation(operation: string): PicasaFilter {
@@ -485,18 +509,35 @@ export function lessThanEntry(a: AlbumEntry, b: AlbumEntry) {
   return a.name < b.name ? -1 : 1;
 }
 
+const sep = "~";
 export function albumEntryFromId(id: string): AlbumEntry | null {
-  const [qualifier, valid, key, name, kind, entry] = id.split("|");
+  const [qualifier, valid, key, name, kind, entry] = id.split(sep);
   if (valid === "entry") {
     return { album: { key, name, kind: kind as AlbumKind }, name: entry };
   }
   return null;
 }
+
 export function idFromAlbumEntry(
   entry: AlbumEntry,
   qualifier: string = ""
 ): string {
-  return `${qualifier}|entry|${entry.album.key}|${entry.album.name}|${entry.album.kind}|${entry.name}`;
+  return `${qualifier}${sep}entry${sep}${entry.album.key}${sep}${entry.album.name}${sep}${entry.album.kind}${sep}${entry.name}`;
+}
+
+export function hashString(b: string) {
+  for (var a = 0, c = b.length; c--; )
+    (a += b.charCodeAt(c)), (a += a << 10), (a ^= a >> 6);
+  a += a << 3;
+  a ^= a >> 11;
+  return (((a + (a << 15)) & 4294967295) >>> 0).toString(16);
+}
+
+export function pathForEntryMetadata(entry: AlbumEntry) {
+  return {
+    path: [entry.album.name],
+    filename: entry.name,
+  };
 }
 
 export function prng(a: number) {
@@ -520,4 +561,33 @@ export function buildReadySemaphore(readyLabel: string) {
     readyResolves[readyLabel] = resolve;
   });
   return readys[readyLabel];
+}
+
+export function jsonifyObject(instance: any): any {
+  if (Array.isArray(instance)) {
+    return (instance as Array<any>).map((v) => jsonifyObject(v));
+  }
+  const jsonObj: any = {};
+  const proto = Object.getPrototypeOf(instance);
+  const proproto = Object.getPrototypeOf(proto);
+
+  for (let key of [
+    ...Object.getOwnPropertyNames(instance),
+    ...[
+      ...Object.entries(Object.getOwnPropertyDescriptors(proto)),
+      ...(proproto
+        ? Object.entries(Object.getOwnPropertyDescriptors(proproto))
+        : []),
+    ]
+      .filter(([_name, x]) => x.get)
+      .map(([n]) => n),
+  ]) {
+    if (key.startsWith("_")) continue;
+    else jsonObj[key] = instance[key];
+    let value = jsonObj[key];
+    if (typeof value === "object") {
+      jsonObj[key] = jsonifyObject(value);
+    }
+  }
+  return jsonObj;
 }

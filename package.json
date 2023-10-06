@@ -87,6 +87,8 @@
     "@sentry/browser": "^7.32.1",
     "@sentry/node": "^7.24.2",
     "@sentry/tracing": "^7.32.1",
+    "@tensorflow/tfjs-node": "^4.11.0",
+    "@vladmandic/face-api": "^1.7.12",
     "chalk": "^4.1.2",
     "cli-spinners": "^2.7.0",
     "draggabilly": "^3.0.0",

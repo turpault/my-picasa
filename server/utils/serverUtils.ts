@@ -29,6 +29,8 @@ export async function safeWriteFile(fileName: string, data: any) {
     const tmp = fileName + ".tmp";
     await writeFile(tmp, data);
     await rename(tmp, fileName);
+  } catch (e) {
+    console.warn(`Could not save ${fileName}: ${e}`);
   } finally {
     unlock();
   }

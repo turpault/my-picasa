@@ -1,5 +1,6 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
 import {
+  decodeFaces,
   decodeOperations,
   encodeOperations,
   isPicture,
@@ -190,16 +191,14 @@ export class ImageController {
     if (this.entry.metadata.faces) {
       const s = await getService();
       await Promise.all(
-        this.entry.metadata.faces.split(";").map(async (face, idx) => {
-          const [rect, hash] = face.split(",");
-          const faceAlbum = (await s.getFaceAlbumFromHash(hash)) as {
+        decodeFaces(this.entry.metadata.faces).map(async (face, idx) => {
+          const faceAlbum = (await s.getFaceAlbumFromHash(face.hash)) as {
             album: Album;
           };
           if (faceAlbum.album) {
             faces.push({
+              ...face,
               faceAlbum: faceAlbum.album,
-              rect,
-              hash,
               label: `${idx}: ${faceAlbum.album.name}`,
               originalEntry: this.entry,
             });

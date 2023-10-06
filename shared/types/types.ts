@@ -180,15 +180,18 @@ export type FaceData = {
   label: string;
   originalEntry: AlbumEntry;
 };
+export const animatedPictureExtensions = ["gif"];
+
 export const pictureExtensions = [
   "jpeg",
   "jpg",
   "png",
-  "gif",
   "heic",
   "bmp",
   "cr2",
+  ...animatedPictureExtensions,
 ];
+
 export const videoExtensions = ["mp4", "mov", "m4v"];
 export enum Filetype {
   Picture = "image",
@@ -255,3 +258,15 @@ export enum Layout {
 export enum ProjectType {
   MOSAIC = "Mosaic",
 }
+
+export type Contact = {
+  originalName: string;
+  email: string;
+  something: string;
+  key: string;
+};
+export type HashInAlbumList = {
+  [hash: string]: {
+    name: string;
+  } & Contact;
+};
