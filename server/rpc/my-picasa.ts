@@ -60,8 +60,8 @@ import { ServiceMap } from "./rpc-handler";
 /**
  * ConcurrencyService IDL
  */
-export const PicasaClient: ServiceMap = {
-  name: "PicasaClient",
+export const PicisaClient: ServiceMap = {
+  name: "PicisaClient",
   constants: {
     Exceptions,
   },

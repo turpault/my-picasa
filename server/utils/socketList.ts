@@ -14,3 +14,6 @@ export async function broadcast(msg: string, params: any) {
   rate("broadcast");
   return Promise.allSettled(socketList.map((s) => s.emit(msg, params)));
 }
+export function socketCount() {
+  return socketList.length;
+}

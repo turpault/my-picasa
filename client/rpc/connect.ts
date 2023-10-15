@@ -1,9 +1,9 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
 import { sleep } from "../../shared/lib/utils";
 import { WsAdaptor } from "../../shared/socket/ws-adaptor";
-import { PicasaClient } from "./generated-rpc/PicasaClient";
+import { PicisaClient } from "./generated-rpc/PicisaClient";
 export type ConnectionEvent = {
-  connected: { service: PicasaClient };
+  connected: { service: PicisaClient };
   disconnected: { event: Event };
 };
 export function connect(
@@ -27,7 +27,7 @@ export function connect(
     wSocket.onopen = () => {
       try {
         socket.socket(wSocket);
-        const service = new PicasaClient();
+        const service = new PicisaClient();
         service.initialize(socket);
         events.emit("connected", { service });
       } catch (e) {
@@ -42,7 +42,7 @@ export function connect(
 
 let ev: Emitter<ConnectionEvent>;
 let _connected = false;
-let _service: PicasaClient;
+let _service: PicisaClient;
 
 let _servicePort = 5500;
 export function setServicePort(port: number) {
@@ -52,7 +52,7 @@ export function getServicePort() {
   return _servicePort;
 }
 
-export async function getService(): Promise<PicasaClient> {
+export async function getService(): Promise<PicisaClient> {
   if (!ev) {
     ev = connect(getServicePort(), "localhost", false);
     ev.on("connected", ({ service }) => {
@@ -64,7 +64,7 @@ export async function getService(): Promise<PicasaClient> {
     });
   }
   if (!_connected) {
-    return new Promise<PicasaClient>((resolve) => {
+    return new Promise<PicisaClient>((resolve) => {
       ev.once("connected", ({ service }) => {
         _connected = true;
         resolve(service);

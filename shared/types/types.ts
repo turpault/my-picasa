@@ -266,7 +266,5 @@ export type Contact = {
   key: string;
 };
 export type HashInAlbumList = {
-  [hash: string]: {
-    name: string;
-  } & Contact;
+  [hash: string]: Contact;
 };
