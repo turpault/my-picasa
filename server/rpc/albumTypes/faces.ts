@@ -5,6 +5,7 @@ import { join } from "path";
 import { Queue } from "../../../shared/lib/queue";
 import {
   FaceList,
+  RectArea,
   buildReadySemaphore,
   debounce,
   decodeFaces,
@@ -12,14 +13,16 @@ import {
   encodeFaces,
   encodeRect,
   fromBase64,
-  idFromAlbumEntry,
+  hashString,
   isAnimated,
   isPicture,
   jsonifyObject,
+  lock,
   pathForEntryMetadata,
   setReady,
   sleep,
   toBase64,
+  uuid,
 } from "../../../shared/lib/utils";
 import {
   Album,
@@ -37,8 +40,10 @@ import { facesFolder } from "../../utils/constants";
 import {
   entryFilePath,
   fileExists,
+  removeExtension,
   safeWriteFile,
 } from "../../utils/serverUtils";
+import { socketCount } from "../../utils/socketList";
 import { media } from "../rpcFunctions/albumUtils";
 import {
   listAlbumsOfKind,
@@ -49,8 +54,9 @@ import {
   updatePicasaEntry,
 } from "../rpcFunctions/picasa-ini";
 import { deleteFaceImage, getFaceImage } from "../rpcFunctions/thumbnail";
+import { readdir } from "fs/promises";
 // Limit the parallelism for the face parsing
-const faceProcessingQueue = new Queue(70);
+const faceProcessingQueue = new Queue(30);
 
 /**
  * all the known face albums
@@ -184,6 +190,114 @@ function readContacts(picasaIni: AlbumMetaData): HashInAlbumList {
   return {};
 }
 
+const createdContacts: { [hash: string]: Contact } = {};
+function addNewFaceHash(entry: AlbumEntry, feature: FaceLandmarkData) {
+  const hash = `facehash:${uuid()}`;
+  feature.hash = hash;
+  const left = feature.alignedRect.box.left / feature.detection.imageWidth;
+  const right = feature.alignedRect.box.right / feature.detection.imageWidth;
+  const top = feature.alignedRect.box.top / feature.detection.imageHeight;
+  const bottom = feature.alignedRect.box.bottom / feature.detection.imageHeight;
+
+  const rect = encodeRect({ top, left, right, bottom });
+  console.info(
+    `Creating new hash in entry ${entry.album.name}/${entry.name} : ${hash} (rect is ${rect})`
+  );
+  const originalName = "Unknown person added on " + new Date().toISOString();
+  const name = normalizeName(originalName);
+  const key = keyFromID(name, AlbumKind.FACE);
+  const contact: Contact = {
+    originalName,
+    email: "",
+    something: "",
+    key,
+  };
+  addContact(entry.album, hash, contact);
+  const faceAlbum: FaceAlbum = {
+    count: 0,
+    name: contact.originalName,
+    key: contact.key,
+    hash: [],
+    kind: AlbumKind.FACE,
+  };
+  faceAlbumsByName[contact.key] = faceAlbum;
+
+  faceAlbumsByHash[hash] = faceAlbum;
+
+  createdContacts[hash] = contact;
+  addFaceRectToEntry(entry, rect, hash);
+  // TODO Generate thumbnail
+  return hash;
+}
+
+function setFaceHash(
+  entry: AlbumEntry,
+  hash: string,
+  feature: FaceLandmarkData
+) {
+  feature.hash = hash;
+  const left = feature.alignedRect.box.left / feature.detection.imageWidth;
+  const right = feature.alignedRect.box.right / feature.detection.imageWidth;
+  const top = feature.alignedRect.box.top / feature.detection.imageHeight;
+  const bottom = feature.alignedRect.box.bottom / feature.detection.imageHeight;
+
+  const rect = encodeRect({ top, left, right, bottom });
+  const contact = createdContacts[hash];
+  addContact(entry.album, hash, contact);
+  addFaceRectToEntry(entry, rect, hash);
+  // TODO Generate thumbnail
+  return hash;
+}
+
+async function joinUnmatchedFeatures() {
+  const groups: { master: FaceData; members: FaceData[] } = {};
+  const albums = await getFolderAlbums();
+  for (const album of albums) {
+    const entries = await media(album);
+    let references: faceapi.LabeledFaceDescriptors[] = [];
+
+    for (const entry of entries.entries) {
+      const features = await readFeaturesOfEntry(entry);
+      if (!features) continue;
+      for (const feature of features) {
+        if (!feature.hash) {
+          if (matcher === undefined) {
+            if (references.length === 0) {
+              const newHash = addNewFaceHash(entry, feature);
+              writeFeaturesOfEntry(entry, features);
+
+              references.push(
+                new faceapi.LabeledFaceDescriptors(newHash, [
+                  Float32Array.from(feature.descriptor),
+                ])
+              );
+            }
+            matcher = new faceapi.FaceMatcher(references, 0.8);
+            continue;
+          }
+
+          const bestMatch = matcher!.findBestMatch(feature.descriptor);
+          if (bestMatch && bestMatch.distance < 0.1) {
+            setFaceHash(entry, bestMatch.label, feature);
+            console.info(
+              `Found a similar person in other hash (was hash ${bestMatch.label})`
+            );
+          } else {
+            const newHash = addNewFaceHash(entry, feature);
+            writeFeaturesOfEntry(entry, features);
+            references.push(
+              new faceapi.LabeledFaceDescriptors(newHash, [
+                Float32Array.from(feature.descriptor),
+              ])
+            );
+            matcher = undefined;
+          }
+        }
+      }
+    }
+  }
+}
+
 async function addContact(album: Album, hash: string, contact: Contact) {
   updatePicasa(
     album,
@@ -205,11 +319,83 @@ async function addFaceRectToEntry(
     rect,
   });
   const album = faceAlbumsByHash[hash];
-  const contact = allContacts[album.name];
+  const contact = allContacts[album.key];
   addContact(entry.album, hash, contact);
   return updatePicasaEntry(entry, "faces", encodeFaces(faces));
 }
+async function getClosestHashedFeature(feature: FaceLandmarkData) {
+  let match: faceapi.FaceMatch | undefined;
+  if (matcher === undefined) {
+    const references = Object.entries(hashToReferenceFeature).map(
+      ([hash, desc]) =>
+        new faceapi.LabeledFaceDescriptors(hash, [
+          Float32Array.from(desc.descriptor),
+        ])
+    );
+    if (references.length > 0)
+      matcher = new faceapi.FaceMatcher(references, 0.8);
+  }
+  if (matcher) {
+    matcher.labeledDescriptors;
+    match = matcher.findBestMatch(feature.descriptor);
+  }
+  if (match && match.distance < 0.2) {
+    // Good one !
+    const hash = (feature.hash = match.label);
+    console.info(
+      `Face feature matching with derived hash ${hash} [${faceAlbumsByHash[hash]?.name} with feature age ${feature.age} / ${feature.gender}]`
+    );
+    return hash;
+  }
+  return undefined;
+}
 
+async function getOrCreateFeatureFile(entry: AlbumEntry) {
+  const imagePath = entryFilePath(entry);
+  const exists = await fileExists(imagePath);
+  if (isPicture(entry) && !isAnimated(entry)) {
+    if (exists) {
+      let detectedFeatures = await readFeaturesOfEntry(entry);
+      if (!detectedFeatures) {
+        console.info(`Will generate features of file ${imagePath}`);
+        const l = await lock(imagePath);
+        try {
+          const buffer = await readFile(imagePath);
+          // Load image
+          const tensor = tf.tidy(() =>
+            tf.node
+              .decodeImage(buffer, 3, undefined, true)
+              .toFloat()
+              .expandDims()
+          );
+          //const tensor = tf.node.decodeImage(buffer, undefined, undefined, true);
+          //const expandT = tf.expandDims(tensor, 0); // add batch dimension to tensor
+          const faceFeatures = await faceapi
+            .detectAllFaces(
+              tensor as any, // as any because of some input issues
+              optionsSSDMobileNet
+            )
+            .withFaceLandmarks()
+            .withFaceExpressions()
+            .withAgeAndGender()
+            .withFaceDescriptors();
+          tf.dispose(tensor);
+
+          detectedFeatures = jsonifyObject(faceFeatures) as FaceLandmarkData[];
+          writeFeaturesOfEntry(entry, detectedFeatures);
+        } catch (e) {
+          console.warn(imagePath, e, entry);
+          detectedFeatures = [];
+          writeFeaturesOfEntry(entry, detectedFeatures);
+        } finally {
+          l();
+        }
+      }
+      return detectedFeatures;
+    }
+  }
+  return undefined;
+}
 async function processFaces(album: Album) {
   if (album.key.normalize() !== album.key) {
     debugger;
@@ -220,192 +406,110 @@ async function processFaces(album: Album) {
   }
   const contacts = readContacts(picasaIni);
   parsedFaces.add(album.key);
-  for (const entryName of Object.keys(picasaIni)) {
-    const entry = { album, name: entryName };
+  const entries = await media(album);
+  for (const entry of entries.entries) {
+    // Only process faces when no user is connected
+    while (socketCount() !== 0) {
+      await sleep(1);
+    }
     const imagePath = entryFilePath(entry);
     const exists = await fileExists(imagePath);
-    let faces: FaceList = [];
-    const iniFaces = picasaIni[entryName].faces;
+    let facesInEntry: FaceList = [];
+    const iniFaces = picasaIni[entry.name].faces;
     if (iniFaces) {
       // Example:faces=rect64(9bff22f6ad443ebb),d04ca592f8868c2;rect64(570c6e79670c8820),4f3f1b40e69b2537;rect64(b8512924c7ae41f2),69618ff17d8c570f
-      faces = decodeFaces(iniFaces);
+      facesInEntry = decodeFaces(iniFaces);
     }
-    for (const face of faces) {
+    for (const face of facesInEntry) {
       if (!contacts[face.hash]) {
         const contact = allContacts[faceAlbumsByHash[face.hash]?.name];
         if (contact) addContact(album, face.hash, contact);
       }
     }
-    if (isPicture(entry) && !isAnimated(entry)) {
-      if (exists) {
-        let detectedFeatures = await readFeaturesOfEntry(entry);
-        if (!detectedFeatures) {
-          const buffer = await readFile(imagePath);
-          try {
-            // Load image
-            const tensor = tf.tidy(() =>
-              tf.node
-                .decodeImage(buffer, undefined, undefined, true)
-                .toFloat()
-                .expandDims()
-            );
-            //const tensor = tf.node.decodeImage(buffer, undefined, undefined, true);
-            //const expandT = tf.expandDims(tensor, 0); // add batch dimension to tensor
-            const faceFeatures = await faceapi
-              .detectAllFaces(
-                tensor as any, // as any because of some input issues
-                optionsSSDMobileNet
-              )
-              .withFaceLandmarks()
-              .withFaceExpressions()
-              .withAgeAndGender()
-              .withFaceDescriptors();
-            tf.dispose(tensor);
+    const detectedFeatures = await getOrCreateFeatureFile(entry);
+    const notHashed = detectedFeatures
+      ? detectedFeatures.filter((f) => !f.hash)
+      : [];
 
-            detectedFeatures = jsonifyObject(
-              faceFeatures
-            ) as FaceLandmarkData[];
-            writeFeaturesOfEntry(entry, detectedFeatures);
-          } catch (e) {
-            console.warn(imagePath, e, entry);
-            detectedFeatures = [];
-            writeFeaturesOfEntry(entry, detectedFeatures);
+    // Go through each detected features, try to find features with no associated hashes
+    if (notHashed.length === 0) continue;
+
+    const { width, height } = notHashed[0].detection.imageDims;
+
+    // Map them on identified areas
+    for (const feature of notHashed) {
+      const [x, y] = [
+        feature.alignedRect.box.x + feature.alignedRect.box.width / 2,
+        feature.alignedRect.box.y + feature.alignedRect.box.height / 2,
+      ];
+      for (const [index, f] of facesInEntry.entries()) {
+        const facePos = decodeRect(f.rect);
+        if (
+          width * facePos.left < x &&
+          width * facePos.right > x &&
+          height * facePos.top < y &&
+          height * facePos.bottom > y
+        ) {
+          // This is a match
+          console.info(
+            `Face feature matching with hash ${f.hash} [${
+              faceAlbumsByHash[f.hash]?.name
+            } with feature age ${feature.age} / ${feature.gender}]`
+          );
+          feature.hash = f.hash;
+          // Update the detected features file, as it has been modified
+          writeFeaturesOfEntry(entry, detectedFeatures!);
+          if (!hashToReferenceFeature[f.hash]) {
+            hashToReferenceFeature[f.hash] = feature;
+            matcher = undefined;
+            writeReferenceFeatures();
           }
+          break;
         }
+      }
+      // Not found in the rects, get the closest
+      const hash = await getClosestHashedFeature(feature);
+      if (hash) {
+        feature.hash = hash;
+        writeFeaturesOfEntry(entry, detectedFeatures!);
+        const ref = hashToReferenceFeature[hash]!;
+        const rect = encodeRect({
+          left: ref.alignedRect.box.left / width,
+          right: ref.alignedRect.box.right / width,
+          top: ref.alignedRect.box.top / height,
+          bottom: ref.alignedRect.box.bottom / height,
+        });
+        addFaceRectToEntry(entry, rect, hash);
+      } else {
+        //addUnmatchedFeature(entry, feature);
+      }
 
-        // Go through each detected features, try to find features with no associated hashes
-        if (detectedFeatures.length > 0) {
-          const { width, height } = detectedFeatures[0].detection.imageDims;
-
-          // Map them on identified areas
-          for (const feature of detectedFeatures) {
-            if (feature.hash) continue; // Already matched
-            // get face center
-
-            const [x, y] = [
-              feature.alignedRect.box.x + feature.alignedRect.box.width / 2,
-              feature.alignedRect.box.y + feature.alignedRect.box.height / 2,
-            ];
-            for (const [index, f] of faces.entries()) {
-              const facePos = decodeRect(f.rect);
-              if (
-                width * facePos.left < x &&
-                width * facePos.right > x &&
-                height * facePos.top < y &&
-                height * facePos.bottom > y
-              ) {
-                // This is a match
-                console.info(
-                  `Face feature matching with hash ${f.hash} [${
-                    faceAlbumsByHash[f.hash]?.name
-                  } with feature age ${feature.age} / ${feature.gender}]`
-                );
-                feature.hash = f.hash;
-                if (!hashToReferenceFeature[f.hash]) {
-                  hashToReferenceFeature[f.hash] = feature;
-                  matcher = undefined;
-                  writeReferenceFeatures();
-                }
-                writeFeaturesOfEntry(entry, detectedFeatures);
-                break;
-              }
-            }
-            if (!feature.hash) {
-              // Not found in the rects, get the closest
-              let match: faceapi.FaceMatch | undefined;
-              if (matcher === undefined) {
-                const references = Object.entries(hashToReferenceFeature).map(
-                  ([hash, desc]) =>
-                    new faceapi.LabeledFaceDescriptors(hash, [
-                      Float32Array.from(desc.descriptor),
-                    ])
-                );
-                if (references.length > 0)
-                  matcher = new faceapi.FaceMatcher(references, 0.8);
-              }
-              if (matcher) {
-                match = matcher.findBestMatch(feature.descriptor);
-              }
-              if (match && match.distance < 0.2) {
-                // Good one !
-                const hash = (feature.hash = match.label);
-                console.info(
-                  `Face feature matching with derived hash ${hash} [${faceAlbumsByHash[hash]?.name} with feature age ${feature.age} / ${feature.gender}]`
-                );
-                writeFeaturesOfEntry(entry, detectedFeatures);
-                const ref = hashToReferenceFeature[hash]!;
-                const rect = encodeRect({
-                  left: ref.alignedRect.box.left / width,
-                  right: ref.alignedRect.box.right / width,
-                  top: ref.alignedRect.box.top / height,
-                  bottom: ref.alignedRect.box.bottom / height,
-                });
-                addFaceRectToEntry(entry, rect, hash);
-              } else {
-                // Cannot be found in the references, feeling sorry for it
-                // Create a new hash, new Face album (empty)
-                /* Disabling - out of mem
-                  const hash = uuid();
-                  const name = `unknown-${hash}`;
-                  hashToReferenceFeature.set(hash, feature);
-                  writeReferenceFeatures();
-
-                  feature.hash = hash;
-                  writeFeaturesOfEntry(entry, detectedFeatures);
-
-                  const rect = encodeRect({
-                    left: feature.alignedRect.box.left / width,
-                    right: feature.alignedRect.box.right / width,
-                    top: feature.alignedRect.box.top / height,
-                    bottom: feature.alignedRect.box.bottom / height,
-                  });
-                  addFaceRectToEntry(entry, rect, hash);
-
-                  hashToFaceAlbum.set(hash, {
-                    hash: new Set<string>([hash]),
-                    count: 0,
-                    name,
-                    kind: AlbumKind.FACE,
-                    key: name.normalize(),
-                  });
-                  */
-              }
-            }
+      // Update the "person albums" to contain references to hash and rects
+      // Example:faces=rect64(9bff22f6ad443ebb),d04ca592f8868c2;rect64(570c6e79670c8820),4f3f1b40e69b2537;rect64(b8512924c7ae41f2),69618ff17d8c570f
+      for (const face of facesInEntry) {
+        const faceAlbum = faceAlbumsByHash[face.hash];
+        if (faceAlbum) {
+          faceAlbum.count++;
+          if (album.key.normalize() !== album.key) {
+            debugger;
           }
-        }
+          const sectionName = toBase64(
+            JSON.stringify([album.key, entry.name, face])
+          );
 
-        // Update the "person albums" to contain references to hash and rects
-        // Example:faces=rect64(9bff22f6ad443ebb),d04ca592f8868c2;rect64(570c6e79670c8820),4f3f1b40e69b2537;rect64(b8512924c7ae41f2),69618ff17d8c570f
-        for (const face of faces) {
-          const faceAlbum = faceAlbumsByHash[face.hash];
-          if (faceAlbum) {
-            faceAlbum.count++;
-            if (album.key.normalize() !== album.key) {
-              debugger;
-            }
-            const sectionName = toBase64(
-              JSON.stringify([album.key, entryName, face])
+          if (exists) {
+            updatePicasa(
+              faceAlbum,
+              "originalAlbumName",
+              album.name,
+              sectionName
             );
-
-            if (exists) {
-              updatePicasa(
-                faceAlbum,
-                "originalAlbumName",
-                album.name,
-                sectionName
-              );
-              updatePicasa(
-                faceAlbum,
-                "originalAlbumKey",
-                album.key,
-                sectionName
-              );
-              updatePicasa(faceAlbum, "originalName", entryName, sectionName);
-            } else {
-              updatePicasa(faceAlbum, "originalAlbumName", null, sectionName);
-              updatePicasa(faceAlbum, "originalAlbumKey", null, sectionName);
-              updatePicasa(faceAlbum, "originalName", null, sectionName);
-            }
+            updatePicasa(faceAlbum, "originalAlbumKey", album.key, sectionName);
+            updatePicasa(faceAlbum, "originalName", entry.name, sectionName);
+          } else {
+            updatePicasa(faceAlbum, "originalAlbumName", null, sectionName);
+            updatePicasa(faceAlbum, "originalAlbumKey", null, sectionName);
+            updatePicasa(faceAlbum, "originalName", null, sectionName);
           }
         }
       }
@@ -450,8 +554,8 @@ export async function getFaceData(entry: AlbumEntry): Promise<FaceData> {
     name: picasaEntry.originalName!,
   };
 
-  const [albumKey, label, rect, hash] = JSON.parse(fromBase64(entry.name));
-  return { originalEntry, label, rect, faceAlbum: entry.album, hash };
+  const [albumKey, label, face] = JSON.parse(fromBase64(entry.name));
+  return { originalEntry, label, ...face, faceAlbum: entry.album };
 }
 
 export async function readFaceAlbumEntries(
@@ -509,7 +613,7 @@ export async function startFaceScan() {
         if (!faceAlbumsByName[contact.key]) {
           const faceAlbum: FaceAlbum = {
             count: 0,
-            name: contact.name,
+            name: contact.originalName,
             key: contact.key,
             hash: [],
             kind: AlbumKind.FACE,
@@ -527,7 +631,7 @@ export async function startFaceScan() {
     for (const album of albums) {
       faceProcessingQueue.add(async () => {
         inProgress.add(album);
-        await processFaces(album).catch(console.error);
+        //await processFaces(album).catch(console.error);
         inProgress.delete(album);
       });
     }
@@ -538,17 +642,9 @@ export async function startFaceScan() {
         ),
       2000
     );
-    setInterval(
-      () =>
-        console.info(
-          `In progress:  ${Array.from(inProgress)
-            .map((a) => a.name)
-            .join(", ")}.`
-        ),
-      20000
-    );
     await faceProcessingQueue.drain();
     clearInterval(t);
+    await joinUnmatchedFeatures();
     await exportAllFaces();
 
     await sleep(24 * 60 * 60);
