@@ -101,7 +101,7 @@
     "leaflet": "^1.9.3",
     "panzoom": "^9.4.3",
     "piexifjs": "^1.0.6",
-    "sharp": "^0.31.2",
+    "sharp": "^0.32.6",
     "spinnies": "^0.5.1",
     "ts-2d-geometry": "^6.3.2",
     "ws": "^8.12.0"
