@@ -1,4 +1,5 @@
 import { join } from "path";
+import { env } from "process";
 
 // Should be made configurable
 export const realImagesRoot = "/Volumes/Photos/Photos";
@@ -30,4 +31,8 @@ export const ThumbnailSizes = {
   "th-small": 100,
   "th-medium": 250,
   "th-large": 500,
+};
+
+export const Features = {
+  faces: env.FACES || false,
 };
