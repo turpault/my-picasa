@@ -5,7 +5,6 @@ import { join } from "path";
 import { Queue } from "../../../shared/lib/queue";
 import {
   FaceList,
-  RectArea,
   buildReadySemaphore,
   debounce,
   decodeFaces,
@@ -13,7 +12,6 @@ import {
   encodeFaces,
   encodeRect,
   fromBase64,
-  hashString,
   isAnimated,
   isPicture,
   jsonifyObject,
@@ -36,11 +34,10 @@ import {
   keyFromID,
 } from "../../../shared/types/types";
 import { getFolderAlbums, waitUntilWalk } from "../../background/bg-walker";
-import { facesFolder } from "../../utils/constants";
+import { Features, facesFolder } from "../../utils/constants";
 import {
   entryFilePath,
   fileExists,
-  removeExtension,
   safeWriteFile,
 } from "../../utils/serverUtils";
 import { socketCount } from "../../utils/socketList";
@@ -54,7 +51,174 @@ import {
   updatePicasaEntry,
 } from "../rpcFunctions/picasa-ini";
 import { deleteFaceImage, getFaceImage } from "../rpcFunctions/thumbnail";
-import { readdir } from "fs/promises";
+
+export async function eraseFace(entry: AlbumEntry) {
+  if (entry.album.kind !== AlbumKind.FACE) {
+    throw new Error("Not a face album");
+  }
+  await deleteFaceImage(entry);
+  const d = await getFaceData(entry);
+
+  const originalImageEntry = d.originalEntry;
+  // entry.name is the face hash
+  updatePicasa(entry.album, null, null, entry.name);
+
+  // Update entry in original picasa.ini
+  let iniFaces = (await readPicasaEntry(originalImageEntry))?.faces;
+  if (iniFaces) {
+    iniFaces = iniFaces
+      .split(";")
+      .filter((f) => !f.includes(`,${d.hash}`))
+      .join(";");
+    updatePicasaEntry(originalImageEntry, "faces", iniFaces);
+  }
+}
+
+export function getFaceAlbums(): AlbumWithData[] {
+  return Object.values(faceAlbumsByName);
+}
+
+export async function getFaceData(entry: AlbumEntry): Promise<FaceData> {
+  const picasaEntry = await readPicasaEntry(entry);
+  const originalEntry: AlbumEntry = {
+    album: {
+      key: picasaEntry.originalAlbumKey!,
+      name: picasaEntry.originalAlbumName!,
+      kind: AlbumKind.FOLDER,
+    },
+    name: picasaEntry.originalName!,
+  };
+
+  const [albumKey, label, face] = JSON.parse(fromBase64(entry.name));
+  return { originalEntry, label, ...face, faceAlbum: entry.album };
+}
+
+export async function readFaceAlbumEntries(
+  album: Album
+): Promise<AlbumEntry[]> {
+  return await readAlbumEntries(album);
+}
+
+export async function startFaceScan() {
+  const faceAlbums = await listAlbumsOfKind(AlbumKind.FACE);
+  const albumAndData: [Album, AlbumEntry[]][] = await Promise.all(
+    faceAlbums.map(async (album) => [album, await readFaceAlbumEntries(album)])
+  );
+  const albumWithData: AlbumWithData[] = albumAndData.map((a) => ({
+    ...a[0],
+    count: a[1].length,
+  }));
+  for (const albumData of albumWithData)
+    faceAlbumsByName[albumData.key] = { ...albumData, hash: [] };
+  setReady(readyLabelKey);
+  await tf.ready;
+  await waitUntilWalk();
+  if (!Features.faces) {
+    return;
+  }
+  optionsSSDMobileNet = new faceapi.SsdMobilenetv1Options({
+    minConfidence: 0.5,
+    maxResults: 100,
+  });
+  const modelPath = join(
+    require.resolve("@vladmandic/face-api"),
+    "..",
+    "..",
+    "model"
+  );
+  await faceapi.nets.ssdMobilenetv1.loadFromDisk(modelPath);
+  await faceapi.nets.faceLandmark68Net.loadFromDisk(modelPath);
+  await faceapi.nets.faceRecognitionNet.loadFromDisk(modelPath);
+  await faceapi.nets.ageGenderNet.loadFromDisk(modelPath);
+  await faceapi.nets.faceExpressionNet.loadFromDisk(modelPath);
+
+  while (true) {
+    const albums = await getFolderAlbums();
+    await readReferenceFeatures();
+    // Scan all the contacts
+    for (const album of albums) {
+      const picasaIni = await readAlbumIni(album);
+      const contacts = readContacts(picasaIni);
+      for (const [hash, contact] of Object.entries(contacts)) {
+        allContacts[contact.key] = contact;
+        if (!faceAlbumsByName[contact.key]) {
+          const faceAlbum: FaceAlbum = {
+            count: 0,
+            name: contact.originalName,
+            key: contact.key,
+            hash: [],
+            kind: AlbumKind.FACE,
+          };
+          faceAlbumsByName[contact.key] = faceAlbum;
+        }
+        const faceAlbum = faceAlbumsByName[contact.key]!;
+        faceAlbumsByHash[hash] = faceAlbum;
+        if (!faceAlbumsByHash[hash]) {
+          faceAlbumsByHash[hash] = faceAlbum;
+        }
+      }
+    }
+    const inProgress = new Set<Album>();
+    for (const album of albums) {
+      faceProcessingQueue.add(async () => {
+        inProgress.add(album);
+        //await processFaces(album).catch(console.error);
+        inProgress.delete(album);
+      });
+    }
+    const t = setInterval(
+      () =>
+        console.info(
+          `Processing faces. Remaining ${faceProcessingQueue.length()} albums to process.`
+        ),
+      2000
+    );
+    await faceProcessingQueue.drain();
+    clearInterval(t);
+    await joinUnmatchedFeatures();
+    await exportAllFaces();
+
+    await sleep(24 * 60 * 60);
+  }
+}
+
+export function getFaceAlbumFromHash(hash: string): FaceAlbum {
+  return faceAlbumsByHash[hash];
+}
+
+export async function getFaceAlbumsWithData(
+  _filter: string = ""
+): Promise<AlbumWithData[]> {
+  // Create 'fake' albums with the faces
+  await ready;
+  return getFaceAlbums();
+}
+
+/**
+ * Merge all the contents of withFace into face
+ * @param face
+ * @param withFace
+ * @returns
+ */
+export async function mergeFaces(face: string, withFace: string) {
+  // Find all the albums where the hashes for the withFace album appears, and reassign them
+  const inAlbum = faceAlbumsByName[face];
+  if (!inAlbum) {
+    throw `Face album ${face} not found`;
+  }
+  const fromAlbum = faceAlbumsByName[withFace];
+  if (!fromAlbum) {
+    throw `Face album ${withFace} not found`;
+  }
+  const toEntries = await media(inAlbum);
+  const fromEntries = await media(fromAlbum);
+  for (const entry of fromEntries.entries) {
+    const faceData = await getFaceData(entry);
+
+    faceData.hash;
+  }
+}
+
 // Limit the parallelism for the face parsing
 const faceProcessingQueue = new Queue(30);
 
@@ -250,7 +414,6 @@ function setFaceHash(
 }
 
 async function joinUnmatchedFeatures() {
-  const groups: { master: FaceData; members: FaceData[] } = {};
   const albums = await getFolderAlbums();
   for (const album of albums) {
     const entries = await media(album);
@@ -517,53 +680,6 @@ async function processFaces(album: Album) {
   }
 }
 
-export async function eraseFace(entry: AlbumEntry) {
-  if (entry.album.kind !== AlbumKind.FACE) {
-    throw new Error("Not a face album");
-  }
-  await deleteFaceImage(entry);
-  const d = await getFaceData(entry);
-
-  const originalImageEntry = d.originalEntry;
-  // entry.name is the face hash
-  updatePicasa(entry.album, null, null, entry.name);
-
-  // Update entry in original picasa.ini
-  let iniFaces = (await readPicasaEntry(originalImageEntry))?.faces;
-  if (iniFaces) {
-    iniFaces = iniFaces
-      .split(";")
-      .filter((f) => !f.includes(`,${d.hash}`))
-      .join(";");
-    updatePicasaEntry(originalImageEntry, "faces", iniFaces);
-  }
-}
-
-export function getFaceAlbums(): AlbumWithData[] {
-  return Object.values(faceAlbumsByName);
-}
-
-export async function getFaceData(entry: AlbumEntry): Promise<FaceData> {
-  const picasaEntry = await readPicasaEntry(entry);
-  const originalEntry: AlbumEntry = {
-    album: {
-      key: picasaEntry.originalAlbumKey!,
-      name: picasaEntry.originalAlbumName!,
-      kind: AlbumKind.FOLDER,
-    },
-    name: picasaEntry.originalName!,
-  };
-
-  const [albumKey, label, face] = JSON.parse(fromBase64(entry.name));
-  return { originalEntry, label, ...face, faceAlbum: entry.album };
-}
-
-export async function readFaceAlbumEntries(
-  album: Album
-): Promise<AlbumEntry[]> {
-  return await readAlbumEntries(album);
-}
-
 /**
  *
  * @returns
@@ -571,122 +687,6 @@ export async function readFaceAlbumEntries(
 const readyLabelKey = "faceWalker";
 const ready = buildReadySemaphore(readyLabelKey);
 let optionsSSDMobileNet: faceapi.SsdMobilenetv1Options;
-export async function startFaceScan() {
-  const faceAlbums = await listAlbumsOfKind(AlbumKind.FACE);
-  const albumAndData: [Album, AlbumEntry[]][] = await Promise.all(
-    faceAlbums.map(async (album) => [album, await readFaceAlbumEntries(album)])
-  );
-  const albumWithData: AlbumWithData[] = albumAndData.map((a) => ({
-    ...a[0],
-    count: a[1].length,
-  }));
-  for (const albumData of albumWithData)
-    faceAlbumsByName[albumData.key] = { ...albumData, hash: [] };
-  setReady(readyLabelKey);
-  await tf.ready;
-  await waitUntilWalk();
-  optionsSSDMobileNet = new faceapi.SsdMobilenetv1Options({
-    minConfidence: 0.5,
-    maxResults: 100,
-  });
-  const modelPath = join(
-    require.resolve("@vladmandic/face-api"),
-    "..",
-    "..",
-    "model"
-  );
-  await faceapi.nets.ssdMobilenetv1.loadFromDisk(modelPath);
-  await faceapi.nets.faceLandmark68Net.loadFromDisk(modelPath);
-  await faceapi.nets.faceRecognitionNet.loadFromDisk(modelPath);
-  await faceapi.nets.ageGenderNet.loadFromDisk(modelPath);
-  await faceapi.nets.faceExpressionNet.loadFromDisk(modelPath);
-
-  while (true) {
-    const albums = await getFolderAlbums();
-    await readReferenceFeatures();
-    // Scan all the contacts
-    for (const album of albums) {
-      const picasaIni = await readAlbumIni(album);
-      const contacts = readContacts(picasaIni);
-      for (const [hash, contact] of Object.entries(contacts)) {
-        allContacts[contact.key] = contact;
-        if (!faceAlbumsByName[contact.key]) {
-          const faceAlbum: FaceAlbum = {
-            count: 0,
-            name: contact.originalName,
-            key: contact.key,
-            hash: [],
-            kind: AlbumKind.FACE,
-          };
-          faceAlbumsByName[contact.key] = faceAlbum;
-        }
-        const faceAlbum = faceAlbumsByName[contact.key]!;
-        faceAlbumsByHash[hash] = faceAlbum;
-        if (!faceAlbumsByHash[hash]) {
-          faceAlbumsByHash[hash] = faceAlbum;
-        }
-      }
-    }
-    const inProgress = new Set<Album>();
-    for (const album of albums) {
-      faceProcessingQueue.add(async () => {
-        inProgress.add(album);
-        //await processFaces(album).catch(console.error);
-        inProgress.delete(album);
-      });
-    }
-    const t = setInterval(
-      () =>
-        console.info(
-          `Processing faces. Remaining ${faceProcessingQueue.length()} albums to process.`
-        ),
-      2000
-    );
-    await faceProcessingQueue.drain();
-    clearInterval(t);
-    await joinUnmatchedFeatures();
-    await exportAllFaces();
-
-    await sleep(24 * 60 * 60);
-  }
-}
-
-export function getFaceAlbumFromHash(hash: string): FaceAlbum {
-  return faceAlbumsByHash[hash];
-}
-
-export async function getFaceAlbumsWithData(
-  _filter: string = ""
-): Promise<AlbumWithData[]> {
-  // Create 'fake' albums with the faces
-  await ready;
-  return getFaceAlbums();
-}
-
-/**
- * Merge all the contents of withFace into face
- * @param face
- * @param withFace
- * @returns
- */
-export async function mergeFaces(face: string, withFace: string) {
-  // Find all the albums where the hashes for the withFace album appears, and reassign them
-  const inAlbum = faceAlbumsByName[face];
-  if (!inAlbum) {
-    throw `Face album ${face} not found`;
-  }
-  const fromAlbum = faceAlbumsByName[withFace];
-  if (!fromAlbum) {
-    throw `Face album ${withFace} not found`;
-  }
-  const toEntries = await media(inAlbum);
-  const fromEntries = await media(fromAlbum);
-  for (const entry of fromEntries.entries) {
-    const faceData = await getFaceData(entry);
-
-    faceData.hash;
-  }
-}
 
 /*
 let data = { ...(await readAlbumIni(album)) };
