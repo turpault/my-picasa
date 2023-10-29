@@ -42,3 +42,4 @@ public/dist
 picisa-darwin-x64
 public/client
 deployed
+server/imageOperations/native-filters/build
