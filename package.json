@@ -11,9 +11,12 @@
     "type": "git",
     "url": "git@github.com:turpault/my-picasa.git"
   },
-  "files": [
-    "dist/src"
-  ],
+  "build": {
+    "files": [
+      "dist/**/*",
+      "!src"
+    ]
+  },
   "testGlob": "./dist/test/**/*.spec.js?(x)",
   "homepage": "https://github.com/turpault/my-picasa#readme",
   "keywords": [
@@ -36,7 +39,7 @@
     "build:splashbase64url": "node server/toBase64Url.mjs public/resources/images/splash.png",
     "build:rpc": "ts-node server/rpc/generate.ts client/rpc/generated-rpc",
     "build-filters": "(cd server/imageOperations/native-filters ; npm run configure ; npm run build) ; mkdir -p dist/server/imageOperations/native-filters/build/Release ; cp server/imageOperations/native-filters/build/Release/*.node dist/server/imageOperations/native-filters/build/Release/",
-    "postbuild": "electron-packager . --osx-sign.identity 'Jocelyn Turpault (B9Y23YHJ74)' --icon resources/picisa.icns --app-version 1.0.0 --appname Picisa --no-deref-symlinks --overwrite --ignore='\\.d\\.ts|\\.map|/tools' && electron-installer-dmg  picisa-darwin-x64/picisa.app picisa --overwrite",
+    "postbuild": "electron-packager . --osx-sign.identity 'Jocelyn Turpault (B9Y23YHJ74)' --icon resources/picisa.icns --app-version 1.0.0 --appname Picisa --no-deref-symlinks --overwrite --ignore='\\.d$|\\.ts$|\\.map$|^/tools|^/client|^/deployed|^/shared|^/server|^/public|^/resources|^/modeles|^/custom-typings' && electron-installer-dmg  picisa-darwin-x64/picisa.app picisa --overwrite",
     "clean": "rimraf dist",
     "reset": "rimraf node_modules dist",
     "start": "PICISA_PICTURE_FOLDER=/Volumes/1TB\\ USB/Photos run-p start:*",
