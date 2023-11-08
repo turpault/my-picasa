@@ -1,5 +1,4 @@
-import { MAX_STAR } from "../../shared/lib/shared-constants";
-import { lock, range } from "../../shared/lib/utils";
+import { dateOfAlbumFromName, lock, range } from "../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
@@ -10,12 +9,7 @@ import { AlbumIndexedDataSource } from "../album-data-source";
 import { getAlbumInfo } from "../folder-utils";
 import { $, _$, albumFromElement, setIdForAlbum } from "../lib/dom";
 import { toggleStar } from "../lib/handles";
-import {
-  getSettings,
-  getSettingsEmitter,
-  updateFilterByStar,
-  updateFilterByVideos,
-} from "../lib/settings";
+import { getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
 import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { AlbumListEventSource, AppEventSource } from "../uiTypes";
@@ -31,15 +25,6 @@ import {
   thumbnailData,
 } from "./thumbnail";
 
-const extra = `
-<div class="w3-dropdown-hover w3-right filter-menu">
-  <button
-    class="w3-button filter-button"
-  >Filtres</button>
-  <div class="filter-menu-items w3-dropdown-content w3-bar-block w3-card-4">
-    <a class="filter-videos w3-bar-item w3-button">${t("Only Videos")}</a>
-  </div>
-</div>`;
 // Create two elements, allergic to visibility
 const elementPrefix = "photolist:";
 const html = `<div class="w3-theme images-area">
@@ -67,35 +52,6 @@ export async function makePhotoList(
   const pool: _$[] = [];
   const displayed: _$[] = [];
   const photoList = $(html);
-  const topMenu = $(extra);
-  const menuItems = $(".filter-menu-items", topMenu);
-  const filterByVideos = $(".filter-videos", menuItems);
-  filterByVideos.on("click", () =>
-    updateFilterByVideos(!getSettings().filters.video)
-  );
-  range(1, MAX_STAR - 1).forEach((star) => {
-    const item = $(
-      `<a class="w3-bar-item w3-button filter-favorites-${star}">${
-        t("Only Favorites") + ` ${star}`
-      }</a>`
-    );
-    item.on("click", () =>
-      updateFilterByStar(getSettings().filters.star === star ? 0 : star)
-    );
-    menuItems.append(item);
-  });
-  getSettingsEmitter().on("changed", () => {
-    const settings = getSettings();
-    filterByVideos.addRemoveClass("list-check", settings.filters.video);
-    range(1, MAX_STAR - 1).forEach((star) => {
-      $(`.filter-favorites-${star}`, menuItems).addRemoveClass(
-        "list-check",
-        settings.filters.star === star
-      );
-    });
-  });
-
-  photoList.append(topMenu);
 
   const container = $(".images", photoList);
   // Bind thumbnails display with selection
@@ -110,7 +66,6 @@ export async function makePhotoList(
   const REFLOW_TRIGGER = 1;
 
   let running = false;
-  let filter = "";
   const events = dataSource.emitter;
 
   // UI State events
@@ -171,9 +126,6 @@ export async function makePhotoList(
           */
         default:
       }
-    }),
-    events.on("filterChanged", (event) => {
-      filter = event.filter;
     }),
     events.on("thumbnailDblClicked", async (event) => {
       const s = await getService();
@@ -347,8 +299,7 @@ export async function makePhotoList(
         if (element) {
           const hasChanged = await populateElement(
             element,
-            dataSource.albumAtIndex(event.index),
-            filter
+            dataSource.albumAtIndex(event.index)
           );
           if (hasChanged) {
             doReflow |= REFLOW_FULL;
@@ -384,8 +335,7 @@ export async function makePhotoList(
           if (indexOf(d) === visible) {
             await populateElement(
               visibleElement()!,
-              dataSource.albumAtIndex(index),
-              filter
+              dataSource.albumAtIndex(index)
             );
           } else {
             moveToPool(d);
@@ -505,7 +455,7 @@ export async function makePhotoList(
       if (dataSource.length() > 0) {
         const album = dataSource.albumAtIndex(topIndex);
         const albumElement = getElement();
-        await populateElement(albumElement, album, filter);
+        await populateElement(albumElement, album);
         $(albumElement).css("top", `${initialVerticalPosition}px`); //index === 0 ? "0" : "100px");
         $(".invisible-pixel", container).css({
           top: `${initialVerticalPosition + container.height}px`,
@@ -691,16 +641,32 @@ export async function makePhotoList(
 
   async function albumWithThumbnails(
     album: Album,
-    filter: string,
-    title: _$,
-    element: _$,
+    e: _$,
     events: AlbumListEventSource
   ): Promise<boolean> {
-    title.innerHTML(album.name);
+    const headerElement = $(".name-container", e);
+    const photosElement = $(".photos", e);
+
+    $(".name-container-name", headerElement).innerHTML(album.name);
+    const d = dateOfAlbumFromName(album.name);
+    const dateString = d
+      ? d.toLocaleDateString(undefined, {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })
+      : t("Unknown date");
+    $(".name-container-date", headerElement).innerHTML(dateString);
 
     const info = await getAlbumInfo(album, true /* use settings */);
+    if (info.filtered && info.assets.length === 0) {
+      e.hide();
+    } else {
+      e.show();
+    }
     const countChanged = makeNThumbnails(
-      element,
+      photosElement,
       info.assets.length,
       events,
       selectionManager,
@@ -710,7 +676,7 @@ export async function makePhotoList(
     const keys = info.assets.map((p) => p.name).reverse();
     let idx = keys.length;
     const p: Promise<void>[] = [];
-    const children = element.children();
+    const children = photosElement.children();
     for (const name of keys) {
       p.push(
         thumbnailData(
@@ -736,41 +702,53 @@ export async function makePhotoList(
   function getElement(): _$ {
     if (pool.length === 0) {
       const e = $(
-        `<div class="album">
-        <div class="header w3-bar w3-bar-item">
-          <div class="name-container"><div class="name"/></div>
-          <button data-tooltip-below="${t(
-            "Delete Album"
-          )}" class="album-button trash-album w3-button" style="background-image: url(resources/images/icons/actions/trash-50.png)"></button>
-          <button data-tooltip-below="${t(
-            "Open in Finder"
-          )}" class="album-button open-in-finder w3-button" style="background-image: url(resources/images/icons/actions/finder-50.png)"></button>
-          <button data-tooltip-below="${t(
-            "Edit Album Name"
-          )}" class="album-button w3-button edit-album-name" style="background-image: url(resources/images/icons/actions/pen-50.png)"></button>
-          <span  style="display: inline-block; width: 10px;" class="album-button"></span>
-          <button data-tooltip-below="${t(
-            "Sort by Name"
-          )}" class="album-button w3-button sort-by-name" style="background-image: url(resources/images/icons/actions/sort-name-50.png)"></button>
-          <button data-tooltip-below="${t(
-            "Sort by Date"
-          )}" class="album-button w3-button sort-by-date" style="background-image: url(resources/images/icons/actions/sort-date-50.png)"></button>
-          <button data-tooltip-below="${t(
-            "Reverse Sort"
-          )}" class="album-button w3-button reverse-sort" style="background-image: url(resources/images/icons/actions/sort-reverse-50.png)"></button>
-          <select data-tooltip-below="${t(
-            "Select shortcut for this folder"
-          )}" class="album-button w3-button select-shortcut select-no-arrow" style="background-image: url(resources/images/icons/actions/finger-50.png)">
-          <option value=""></option>
-          ${["1", "2", "3", "4", "5", "6", "7", "8", "9"]
-            .map((v) => `<option value="${v}">${v}</option>`)
-            .join("")}</select>
+        `
+        <div class="album">
+          <div class="header w3-bar w3-bar-item">
+            <div class="name-container">
+              <div class="name-container-folder-icon">📁</div>
+              <div class="name-container-name"/></div>
+              <div class="name-container-date"/></div>
+              <div class="name-container-buttons"/>
+              <picasa-button data-tooltip-below="${t(
+                "Play slideshow"
+              )}" icon="resources/images/icons/actions/play.svg" class="play-album">Play</picasa-button>
+              <picasa-button data-tooltip-below="${t(
+                "Delete Album"
+              )}" class="trash-album" icon="resources/images/icons/actions/trash.svg"></picasa-button>
+                <picasa-button data-tooltip-below="${t(
+                  "Open in Finder"
+                )}" class="open-in-finder" icon="resources/images/icons/actions/finder.svg"></picasa-button>
+                <picasa-button data-tooltip-below="${t(
+                  "Edit Album Name"
+                )}" class="edit-album-name" icon="resources/images/icons/actions/pen-50.png"></picasa-button>
+                <span  style="display: inline-block; width: 1px;" class="vertical-separator"></span>
+                <picasa-button  data-tooltip-below="${t(
+                  "Sort by Name"
+                )}" class="sort-by-name" icon="resources/images/icons/actions/sort-name-50.png"></picasa-button >
+                <picasa-button  data-tooltip-below="${t(
+                  "Sort by Date"
+                )}" class="sort-by-date" icon="resources/images/icons/actions/sort-date-50.png"></picasa-button >
+                <picasa-button  data-tooltip-below="${t(
+                  "Reverse Sort"
+                )}" class="reverse-sort" icon="resources/images/icons/actions/sort-reverse-50.png"></picasa-button >
+                <span  style="display: inline-block; width: 1px;" class="vertical-separator"></span>
+                <label>${t("Shortcut")}</label>
+                <select is="picasa-select" data-tooltip-below="${t(
+                  "Select shortcut for this folder"
+                )}" class="select-shortcut select-no-arrow" icon="resources/images/icons/actions/finger-50.png">
+                <option value="" selected>${t("None")}</option>
+                ${["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+                  .map((v) => `<option value="${v}">${v}</option>`)
+                  .join("")}</select>
+              </div>
+            </div>
+          </div>
+          <div class="photos album-photos"></div>
         </div>
-        <div class="photos album-photos"></div>
-      </div>
       `
       );
-      const title = $(".name", e);
+      const title = $(".name-container-name", e);
       title.on("blur", async () => {
         title.attr("contenteditable", "false");
         title.removeClass("name-is-focused");
@@ -889,16 +867,9 @@ export async function makePhotoList(
   }
   async function populateElement(
     e: _$,
-    album: AlbumWithData,
-    filter: string
+    album: AlbumWithData
   ): Promise<boolean> {
-    const hasChanged = await albumWithThumbnails(
-      album,
-      filter,
-      $(".name", e),
-      $(".photos", e),
-      events
-    );
+    const hasChanged = await albumWithThumbnails(album, e, events);
     setIdForAlbum(e, album, elementPrefix);
     updateElement(e, album);
     return hasChanged;
@@ -909,7 +880,7 @@ export async function makePhotoList(
       topIndex--;
       const albumElement = getElement();
       const album = dataSource.albumAtIndex(topIndex);
-      await populateElement(albumElement, album, filter);
+      await populateElement(albumElement, album);
       $(albumElement).css({ top: `0px`, opacity: 0 });
       albumElement.attr("index", topIndex.toString());
       container
@@ -928,7 +899,7 @@ export async function makePhotoList(
       bottomIndex++;
       const albumElement = getElement();
       const album = dataSource.albumAtIndex(bottomIndex);
-      await populateElement(albumElement, album, filter);
+      await populateElement(albumElement, album);
       $(albumElement).css({ top: `0px`, opacity: 0 });
       albumElement.attr("index", bottomIndex.toString());
       container

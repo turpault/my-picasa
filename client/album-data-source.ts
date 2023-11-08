@@ -1,12 +1,5 @@
 import { buildEmitter, Emitter } from "../shared/lib/event";
-import {
-  albumInFilter,
-  debounced,
-  groupBy,
-  range,
-  removeDiacritics,
-  sortByKey,
-} from "../shared/lib/utils";
+import { debounced, groupBy, range, sortByKey } from "../shared/lib/utils";
 import {
   Album,
   AlbumChangeEvent,
@@ -46,9 +39,7 @@ export class AlbumIndexedDataSource {
   constructor() {
     this.albums = [];
     this.allAlbums = [];
-    this.filter = null;
     this.shortcuts = {};
-    this.sort = "ReverseDate";
     const albumEmitter = buildEmitter<AlbumListEvent>();
     this.emitter = albumEmitter;
   }
@@ -158,16 +149,6 @@ export class AlbumIndexedDataSource {
     if (this.shortcutsUnreg) this.shortcutsUnreg();
   }
 
-  async setFilter(filter: string) {
-    this.filter = removeDiacritics(filter.toLowerCase());
-    this.sortFolders();
-    this.emitter.emit("invalidateFrom", {
-      index: 0,
-      to: this.albums.length - 1,
-    });
-    this.emitter.emit("reset", {});
-  }
-
   private addAlbum(album: AlbumWithData) {
     // Find at which index the album should be added
     let index = this.allAlbums.findIndex((a) => a.key === album.key);
@@ -265,18 +246,15 @@ export class AlbumIndexedDataSource {
   }
 
   private sortFolders() {
-    const sorted = this.sortAlbums(this.allAlbums, this.filter);
+    const sorted = this.sortAlbums(this.allAlbums);
     this.hierarchy = sorted.node;
     this.albums = sorted.albums;
   }
 
   private sortAlbums(
-    albumsFromServer: AlbumWithData[],
-    filter: string | null
+    albumsFromServer: AlbumWithData[]
   ): { node: Node; albums: AlbumWithData[] } {
-    const filteredAlbums = albumsFromServer.filter((a) =>
-      filter === null ? true : albumInFilter(a, filter)
-    );
+    const filteredAlbums = albumsFromServer;
     const groups = groupBy(filteredAlbums, "kind");
 
     let folders = groups.get(AlbumKind.FOLDER)!;
@@ -338,10 +316,8 @@ export class AlbumIndexedDataSource {
     childs: [],
   };
   private allAlbums: AlbumWithData[];
-  private filter: string | null;
   public shortcuts: { [shortcut: string]: Album };
   public emitter: Emitter<AlbumListEvent>;
-  private sort: AlbumSortOrder;
   private unreg: Function | undefined;
   private shortcutsUnreg: Function | undefined;
 }

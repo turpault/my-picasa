@@ -57,18 +57,6 @@ export async function makeImageStrip(e: _$, selector: ActiveImageManager) {
     })
   );
 
-  clearFct.push(
-    s.on(
-      "albumEntryAspectChanged",
-      async (e: { payload: AlbumEntryPicasa }) => {
-        const changed = elementFromEntry(e.payload, prefix);
-        if (changed.exists()) {
-          changed.css({
-            "background-image": `url("${thumbnailUrl(e.payload, "th-small")}")`,
-          });
-        }
-      }
-    )
-  );
+  clearFct.push();
   return () => clearFct.map((f) => f());
 }
