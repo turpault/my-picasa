@@ -4,7 +4,8 @@ import { get, set } from "./idb-keyval";
 export type Settings = {
   filters: {
     star: number;
-    video: boolean;
+    video: number;
+    text: string;
   };
   iconSize: number;
   inverseSort: boolean;
@@ -16,7 +17,7 @@ export type SettingsChangeEvent = {
 };
 const e = buildEmitter<SettingsChangeEvent>();
 const settings: Settings = {
-  filters: { star: 0, video: false },
+  filters: { star: 0, video: 0, text: "" },
   sort: "date",
   inverseSort: false,
   iconSize: 250,
@@ -24,7 +25,8 @@ const settings: Settings = {
 
 export async function makeSettings() {
   settings.filters.star = (await get("filterByStar")) || 0;
-  settings.filters.video = (await get("filterByVideos")) || false;
+  settings.filters.video = (await get("filterByVideos")) || 0;
+  settings.filters.text = (await get("filterByText")) || "";
   settings.sort = (await get("sort")) || "date";
   settings.inverseSort = (await get("inverseSort")) || false;
   settings.iconSize = (await get("iconSize")) || 250;
@@ -52,7 +54,7 @@ export function updateFilterByStar(newValue: number) {
   settings.filters.star = newValue;
   changed("filters.star");
 }
-export function updateFilterByVideos(newValue: boolean) {
+export function updateFilterByVideos(newValue: number) {
   settings.filters.video = newValue;
   changed("filters.video");
 }
@@ -60,6 +62,11 @@ export function updateSort(newValue: "date" | "name") {
   settings.sort = newValue;
   changed("sort");
 }
+export function updateFilterByText(newValue: string) {
+  settings.filters.text = newValue;
+  changed("filters.text");
+}
+
 export function updateInverseSort(newValue: boolean) {
   settings.inverseSort = newValue;
   changed("inverseSort");

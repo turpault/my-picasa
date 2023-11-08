@@ -195,11 +195,21 @@ export class _$ {
       } else throw new Error("Can only read discrete values");
     }
   }
+  hide() {
+    this.css("display", "none");
+  }
+  show() {
+    this.css("display", null);
+  }
   clientRect(): DOMRect {
     return this.get().getBoundingClientRect();
   }
   append(e: HTMLElement | _$ | string): _$ {
     this.get().appendChild(new _$(e).get());
+    return this;
+  }
+  appendAll(e: (HTMLElement | _$ | string)[]): _$ {
+    for (const el of e) this.get().appendChild(new _$(el).get());
     return this;
   }
   insertBefore(e: HTMLElement | _$ | string, before: HTMLElement | _$): _$ {
