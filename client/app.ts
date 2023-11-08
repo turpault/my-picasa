@@ -5,6 +5,10 @@ import { AlbumEntry, AlbumKind, ProjectType } from "../shared/types/types";
 import { AlbumIndexedDataSource } from "./album-data-source";
 import { makeBrowser } from "./components/browser";
 import { makeButtons } from "./components/browser-photo-list-buttons";
+import { registerButton } from "./components/controls/button";
+import { registerMultiButton } from "./components/controls/multibutton";
+import { registerSelect } from "./components/controls/select";
+import { registerSlider } from "./components/controls/slider";
 import { makeEditorPage } from "./components/editor-page";
 import { makeErrorPage } from "./components/error";
 import { consoleOverload } from "./components/error-utils";
@@ -28,6 +32,13 @@ async function init(port: number) {
   initClientSentry();
   setServicePort(port);
   initCacheBuster();
+
+  // Register web components
+  registerButton();
+  registerMultiButton();
+  registerSlider();
+  registerSelect();
+
   const emitter = buildEmitter<AppEvent>(false);
   const s = await getService();
   await consoleOverload();

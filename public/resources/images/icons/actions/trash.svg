@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" id="trash-can">
+  <path fill="#231f20"
+    d="M21 5h-4V4a3 3 0 0 0-3-3h-4a3 3 0 0 0-3 3v1H3a1 1 0 0 0 0 2h1v13a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7h1a1 1 0 0 0 0-2ZM9 4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1H9Zm9 16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7h12Zm-8-8v6a1 1 0 0 1-2 0v-6a1 1 0 0 1 2 0Zm6 0v6a1 1 0 0 1-2 0v-6a1 1 0 0 1 2 0Z"
+    data-name="Layer 12"></path>
+</svg>

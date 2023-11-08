@@ -95,10 +95,6 @@ export async function makeAlbumList(
           lastHighlight.get().scrollIntoViewIfNeeded(false);
         }
       }),
-      events.on("filterChanged", (event) => {
-        filter = event.filter;
-        albumDataSource.setFilter(filter);
-      }),
 
       events.on("reset", (_event) => {
         folders.empty();

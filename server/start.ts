@@ -140,7 +140,7 @@ export async function start(p?: number) {
     });
 
     server.register(fastifystatic, {
-      root: join(__dirname, "..", "..", "public"),
+      root: join(__dirname, "..", "public"),
       prefix: "/", // optional: default '/',
     });
 
