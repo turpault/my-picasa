@@ -6,17 +6,17 @@ import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
 import { makeAlbumList } from "./browser-album-list";
+import { makeBrowserHeader } from "./browser-header";
 import { makePhotoList } from "./browser-photo-list";
 import { Button, message } from "./message";
-import { question } from "./question";
 import { t } from "./strings";
 
-const html = `<div class="browser fill" style="position: relative">
+const html = `<div class="browser fill" >
 </div>`;
 
+//<button data-tooltip-below="New Album" class="w3-button new-album-button" style="background-image: url(resources/images/icons/actions/new-album-50.png)"></button>
 const tabHtml = `<div class="tab-button browser-tab">
-<input type="text" class="w3-button filterAlbum" placeholder=${t("Browser")}>
-<button data-tooltip-below="New Album" class="w3-button new-album-button" style="background-image: url(resources/images/icons/actions/new-album-50.png)"></button>
+<span class="browser-tab-text">${t("Browser")}</span>
 </div>`;
 
 export async function makeBrowser(
@@ -39,15 +39,15 @@ export async function makeBrowser(
       selection: selectionManager.selected(),
     });
   });
+  win.append(
+    await makeBrowserHeader(emitter, albumDataSource, selectionManager)
+  );
   win.append(await makeAlbumList(emitter, albumDataSource, selectionManager));
   win.append(await makePhotoList(emitter, albumDataSource, selectionManager));
 
   const tab = $(tabHtml);
   // Status change events
-  const filter = $(".filterAlbum", tab).on("input", () => {
-    albumDataSource.emitter.emit("filterChanged", { filter: filter.val() });
-  });
-  $(".new-album-button", tab).on("click", async () => {
+  /*$(".new-album-button", tab).on("click", async () => {
     const newAlbum = await question(
       "New album name",
       "Please type the new album name"
@@ -56,7 +56,7 @@ export async function makeBrowser(
       const s = await getService();
       s.makeAlbum(newAlbum);
     }
-  });
+  });*/
 
   emitter.on("keyDown", async (e) => {
     if (e.win === win) {

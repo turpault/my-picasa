@@ -108,9 +108,6 @@ export type AlbumListEvent = {
   thumbnailDblClicked: {
     entry: AlbumEntry;
   };
-  filterChanged: {
-    filter: string;
-  };
   ready: {};
   nodeChanged: {
     node: Node;

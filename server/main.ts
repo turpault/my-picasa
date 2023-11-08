@@ -13,7 +13,7 @@ async function createSplash(): Promise<BrowserWindow> {
   });
 
   win.loadFile(
-    join(__dirname, "..", "..", "public", "resources", "images", "splash.html")
+    join(__dirname, "..", "public", "resources", "images", "splash.html")
   );
   return new Promise((resolve) => win.on("show", () => resolve(win)));
 }
@@ -32,7 +32,7 @@ function createWindow() {
     query["window"] = "browser";
   }
 
-  win.loadFile(join(__dirname, "..", "..", "public", `index.html`), {
+  win.loadFile(join(__dirname, "..", "public", `index.html`), {
     query,
   });
   return win;

@@ -1,4 +1,5 @@
 const path = require('path');
+const CopyPlugin = require("copy-webpack-plugin");
 
 module.exports = {
   entry: './client/app.ts',
@@ -18,6 +19,13 @@ module.exports = {
   output: {
     filename: 'app.js',
     sourceMapFilename: 'app.js.map',
-    path: path.resolve(__dirname, 'public', 'dist'),
+    path: path.resolve(__dirname, 'dist', 'public', 'dist'),
   },
+  plugins: [
+    new CopyPlugin({
+      patterns: [
+        { from: "public", to: path.join(__dirname, "dist", "public") },
+      ],
+    }),
+  ],
 };

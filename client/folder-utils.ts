@@ -1,12 +1,12 @@
+import { isPicture, isVideo, removeDiacritics } from "../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
   AlbumEntryPicasa,
   AlbumInfo,
-  videoExtensions,
 } from "../shared/types/types";
 import { readAlbumMetadata } from "./lib/handles";
-import { getSettings, Settings } from "./lib/settings";
+import { Settings, getSettings } from "./lib/settings";
 import { getService } from "./rpc/connect";
 
 export async function buildAlbumEntryEx(
@@ -40,9 +40,8 @@ export async function buildAlbumEntryEx(
   });
 }
 
-
 async function albumContents(
-  fh: Album,
+  fh: Album
 ): Promise<{
   entries: AlbumEntry[];
 }> {
@@ -54,13 +53,14 @@ async function albumContents(
 export async function getAlbumInfo(
   album: Album,
   useSettings: boolean = false
-): Promise<AlbumInfo> {
+): Promise<AlbumInfo & { filtered: boolean }> {
   let settings: Settings = {
     sort: "date",
     iconSize: 250,
     filters: {
       star: 0,
-      video: false,
+      video: 0,
+      text: "",
     },
     inverseSort: false,
   };
@@ -79,8 +79,18 @@ export async function getAlbumInfo(
     });
   }
   if (settings.filters.video) {
-    entries = entries.filter((v) =>
-      videoExtensions.find((e) => v.name.toLowerCase().endsWith(e))
+    entries = entries.filter(
+      (v) =>
+        ([0, 2].includes(settings.filters.video) && isVideo(v)) ||
+        ([0, 1].includes(settings.filters.video) && isPicture(v))
+    );
+  }
+  if (settings.filters.text) {
+    const textToFilter = removeDiacritics(settings.filters.text).toLowerCase();
+    entries = entries.filter(
+      (v) =>
+        removeDiacritics(v.album.name).toLowerCase().includes(textToFilter) ||
+        removeDiacritics(v.name).toLowerCase().includes(settings.filters.text)
     );
   }
   /*
@@ -104,7 +114,14 @@ export async function getAlbumInfo(
     assets.reverse();
   }
   */
-  return { metadata: picasa, assets: entries };
+  return {
+    metadata: picasa,
+    assets: entries,
+    filtered:
+      settings.filters.star !== 0 ||
+      settings.filters.video !== 0 ||
+      settings.filters.text !== "",
+  };
 }
 
 export async function getFileExifData(entry: AlbumEntry): Promise<any> {

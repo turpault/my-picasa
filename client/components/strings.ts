@@ -2,7 +2,7 @@ const stringTable: { [key: string]: any } = {
   "Open in Finder": { fr: "Ouvrir dans le Finder" },
   "Icon Size": { fr: "Taille des Icones" },
   Undo: { fr: "Annuler" },
-  Browser: { fr: "Navigateur" },
+  Browser: { fr: "Photothèque" },
   "Export Favorites": { fr: "Exporter les meilleures photos" },
   "View starred only": { fr: "Seulement les meilleures photos" },
   "View videos only": { fr: "Seulement les videos" },

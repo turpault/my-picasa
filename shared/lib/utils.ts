@@ -501,7 +501,16 @@ export function escapeXml(unsafe: string): string {
     return "";
   });
 }
-
+export function dateOfAlbumFromName(name: string) {
+  const matched = name.match(/([0-9]{4}).?([0-9]{2}).?([0-9]{2})/);
+  if (matched) {
+    const [y, m, d] = matched.slice(1);
+    if (y && m && d) {
+      return new Date(parseInt(y), parseInt(m), parseInt(d));
+    }
+  }
+  return undefined;
+}
 export function lessThanEntry(a: AlbumEntry, b: AlbumEntry) {
   if (a.album.name !== b.album.name)
     return a.album.name < b.album.name ? -1 : 1;
