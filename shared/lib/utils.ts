@@ -200,7 +200,11 @@ export function isVideoUrl(url: string): boolean {
   return !!videoExtensions.find((e) => url.toLowerCase().endsWith(e));
 }
 
-export function range(from: number, to: number): number[] {
+export function range(from: number, to?: number): number[] {
+  if (!to) {
+    to = from - 1;
+    from = 0;
+  }
   const dir = from < to ? 1 : -1;
   const res = [];
   while (from != to) {
@@ -511,7 +515,7 @@ export function dateOfAlbumFromName(name: string) {
   }
   return undefined;
 }
-export function lessThanEntry(a: AlbumEntry, b: AlbumEntry) {
+export function compareAlbumEntry(a: AlbumEntry, b: AlbumEntry) {
   if (a.album.name !== b.album.name)
     return a.album.name < b.album.name ? -1 : 1;
   if (a.name === b.name) return 0;

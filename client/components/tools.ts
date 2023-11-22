@@ -34,97 +34,49 @@ type ToolRegistrarEvents = {
 };
 
 export class ToolRegistrar {
-  private pages: { [pageName: string]: string[] } = {};
-  private currentPage: string = "";
-  private buttonList: _$;
-  private groupList: _$;
-  private toolButtons: { [name: string]: any };
   private activeEntry: AlbumEntry | undefined;
-  constructor(toolListElement: _$) {
+  constructor(components: {
+    editor: _$;
+    wrench: _$;
+    contrast: _$;
+    brush: _$;
+    greenBrush: _$;
+    blueBrush: _$;
+  }) {
     this.tools = {};
-    this.toolButtons = {};
-    this.toolListElement = toolListElement;
+    this.pages = components;
     this.events = buildEmitter<ToolRegistrarEvents>(false);
-    const ctrl = $(`
-    <div class="tool-control tool-filter">
-      <select class="filter-groups">
-      </select>
-      <div class="filter-buttons">          
-      </div>
-    </div>
-  `);
-    this.toolListElement.append(ctrl);
-    this.buttonList = $(".filter-buttons", ctrl);
-    this.groupList = $(".filter-groups", ctrl);
-    this.groupList.on("change", () => {
-      this.currentPage = this.groupList.val();
-      this.refreshButtons();
-    });
   }
   events: Emitter<ToolRegistrarEvents>;
   registerTool(toolName: string, page: string, tool: Tool) {
-    this.tools[toolName] = tool;
-    if (tool.permanentIndex !== undefined) return;
-    const newPage = !this.pages[page];
-    if (newPage) {
-      this.pages[page] = [toolName];
-    } else {
-      this.pages[page].push(toolName);
+    if (!this.pages[page]) {
+      throw `Unknown page ${page}`;
     }
-    const elem = $(
-      `<div class="w3-button tool-button"><label>${toolName}</label></div>`
-    );
-    this.toolButtons[toolName] = elem;
-    elem.on("click", () => {
-      this.events.emit("added", { tool: this.tools[toolName] });
-    });
-    elem.on("mouseenter", () => {
-      if (this.tools[toolName].preview) {
-        this.events.emit("preview", {
-          operation: this.tools[toolName].build(),
-        });
-      }
-    });
-    elem.on("mouseleave", () => {
-      this.events.emit("preview", { operation: null });
-    });
-
-    if (newPage) {
-      // Refresh tool list
-      this.refreshToolPages();
+    if (!tool.ui) {
+      tool.ui = () =>
+        $(`<div class="tool-button"><label>${toolName}</label></div>`)
+          .on("click", () => {
+            this.tools[toolName].onclick();
+            this.events.emit("added", { tool: this.tools[toolName].tool });
+          })
+          .on("mouseenter", () => {
+            if (this.tools[toolName].tool.preview) {
+              this.events.emit("preview", {
+                operation: this.tools[toolName].tool.build(),
+              });
+            }
+          })
+          .on("mouseleave", () => {
+            this.events.emit("preview", { operation: null });
+          });
     }
+
+    const elem = tool.ui()!;
+    this.pages[page].append(elem);
+    this.tools[toolName] = { tool, component: elem };
   }
 
-  private refreshToolPages() {
-    //this.toolListHeader.empty();
-
-    this.groupList.empty();
-    Object.keys(this.pages).forEach((page) => {
-      this.groupList.append(
-        `<option ${
-          page === this.currentPage ? "selected" : ""
-        } value="${page}">${page}</option>`
-      );
-    });
-  }
-
-  getPages() {
-    return this.pages;
-  }
-
-  selectPage(page: string = GENERAL_TOOL_TAB) {
-    this.currentPage = page;
-    this.refreshButtons();
-  }
-
-  private refreshButtons() {
-    this.buttonList.empty();
-    for (const toolName of this.pages[this.currentPage]) {
-      this.buttonList.append(this.toolButtons[toolName]);
-    }
-  }
-
-  async refreshToolIcons(context: string, original: string, entry: AlbumEntry) {
+  async updateToolUIs(context: string, original: string, entry: AlbumEntry) {
     this.activeEntry = entry;
     // Initial copy, resized
     const copy = await cloneContext(context, "toolminiicon");
@@ -132,19 +84,15 @@ export class ToolRegistrar {
     await commit(copy);
 
     // First get the active tab tools
-    const page = this.currentPage;
     await Promise.allSettled(
-      Object.entries(this.tools)
-        .filter(([name]) => this.pages[page].includes(name))
-        .filter(([_name, tool]) => tool.permanentIndex === undefined)
-        .map(async ([name, tool]) => {
-          const data = await toolIconForTool(copy, original, tool);
-          const target = this.toolButtons[name];
-          target.css({
-            "background-image": `url(${data})`,
-            display: tool.enable(entry) ? "" : "none",
-          });
-        })
+      Object.entries(this.tools).map(async ([name, tool]) => {
+        const data = await toolIconForTool(copy, original, tool.tool);
+        const target = this.toolButtons[name];
+        target.css({
+          "background-image": `url(${data})`,
+          display: tool.enable(entry) ? "" : "none",
+        });
+      })
     );
 
     // Wait until the other tool icons are built
@@ -247,21 +195,31 @@ export class ToolRegistrar {
   }
 
   private tools: {
-    [name: string]: Tool;
+    [name: string]: { tool: Tool; component: _$ };
   };
-  private toolListElement: _$;
+  private pages: { [name: string]: _$ };
 }
 
-export function makeTools(e: _$, ctrl: ImageController): ToolRegistrar {
-  const title = $(".effects-title", e);
-  const registrar = new ToolRegistrar($(".effects", e));
+export function makeTools(
+  components: {
+    editor: _$;
+    wrench: _$;
+    contrast: _$;
+    brush: _$;
+    greenBrush: _$;
+    blueBrush: _$;
+  },
+  ctrl: ImageController
+): ToolRegistrar {
+  const title = $(".effects-title", components.editor);
+  const registrar = new ToolRegistrar(components /*$(".effects", e)*/);
 
-  const history = $(".history", e);
-  const adjustmentHistory = $(".adjustment-history", e);
-  const description = $(".description", e);
+  //const history = $(".history", editor);
+  //const adjustmentHistory = $(".adjustment-history", editor);
+  /*const description = $(".description", e);
   description.on("input", () => {
     ctrl.updateCaption(description.val());
-  });
+  });*/
 
   const clearList: (Function | undefined)[] = [];
   ctrl.filterSetup((operations: PicasaFilter[]) =>
@@ -270,8 +228,8 @@ export function makeTools(e: _$, ctrl: ImageController): ToolRegistrar {
   ctrl.events.on(
     "updated",
     ({ context, caption, filters, entry, liveContext }) => {
-      registrar.refreshToolIcons(liveContext, context, entry);
-      description.val(caption || "");
+      registrar.updateToolUIs(liveContext, context, entry);
+      //description.val(caption || "");
       // Update the operation list
       while (clearList.length > 0) {
         const fct = clearList.pop();

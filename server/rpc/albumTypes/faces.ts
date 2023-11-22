@@ -46,7 +46,7 @@ import {
   listAlbumsOfKind,
   readAlbumEntries,
   readAlbumIni,
-  readPicasaEntry,
+  getPicasaEntry,
   updatePicasa,
   updatePicasaEntry,
 } from "../rpcFunctions/picasa-ini";
@@ -64,7 +64,7 @@ export async function eraseFace(entry: AlbumEntry) {
   updatePicasa(entry.album, null, null, entry.name);
 
   // Update entry in original picasa.ini
-  let iniFaces = (await readPicasaEntry(originalImageEntry))?.faces;
+  let iniFaces = (await getPicasaEntry(originalImageEntry))?.faces;
   if (iniFaces) {
     iniFaces = iniFaces
       .split(";")
@@ -79,7 +79,7 @@ export function getFaceAlbums(): AlbumWithData[] {
 }
 
 export async function getFaceData(entry: AlbumEntry): Promise<FaceData> {
-  const picasaEntry = await readPicasaEntry(entry);
+  const picasaEntry = await getPicasaEntry(entry);
   const originalEntry: AlbumEntry = {
     album: {
       key: picasaEntry.originalAlbumKey!,
@@ -474,7 +474,7 @@ async function addFaceRectToEntry(
   rect: string,
   hash: string
 ) {
-  const current = await readPicasaEntry(entry);
+  const current = await getPicasaEntry(entry);
   const iniFaces = current.faces || "";
   const faces = decodeFaces(iniFaces);
   faces.push({

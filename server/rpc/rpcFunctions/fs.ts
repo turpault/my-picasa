@@ -12,7 +12,7 @@ import { safeWriteFile } from "../../utils/serverUtils";
 import { openWithFinder } from "./osascripts";
 import { addOrRefreshOrDeleteAlbum } from "../../background/bg-walker";
 
-export async function readFileContents(file: string): Promise<string> {
+export async function getFileContents(file: string): Promise<string> {
   const p = join(imagesRoot, file);
   return await readFile(p, { encoding: "utf-8" });
 }

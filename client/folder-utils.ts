@@ -5,7 +5,7 @@ import {
   AlbumEntryPicasa,
   AlbumInfo,
 } from "../shared/types/types";
-import { readAlbumMetadata } from "./lib/handles";
+import { getAlbumMetadata } from "./lib/handles";
 import { Settings, getSettings } from "./lib/settings";
 import { getService } from "./rpc/connect";
 
@@ -21,7 +21,7 @@ export async function buildAlbumEntryEx(
   const s = await getService();
   const picasa = await Promise.all(
     uniqueAlbums.map(async (a) => {
-      const metadata = await s.readAlbumMetadata(a);
+      const metadata = await s.getAlbumMetadata(a);
       return { album: a, picasa: metadata };
     })
   );
@@ -59,7 +59,9 @@ export async function getAlbumInfo(
     iconSize: 250,
     filters: {
       star: 0,
-      video: 0,
+      video: false,
+      people: false,
+      location: false,
       text: "",
     },
     inverseSort: false,
@@ -70,7 +72,7 @@ export async function getAlbumInfo(
   }
   // Gettings contents might change the picasa data
   const contents = await albumContents(album);
-  const picasa = await readAlbumMetadata(album);
+  const picasa = await getAlbumMetadata(album);
   let entries = contents.entries;
 
   if (settings.filters.star) {
@@ -78,13 +80,11 @@ export async function getAlbumInfo(
       return settings.filters.star <= parseInt(picasa[v.name].starCount || "0");
     });
   }
+
   if (settings.filters.video) {
-    entries = entries.filter(
-      (v) =>
-        ([0, 2].includes(settings.filters.video) && isVideo(v)) ||
-        ([0, 1].includes(settings.filters.video) && isPicture(v))
-    );
+    entries = entries.filter((v) => settings.filters.video && isVideo(v));
   }
+
   if (settings.filters.text) {
     const textToFilter = removeDiacritics(settings.filters.text).toLowerCase();
     entries = entries.filter(
@@ -119,7 +119,7 @@ export async function getAlbumInfo(
     assets: entries,
     filtered:
       settings.filters.star !== 0 ||
-      settings.filters.video !== 0 ||
+      settings.filters.video ||
       settings.filters.text !== "",
   };
 }

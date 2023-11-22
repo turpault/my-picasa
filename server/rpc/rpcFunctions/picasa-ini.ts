@@ -176,7 +176,7 @@ function writePicasaIni(album: Album, data: AlbumMetaData): void {
   picasaMap.set(album.key, data);
 }
 
-export async function readPicasaEntry(
+export async function getPicasaEntry(
   entry: AlbumEntry
 ): Promise<AlbumEntryMetaData> {
   const picasa = await readAlbumIni(entry.album);
@@ -244,7 +244,7 @@ export async function rotate(entries: AlbumEntry[], direction: string) {
       right: 3,
     }[direction] || 0;
   for (const entry of entries) {
-    const picasa = await readPicasaEntry(entry);
+    const picasa = await getPicasaEntry(entry);
     const operations = decodeOperations(picasa.filters || "");
     const idx = operations.findIndex((o) => o.name === "rotate");
     let initialValue = 0;
@@ -268,7 +268,7 @@ export async function rotate(entries: AlbumEntry[], direction: string) {
 
 export async function toggleStar(entries: AlbumEntry[]) {
   for (const entry of entries) {
-    const picasa = await readPicasaEntry(entry);
+    const picasa = await getPicasaEntry(entry);
     let star = picasa.star;
     let starCount: string | undefined = picasa.starCount || "1";
     if (!star) {

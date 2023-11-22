@@ -18,15 +18,30 @@ import {
   updateIconSize,
 } from "../lib/settings";
 import { getService } from "../rpc/connect";
+import {
+  AlbumEntrySelectionManager,
+  SelectionManager,
+} from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
 import { DropListEvents, makeDropList } from "./controls/dropdown";
 import { question } from "./question";
 import { t } from "./strings";
 import { activeTabContext } from "./tabs";
 const html = `<div class="bottom-list-tools">
-<div class="w3-bar buttons">
-</div>
+<div class="selection-info"></div>
 <div class="selection-thumbs">
+  <div class="selection-thumbs-icons"></div>
+  <div class="selection-thumbs-actions">
+    <picasa-button class="selection-thumbs-actions-pin">📌</picasa-button>
+    <picasa-button class="selection-thumbs-actions-clearpin">⊙</picasa-button>  
+  </div>
+</div>
+<div class="quick-actions picasa-button-group">
+<picasa-button class="quick-actions-star">☆</picasa-button>
+<picasa-button class="quick-actions-rotate-left">↺</picasa-button>
+  <picasa-button class="quick-actions-rotate-right">↻</picasa-button>
+</div>
+<div class="selection-actions-buttons">
 </div>
 <!--
 <div class="brightness-photo-list">
@@ -65,9 +80,12 @@ function hotKeyToCode(hotKey: string) {
   return { modifiers, key };
 }
 
-export function makeButtons(appEvents: AppEventSource): _$ {
+export function makeButtons(
+  appEvents: AppEventSource,
+  selectionManager: AlbumEntrySelectionManager
+): _$ {
   const container = $(html);
-  const buttons = $(".buttons", container);
+  const buttons = $(".selection-actions-buttons", container);
   const zoomController = $(".photos-zoom-ctrl", container);
 
   zoomController.on("input", () => {
@@ -77,6 +95,19 @@ export function makeButtons(appEvents: AppEventSource): _$ {
     if (event.field === "iconSize") zoomController.val(event.iconSize);
   });
   zoomController.val(getSettings().iconSize);
+
+  $(".quick-actions-rotate-left", container).on("click", async () => {
+    const s = await getService();
+    s.rotate(state.selection, "left");
+  });
+  $(".quick-actions-rotate-right", container).on("click", async () => {
+    const s = await getService();
+    s.rotate(state.selection, "right");
+  });
+  $(".quick-actions-star", container).on("click", async () => {
+    toggleStar(state.selection);
+  });
+
   const state: {
     settings: Settings;
     tabKind: string;
@@ -95,6 +126,7 @@ export function makeButtons(appEvents: AppEventSource): _$ {
     | {
         name: string;
         icon: string;
+        label: string;
         element?: _$;
         type?: "button" | "dropdown";
         execute?: () => any;
@@ -109,9 +141,9 @@ export function makeButtons(appEvents: AppEventSource): _$ {
   )[] = [
     {
       name: JOBNAMES.EXPORT,
+      label: t("Exporter..."),
       icon: "resources/images/icons/actions/export-50.png",
       enabled: () => state.selection.length > 0,
-      visible: () => state.tabKind === "Editor",
       tooltip: () => `${t("Export $1 item(s)", state.selection.length)}`,
       execute: async () => {
         if (state.selection.length > 0) {
@@ -125,8 +157,9 @@ export function makeButtons(appEvents: AppEventSource): _$ {
     { type: "sep" },
     {
       name: JOBNAMES.DUPLICATE,
+      label: t("Dupliquer"),
       icon: "resources/images/icons/actions/duplicate-50.png",
-      visible: () => state.selection.length > 0,
+      enabled: () => state.selection.length > 0,
       hotKey: "Ctrl+D",
       tooltip: () => `${t("Duplicate $1 item(s)", state.selection.length)}`,
       execute: async () => {
@@ -135,18 +168,18 @@ export function makeButtons(appEvents: AppEventSource): _$ {
           source: state.selection,
         });
         s.waitJob(jobId).then((results: Job) => {
+          selectionManager.setSelection(results.out as AlbumEntry[]);
           appEvents.emit("edit", {
-            initialList: results.out as AlbumEntry[],
-            initialIndex: 0,
+            active: true,
           });
         });
       },
     },
     {
       name: JOBNAMES.MOVE,
+      label: t("Déplacer"),
       icon: "resources/images/icons/actions/move-to-new-album-50.png",
       enabled: () => state.selection.length > 0,
-      visible: () => state.tabKind === "Browser",
       tooltip: () =>
         `${t("Move $1 item(s) to a new album", state.selection.length)}`,
       execute: () => {
@@ -169,46 +202,10 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       },
     },
     {
-      name: t("Add/Remove favorite"),
-      icon: "resources/images/icons/actions/favorites-50.png",
-      enabled: () => state.selection.length > 0,
-      hotKey: "Space",
-      highlight: () =>
-        state.selection.length > 0
-          ? !!state.albumMetaData[state.selection[0].name]?.star
-          : false,
-      execute: async () => {
-        toggleStar(state.selection);
-      },
-    },
-    {
-      name: t("Rotate Left"),
-      icon: "resources/images/icons/actions/rotate-left-50.png",
-      enabled: () => state.selection.length > 0,
-      visible: () => state.tabKind === "Browser",
-      hotKey: "Ctrl+ArrowLeft",
-      execute: async () => {
-        const s = await getService();
-        s.rotate(state.selection, "left");
-      },
-    },
-    {
-      name: t("Rotate Right"),
-      icon: "resources/images/icons/actions/rotate-right-50.png",
-      enabled: () => state.selection.length > 0,
-      visible: () => state.tabKind === "Browser",
-      hotKey: "Ctrl+ArrowRight",
-      execute: async () => {
-        const s = await getService();
-        s.rotate(state.selection, "right");
-      },
-    },
-
-    {
       name: t("Create Mosaic"),
+      label: t("Mosaic"),
       icon: "resources/images/icons/actions/composition-50.png",
       enabled: () => state.selection.length > 0,
-      visible: () => state.tabKind === "Browser",
       execute: () => {
         appEvents.emit("mosaic", {
           initialList: state.selection,
@@ -218,9 +215,9 @@ export function makeButtons(appEvents: AppEventSource): _$ {
     },
     {
       name: t("Create Slideshow"),
+      label: t("Slideshow"),
       icon: "resources/images/icons/actions/slideshow-50.png",
       enabled: () => state.selection.length > 0,
-      visible: () => false,
       execute: () => {
         appEvents.emit("gallery", {
           initialList: state.selection,
@@ -231,9 +228,9 @@ export function makeButtons(appEvents: AppEventSource): _$ {
     { type: "sep" },
     {
       name: t("Undo"),
+      label: t("Undo"),
       icon: "resources/images/icons/actions/undo-50.png",
       enabled: () => state.undo.length > 0,
-      visible: () => state.tabKind === "Browser",
       hotKey: "Ctrl+Z",
       tooltip: () =>
         state.undo.length > 0
@@ -248,10 +245,9 @@ export function makeButtons(appEvents: AppEventSource): _$ {
     { type: "sep" },
     {
       name: t("Open in Finder"),
+      label: t("Finder"),
       icon: "resources/images/icons/actions/finder-50.png",
       enabled: () => state.selection.length > 0,
-      visible: () =>
-        false && (state.tabKind === "Browser" || state.tabKind === "Editor"),
       execute: async () => {
         const s = await getService();
         const firstSelection = state.selection[0];
@@ -260,9 +256,9 @@ export function makeButtons(appEvents: AppEventSource): _$ {
     },
     {
       name: t("Delete"),
+      label: t("Delete"),
       icon: "resources/images/icons/actions/trash-50.png",
       enabled: () => state.selection.length > 0,
-      visible: () => state.tabKind === "Browser",
       tooltip: () => `${t("Delete $1 item(s)", state.selection.length)}`,
       execute: async () => {
         const s = await getService();
@@ -289,13 +285,15 @@ export function makeButtons(appEvents: AppEventSource): _$ {
       case undefined:
         action.element = $(
           `
-        <button 
+        <picasa-button 
           data-tooltip-above="${action.name}${
             action.hotKey ? " (" + t(action.hotKey) + ")" : ""
           }"
-          class="w3-button bottom-bar-button" 
-          style="background-image: url(${action.icon})">
-        </button>`
+          class="selection-actions-button" 
+          iconpos="top"
+          icon="${action.icon}">
+          ${action.label}
+        </picasa-button>`
         );
         break;
     }
@@ -341,14 +339,42 @@ export function makeButtons(appEvents: AppEventSource): _$ {
     const s = await getService();
     const oldSelection = state.selection;
     state.settings = getSettings();
-    state.selection = activeTabContext().selectionManager.selected();
+    state.selection = selectionManager.selected();
+    const activeEntry = selectionManager.active() || state.selection[0];
     state.tabKind = activeTabContext().kind;
     state.undo = ((await s.undoList()) as undoStep[]).reverse();
-    state.albumMetaData =
-      state.selection.length > 0
-        ? await s.readAlbumMetadata(state.selection[0].album)
-        : {};
+    state.albumMetaData = activeEntry
+      ? await s.getAlbumMetadata(activeEntry.album)
+      : {};
 
+    const metadata = activeEntry
+      ? state.albumMetaData[activeEntry.name]
+      : undefined;
+    const stars = metadata ? parseInt(metadata.starCount || "0") : 0;
+    const info =
+      (activeEntry
+        ? `${activeEntry.album.name} > ${activeEntry.name}   `
+        : "") +
+      (metadata?.dateTaken
+        ? `    ${new Date(metadata.dateTaken).toLocaleString(undefined, {
+            weekday: "long",
+            year: "numeric",
+            month: "numeric",
+            day: "numeric",
+            hour: "numeric",
+            minute: "numeric",
+            second: "numeric",
+          })}`
+        : "") +
+      (metadata?.dimensions ? `    ${metadata?.dimensions} pixels` : "") +
+      (selectionManager.activeIndex() !== -1
+        ? ` (${selectionManager.activeIndex() + 1} ${t("of")} ${
+            selectionManager.selected().length
+          })`
+        : " ");
+
+    $(".selection-info", container).text(info);
+    $(".quick-actions-star", container).text(stars ? "🌟".repeat(stars) : "☆");
     for (const action of actions) {
       if (action.type !== "sep") {
         action.element!.addRemoveClass(
@@ -374,7 +400,7 @@ export function makeButtons(appEvents: AppEventSource): _$ {
         .join();
     }
     if (selectionHash(oldSelection) !== selectionHash(state.selection)) {
-      const lst = $(".selection-thumbs", container);
+      const lst = $(".selection-thumbs-icons", container);
       lst.empty();
       state.selection.forEach((entry) => {
         lst.append(
@@ -393,12 +419,11 @@ export function makeButtons(appEvents: AppEventSource): _$ {
   }
   getSettingsEmitter().on("changed", refreshState);
   appEvents.on("tabDisplayed", ({ context }) => {
-    context.selectionManager.events.on("added", () =>
+    selectionManager.events.on("activeChanged", () =>
       debounce(refreshState, 200)
     );
-    context.selectionManager.events.on("removed", () =>
-      debounce(refreshState, 200)
-    );
+    selectionManager.events.on("added", () => debounce(refreshState, 200));
+    selectionManager.events.on("removed", () => debounce(refreshState, 200));
   });
   getService().then((s) => {
     s.on("undoChanged", refreshState);

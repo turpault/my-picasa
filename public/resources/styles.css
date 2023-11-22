@@ -1,5 +1,5 @@
 :root {
-  --thumbnail-size: 300px;
+  /* --thumbnail-size: 300px; */
 }
 
 .folders::-webkit-scrollbar {
@@ -160,6 +160,46 @@
   width: 100%;
   height: 100%;
 }
+.editor-page {
+  bottom: 110px!important;
+}
+.tools-tab-bar {
+  position: absolute;
+  background: #9b9ca1;
+  height:40px;
+  width:100%;
+}
+.tools-tab-bar-buttons {
+  position:absolute;
+  width:100%;
+  bottom: 0;
+  height:30px;
+  border-bottom: none;
+}
+.tools-tab-contents {
+  position:absolute;
+  width:100%;
+  top: 40px;
+  bottom:140px;
+  background-color: #e8e8e8;
+}
+.histogram {
+  padding: 10px;
+  margin: 10px;
+  position:absolute;
+  width: 300px;
+  height:140px;
+  bottom:0;
+  /* border-style: inset; */
+  border: 1px inset #d1d1d1;
+  border-radius: 6px;
+  text-align: center;
+  font-weight: 500;
+}
+.tools-tab-bar-buttons > * {
+  border-radius: 6px 6px 0 0 !important;
+  width: 64px;
+}
 
 .editor-bottom-tools {
   display: block;
@@ -228,14 +268,16 @@ body {
 .fill {
   top: 0px;
   left: 0px;
-  bottom: 0px;
+  bottom: 0;
   right: 0;
   position: absolute;
 }
 
+
 .tabs {
-  height: 36px;
+  height: 40px;
   overflow-x: scroll;
+  /* display: none; */
   width: 100%;
   white-space: nowrap;
   padding-left: 10px;
@@ -269,12 +311,12 @@ body {
 }
 
 .main-tab-bar {
-  border-top: 3px solid lightgray;
+  /* border-top: 3px solid lightgray; */
   position: absolute;
   top: 0px;
   left: 0px;
   right: 0px;
-  height: 43px;
+  height: 40px;
   /* border-bottom: 3px solid black; */
   /* overflow: visible; */
   /* overflow-x: scroll; */
@@ -316,31 +358,10 @@ body {
 .controls {
 }
 
-.image-strip {
-  width: 100%;
-}
-
-.image-strip-thumbs {
-  width: 100%;
-  padding-left: 16px;
-}
-
-.image-strip-thumbs > button,
-.image-strip > button {
-  height: 60px;
-  width: 60px;
-  background-position: center center;
-  background-repeat: no-repeat;
-  margin: 3px;
-  border: none;
-  background-color: rgb(243, 243, 243);
-  outline: none;
-}
-
 .tools {
   left: 0px;
-  top: 0px;
-  height: 100%;
+  top: 65px;
+  bottom: 0;
   position: absolute;
   width: 320px;
   overflow-y: scroll;
@@ -418,7 +439,10 @@ body {
 
 .image-container {
   position: absolute;
-  inset: 0px 0px 0px 320px;
+  top: 65px;
+  right: 0;
+  left: 320px;
+  bottom: 0;
   overflow: hidden;
   background-color: rgb(243, 243, 243) !important;
 }
@@ -427,22 +451,26 @@ body {
   position: absolute;
   right: 0px;
   left: 0px;
-  bottom: 0px;
-  height: 65px;
+  bottom: 1px;
+  height: 105px;
   border-top: 1px solid;
 }
 
 .zoom-photo-list {
-  width: 114px;
-  height: 65px;
-  right: 0px;
+  width: 159px;
+  height: 33px;
+  right: 100px;
   position: absolute;
-  top: 0px;
+  top: 12px;
   padding-top: 14px;
   padding-right: 10px;
   display: inline-block;
 }
 
+.zoom-photo-list label {
+  display: inline-block;
+}
+.zoom-photo-list input {display: inline-block;position: absolute;width: 146px;top: 8px;}
 .brightness-photo-list {
   width: 114px;
   height: 65px;
@@ -521,9 +549,12 @@ body {
   user-select: none;
 }
 
+.picasa-button-control-icon-top {
+
+}
+
 .picasa-button {
   border: 1px solid #bcbcbc;
-  padding: 3px;
   border-radius: 6px;
   padding: 3px;
   background: linear-gradient(#f3f3f3, #dddddd);
@@ -534,7 +565,8 @@ body {
   /* background-repeat: no-repeat !important; */
   /* background-size: 24px 24px !important; */
   text-indent: 28px;
-  min-width: 36px;
+  min-width: 37px;
+  height: 100%;
 }
 
 .picasa-button:hover {
@@ -543,14 +575,6 @@ body {
 
 .picasa-button:active {
   border-color: #e8e8e8;
-}
-
-.picasa-multi-button-left {
-  border-radius: 6px 0px 0px 6px !important;
-}
-
-.picasa-multi-button-right {
-  border-radius: 0px 6px 6px 0px !important;
 }
 
 .picasa-multi-button {
@@ -576,9 +600,68 @@ body {
   text-indent: 20px;
   min-width: 25px;  
 }
+.picasa-carousel {
+  height: 39px;
+  border-radius: 26px;
+  background-color: #d1d1d1;
+  padding: 3px;
+}
+
+.picasa-carousel-navigation-button {
+  border-radius: 17px;
+  width: 33px;
+  height: 33px;
+  line-height: 20px;
+  font-size: large;
+  color: #5d5d5d;
+  border: 2px solid #bababa;
+}
+
+.picasa-carousel-element {
+  width: 33px;
+  height: 33px;
+  background-repeat: no-repeat !important;
+  background-size: 29px 29px !important;
+  background-position: center;
+  display: inline-block;
+  margin-left: 3px;
+  margin-right: 3px;
+  vertical-align: top;
+  border: 1px solid #43423a;
+}
+.picasa-carousel-element.selected {
+  border: 1px solid blue;
+}
+
+.picasa-carousel-element.empty {
+  border: none;
+}
+
+.strip-container {
+  position: absolute;
+  height: 39px;
+  top:5px;
+  left: 375px;
+}
+.a-b {
+  position: absolute;
+  right:40px;
+  top:5px;
+}
+
+.picasa-button-group > * {
+  border-radius: 0 ;
+}
+.picasa-button-group *:first-child {
+  border-radius: 6px 0 0 6px ;
+}
+.picasa-button-group *:last-child {
+  border-radius: 0 6px 6px 0 ;
+}
+
 .buttons {
   position: absolute;
-  top: 10px;
+  top: 31px;
   text-align: center;
 }
 
@@ -610,8 +693,13 @@ body {
 
 .browser-tab {
   display: inline-block;
-  background: url("images/browser.svg") 5px 50%/24px 24px no-repeat;
+  background: url(images/browser.svg) 5px 6px/27px 27px no-repeat;
 }
+
+.browser-navigator {
+  bottom: 114px;
+}
+
 .browser-tab-text {
   border: none;
   padding: 0px;
@@ -631,14 +719,54 @@ body {
   padding: 7px;
   background-color: #e8e8e8;
   position: absolute;
+  width: 100%;
 }
+
 .browser-header picasa-button,picasa-multi-button,input,.vertical-separator {
   height: 33px !important;
-  font-size: 20px;
+  font-size: medium;
+  color: #6c6c6c;
+  font-weight: 400;
+}
+.image-strip-test {
+  position: absolute;
+  /* width:100px; */
+  top:0;
+  /* height: 80px; */
+}
+.browser-header .filters {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+.filter-button {
+  margin-top: 17px;
+  height: 27px !important;
+}
+
+.browser-header .filters .vertical-separator {
+  margin-top: -3px;
+}
+
+.browser-header .filters-title {
+  position: absolute;
+  font-size: small;
+  font-weight: bold;
+  color: #6c6c6c;
 }
 
 .filter-by-text {
-  
+  margin-top: 8px;
+  /* padding-right: 61px; */
+  margin-right: 6px;
+  border-radius: 3px;
+  width: 164px;
+  /* position: absolute; */
+  /* border-color: gray; */
+  /* appearance: auto; */
+  outline: none;
+  border: none;
+  /* right: 5px; */
 }
 .new-album-button {
   width: 25px;
@@ -748,7 +876,7 @@ body {
   scroll-margin: 0px;
   top: 50px;
   left: 5px;
-  bottom: 6px;
+  bottom: 0;
   position: absolute;
   /* margin-bottom: 52px; */
 }
@@ -979,8 +1107,6 @@ body {
   user-select: none;
   background-color: rgb(242 242 242);
   padding: 19px 20px 20px;
-  /* border-left: 1px solid gray; */
-  /* border-right: 1px solid grey; */
 }
 
 .filler {
@@ -991,10 +1117,11 @@ body {
 
 .album > .header {
   user-select: none;
-  background-color: rgb(245, 243, 243);
+  background-color: #f8f8f8;
   width: 100%;
-  height: 98px;
+  height: 114px;
   border-bottom: 1px solid #e2e2e2;
+  border-top: 1px solid #e2e2e2;
 }
 
 .album > .header:hover a {
@@ -1015,24 +1142,24 @@ body {
   position: absolute;
   left: 0px;
   right: 0px;
-  top: 12px;
-  height: 85px;
-  /* border-bottom: 1px solid gray; */
-  background-color: rgb(248 248 248);
+  top: 0px;
+  height: 100%;  
 }
-.name-container-folder-icon{font-size: 40px;position: absolute;left: 0;top: 0;}
-.name-container-name{position: absolute;font-size: 20px;font-weight: 500;left: 46px;top: 5px;color: #5b4e4c;}
-.name-container-date{position: absolute;left: 45px;top: 26px;font-size: 15px;}
+.name-container-folder-icon{font-size: 40px;position: absolute;left: 11px;top: 0px;}
+.name-container-name{position: absolute;font-size: 20px;font-weight: 500;left: 56px;top: 5px;color: #5b4e4c;}
+.name-container-date{position: absolute;left: 57px;top: 26px;font-size: 15px;}
 .name-container-buttons{
   position: absolute;
-  left: 10px;
-  top: 51px;
+  left: 13px;
+  top: 62px;
   font-size: 17px;
 }
 
 .vertical-separator {
   border-style: inset;
   border: 1px solid #cdcdcd;
+  margin-left: 5px;
+  margin-right: 5px;
   /* height: 24px; */
   vertical-align: middle;
   /* line-height: 20px; */
@@ -1115,7 +1242,12 @@ body {
 
 .workarea {
   position: absolute;
-  inset: 42px 0px 0px;
+  /* inset: 40px 0px 0px; */
+  bottom: 0px;
+  /* height: 100%; */
+  top: 40px;
+  width: 100%;
+  /* height: 100%; */
 }
 
 .jobs {
@@ -1151,7 +1283,7 @@ body {
   border-style: inset;
   top: 50px;
   right: 5px;
-  bottom: 7px;
+  bottom: 0;
 }
 
 .okcancel {
@@ -1239,11 +1371,13 @@ body {
 
 [data-tooltip-above]::before {
   position: absolute;
+  width: max-content;
   content: attr(data-tooltip-above);
   pointer-events: none;
   margin-right: 9px;
   margin-left: -25px;
   margin-top: -70px;
+  font-size: 12px;
   opacity: 0;
   background: rgb(67, 67, 67);
   transition: all 0.15s ease 0s;
@@ -1534,7 +1668,12 @@ body {
   margin-bottom: 20px;
 }
 .canvas-histogram {
-  margin: 9px;
+  /* margin: 9px; */
+  width: 200px;
+  left: 20px;
+  height: 50%;
+  top: 20px;
+  position: absolute;
 }
 .centered {
   display: flex;
@@ -1732,6 +1871,7 @@ body {
 .underline-bar {
   /* border-bottom: 1px solid black; */
   position: absolute;
+  display: none;
   bottom: 0px;
   left: 0px;
   width: 100%;
@@ -1741,7 +1881,10 @@ body {
 
 .tabs-container {
   position: absolute;
-  inset: 0px 0px 65px;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .buttons-container {
@@ -1756,24 +1899,50 @@ body {
   width: 20px;
   display: inline-block;
 }
-
+.selection-info {
+  width:100%;
+  background-color: #5690b8;
+  color:white;
+  text-align: center;
+  height: 20px;
+}
 .selection-thumbs {
-  width: 280px;
+  width: 550px;
   position: absolute;
-  left: 10px;
-  top: 1px;
-  height: 57px;
+  left: 2px;
+  top: 22px;
+  height: 74px;
   margin: 3px;
-  overflow-y: scroll;
-  border: 1px solid black;
-  border-radius: 3px;
+  /* border: 1px solid #bcbcbc; */
+  /* border-radius: 3px; */
   user-select: none;
-  line-height: 0;
 }
 
+.selection-thumbs-icons {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  right:20px;
+  bottom: 0;
+  overflow-y: scroll;
+  background-color: #f8f8f8;
+  line-height: 0;
+  border: 1px solid #bcbcbc;
+  border-radius: 3px 0 0 3px;
+}
+.selection-thumbs-actions {position: absolute;right: 0;height: 100%;/* background: gray; */width: 20px;}
+.selection-thumbs-actions-pin{border-left: none;border-radius: 0 6px 0 0;width: 100%;position: absolute;top: 0;right: 0;height: 32px;}
+.selection-thumbs-actions-clearpin{
+  border-radius: 0 0 6px 0;
+  width: 100%;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  height: 29px;
+}
 .selection-thumb {
-  width: 20px;
-  height: 20px;
+  width: 40px;
+  height: 40px;
   background-position: center center;
   background-size: contain;
   background-repeat: no-repeat;
@@ -1783,17 +1952,46 @@ body {
 
 .selection-thumb-count {
   white-space: nowrap;
+  display: inline;
   position: absolute;
+  /* margin-top: 6px; */
+  top: 1px;
   right: 1px;
-  bottom: 5px;
+  /* bottom: 51px; */
   font-size: 10px;
   background-color: rgb(227, 227, 227);
+  /* border: 1px solid; */
   font-weight: bold;
+  height: 14px;
+  line-height: 12px;
 }
 
+.quick-actions {
+  position: absolute;
+  left: 560px;
+  top: 25px;
+  font-size: medium;
+  font-weight: 600;
+}
+.quick-actions picasa-button {
+  width: 33px;
+  text-align: center;
+  line-height: 20px;
+  /* margin: 0; */
+}
+.quick-actions-rotate-right {
+}
+.quick-actions-rotate-left {
+}
+.quick-actions-star {
+  width: 63px!important;
+}
+.selection-actions-buttons {position: absolute;left: 560px;top: 54px;height: 46px;}
 .hidden {
   display: none;
 }
+
+.selection-actions-button {text-align: center;line-height: 65px;overflow: hidden;font-size: 10px;font-weight: 800;color: #6c6c6c;text-indent: 0;/* border: none; */margin: 0 5px 0 5px;/* background-color: white !important; */width: 66px;}
 
 .undo-last-operation {
   float: right;
