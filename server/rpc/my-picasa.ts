@@ -31,9 +31,10 @@ import {
   media,
   mediaCount,
   monitorAlbums,
-  readAlbumMetadata,
+  getAlbumMetadata,
   setRank,
   sortAlbum,
+  getAlbumEntryMetadata,
 } from "./rpcFunctions/albumUtils";
 import { clientException, clientLog } from "./rpcFunctions/clientLog";
 import { exifData } from "./rpcFunctions/exif";
@@ -43,12 +44,12 @@ import {
   makeAlbum,
   openAlbumEntryInFinder,
   openAlbumInFinder,
-  readFileContents,
+  getFileContents,
   writeFileContents,
 } from "./rpcFunctions/fs";
 import {
   getShortcuts,
-  readPicasaEntry,
+  getPicasaEntry,
   rotate,
   toggleStar,
   updatePicasaEntry,
@@ -126,8 +127,8 @@ export const PicisaClient: ServiceMap = {
       handler: mediaCount,
       arguments: ["album:object"],
     },
-    readFileContents: {
-      handler: readFileContents,
+    getFileContents: {
+      handler: getFileContents,
       arguments: ["file:string"],
     },
     writeFileContents: {
@@ -146,16 +147,20 @@ export const PicisaClient: ServiceMap = {
       handler: setRank,
       arguments: ["entry:string", "rank:integer"],
     },
-    readAlbumMetadata: {
-      handler: readAlbumMetadata,
+    getAlbumMetadata: {
+      handler: getAlbumMetadata,
       arguments: ["album:object"],
+    },
+    getAlbumEntryMetadata: {
+      handler: getAlbumEntryMetadata,
+      arguments: ["albumEntry:object"],
     },
     exifData: {
       handler: exifData,
       arguments: ["entry:object"],
     },
-    readPicasaEntry: {
-      handler: readPicasaEntry,
+    getPicasaEntry: {
+      handler: getPicasaEntry,
       arguments: ["entry:object"],
     },
     updatePicasaEntry: {

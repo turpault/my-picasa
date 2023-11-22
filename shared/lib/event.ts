@@ -73,7 +73,7 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
     let res = false;
     let handlers = all!.get(type);
     if (handlers) {
-      Array.from(handlers.entries()).forEach(([id, entry]) => {
+      for (const [id, entry] of Array.from(handlers.entries())) {
         const val = entry.deref();
         if (!val) {
           if (weakRef !== true) {
@@ -85,13 +85,16 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
           );
           handlers!.delete(id);
         } else {
-          val.handler(evt!);
+          const consumed = val.handler(evt!);
+          if (consumed === true) {
+            return true;
+          }
           res = true;
           if (val.once) {
             handlers!.delete(id);
           }
         }
-      });
+      }
     }
     return res;
   };

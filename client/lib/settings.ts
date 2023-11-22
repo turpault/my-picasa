@@ -4,7 +4,9 @@ import { get, set } from "./idb-keyval";
 export type Settings = {
   filters: {
     star: number;
-    video: number;
+    video: boolean;
+    people: boolean;
+    location: boolean;
     text: string;
   };
   iconSize: number;
@@ -17,7 +19,7 @@ export type SettingsChangeEvent = {
 };
 const e = buildEmitter<SettingsChangeEvent>();
 const settings: Settings = {
-  filters: { star: 0, video: 0, text: "" },
+  filters: { star: 0, video: false, people: false, location: false, text: "" },
   sort: "date",
   inverseSort: false,
   iconSize: 250,
@@ -25,7 +27,9 @@ const settings: Settings = {
 
 export async function makeSettings() {
   settings.filters.star = (await get("filterByStar")) || 0;
-  settings.filters.video = (await get("filterByVideos")) || 0;
+  settings.filters.video = (await get("filterByVideos")) || false;
+  settings.filters.people = (await get("filterByPeople")) || false;
+  settings.filters.location = (await get("filterByLocation")) || false;
   settings.filters.text = (await get("filterByText")) || "";
   settings.sort = (await get("sort")) || "date";
   settings.inverseSort = (await get("inverseSort")) || false;
@@ -41,6 +45,8 @@ async function changed(field: string) {
   e.emit("changed", { field, ...settings });
   await set("filterByStar", settings.filters.star);
   await set("filterByVideos", settings.filters.video);
+  await set("filterByPeople", settings.filters.people);
+  await set("filterByLocation", settings.filters.location);
   await set("sort", settings.sort);
   await set("inverseSort", settings.inverseSort);
   await set("iconSize", settings.iconSize);
@@ -54,9 +60,17 @@ export function updateFilterByStar(newValue: number) {
   settings.filters.star = newValue;
   changed("filters.star");
 }
-export function updateFilterByVideos(newValue: number) {
+export function updateFilterByVideos(newValue: boolean) {
   settings.filters.video = newValue;
   changed("filters.video");
+}
+export function updateFilterByLocation(newValue: boolean) {
+  settings.filters.location = newValue;
+  changed("filters.location");
+}
+export function updateFilterByPeople(newValue: boolean) {
+  settings.filters.people = newValue;
+  changed("filters.people");
 }
 export function updateSort(newValue: "date" | "name") {
   settings.sort = newValue;
