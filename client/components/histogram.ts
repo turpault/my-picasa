@@ -1,11 +1,8 @@
 import { $, _$ } from "../lib/dom";
 import { getService } from "../rpc/connect";
 
-const histogramHTML = ` <div>
-<div class="histogram">
+const histogramHTML = ` 
 <canvas class="canvas-histogram"/>
-</div>
-</div>
 `;
 export function makeHistogram(e: _$) {
   const histogramSidebar = $(histogramHTML);

@@ -8,6 +8,7 @@ import {
 import {
   Album,
   AlbumEntry,
+  AlbumEntryMetaData,
   AlbumKind,
   AlbumWithData,
   idFromKey,
@@ -28,7 +29,7 @@ import {
   assetsInFolderAlbum,
   queueNotification,
 } from "../albumTypes/fileAndFolders";
-import { readAlbumIni, readPicasaEntry, updatePicasaEntry } from "./picasa-ini";
+import { readAlbumIni, getPicasaEntry, updatePicasaEntry } from "./picasa-ini";
 import {
   getFolderAlbumData,
   getFolderAlbums,
@@ -61,7 +62,7 @@ async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {
   let rank = 0;
   for (const entry of filesInFolder) {
     if (isPicture(entry) || isVideo(entry)) {
-      let current = (await readPicasaEntry(entry)).rank || "0";
+      let current = (await getPicasaEntry(entry)).rank || "0";
       if (rank !== parseInt(current)) {
         updatePicasaEntry(entry, "rank", rank);
       }
@@ -202,7 +203,7 @@ export async function media(album: Album): Promise<{ entries: AlbumEntry[] }> {
 async function sortAssetsByRank(entries: AlbumEntry[]) {
   await Promise.all(
     entries.map(async (entry) => {
-      const meta = await readPicasaEntry(entry);
+      const meta = await getPicasaEntry(entry);
       Object.assign(entry, { rank: meta.rank });
     })
   );
@@ -224,7 +225,7 @@ export function albumWithData(
   } else throw new Error(`Unknown kind ${kind}`);
 }
 
-export async function readAlbumMetadata(album: Album) {
+export async function getAlbumMetadata(album: Album) {
   switch (album.kind) {
     case AlbumKind.FOLDER: {
       const ini = await readAlbumIni(album);
@@ -238,7 +239,7 @@ export async function readAlbumMetadata(album: Album) {
         Object.keys(ini).map(async (name) => {
           const faceData = await getFaceData({ album, name });
 
-          const originalEntry = await readPicasaEntry(faceData.originalEntry);
+          const originalEntry = await getPicasaEntry(faceData.originalEntry);
           if (originalEntry) {
             if (originalEntry.dateTaken)
               ini[name].dateTaken = originalEntry.dateTaken;
@@ -251,6 +252,11 @@ export async function readAlbumMetadata(album: Album) {
     default:
       throw new Error(`Unkown kind ${album.kind}`);
   }
+}
+
+export async function getAlbumEntryMetadata(albumEntry: AlbumEntry) {
+  const albumMetadata = await getAlbumMetadata(albumEntry.album);
+  return albumMetadata[albumEntry.name] as AlbumEntryMetaData;
 }
 
 export async function monitorAlbums(): Promise<{}> {

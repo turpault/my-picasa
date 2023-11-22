@@ -6,10 +6,17 @@ class PicasaButton extends HTMLElement {
     const icon = this.getAttribute("icon");
     if (icon) {
       this.classList.add("picasa-button-icon");
-      this.setAttribute(
-        "style",
-        `background: url(${icon}) 5px 50%/24px 24px no-repeat, linear-gradient(#f3f3f3, #dddddd);`
-      );
+      if (this.getAttribute("iconpos") === "top") {
+        this.setAttribute(
+          "style",
+          `background: url(${icon}) 50% 5px/24px 24px no-repeat, linear-gradient(#f3f3f3, #dddddd);`
+        );
+      } else {
+        this.setAttribute(
+          "style",
+          `background: url(${icon}) 5px 50%/24px 24px no-repeat, linear-gradient(#f3f3f3, #dddddd);`
+        );
+      }
     } else {
       this.setAttribute(
         "style",

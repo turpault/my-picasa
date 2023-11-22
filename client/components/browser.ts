@@ -7,7 +7,10 @@ import { SelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
 import { makeAlbumList } from "./browser-album-list";
 import { makeBrowserHeader } from "./browser-header";
+import { makeBrowserNavigator } from "./browser-navigator";
 import { makePhotoList } from "./browser-photo-list";
+import { makeButtons } from "./browser-photo-list-buttons";
+import { makeEditorPage } from "./editor-page";
 import { Button, message } from "./message";
 import { t } from "./strings";
 
@@ -39,11 +42,12 @@ export async function makeBrowser(
       selection: selectionManager.selected(),
     });
   });
+
   win.append(
-    await makeBrowserHeader(emitter, albumDataSource, selectionManager)
+    await makeBrowserNavigator(emitter, albumDataSource, selectionManager)
   );
-  win.append(await makeAlbumList(emitter, albumDataSource, selectionManager));
-  win.append(await makePhotoList(emitter, albumDataSource, selectionManager));
+  win.append(await makeEditorPage(emitter, selectionManager));
+  win.append(await makeButtons(emitter, selectionManager));
 
   const tab = $(tabHtml);
   // Status change events
@@ -58,42 +62,44 @@ export async function makeBrowser(
     }
   });*/
 
-  emitter.on("keyDown", async (e) => {
+  emitter.on("keyDown", (e) => {
     if (e.win === win) {
       if (e.ctrl) {
-        const s = await getService();
         if (albumDataSource.shortcuts[e.key]) {
           const target = albumDataSource.shortcuts[e.key];
-          s.createJob(JOBNAMES.EXPORT, {
-            source: selectionManager.selected(),
-            destination: target,
-          });
+          getService().then((s) =>
+            s.createJob(JOBNAMES.EXPORT, {
+              source: selectionManager.selected(),
+              destination: target,
+            })
+          );
           e.preventDefault();
-          return;
+          return true;
         }
       }
       if (
         (e.code === "Backspace" || e.code === "Delete") &&
         selectionManager.selected().length > 0
       ) {
-        if (
-          (await message(
-            t(
-              `Do you want to delete $1 files|${
-                selectionManager.selected().length
-              }`
-            ),
-            [Button.Ok, Button.Cancel]
-          )) === Button.Ok
-        ) {
-          const s = await getService();
-          s.createJob(JOBNAMES.DELETE, {
-            source: selectionManager.selected(),
-          });
-        }
+        message(
+          t(
+            `Do you want to delete $1 files|${
+              selectionManager.selected().length
+            }`
+          ),
+          [Button.Ok, Button.Cancel]
+        ).then(async (b) => {
+          if (b === Button.Ok) {
+            const s = await getService();
+            s.createJob(JOBNAMES.DELETE, {
+              source: selectionManager.selected(),
+            });
+          }
+        });
+        return true;
       }
-      return;
     }
+    return false;
   });
 
   return { win, tab, selectionManager };

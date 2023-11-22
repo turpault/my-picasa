@@ -5,7 +5,7 @@ import { isPicture, isVideo, lock } from "../../../shared/lib/utils";
 import { AlbumEntry } from "../../../shared/types/types";
 import { dimensionsFromFile as dimensionsFromFileBuffer } from "../../imageOperations/sharp-processor";
 import { entryFilePath } from "../../utils/serverUtils";
-import { readPicasaEntry, updatePicasaEntry } from "./picasa-ini";
+import { getPicasaEntry, updatePicasaEntry } from "./picasa-ini";
 
 export async function exifDataAndStats(
   entry: AlbumEntry
@@ -99,7 +99,7 @@ function filterExifTags(tags: any): any {
 }
 
 export async function exifData(entry: AlbumEntry): Promise<any> {
-  const picasaEntry = await readPicasaEntry(entry);
+  const picasaEntry = await getPicasaEntry(entry);
   if (isPicture(entry)) {
     const path = entryFilePath(entry);
     const r = await lock(`exifData/${path}`);
