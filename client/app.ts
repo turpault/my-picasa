@@ -4,12 +4,11 @@ import { fromBase64, idFromAlbumEntry, toBase64 } from "../shared/lib/utils";
 import { AlbumEntry, AlbumKind, ProjectType } from "../shared/types/types";
 import { AlbumIndexedDataSource } from "./album-data-source";
 import { makeBrowser } from "./components/browser";
-import { makeButtons } from "./components/browser-photo-list-buttons";
 import { registerButton } from "./components/controls/button";
+import { registerCarousel } from "./components/controls/carousel";
 import { registerMultiButton } from "./components/controls/multibutton";
 import { registerSelect } from "./components/controls/select";
 import { registerSlider } from "./components/controls/slider";
-import { makeEditorPage } from "./components/editor-page";
 import { makeErrorPage } from "./components/error";
 import { consoleOverload } from "./components/error-utils";
 import { makeGallery } from "./components/gallery";
@@ -38,6 +37,7 @@ async function init(port: number) {
   registerMultiButton();
   registerSlider();
   registerSelect();
+  registerCarousel();
 
   const emitter = buildEmitter<AppEvent>(false);
   const s = await getService();
@@ -65,7 +65,6 @@ async function init(port: number) {
   await makeJobList($(".jobs").get());
 
   $(".tabs-container").append(makeTabs(emitter));
-  $(".buttons-container").append(makeButtons(emitter));
 
   makeHotkeys(emitter);
 
@@ -94,13 +93,6 @@ async function init(port: number) {
         );
         makeTab(win, tab, { kind: "Mosaic", selectionManager });
       }
-    } else {
-      const { win, tab, selectionManager } = await makeEditorPage(
-        params.initialIndex,
-        params.initialList,
-        emitter
-      );
-      makeTab(win, tab, { kind: "Editor", selectionManager });
     }
   }
   async function newMosaicPage(params: { initialList: AlbumEntry[] }) {
@@ -160,7 +152,7 @@ async function init(port: number) {
   }
   const page = searchParams.get("page");
   if (page === "editor") {
-    openFromUrl(newEditorPage);
+    //openFromUrl(newEditorPage);
   } else if (page === "mosaic") {
     openFromUrl(newMosaicPage);
   } else if (page === "gallery") {
@@ -192,7 +184,6 @@ async function init(port: number) {
     }
   } else {
     emitter.on("show", newGalleryPage);
-    emitter.on("edit", newEditorPage);
     emitter.on("mosaic", newMosaicPage);
   }
 

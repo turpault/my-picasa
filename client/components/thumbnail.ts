@@ -62,7 +62,7 @@ export async function onDrop(
       const s = await getService();
 
       let rank = 0;
-      const p = (await s.readPicasaEntry(entry)) as AlbumEntryMetaData;
+      const p = (await s.getPicasaEntry(entry)) as AlbumEntryMetaData;
       if (p) {
         rank = parseInt(p.rank || "0");
       }
@@ -180,7 +180,7 @@ function buildThumbnail(
         if (!entry) {
           return;
         }
-        const p = (await s.readPicasaEntry(entry)) as PicasaFileMeta;
+        const p = (await s.getPicasaEntry(entry)) as PicasaFileMeta;
         const rank = parseInt(p.rank || "0");
         const selection = selectionManager.selected();
         s.createJob(JOBNAMES.MOVE, {

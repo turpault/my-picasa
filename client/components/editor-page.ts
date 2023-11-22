@@ -1,4 +1,3 @@
-import { buildEmitter } from "../../shared/lib/event";
 import {
   AlbumEntry,
   AlbumEntryPicasa,
@@ -19,68 +18,40 @@ import { setupRotate } from "../features/rotate";
 import { setupSepia } from "../features/sepia";
 import { setupSharpen } from "../features/sharpen";
 import { setupTilt } from "../features/tilt";
-import { buildAlbumEntryEx } from "../folder-utils";
 import { $ } from "../lib/dom";
 import { toggleStar } from "../lib/handles";
-import { ImagePanZoomController } from "../lib/panzoom";
 import { getService } from "../rpc/connect";
-import { ActiveImageManager } from "../selection/active-manager";
-import { SelectionManager } from "../selection/selection-manager";
+import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
 import { ImageController } from "./image-controller";
 import { makeImageStrip } from "./image-strip";
 import { makeMetadata } from "./metadata";
 import { t } from "./strings";
-import { TabEvent, deleteTabWin, makeGenericTab } from "./tabs";
+import { deleteTabWin } from "./tabs";
 import { GENERAL_TOOL_TAB, makeTools } from "./tools";
 
-import { idFromAlbumEntry } from "../../shared/lib/utils";
-import { makeIdentify } from "./identify";
+import { compareAlbumEntry } from "../../shared/lib/utils";
+import { makeEditorHeader } from "./editor-header";
 import { makeHistogram } from "./histogram";
+import { makeIdentify } from "./identify";
 
 const editHTML = `
-<div class="fill">
-  <div class="fill w3-bar-block tools">
-    <div style="display:none" class="collapsible w3-bar-item gradient-sidebar-title">${t(
-      "Description"
-    )}</div>
-    <div style="display:none" class="collapsable">
-      <input
-        class="description w3-input"
-        style="background: none"
-        type="text"
-        placeholder="${t("No description")}"
-      />
+<div class="fill editor-page">
+  <div class="fill tools">
+    <div class="tools-tab-bar">
+      <picasa-multi-button class="tools-tab-bar-buttons" items="url:resources/images/wrench.svg|url:resources/images/contrast.svg|url:resources/images/brush.svg|url:resources/images/green-brush.svg|url:resources/images/blue-brush.svg"></picasa-button>
     </div>
-    <div class="collapsible gradient-sidebar-title">${t(
-      "Adjustments"
-    )}<div class="effects-title"></div></div>
-    <div class="collapsable">
-      <div class="adjustment-history"></div>
+    <div class="tools-tab-contents">
+      <div page="1" class="tools-tab-page tools-tab-page-wrench"></div>
+      <div page="2" class="tools-tab-page tools-tab-page-contrast"></div>
+      <div page="3" class="tools-tab-page tools-tab-page-brush"></div>
+      <div page="4" class="tools-tab-page tools-tab-page-green-brush"></div>
+      <div page="5" class="tools-tab-page tools-tab-page-blue-brush"></div>
     </div>
-    <div class="collapsible collapsed gradient-sidebar-title">${t(
-      "Effects"
-    )}<div class="effects-title"></div></div>
-    <div class="collapsable collapsable-collapsed">
-      <div class="effects"></div>
-      <div class="history"></div>
+    <div class="histogram">
+      ${t("Histogram data and informations about the camera")}
+      <div class="histogram-camera-model"></div>
     </div>
-    <div class="collapsible collapsed gradient-sidebar-title">${t(
-      "Album"
-    )}</div>
-    <div class="collapsable collapsable-collapsed album-contents"></div>
-    <div class="collapsible collapsed gradient-sidebar-title">${t(
-      "Metadata"
-    )}</div>
-    <div class="collapsable collapsable-collapsed metadata"></div>
-    <div class="collapsible collapsed gradient-sidebar-title">${t(
-      "Histogram"
-    )}</div>
-    <div class="collapsable collapsable-collapsed histogram"></div>
-    <div class="collapsible collapsed gradient-sidebar-title">${t(
-      "Identify"
-    )}</div>
-    <div class="collapsable collapsable-collapsed identify"></div>
   </div>
 
   <div class="image-container">
@@ -97,191 +68,152 @@ const editHTML = `
   </div>
 </div>`;
 
-const toolsHTML = `
-<div class="editor-bottom-tools">
-  <div class="image-strip">
-      <div class="image-strip-thumbs"></div>
-    </div>
-    <div class="zoom-strip">  
-      <label>Zoom</label>
-    <input type="range" min="10" max="40" value="10" class="zoom-ctrl slider">
-  </div>
-</div>`;
-
 export async function makeEditorPage(
-  initialIndex: number,
-  initialList: AlbumEntry[],
-  appEvents: AppEventSource
+  appEvents: AppEventSource,
+  selectionManager: AlbumEntrySelectionManager
 ) {
   const editor = $(editHTML);
-  const selectionManager = new SelectionManager<AlbumEntry>(
-    [initialList[initialIndex]],
-    idFromAlbumEntry
-  );
+  editor.hide();
 
   const image = $(".edited-image", editor);
   const video = $(".edited-video", editor);
   const imageContainer = $(".image-container", editor);
-  const tool = $(toolsHTML);
-
-  const collapsibleItems = editor.all(".collapsible");
-  for (const collapsible of collapsibleItems) {
-    collapsible.on("click", () => {
-      const collapse = !collapsible.hasClass("collapsed");
-
-      collapsible.addRemoveClass("collapsed", collapse);
-      const content = collapsible.get().nextElementSibling! as HTMLElement;
-      $(content).addRemoveClass("collapsable-collapsed", collapse);
-    });
-  }
-
-  const metadata = $(".metadata", editor);
+  const [wrench, contrast, brush, greenBrush, blueBrush] = editor.all(
+    ".tools-tab-page"
+  );
+  //const tool = $(toolsHTML);
+  //const metadata = $(".metadata", editor);
   const histogram = $(".histogram", editor);
-  const identify = $(".identify", editor);
-  const album = $(".album-contents", editor);
-  album.append(tool);
+  //const identify = $(".identify", editor);
+  //const album = $(".album-contents", editor);
+  const editorHeader = makeEditorHeader(selectionManager);
+  editor.append(editorHeader);
+  //album.append(tool);
 
-  const tabEvent = buildEmitter<TabEvent>();
-  const tab = makeGenericTab(tabEvent);
-  tabEvent.emit("rename", { name: initialList[initialIndex].name });
-  appEvents.on("tabDisplayed", async (event) => {
-    if (event.win.get() === editor.get()) {
-      const imageController = new ImageController(image, video);
-      const toolRegistrar = makeTools(editor, imageController);
-      // Add all the activable features
-      setupCrop(imageContainer, imageController, toolRegistrar);
-      setupTilt(imageContainer, imageController, toolRegistrar);
-      setupBrightness(imageController, toolRegistrar);
-      setupAutocolor(imageController, toolRegistrar);
-      setupBW(imageController, toolRegistrar);
-      setupContrast(imageController, toolRegistrar);
-      setupFill(imageController, toolRegistrar);
-      setupSepia(imageController, toolRegistrar);
-      setupPolaroid(imageController, toolRegistrar);
-      setupRotate(imageController, toolRegistrar);
-      setupFlip(imageController, toolRegistrar);
-      setupMirror(imageController, toolRegistrar);
-      setupBlur(imageController, toolRegistrar);
-      setupSharpen(imageController, toolRegistrar);
-      setupFilters(imageController, toolRegistrar);
+  const imageController = new ImageController(image, video, selectionManager);
+  const toolRegistrar = makeTools(
+    { editor, wrench, contrast, brush, greenBrush, blueBrush },
+    imageController
+  );
+  // Add all the activable features
+  setupCrop(imageContainer, imageController, toolRegistrar);
+  setupTilt(imageContainer, imageController, toolRegistrar);
+  setupBrightness(imageController, toolRegistrar);
+  setupAutocolor(imageController, toolRegistrar);
+  setupBW(imageController, toolRegistrar);
+  setupContrast(imageController, toolRegistrar);
+  setupFill(imageController, toolRegistrar);
+  setupSepia(imageController, toolRegistrar);
+  setupPolaroid(imageController, toolRegistrar);
+  setupRotate(imageController, toolRegistrar);
+  setupFlip(imageController, toolRegistrar);
+  setupMirror(imageController, toolRegistrar);
+  setupBlur(imageController, toolRegistrar);
+  setupSharpen(imageController, toolRegistrar);
+  setupFilters(imageController, toolRegistrar);
 
-      toolRegistrar.selectPage(GENERAL_TOOL_TAB);
-      const refreshMetadataFct = makeMetadata(metadata);
-      const refreshHistogramFct = makeHistogram(histogram);
-      makeIdentify(identify, imageController);
+  toolRegistrar.selectPage(GENERAL_TOOL_TAB);
+  //const refreshMetadataFct = makeMetadata(metadata);
+  //makeIdentify(identify, imageController);
+  const refreshHistogramFct = makeHistogram(histogram);
 
-      const entries = await buildAlbumEntryEx(initialList);
-      const s = await getService();
+  const s = await getService();
 
-      const activeManager = new ActiveImageManager(
-        entries,
-        entries[initialIndex]
-      );
-      const offStrip = await makeImageStrip(
-        $(".image-strip", tool),
-        activeManager
-      );
-      const updateStarCount = (entry: AlbumEntryPicasa) => {
-        $(".star", imageContainer).css({
-          display: entry.metadata.star ? "" : "none",
-          width: `${parseInt(entry.metadata.starCount || "1") * 40}px`,
-        });
-      };
-      const offImgCtrl = await imageController.init(activeManager.active());
+  const updateStarCount = async (entry: AlbumEntry) => {
+    const s = await getService();
+    const metadata = await s.getAlbumEntryMetadata(entry);
+    $(".star", imageContainer).css({
+      display: metadata.star ? "" : "none",
+      width: `${parseInt(metadata.starCount || "1") * 40}px`,
+    });
+  };
+  let editing = false;
 
-      const off = [
-        offStrip,
-        offImgCtrl,
-        imageController.events.on("idle", () => {
-          $(".busy-spinner", editor).css("display", "none");
-        }),
-        imageController.events.on("busy", () => {
-          $(".busy-spinner", editor).css("display", "block");
-        }),
-        imageController.events.on("visible", async ({ info, entry }) => {
-          refreshMetadataFct(entry, [entry], info);
-        }),
+  const off = [
+    imageController.events.on("idle", () => {
+      $(".busy-spinner", editor).css("display", "none");
+    }),
+    imageController.events.on("busy", () => {
+      $(".busy-spinner", editor).css("display", "block");
+    }),
+    imageController.events.on("visible", async ({ info, entry }) => {
+      //refreshMetadataFct(entry, [entry], info);
+    }),
 
-        imageController.events.on("updated", async ({ liveContext }) => {
-          refreshHistogramFct(liveContext);
-        }),
+    imageController.events.on("updated", async ({ liveContext }) => {
+      refreshHistogramFct(liveContext);
+    }),
 
-        activeManager.event.on("changed", async (entry) => {
-          imageController.display(entry);
-          tabEvent.emit("rename", { name: entry.name });
-          updateStarCount(entry);
-          selectionManager.clear();
-          selectionManager.select(entry);
-        }),
-        appEvents.on(
-          "keyDown",
-          async ({ code, win, ctrl, key, preventDefault }) => {
-            if (win.get() === editor.get()) {
-              switch (code) {
-                case "Space":
-                  await toggleStar([activeManager.active()]);
-                  preventDefault();
-                  break;
-                case "ArrowLeft":
-                  activeManager.selectPrevious();
-                  appEvents.emit("editSelect", {
-                    entry: activeManager.active(),
-                  });
-                  preventDefault();
-                  break;
-                case "ArrowRight":
-                  activeManager.selectNext();
-                  appEvents.emit("editSelect", {
-                    entry: activeManager.active(),
-                  });
-                  preventDefault();
-                  break;
-                case "Escape":
-                  deleteTabWin(win);
-                  preventDefault();
-              }
-              if (ctrl) {
-                const s = await getService();
-                const shortcuts = await s.getShortcuts();
-                if (shortcuts[key]) {
-                  const target = shortcuts[key];
-                  s.createJob(JOBNAMES.EXPORT, {
-                    source: selectionManager.selected(),
-                    destination: target,
-                  });
-                  preventDefault();
-                  return;
-                }
-              }
+    selectionManager.events.on("activeChanged", async (event) => {
+      updateStarCount(event.key);
+    }),
+    appEvents.on("edit", (event) => {
+      if (event.active) {
+        editing = true;
+        editor.show();
+        imageController.show();
+      } else {
+        editing = false;
+        editor.hide();
+        imageController.hide();
+      }
+    }),
+    appEvents.on("keyDown", ({ code, win, ctrl, key, preventDefault }) => {
+      if (editing) {
+        switch (code) {
+          case "Space":
+            preventDefault();
+            toggleStar([selectionManager.active()]);
+            return true;
+          case "ArrowLeft":
+            preventDefault();
+            selectionManager.setActivePrevious();
+            return true;
+          case "ArrowRight":
+            preventDefault();
+            selectionManager.setActiveNext();
+            return true;
+          case "Escape":
+            preventDefault();
+            appEvents.emit("edit", {
+              active: false,
+            });
+            return true;
+        }
+        if (ctrl) {
+          preventDefault();
+          getService().then(async (s) => {
+            const shortcuts = await s.getShortcuts();
+            if (shortcuts[key]) {
+              const target = shortcuts[key];
+              s.createJob(JOBNAMES.EXPORT, {
+                source: selectionManager.selected(),
+                destination: target,
+              });
             }
-          }
-        ),
-        appEvents.on("tabDeleted", ({ win }) => {
-          if (win.get() === editor.get()) {
-            off.forEach((o) => o());
-          }
-        }),
+          });
+          return true;
+        }
+      }
+      return false;
+    }),
 
-        s.on(
-          "albumEntryAspectChanged",
-          async (e: { payload: AlbumEntryPicasa }) => {
-            if (
-              e.payload.album.key === activeManager.active().album.key &&
-              e.payload.name === activeManager.active().name
-            ) {
-              updateStarCount(e.payload);
-            }
-          }
-        ),
-      ];
-      const z = $(".zoom-ctrl", tool);
-      z.on("input", () => {
-        imageController.zoom(z.val() / 10);
-      });
-      imageController.events.on("zoom", (zoom) => {
-        z.val(zoom.scale * 10);
-      });
-    }
+    s.on(
+      "albumEntryAspectChanged",
+      async (e: { payload: AlbumEntryPicasa }) => {
+        if (compareAlbumEntry(e.payload, selectionManager.active()) === 0) {
+          updateStarCount(e.payload);
+        }
+      }
+    ),
+  ];
+  /*const z = $(".zoom-ctrl", tool);
+  z.on("input", () => {
+    imageController.zoom(z.val() / 10);
   });
-  return { win: editor, tab, selectionManager };
+  imageController.events.on("zoom", (zoom) => {
+    z.val(zoom.scale * 10);
+  });
+  */
+  return editor;
 }

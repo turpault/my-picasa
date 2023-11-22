@@ -26,7 +26,7 @@ import { addToUndo, registerUndoProvider } from "../../utils/undo";
 import { eraseFace } from "../albumTypes/faces";
 import { setRank } from "./albumUtils";
 import { openWithFinder } from "./osascripts";
-import { readAlbumIni, readPicasaEntry, updatePicasaEntry } from "./picasa-ini";
+import { readAlbumIni, getPicasaEntry, updatePicasaEntry } from "./picasa-ini";
 import { copyThumbnails } from "./thumbnail-cache";
 
 const jobs: Job[] = [];
@@ -463,9 +463,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
   for (const s of source) {
     try {
       let targetName = s.source.name;
-      const sourceRank = parseInt(
-        (await readPicasaEntry(s.source)).rank || "0"
-      );
+      const sourceRank = parseInt((await getPicasaEntry(s.source)).rank || "0");
       if (s.destination.key !== s.source.album.key) {
         let found = false;
         let destPath = join(

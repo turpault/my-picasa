@@ -19,13 +19,6 @@ module.exports = {
   output: {
     filename: 'app.js',
     sourceMapFilename: 'app.js.map',
-    path: path.resolve(__dirname, 'dist', 'public', 'dist'),
-  },
-  plugins: [
-    new CopyPlugin({
-      patterns: [
-        { from: "public", to: path.join(__dirname, "dist", "public") },
-      ],
-    }),
-  ],
+    path: path.resolve(__dirname, 'public', 'dist'),
+  }
 };

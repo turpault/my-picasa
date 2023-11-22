@@ -1,4 +1,7 @@
 const stringTable: { [key: string]: any } = {
+  "Play slideshow": { fr: "Lecture" },
+  Shortcut: { fr: "Raccourci" },
+  "Unknown date": { fr: "Date inconnue" },
   "Open in Finder": { fr: "Ouvrir dans le Finder" },
   "Icon Size": { fr: "Taille des Icones" },
   Undo: { fr: "Annuler" },

@@ -2,7 +2,7 @@ import { buildEmitter } from "../../shared/lib/event";
 import {
   debounced,
   idFromAlbumEntry,
-  lessThanEntry,
+  compareAlbumEntry,
   valuesOfEnum,
 } from "../../shared/lib/utils";
 import {
@@ -36,11 +36,13 @@ import {
   makeChoiceList,
   makeMultiselectImageList,
 } from "./controls/multiselect";
+import { message } from "./message";
 import {
   buildMosaicCells,
   buildSquareCells,
   leafs,
 } from "./mosaic-tree-builder";
+import { question } from "./question";
 import { t } from "./strings";
 import { TabEvent, makeGenericTab } from "./tabs";
 
@@ -257,7 +259,7 @@ async function installHandlers(
       "albumEntryAspectChanged",
       async (e: { payload: AlbumEntryPicasa }) => {
         const cell = leafs(projectData.root!).find(
-          (c) => c.image && lessThanEntry(c.image, e.payload) === 0
+          (c) => c.image && compareAlbumEntry(c.image, e.payload) === 0
         );
         if (cell) {
           cellImageUpdated(cell);
@@ -518,14 +520,15 @@ export async function makeMosaicPage(
       source: [project],
       argument: {},
     });
-    s.waitJob(jobId).then((results: Job) => {
-      if (results.status === "finished") {
-        appEvents.emit("edit", {
-          initialList: [results.out[0]],
-          initialIndex: 0,
-        });
+    const results = await s.waitJob(jobId);
+
+    if (results.status === "finished") {
+      const q = await message(t("Mosaic complete"), [t("Show"), t("Later")]);
+      if (q === t("Show")) {
+        selectionManager.setSelection([results.out[0]]);
+        appEvents.emit("edit", { active: true });
       }
-    });
+    }
   });
   $(".mosaic-shuffle", e).on("click", async () => {
     project.payload.seed = Math.random();

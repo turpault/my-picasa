@@ -32,9 +32,13 @@ end tell
 }
 
 export async function openWithFinder(file: string, isFolder: boolean = false) {
-  const directory = isFolder ? file : dirname(file);
-  const f = basename(file);
-  const script = `
+  // Use "open"
+  if (isFolder) {
+    spawn("/usr/bin/open", [file]);
+  } else {
+    const directory = isFolder ? file : dirname(file);
+    const f = basename(file);
+    const script = `
 tell application "Finder"
 	set the_folder to (POSIX file "${directory}") as alias  
 	open the_folder
@@ -46,5 +50,6 @@ tell application "Finder"
   activate
 end tell
   `;
-  return runScript(script);
+    return runScript(script);
+  }
 }

@@ -105,8 +105,8 @@ export class PicisaClient {
       'args': { album } 
     });
   }
-  async readFileContents(file: string):Promise<any> {
-    return this.emit('PicisaClient:readFileContents', {
+  async getFileContents(file: string):Promise<any> {
+    return this.emit('PicisaClient:getFileContents', {
       'args': { file } 
     });
   }
@@ -130,9 +130,14 @@ export class PicisaClient {
       'args': { entry, rank } 
     });
   }
-  async readAlbumMetadata(album: object):Promise<any> {
-    return this.emit('PicisaClient:readAlbumMetadata', {
+  async getAlbumMetadata(album: object):Promise<any> {
+    return this.emit('PicisaClient:getAlbumMetadata', {
       'args': { album } 
+    });
+  }
+  async getAlbumEntryMetadata(albumEntry: object):Promise<any> {
+    return this.emit('PicisaClient:getAlbumEntryMetadata', {
+      'args': { albumEntry } 
     });
   }
   async exifData(entry: object):Promise<any> {
@@ -140,8 +145,8 @@ export class PicisaClient {
       'args': { entry } 
     });
   }
-  async readPicasaEntry(entry: object):Promise<any> {
-    return this.emit('PicisaClient:readPicasaEntry', {
+  async getPicasaEntry(entry: object):Promise<any> {
+    return this.emit('PicisaClient:getPicasaEntry', {
       'args': { entry } 
     });
   }

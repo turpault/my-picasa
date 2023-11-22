@@ -136,16 +136,10 @@ export async function makePhotoList(
       if (initialIndex === -1) {
         return;
       }
-
-      appEvents.emit("edit", { initialIndex, initialList: entries });
+      selectionManager.setSelection(entries);
+      selectionManager.setActiveIndex(initialIndex);
+      appEvents.emit("edit", { active: true });
     }),
-    appEvents.on("editSelect", (e) => {
-      if (selectionManager.selected().length === 1) {
-        selectionManager.clear();
-        selectionManager.select(e.entry);
-      }
-    }),
-
     events.on("thumbnailClicked", (e) => {
       let from = selectionManager.last();
       if (e.modifiers.range && from !== undefined) {
@@ -604,10 +598,10 @@ export async function makePhotoList(
       if (d.css("opacity") == "0" && goneBack) {
         let lastElem = displayed[parseInt(index) - 1];
         for (const elem of displayed.slice(parseInt(index))) {
-          elem.css(
-            "top",
-            `${parseInt(lastElem.css("top")) + lastElem.get().clientHeight}px`
-          );
+          const previousElementTop = parseInt(lastElem.css("top"));
+          const previousElementHeight = lastElem.get().clientHeight;
+          const thisTop = previousElementTop + previousElementHeight;
+          elem.css("top", `${thisTop}px`);
           elem.css("opacity", "1");
           lastElem = elem;
           const album = albumFromElement(elem, elementPrefix);

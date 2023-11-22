@@ -12,6 +12,7 @@ export type Tool = {
   filterName: string;
   enable: entryFct;
   editable?: boolean;
+  ui?: () => _$;
   preview?: boolean;
   icon: iconFct;
   build: (...args: any[]) => PicasaFilter;
@@ -22,7 +23,6 @@ export type Tool = {
   ) => { ui: HTMLElement; clearFct?: Function };
   activate: activateFct;
   multipleFamily: string | null;
-  permanentIndex?: number;
   reset?: (index: number) => void;
 };
 
@@ -79,9 +79,8 @@ export type AppEvent = {
     selection: AlbumEntry[];
   };
   // Well-known events sourced from tabs
-  edit: { initialList: AlbumEntry[]; initialIndex: number };
+  edit: { active: boolean };
   show: { initialList: AlbumEntry[]; initialIndex: number };
-  editSelect: { entry: AlbumEntry };
   mosaic: { initialList: AlbumEntry[]; initialIndex: number };
   gallery: { initialList: AlbumEntry[]; initialIndex: number };
 };

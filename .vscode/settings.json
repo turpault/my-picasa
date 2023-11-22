@@ -66,5 +66,6 @@
     "unordered_map": "cpp",
     "variant": "cpp",
     "algorithm": "cpp"
-  }
+  },
+  "liveServer.settings.port": 5502
 }

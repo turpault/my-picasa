@@ -117,7 +117,7 @@ export async function makeAlbumList(
     img.src = "resources/images/icons/actions/duplicate-50.png";
     let dropTarget: HTMLElement | undefined;
     container
-      .on("click", function (ev): any {
+      .on("click", async function (ev) {
         const item = $(ev.target as HTMLElement);
         if (item.hasClass("browser-list-head")) {
           const node = $(ev.target as HTMLElement).getData().node as Node;
@@ -127,6 +127,9 @@ export async function makeAlbumList(
         const album = albumFromElement(item, elementPrefix)!;
         if (!album) return;
         lastSelectedAlbum = album;
+        const s = await getService();
+        const media = await s.media(album);
+        selectionManager.setSelection(media.entries);
         events.emit("selected", { album });
       })
       .on("dragenter", (ev: DragEvent) => {

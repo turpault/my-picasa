@@ -8,7 +8,7 @@ import { fileExists, safeWriteFile } from "../utils/serverUtils";
 import { exifData } from "../rpc/rpcFunctions/exif";
 import { media } from "../rpc/rpcFunctions/albumUtils";
 import {
-  readPicasaEntry,
+  getPicasaEntry,
   updatePicasaEntry,
 } from "../rpc/rpcFunctions/picasa-ini";
 import { getFolderAlbums, waitUntilWalk } from "./bg-walker";
@@ -175,7 +175,7 @@ export async function buildGeolocation() {
         while (!isIdle()) {
           await sleep(1);
         }
-        const info = await readPicasaEntry(entry);
+        const info = await getPicasaEntry(entry);
         if (info.geoPOI === undefined) {
           const exif = await exifData(entry);
 

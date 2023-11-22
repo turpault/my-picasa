@@ -8,8 +8,8 @@ export enum Button {
 
 export async function message(
   message: string,
-  buttons: Button[] = [Button.Ok]
-): Promise<Button> {
+  buttons: (Button | string)[] = [Button.Ok]
+): Promise<Button | string> {
   const q = $(`<div class="messagebox w3-modal">
   <div class="w3-modal-content">
     <div class="w3-container">
@@ -24,7 +24,7 @@ export async function message(
 
   $(document.body).append(q);
 
-  return new Promise<Button>((resolve) => {
+  return new Promise<Button | string>((resolve) => {
     buttons.forEach((button) => {
       qs.append(
         $(

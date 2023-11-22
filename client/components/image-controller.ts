@@ -10,6 +10,8 @@ import {
 } from "../../shared/lib/utils";
 import {
   Album,
+  AlbumEntry,
+  AlbumEntryMetaData,
   AlbumEntryPicasa,
   AlbumKind,
   FaceData,
@@ -29,16 +31,18 @@ import {
 import { _$, preLoadImage } from "../lib/dom";
 import { ImagePanZoomController } from "../lib/panzoom";
 import { getService } from "../rpc/connect";
+import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { ImageControllerEvent } from "../uiTypes";
 
 export class ImageController {
-  constructor(image: _$, video: _$) {
-    this.image = image;
-    this.video = video;
+  constructor(
+    private image: _$,
+    private video: _$,
+    private selectionManager: AlbumEntrySelectionManager
+  ) {
     this.entry = {
       album: { key: "", name: "", kind: AlbumKind.FOLDER },
       name: "",
-      metadata: {},
     };
     this.context = "";
     this.thumbContext = "";
@@ -56,6 +60,29 @@ export class ImageController {
       await this.recenter();
       this.events.emit("resized", { entry: this.entry, info: this.info() });
     }).observe(this.parent.get()!);
+    this.asyncInit();
+  }
+  private async asyncInit() {
+    const s = await getService();
+    this.selectionManager.events.on("activeChanged", async (event) => {
+      this.entry = this.selectionManager.active();
+      if (this.shown) {
+        this.metadata = await s.getAlbumEntryMetadata(this.entry);
+        this.display();
+      }
+    });
+
+    s.on("albumEntryAspectChanged", (e: { payload: AlbumEntryPicasa }) => {
+      if (e.payload.name === this.entry.name && this.shown) {
+        // Note ignore event for now, to support A/B edits
+        /*
+        if(encodeOperations(this.filters) !== e.payload.metadata.filters) {
+          this.filters = decodeOperations(e.payload.metadata.filters || '');
+          this.update();
+        } 
+        */
+      }
+    });
   }
 
   operationList(): PicasaFilter[] {
@@ -110,27 +137,15 @@ export class ImageController {
     return this.identify;
   }
 
-  async init(albumEntry: AlbumEntryPicasa) {
-    this.entry = albumEntry;
-    this.display(albumEntry);
-    const s = await getService();
-    return s.on(
-      "albumEntryAspectChanged",
-      (e: { payload: AlbumEntryPicasa }) => {
-        if (e.payload.name === this.entry.name) {
-          // Note ignore event for now, to support A/B edits
-          /*
-        if(encodeOperations(this.filters) !== e.payload.metadata.filters) {
-          this.filters = decodeOperations(e.payload.metadata.filters || '');
-          this.update();
-        } 
-        */
-        }
-      }
-    );
+  async show() {
+    this.shown = true;
+    this.display();
+  }
+  async hide() {
+    this.shown = false;
   }
 
-  async display(albumEntry: AlbumEntryPicasa) {
+  async display() {
     if (this.context) {
       destroyContext(this.context);
       this.context = "";
@@ -139,7 +154,6 @@ export class ImageController {
       destroyContext(this.thumbContext);
       this.thumbContext = "";
     }
-    this.entry = albumEntry;
     this.events.emit("busy", {});
     this.image.css({ display: "none" });
     this.video.css({ display: "none" });
@@ -147,9 +161,9 @@ export class ImageController {
     this.video.empty();
     this.faces = [];
 
-    const data = this.entry.metadata;
+    const data = this.metadata;
 
-    this.caption = data.caption || "";
+    //this.caption = data.caption || "";
     if (isPicture(this.entry)) {
       this.filters = data.filters ? decodeOperations(data.filters) : [];
       if (this.filterSetupFct) {
@@ -188,10 +202,10 @@ export class ImageController {
       return this.faces;
     }
     const faces: FaceData[] = [];
-    if (this.entry.metadata.faces) {
+    if (this.metadata.faces) {
       const s = await getService();
       await Promise.all(
-        decodeFaces(this.entry.metadata.faces).map(async (face, idx) => {
+        decodeFaces(this.metadata.faces).map(async (face, idx) => {
           const faceAlbum = (await s.getFaceAlbumFromHash(face.hash)) as {
             album: Album;
           };
@@ -389,10 +403,9 @@ export class ImageController {
     this.filterSetupFct = fct;
   }
 
-  private image: _$;
-  private video: _$;
   private filterSetupFct?: Function;
-  private entry: AlbumEntryPicasa;
+  private entry: AlbumEntry;
+  private metadata: AlbumEntryMetaData;
   private context: string;
   private thumbContext: string;
   private liveContext: string;
@@ -405,5 +418,6 @@ export class ImageController {
   private mute: number | undefined;
   private faces: FaceData[];
   private previewOperation: PicasaFilter | null = null;
+  private shown = false;
   events: Emitter<ImageControllerEvent>;
 }
