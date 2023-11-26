@@ -328,6 +328,14 @@ export class ImageController {
     }
   }
 
+  async toggleOperation(name: string) {
+    if (this.filters.find((f) => f.name === name)) {
+      return this.deleteOperation(name);
+    } else {
+      return this.addOperation({ name, args: ["1"] });
+    }
+  }
+
   async addOperation(operation: PicasaFilter) {
     this.filters.push(operation);
     await this.saveFilterInfo();
@@ -340,10 +348,13 @@ export class ImageController {
     await this.update();
   }
 
-  async deleteOperation(idx: number) {
-    this.filters.splice(idx, 1);
-    await this.saveFilterInfo();
-    await this.update();
+  async deleteOperation(name: string) {
+    const idx = this.filters.findIndex((f) => f.name === name);
+    if (idx !== -1) {
+      this.filters.splice(idx, 1);
+      await this.saveFilterInfo();
+      await this.update();
+    }
   }
   async moveDown(idx: number) {
     if (idx < this.filters.length - 1) {
@@ -362,12 +373,15 @@ export class ImageController {
     }
   }
 
-  async updateOperation(idx: number, op: PicasaFilter) {
-    if (JSON.stringify(this.filters[idx]) !== JSON.stringify(op)) {
-      this.filters[idx] = op;
-      await this.saveFilterInfo();
-      await this.update();
+  async updateOperation(op: PicasaFilter) {
+    const filter = this.filters.find((f) => f.name === op.name);
+    if (filter && JSON.stringify(filter.args) !== JSON.stringify(op.args)) {
+      filter.args = op.args;
+    } else {
+      this.filters.push(op);
     }
+    await this.saveFilterInfo();
+    await this.update();
   }
 
   async saveFilterInfo() {

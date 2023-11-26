@@ -2,14 +2,13 @@ import { ImageController } from "./components/image-controller";
 import { t } from "./components/strings";
 import { ToolRegistrar } from "./components/tools";
 import { $ } from "./lib/dom";
-import { Tool } from "./uiTypes";
+import { ITool } from "./uiTypes";
 
 export function toolHeader(
   displayName: string,
-  index: number,
   imageCtrl: ImageController,
   toolRegistrar: ToolRegistrar,
-  tool: Tool
+  tool: ITool
 ) {
   const e = $(`<div class="tool-box">
   <div class="w3-bar">

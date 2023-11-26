@@ -420,6 +420,9 @@ class Mutex {
   locked() {
     return this.nest > 0;
   }
+  lockCount() {
+    return this.nest;
+  }
 }
 const locks: Map<string, Mutex> = new Map();
 
@@ -466,6 +469,11 @@ export async function lock(label: string): Promise<Function> {
     locks.set(label, new Mutex());
   }
   return locks.get(label)!.lock();
+}
+
+export function awaiters(label: string): number {
+  pruneLocks();
+  return locks.get(label)?.lockCount() || 0;
 }
 
 export function lockedLocks(): string[] {
