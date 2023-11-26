@@ -1,38 +1,21 @@
 import { ImageController } from "../components/image-controller";
-import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
-import { toolHeader } from "../element-templates";
-import { transform } from "../imageProcess/client";
-import { isPicture } from "../../shared/lib/utils";
 import { t } from "../components/strings";
+import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
+import { PicasaFilter } from "../lib/utils";
+import { FilterTool } from "./baseTool";
+
+class BWTool extends FilterTool {
+  constructor(controller: ImageController) {
+    super(t("Greyscale"), "bw", controller);
+  }
+  build(): PicasaFilter {
+    return { name: this.filterName, args: ["0.5", "0", "0", "#ffffff", "0"] };
+  }
+}
 
 export function setupBW(
   imageController: ImageController,
   toolRegistrar: ToolRegistrar
 ) {
-  const name = t("Greyscale");
-  toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
-    multipleFamily: name,
-    filterName: "bw",
-    enable: (e) => isPicture(e),
-    build: function () {
-      return {
-        name: this.filterName,
-        args: ["1"],
-      };
-    },
-    icon: async function (context) {
-      await transform(context, [this.build()]);
-      return true;
-    },
-    activate: async function (index: number, args?: string[]) {
-      if (!args) {
-        imageController.addOperation(this.build());
-      }
-      return true;
-    },
-    buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController, toolRegistrar, this);
-      return { ui: e.get()! };
-    },
-  });
+  toolRegistrar.registerTool(GENERAL_TOOL_TAB, new BWTool(imageController));
 }

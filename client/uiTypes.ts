@@ -4,28 +4,6 @@ import { PicasaFilter } from "./lib/utils";
 import { AlbumEntrySelectionManager } from "./selection/selection-manager";
 import { Album, AlbumEntry, Node } from "./types/types";
 
-type iconFct = (context: string, original: string) => Promise<boolean>;
-type activateFct = (index: number, args?: string[]) => Promise<boolean>;
-type entryFct = (e: AlbumEntry) => boolean;
-
-export type Tool = {
-  filterName: string;
-  enable: entryFct;
-  editable?: boolean;
-  ui?: () => _$;
-  preview?: boolean;
-  icon: iconFct;
-  build: (...args: any[]) => PicasaFilter;
-  buildUI: (
-    index: number,
-    args: string[],
-    context: string
-  ) => { ui: HTMLElement; clearFct?: Function };
-  activate: activateFct;
-  multipleFamily: string | null;
-  reset?: (index: number) => void;
-};
-
 export type PanZoomEvent = {
   pan: { x: number; y: number };
   zoom: { scale: number };
