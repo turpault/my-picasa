@@ -96,21 +96,21 @@ export async function makeEditorPage(
     imageController
   );
   // Add all the activable features
-  setupCrop(imageContainer, imageController, toolRegistrar);
-  setupTilt(imageContainer, imageController, toolRegistrar);
-  setupBrightness(imageController, toolRegistrar);
-  setupAutocolor(imageController, toolRegistrar);
+  //setupCrop(imageContainer, imageController, toolRegistrar);
+  //setupTilt(imageContainer, imageController, toolRegistrar);
+  //setupBrightness(imageController, toolRegistrar);
+  //setupAutocolor(imageController, toolRegistrar);
   setupBW(imageController, toolRegistrar);
   setupContrast(imageController, toolRegistrar);
-  setupFill(imageController, toolRegistrar);
-  setupSepia(imageController, toolRegistrar);
-  setupPolaroid(imageController, toolRegistrar);
-  setupRotate(imageController, toolRegistrar);
-  setupFlip(imageController, toolRegistrar);
-  setupMirror(imageController, toolRegistrar);
-  setupBlur(imageController, toolRegistrar);
-  setupSharpen(imageController, toolRegistrar);
-  setupFilters(imageController, toolRegistrar);
+  //setupFill(imageController, toolRegistrar);
+  //setupSepia(imageController, toolRegistrar);
+  //setupPolaroid(imageController, toolRegistrar);
+  //setupRotate(imageController, toolRegistrar);
+  //setupFlip(imageController, toolRegistrar);
+  //setupMirror(imageController, toolRegistrar);
+  //setupBlur(imageController, toolRegistrar);
+  //setupSharpen(imageController, toolRegistrar);
+  //setupFilters(imageController, toolRegistrar);
 
   toolRegistrar.selectPage(GENERAL_TOOL_TAB);
   //const refreshMetadataFct = makeMetadata(metadata);

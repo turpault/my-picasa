@@ -1,7 +1,8 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
-import { PicasaFilter, sleep } from "../../shared/lib/utils";
+import { awaiters, lock, PicasaFilter, sleep } from "../../shared/lib/utils";
 import { AlbumEntry } from "../../shared/types/types";
 import { toolHeader } from "../element-templates";
+import { Tool } from "../features/baseTool";
 import {
   cloneContext,
   commit,
@@ -10,28 +11,10 @@ import {
   resizeContext,
 } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
-import { Tool } from "../uiTypes";
 import { ImageController } from "./image-controller";
 import { t } from "./strings";
 
 export const GENERAL_TOOL_TAB = "General";
-async function toolIconForTool(
-  context: string,
-  original: string,
-  tool: Tool
-): Promise<string> {
-  const copy = await cloneContext(context, "tool " + tool.filterName);
-  await tool.icon(copy, original);
-  const res = await encode(copy, "image/jpeg", "base64url");
-  await destroyContext(copy);
-  return res.data as string;
-}
-
-type ToolRegistrarEvents = {
-  added: { tool: Tool };
-  activate: { index: number; tool: Tool };
-  preview: { operation: PicasaFilter | null };
-};
 
 export class ToolRegistrar {
   private activeEntry: AlbumEntry | undefined;
@@ -45,79 +28,46 @@ export class ToolRegistrar {
   }) {
     this.tools = {};
     this.pages = components;
-    this.events = buildEmitter<ToolRegistrarEvents>(false);
   }
-  events: Emitter<ToolRegistrarEvents>;
-  registerTool(toolName: string, page: string, tool: Tool) {
+  registerTool(page: string, tool: Tool) {
     if (!this.pages[page]) {
       throw `Unknown page ${page}`;
-    }
-    if (!tool.ui) {
-      tool.ui = () =>
-        $(`<div class="tool-button"><label>${toolName}</label></div>`)
-          .on("click", () => {
-            this.tools[toolName].onclick();
-            this.events.emit("added", { tool: this.tools[toolName].tool });
-          })
-          .on("mouseenter", () => {
-            if (this.tools[toolName].tool.preview) {
-              this.events.emit("preview", {
-                operation: this.tools[toolName].tool.build(),
-              });
-            }
-          })
-          .on("mouseleave", () => {
-            this.events.emit("preview", { operation: null });
-          });
     }
 
     const elem = tool.ui()!;
     this.pages[page].append(elem);
-    this.tools[toolName] = { tool, component: elem };
+    this.tools[tool.name] = { tool, component: elem };
   }
 
-  async updateToolUIs(context: string, original: string, entry: AlbumEntry) {
+  // Refresh icons from the updated context. Can be reentered
+  async updateToolUIs(
+    context: string,
+    original: string,
+    entry: AlbumEntry,
+    filters: PicasaFilter[]
+  ) {
     this.activeEntry = entry;
+
+    const l = await lock("updateToolUIs");
     // Initial copy, resized
-    const copy = await cloneContext(context, "toolminiicon");
-    await resizeContext(copy, 60);
-    await commit(copy);
+    try {
+      const copy = await cloneContext(context, "toolminiicon");
+      await resizeContext(copy, 60);
+      await commit(copy);
 
-    // First get the active tab tools
-    await Promise.allSettled(
-      Object.entries(this.tools).map(async ([name, tool]) => {
-        const data = await toolIconForTool(copy, original, tool.tool);
-        const target = this.toolButtons[name];
-        target.css({
-          "background-image": `url(${data})`,
-          display: tool.enable(entry) ? "" : "none",
-        });
-      })
-    );
-
-    // Wait until the other tool icons are built
-    sleep(1).then(async () => {
       for (const [name, tool] of Object.entries(this.tools)) {
-        if (!this.activeEntry || this.activeEntry.name !== entry.name) {
-          // No need to continue, as the active image changed
-          continue;
+        if (awaiters("updateToolUIs") > 0) {
+          break;
         }
-        if (!this.pages[page].includes(name)) {
-          const target = this.toolButtons[name];
-          if (target) {
-            const data = await toolIconForTool(copy, original, tool);
-            target.css({
-              "background-image": `url(${data})`,
-              display: tool.enable(entry) ? "" : "none",
-            });
-          }
-        }
+        tool.tool.update(filters, copy);
       }
       destroyContext(copy);
-    });
+    } finally {
+      l();
+    }
   }
 
-  toolNameForFilter(filter: string): string | null {
+  /*toolNameForFilter(filter: string): string | null {
     const res = Object.entries(this.tools).find(
       ([_name, tool]) => tool.filterName === filter
     );
@@ -181,17 +131,11 @@ export class ToolRegistrar {
       return { ui: e.get()! };
     }
     return tool.buildUI(index, args, context);
-  }
+  }*/
 
   tool(name: string): Tool | undefined {
-    return Object.values(this.tools).find((t) => t.filterName === name);
-  }
-
-  edit(index: number, name: string) {
-    this.events.emit("activate", { index, tool: this.tools[name] });
-  }
-  reset(index: number, name: string) {
-    this.tools[name]!.reset!(index);
+    return Object.values(this.tools).find((t) => t.tool.filterName === name)
+      .tool;
   }
 
   private tools: {
@@ -228,7 +172,7 @@ export function makeTools(
   ctrl.events.on(
     "updated",
     ({ context, caption, filters, entry, liveContext }) => {
-      registrar.updateToolUIs(liveContext, context, entry);
+      registrar.updateToolUIs(liveContext, context, entry, filters);
       //description.val(caption || "");
       // Update the operation list
       while (clearList.length > 0) {
