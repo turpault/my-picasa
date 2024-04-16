@@ -1,4 +1,4 @@
-import * as tf from "@tensorflow/tfjs-node";
+const tf = require("@tensorflow/tfjs-node");
 import * as faceapi from "@vladmandic/face-api";
 import { mkdir, readFile } from "fs/promises";
 import { join } from "path";
@@ -542,7 +542,7 @@ async function getOrCreateFeatureFile(entry: AlbumEntry) {
             .withFaceExpressions()
             .withAgeAndGender()
             .withFaceDescriptors();
-          tf.dispose(tensor);
+            tensor.dispose();
 
           detectedFeatures = jsonifyObject(faceFeatures) as FaceLandmarkData[];
           writeFeaturesOfEntry(entry, detectedFeatures);

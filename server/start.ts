@@ -36,7 +36,7 @@ function socketAdaptorInit(serverClient: any): SocketAdaptorInterface {
 export function socketInit(httpServer: FastifyInstance) {
   httpServer.get("/cmd", { websocket: true }, (connection, req) => {
     console.info("[socket]: Client has connected...");
-    const socket = socketAdaptorInit(connection.socket);
+    const socket = socketAdaptorInit(connection);
     addSocket(socket);
     socket.onDisconnect(() => {
       removeSocket(socket);
