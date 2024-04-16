@@ -1,18 +1,4 @@
-import { buildEmitter } from "../../shared/lib/event";
-import { isPicture } from "../../shared/lib/utils";
-import { ImageController } from "../components/image-controller";
-import { t } from "../components/strings";
-import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
-import { toolHeader } from "../element-templates";
-import { transform } from "../imageProcess/client";
-import { $, _$ } from "../lib/dom";
-import { ImagePanZoomController } from "../lib/panzoom";
-import {
-  setupStampPreview,
-  StampParameters,
-  ValueChangeEvent,
-} from "./previews/stamp-preview";
-
+/*
 function sliderToValue(v: number | string) {
   const value = parseFloat(v.toString()) / 100;
   return value;
@@ -100,3 +86,4 @@ export function setupStamp(
     },
   });
 }
+*/

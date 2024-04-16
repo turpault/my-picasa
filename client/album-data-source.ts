@@ -60,7 +60,10 @@ export class AlbumIndexedDataSource {
           // Less than 10 albums changed, just invalidate them
           if (max - min <= 10) {
             for (const index of range(min, max)) {
-              this.emitter.emit("invalidateAt", { index });
+              this.emitter.emit("invalidateAt", {
+                index,
+                album: this.albums[index],
+              });
             }
           } else if (min === 0 && max === this.albums.length - 1) {
             // All albums changed, reset
@@ -76,7 +79,7 @@ export class AlbumIndexedDataSource {
         }
         invalidations = [];
       }
-    });
+    }, 100);
     return new Promise<void>((resolve) => {
       s.monitorAlbums();
       let gotEvent = false;

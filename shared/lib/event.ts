@@ -13,7 +13,7 @@ export type FilterFct<T = Record<string, unknown>> = (
 ) => boolean;
 
 export interface Emitter<Events extends Record<EventType, unknown>> {
-  on<Key extends keyof Events>(
+  on<Key extends "*" | keyof Events>(
     type: Key,
     handler: Handler<Events[Key]>
   ): OffFunction;
@@ -34,20 +34,24 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
   weakRef: boolean = false
 ): Emitter<Events> {
   type HandlerEntry = { handler: Function; once: boolean };
-  type EventHandlers = Map<string, WeakRef<HandlerEntry>>;
-  const all = new Map<keyof Events, EventHandlers>();
+  type EventHandlers = { [key: string]: WeakRef<HandlerEntry> };
+  type EventMap = { [event: string]: EventHandlers };
+  const all: EventMap = {};
 
   const hardRefs: any[] = [];
-  const on = (type: keyof Events, handler: Function, once: boolean = false) => {
-    const iKeepRef = hardRefs;
+  const on = (
+    type: "*" | keyof Events,
+    handler: Function,
+    once: boolean = false
+  ) => {
+    const typeAsString = type as string;
     const entry = { handler, once, off: false };
-    let handlers = all!.get(type);
+    let handlers = all[typeAsString];
     const id = uuid();
     if (!handlers) {
-      handlers = new Map<string, WeakRef<HandlerEntry>>();
-      all.set(type, handlers);
+      all[typeAsString] = {};
     }
-    handlers.set(id, new WeakRef(entry));
+    all[typeAsString][id] = new WeakRef(entry);
     if (weakRef !== true) {
       hardRefs.push(entry);
     }
@@ -61,8 +65,8 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
   };
 
   const off = (id: string) => {
-    for (const handlers of all.values()) {
-      handlers.delete(id);
+    for (const handlers of Object.values(all)) {
+      delete handlers[id];
     }
   };
 
@@ -71,9 +75,11 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
     evt?: Events[Key]
   ): boolean => {
     let res = false;
-    let handlers = all!.get(type);
+    const typeAsString = type as string;
+    let handlers = { ...all[typeAsString], ...all["*"] };
+
     if (handlers) {
-      for (const [id, entry] of Array.from(handlers.entries())) {
+      for (const [id, entry] of Object.entries(handlers)) {
         const val = entry.deref();
         if (!val) {
           if (weakRef !== true) {
@@ -83,16 +89,20 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
           console.warn(
             `Removing handler ${id} of type ${type.toString()} because the function was garbage collected`
           );
-          handlers!.delete(id);
+          off(id);
         } else {
-          const consumed = val.handler(evt!);
-          if (consumed === true) {
-            return true;
+          if (val.once) {
+            off(id);
+          }
+          try {
+            const consumed = val.handler(evt!);
+            if (consumed === true) {
+              return true;
+            }
+          } catch (e) {
+            console.error(`Exception in event handler`, e);
           }
           res = true;
-          if (val.once) {
-            handlers!.delete(id);
-          }
         }
       }
     }

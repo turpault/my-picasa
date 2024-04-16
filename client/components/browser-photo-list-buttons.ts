@@ -1,32 +1,36 @@
 import { Emitter } from "../../shared/lib/event";
-import { debounce } from "../../shared/lib/utils";
+import { debounced } from "../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
-  AlbumMetaData,
+  AlbumEntryPicasa,
   JOBNAMES,
   Job,
   undoStep,
 } from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
-import { $, _$ } from "../lib/dom";
+import { $, _$, elementFromEntry, setIdForEntry } from "../lib/dom";
 import { toggleStar } from "../lib/handles";
 import {
-  Settings,
   getSettings,
   getSettingsEmitter,
   updateIconSize,
 } from "../lib/settings";
+import { State } from "../lib/state";
 import { getService } from "../rpc/connect";
-import {
-  AlbumEntrySelectionManager,
-  SelectionManager,
-} from "../selection/selection-manager";
+import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
 import { DropListEvents, makeDropList } from "./controls/dropdown";
+import { PicasaMultiButton } from "./controls/multibutton";
 import { question } from "./question";
+import {
+  ApplicationState,
+  META_PAGES,
+  SelectionStateDef,
+} from "./selection-meta";
 import { t } from "./strings";
 import { activeTabContext } from "./tabs";
+const elementPrefix = "selection-thumb";
 const html = `<div class="bottom-list-tools">
 <div class="selection-info"></div>
 <div class="selection-thumbs">
@@ -38,20 +42,17 @@ const html = `<div class="bottom-list-tools">
 </div>
 <div class="quick-actions picasa-button-group">
 <picasa-button class="quick-actions-star">☆</picasa-button>
-<picasa-button class="quick-actions-rotate-left">↺</picasa-button>
-  <picasa-button class="quick-actions-rotate-right">↻</picasa-button>
+<picasa-button icon="resources/images/icons/actions/rotate-left.svg" class="quick-actions-rotate-left"> </picasa-button>
+<picasa-button icon="resources/images/icons/actions/rotate-right.svg" class="quick-actions-rotate-right"> </picasa-button>
 </div>
 <div class="selection-actions-buttons">
 </div>
-<!--
-<div class="brightness-photo-list">
-  <label>${t("Brightness")}</label>
-  <input type="range" min="0" max="20" class="photos-brightness-ctrl slider">
-</div>
--->
 <div class="zoom-photo-list">
-  <label>${t("Icon Size")}</label>
-  <input type="range" min="75" max="250" class="photos-zoom-ctrl slider">
+  <label>⛰</label>
+  <input is="picasa-slider" ticks="100,200" min="75" max="250" class="photos-zoom-ctrl">
+</div>
+<div class="metadata-modes">
+<picasa-multi-button class="metadata-modes-button" toggle items="≡|📍|👤"></picasa-multi-button>
 </div>
 </div>`;
 
@@ -82,7 +83,8 @@ function hotKeyToCode(hotKey: string) {
 
 export function makeButtons(
   appEvents: AppEventSource,
-  selectionManager: AlbumEntrySelectionManager
+  selectionManager: AlbumEntrySelectionManager,
+  state: ApplicationState
 ): _$ {
   const container = $(html);
   const buttons = $(".selection-actions-buttons", container);
@@ -98,36 +100,53 @@ export function makeButtons(
 
   $(".quick-actions-rotate-left", container).on("click", async () => {
     const s = await getService();
-    s.rotate(state.selection, "left");
+    s.rotate(localState.getValue("selected"), "left");
   });
   $(".quick-actions-rotate-right", container).on("click", async () => {
     const s = await getService();
-    s.rotate(state.selection, "right");
+    s.rotate(localState.getValue("selected"), "right");
   });
   $(".quick-actions-star", container).on("click", async () => {
-    toggleStar(state.selection);
+    toggleStar(localState.getValue("selected"));
+  });
+  $(".selection-thumbs-actions-pin", container).on("click", () => {
+    selectionManager.selected().forEach((entry: AlbumEntry) => {
+      selectionManager.setPin(entry, true);
+    });
+  });
+  $(".selection-thumbs-actions-clearpin", container).on("click", () => {
+    selectionManager.selected().forEach((entry: AlbumEntry) => {
+      selectionManager.setPin(entry, false);
+    });
   });
 
-  const state: {
-    settings: Settings;
-    tabKind: string;
-    selection: AlbumEntry[];
-    albumMetaData: AlbumMetaData;
-    undo: undoStep[];
-  } = {
-    settings: getSettings(),
-    selection: [],
+  const pages = [META_PAGES.METADATA, META_PAGES.LOCATION, META_PAGES.PERSONS];
+  const metaButton = $(".metadata-modes-button", container)
+    .on("select", () => {
+      const selectedPage = pages[metaButton.selected()[0]];
+      state.setValue("META_PAGE", selectedPage);
+    })
+    .get() as PicasaMultiButton;
+  state.events.on("META_PAGE", () => {
+    const page = pages.indexOf(state.getValue("META_PAGE"));
+    if (page !== -1) metaButton.select(page, true);
+    else metaButton.select(-1);
+  });
+
+  const localState = new State();
+  localState.setValues({
     albumMetaData: {},
     tabKind: "",
     undo: [],
-  };
+  });
 
-  const actions: (
+  type Action =
     | {
         name: string;
         icon: string;
         label: string;
         element?: _$;
+        stateKeys: (keyof SelectionStateDef)[];
         type?: "button" | "dropdown";
         execute?: () => any;
         hotKey?: string;
@@ -137,19 +156,21 @@ export function makeButtons(
         highlight?: () => boolean;
         dropdownReady?: (emitter: Emitter<DropListEvents>) => any;
       }
-    | { element?: _$; execute?: () => any; type: "sep"; hotKey?: string }
-  )[] = [
+    | { element?: _$; execute?: () => any; type: "sep"; hotKey?: string };
+  const actions: Action[] = [
     {
       name: JOBNAMES.EXPORT,
-      label: t("Exporter..."),
+      label: t("Export..."),
+      stateKeys: ["selected"],
       icon: "resources/images/icons/actions/export-50.png",
-      enabled: () => state.selection.length > 0,
-      tooltip: () => `${t("Export $1 item(s)", state.selection.length)}`,
+      enabled: () => localState.getValue("selected").length > 0,
+      tooltip: () =>
+        `${t("Export $1 item(s)", localState.getValue("selected").length)}`,
       execute: async () => {
-        if (state.selection.length > 0) {
+        if (localState.getValue("selected").length > 0) {
           const s = await getService();
           return s.createJob(JOBNAMES.EXPORT, {
-            source: state.selection,
+            source: localState.getValue("selected"),
           });
         }
       },
@@ -157,15 +178,17 @@ export function makeButtons(
     { type: "sep" },
     {
       name: JOBNAMES.DUPLICATE,
-      label: t("Dupliquer"),
+      label: t("Duplicate"),
+      stateKeys: ["selected"],
       icon: "resources/images/icons/actions/duplicate-50.png",
-      enabled: () => state.selection.length > 0,
+      enabled: () => localState.getValue("selected").length > 0,
       hotKey: "Ctrl+D",
-      tooltip: () => `${t("Duplicate $1 item(s)", state.selection.length)}`,
+      tooltip: () =>
+        `${t("Duplicate $1 item(s)", localState.getValue("selected").length)}`,
       execute: async () => {
         const s = await getService();
         const jobId = await s.createJob(JOBNAMES.DUPLICATE, {
-          source: state.selection,
+          source: localState.getValue("selected"),
         });
         s.waitJob(jobId).then((results: Job) => {
           selectionManager.setSelection(results.out as AlbumEntry[]);
@@ -177,22 +200,26 @@ export function makeButtons(
     },
     {
       name: JOBNAMES.MOVE,
-      label: t("Déplacer"),
+      label: t("Move"),
+      stateKeys: ["selected"],
       icon: "resources/images/icons/actions/move-to-new-album-50.png",
-      enabled: () => state.selection.length > 0,
+      enabled: () => localState.getValue("selected").length > 0,
       tooltip: () =>
-        `${t("Move $1 item(s) to a new album", state.selection.length)}`,
+        `${t(
+          "Move $1 item(s) to a new album",
+          localState.getValue("selected").length
+        )}`,
       execute: () => {
         question("New album name", "Please type the new album name").then(
           async (newAlbum) => {
             if (newAlbum) {
               const s = await getService();
               s.makeAlbum(newAlbum).then((album: Album) => {
-                if (state.selection.length === 0) {
+                if (localState.getValue("selected").length === 0) {
                   throw new Error("No selection");
                 }
                 return s.createJob(JOBNAMES.MOVE, {
-                  source: state.selection,
+                  source: localState.getValue("selected"),
                   destination: { album },
                 });
               });
@@ -204,11 +231,12 @@ export function makeButtons(
     {
       name: t("Create Mosaic"),
       label: t("Mosaic"),
+      stateKeys: ["selected"],
       icon: "resources/images/icons/actions/composition-50.png",
-      enabled: () => state.selection.length > 0,
+      enabled: () => localState.getValue("selected").length > 0,
       execute: () => {
         appEvents.emit("mosaic", {
-          initialList: state.selection,
+          initialList: localState.getValue("selected"),
           initialIndex: 0,
         });
       },
@@ -216,11 +244,12 @@ export function makeButtons(
     {
       name: t("Create Slideshow"),
       label: t("Slideshow"),
-      icon: "resources/images/icons/actions/slideshow-50.png",
-      enabled: () => state.selection.length > 0,
+      stateKeys: ["selected"],
+      icon: "resources/images/icons/actions/slideshow.svg",
+      enabled: () => localState.getValue("selected").length > 0,
       execute: () => {
         appEvents.emit("gallery", {
-          initialList: state.selection,
+          initialList: localState.getValue("selected"),
           initialIndex: 0,
         });
       },
@@ -229,16 +258,17 @@ export function makeButtons(
     {
       name: t("Undo"),
       label: t("Undo"),
+      stateKeys: ["undo"],
       icon: "resources/images/icons/actions/undo-50.png",
-      enabled: () => state.undo.length > 0,
+      enabled: () => localState.getValue("undo").length > 0,
       hotKey: "Ctrl+Z",
       tooltip: () =>
-        state.undo.length > 0
-          ? `${t("Undo")} ${t(state.undo[0].description)}`
+        localState.getValue("undo").length > 0
+          ? `${t("Undo")} ${t(localState.getValue("undo")[0].description)}`
           : t("Nothing to undo"),
       execute: async () => {
         const s = await getService();
-        const undo = state.undo[0];
+        const undo = localState.getValue("undo")[0];
         return s.undo(undo.uuid);
       },
     },
@@ -247,10 +277,11 @@ export function makeButtons(
       name: t("Open in Finder"),
       label: t("Finder"),
       icon: "resources/images/icons/actions/finder-50.png",
-      enabled: () => state.selection.length > 0,
+      stateKeys: ["active"],
+      enabled: () => !!state.getValue("active"),
       execute: async () => {
         const s = await getService();
-        const firstSelection = state.selection[0];
+        const firstSelection = state.getValue("active");
         if (firstSelection) s.openEntryInFinder(firstSelection);
       },
     },
@@ -258,12 +289,14 @@ export function makeButtons(
       name: t("Delete"),
       label: t("Delete"),
       icon: "resources/images/icons/actions/trash-50.png",
-      enabled: () => state.selection.length > 0,
-      tooltip: () => `${t("Delete $1 item(s)", state.selection.length)}`,
+      stateKeys: ["selected"],
+      enabled: () => localState.getValue("selected").length > 0,
+      tooltip: () =>
+        `${t("Delete $1 item(s)", localState.getValue("selected").length)}`,
       execute: async () => {
         const s = await getService();
         return s.createJob(JOBNAMES.DELETE, {
-          source: state.selection,
+          source: localState.getValue("selected"),
         });
       },
     },
@@ -310,6 +343,35 @@ export function makeButtons(
     }
     buttons.append(action.element);
   }
+
+  function refreshAction(action: Action) {
+    if (action.type !== "sep") {
+      action.element!.addRemoveClass(
+        "disabled",
+        !!action.enabled && !action.enabled()
+      );
+      action.element!.addRemoveClass(
+        "highlight",
+        !!action.highlight && action.highlight()
+      );
+      action.element!.addRemoveClass(
+        "hidden",
+        !!action.visible && !action.visible()
+      );
+      if (action.tooltip)
+        action.element!.attr("data-tooltip-above", action.tooltip());
+    }
+  }
+  for (const action of actions) {
+    if (action.type !== "sep") {
+      action.stateKeys.forEach((key) => {
+        state.events.on(key, () => {
+          refreshAction(action);
+        });
+      });
+    }
+  }
+
   appEvents.on("keyDown", (ev) => {
     console.info("keyDown", ev.key, ev.code, ev);
     for (const action of actions) {
@@ -335,26 +397,91 @@ export function makeButtons(
     }
   });
 
+  state.events.on("selected", () => {
+    $(".quick-actions-rotate-left", container).addRemoveClass(
+      "disabled",
+      !localState.getValue("selected")
+    );
+    $(".quick-actions-rotate-right", container).addRemoveClass(
+      "disabled",
+      !localState.getValue("selected")
+    );
+    $(".quick-actions-star", container).addRemoveClass(
+      "disabled",
+      !!localState.getValue("selected")
+    );
+  });
+
+  state.events.on("stars", () => {
+    const stars = state.getValue("stars");
+    $(".quick-actions-star", container).text(stars ? "🌟".repeat(stars) : "☆");
+  });
+
   async function refreshState() {
     const s = await getService();
-    const oldSelection = state.selection;
-    state.settings = getSettings();
-    state.selection = selectionManager.selected();
-    const activeEntry = selectionManager.active() || state.selection[0];
-    state.tabKind = activeTabContext().kind;
-    state.undo = ((await s.undoList()) as undoStep[]).reverse();
-    state.albumMetaData = activeEntry
+    const activeEntry = selectionManager.active();
+    const albumMetadata = activeEntry
       ? await s.getAlbumMetadata(activeEntry.album)
       : {};
+    const selectedIndex = selectionManager.activeIndex();
+    const activeMetadata = activeEntry ? albumMetadata[activeEntry.name] : {};
+    const stars = parseInt(activeMetadata.starCount || "0");
+    localState.setValue("albumMetaData", albumMetadata);
+    localState.setValue("stars", stars || 0);
+    localState.setValue("active", activeEntry);
+    localState.setValue("selectedIndex", selectedIndex);
+    localState.setValue(
+      "activeMetadata",
+      activeEntry
+        ? {
+            entry: activeEntry,
+            metadata: albumMetadata[activeEntry.name],
+          }
+        : undefined
+    );
+    const activeOnly = !!state.getValue("META_SINGLE_SELECTION_MODE");
 
-    const metadata = activeEntry
-      ? state.albumMetaData[activeEntry.name]
-      : undefined;
-    const stars = metadata ? parseInt(metadata.starCount || "0") : 0;
+    if (activeOnly) {
+      localState.setValue("selected", [activeEntry]);
+    } else {
+      localState.setValue("selected", selectionManager.selected());
+    }
+  }
+  localState.events.on("selected", () => {
+    const lst = $(".selection-thumbs-icons", container);
+    lst.empty();
+    selectionManager.selected().forEach((entry: AlbumEntry, index) => {
+      const icon = $(
+        `<div class="selection-thumb ${
+          selectionManager.isPinned(entry) ? "selection-thumb-pinned" : ""
+        } entry" style="background-image: url(${thumbnailUrl(
+          entry,
+          "th-small"
+        )})"/>`
+      );
+      lst
+        .append(icon)
+        .addRemoveClass(
+          "selection-thumb-selected",
+          selectionManager.activeIndex() === index
+        );
+      setIdForEntry(icon, entry, elementPrefix);
+    });
+    lst.append(
+      `<span class="selection-thumb-count">${
+        selectionManager.selected().length.toString() +
+        " " +
+        t("photos selected")
+      }</span>`
+    );
+  });
+  const updateLabel = debounced(() => {
+    const entry = localState.getValue("active");
+    const selected = localState.getValue("selected");
+    const selectedIndex = localState.getValue("selectedIndex");
+    const metadata = localState.getValue("activeMetadata");
     const info =
-      (activeEntry
-        ? `${activeEntry.album.name} > ${activeEntry.name}   `
-        : "") +
+      (entry ? `${entry.album.name} > ${entry.name}   ` : "") +
       (metadata?.dateTaken
         ? `    ${new Date(metadata.dateTaken).toLocaleString(undefined, {
             weekday: "long",
@@ -367,68 +494,42 @@ export function makeButtons(
           })}`
         : "") +
       (metadata?.dimensions ? `    ${metadata?.dimensions} pixels` : "") +
-      (selectionManager.activeIndex() !== -1
-        ? ` (${selectionManager.activeIndex() + 1} ${t("of")} ${
-            selectionManager.selected().length
-          })`
+      (selectedIndex !== -1
+        ? ` (${selectedIndex + 1} ${t("of")} ${selected.length})`
         : " ");
-
     $(".selection-info", container).text(info);
-    $(".quick-actions-star", container).text(stars ? "🌟".repeat(stars) : "☆");
-    for (const action of actions) {
-      if (action.type !== "sep") {
-        action.element!.addRemoveClass(
-          "disabled",
-          !!action.enabled && !action.enabled()
-        );
-        action.element!.addRemoveClass(
-          "highlight",
-          !!action.highlight && action.highlight()
-        );
-        action.element!.addRemoveClass(
-          "hidden",
-          !!action.visible && !action.visible()
-        );
-        if (action.tooltip)
-          action.element!.attr("data-tooltip-above", action.tooltip());
-      }
-    }
-    function selectionHash(entries: AlbumEntry[]) {
-      return entries
-        .map((e) => e.name)
-        .sort()
-        .join();
-    }
-    if (selectionHash(oldSelection) !== selectionHash(state.selection)) {
-      const lst = $(".selection-thumbs-icons", container);
-      lst.empty();
-      state.selection.forEach((entry) => {
-        lst.append(
-          `<div class="selection-thumb" style="background-image: url(${thumbnailUrl(
-            entry,
-            "th-small"
-          )})"/>`
-        );
-      });
-      lst.append(
-        `<span class="selection-thumb-count">${
-          state.selection.length.toString() + " " + t("photos selected")
-        }</span>`
-      );
-    }
-  }
-  getSettingsEmitter().on("changed", refreshState);
-  appEvents.on("tabDisplayed", ({ context }) => {
-    selectionManager.events.on("activeChanged", () =>
-      debounce(refreshState, 200)
-    );
-    selectionManager.events.on("added", () => debounce(refreshState, 200));
-    selectionManager.events.on("removed", () => debounce(refreshState, 200));
+  });
+  localState.events.on("activeMetadata", updateLabel);
+  localState.events.on("active", updateLabel);
+  localState.events.on("selected", updateLabel);
+  localState.events.on("selectedIndex", updateLabel);
+
+  const debouncedRefresh = debounced(refreshState, 200, false);
+
+  getSettingsEmitter().on("changed", debouncedRefresh);
+  selectionManager.events.on("activeChanged", debouncedRefresh);
+  selectionManager.events.on("changed", () => {
+    debouncedRefresh();
   });
   getService().then((s) => {
-    s.on("undoChanged", refreshState);
-    s.on("albumEntryAspectChanged", refreshState);
+    s.on("undoChanged", (ev: { payload: { undoSteps: undoStep[] } }) => {
+      localState.setValue("undo", ev.payload.undoSteps.reverse());
+    });
+    s.on(
+      "albumEntryAspectChanged",
+      async (e: { payload: AlbumEntryPicasa }) => {
+        // Is there a thumbnail with that data ?
+        const elem = elementFromEntry(e.payload, elementPrefix);
+        if (elem.exists()) {
+          elem.css({
+            "background-image": `url(${thumbnailUrl(e.payload, "th-small")})`,
+          });
+        }
+      }
+    );
   });
-  appEvents.on("tabChanged", refreshState);
+  appEvents.on("tabChanged", () => {
+    localState.setValue("tabKind", activeTabContext().kind);
+  });
   return container;
 }

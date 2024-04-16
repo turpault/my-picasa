@@ -1,11 +1,10 @@
 import { mkdir, readFile, readdir } from "fs/promises";
-import { basename, join, sep } from "path";
+import { basename, join } from "path";
 import ini from "../../../shared/lib/ini";
+import { lock } from "../../../shared/lib/mutex";
 import { MAX_STAR } from "../../../shared/lib/shared-constants";
 import {
-  decodeOperations,
-  encodeOperations,
-  lock,
+  decodeRotate,
   removeDiacritics,
   sleep,
 } from "../../../shared/lib/utils";
@@ -16,10 +15,12 @@ import {
   AlbumKind,
   AlbumMetaData,
   PicasaSection,
+  ThumbnailSize,
+  extraFields,
   idFromKey,
   keyFromID,
 } from "../../../shared/types/types";
-import { events } from "../../events/events";
+import { events } from "../../events/server-events";
 import {
   PICASA,
   facesFolder,
@@ -30,6 +31,23 @@ import { fileExists, safeWriteFile } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { rate } from "../../utils/stats";
 import { media } from "./albumUtils";
+
+export const cachedFilterKey: Record<ThumbnailSize, extraFields> = {
+  "th-small": "cached:filters:th-small",
+  "th-medium": "cached:filters:th-medium",
+  "th-large": "cached:filters:th-large",
+};
+export const dimensionsFilterKey: Record<ThumbnailSize, extraFields> = {
+  "th-small": "cached:dimensions:th-small",
+  "th-medium": "cached:dimensions:th-medium",
+  "th-large": "cached:dimensions:th-large",
+};
+
+export const rotateFilterKey: Record<ThumbnailSize, extraFields> = {
+  "th-small": "cached:rotate:th-small",
+  "th-medium": "cached:rotate:th-medium",
+  "th-large": "cached:rotate:th-large",
+};
 
 let picasaMap = new Map<string, AlbumMetaData>();
 let lastAccessPicasaMap = new Map<string, number>();
@@ -176,6 +194,12 @@ function writePicasaIni(album: Album, data: AlbumMetaData): void {
   picasaMap.set(album.key, data);
 }
 
+export function entryWithMeta(entry: AlbumEntry, metadata: AlbumEntryMetaData) {
+  return {
+    ...entry,
+    metadata,
+  };
+}
 export async function getPicasaEntry(
   entry: AlbumEntry
 ): Promise<AlbumEntryMetaData> {
@@ -245,25 +269,33 @@ export async function rotate(entries: AlbumEntry[], direction: string) {
     }[direction] || 0;
   for (const entry of entries) {
     const picasa = await getPicasaEntry(entry);
-    const operations = decodeOperations(picasa.filters || "");
-    const idx = operations.findIndex((o) => o.name === "rotate");
-    let initialValue = 0;
-    if (idx !== -1) {
-      initialValue = parseInt(operations[idx].args[1]);
-    }
-    initialValue += increment;
-    const newCommand = { name: "rotate", args: ["1", initialValue.toString()] };
-    if (idx !== -1) {
-      if (initialValue % 4 === 0) {
-        operations.splice(idx, 1);
-      } else {
-        operations[idx] = newCommand;
-      }
-    } else {
-      operations.push(newCommand);
-    }
-    updatePicasaEntry(entry, "filters", encodeOperations(operations));
+    const rotateValue = decodeRotate(picasa.rotate);
+    const targetValue = (increment + rotateValue) % 4;
+    if (targetValue === 0) await setRotate(entry, undefined);
+    else await setRotate(entry, `rotate(${targetValue})`);
   }
+}
+
+export async function setRotate(entry: AlbumEntry, rotate?: string) {
+  if (!rotate) updatePicasaEntry(entry, "rotate", undefined);
+  else updatePicasaEntry(entry, "rotate", `rotate(${rotate})`);
+  events.emit("rotateChanged", {
+    entry: entryWithMeta(entry, await getPicasaEntry(entry)),
+  });
+}
+
+export async function setFilters(entry: AlbumEntry, filters: string) {
+  await updatePicasaEntry(entry, "filters", filters);
+  events.emit("filtersChanged", {
+    entry: entryWithMeta(entry, await getPicasaEntry(entry)),
+  });
+}
+
+export async function setCaption(entry: AlbumEntry, caption: string) {
+  await updatePicasaEntry(entry, "caption", caption);
+  events.emit("captionChanged", {
+    entry: entryWithMeta(entry, await getPicasaEntry(entry)),
+  });
 }
 
 export async function toggleStar(entries: AlbumEntry[]) {
@@ -282,12 +314,9 @@ export async function toggleStar(entries: AlbumEntry[]) {
       star = undefined;
     }
     updatePicasaEntries(entry, { star, starCount });
-    for (const entry of entries) {
-      events.emit("favoriteChanged", {
-        entry,
-        starCount: starCount ? parseInt(starCount) : 0,
-      });
-    }
+    events.emit("favoriteChanged", {
+      entry: entryWithMeta(entry, await getPicasaEntry(entry)),
+    });
   }
 }
 
@@ -378,6 +407,7 @@ export async function updatePicasaEntries(
         dirty = true;
       }
     } else {
+      dirty = true;
       delete picasa[entry.name][k];
     }
     if (

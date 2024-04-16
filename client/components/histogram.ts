@@ -13,7 +13,7 @@ export function makeHistogram(e: _$) {
     const histogramData = await s.histogram(context);
     drawHistogram(
       histogramData,
-      $(".canvas-histogram", histogramSidebar).get() as HTMLCanvasElement
+      histogramSidebar.get() as HTMLCanvasElement
     );
   }
   return refreshHistogram;

@@ -9,7 +9,7 @@ import { getAlbumMetadata } from "./lib/handles";
 import { Settings, getSettings } from "./lib/settings";
 import { getService } from "./rpc/connect";
 
-export async function buildAlbumEntryEx(
+export async function getMetadata(
   entries: AlbumEntry[]
 ): Promise<AlbumEntryPicasa[]> {
   const uniqueAlbums = entries.reduce((prev, val) => {
@@ -77,7 +77,7 @@ export async function getAlbumInfo(
 
   if (settings.filters.star) {
     entries = entries.filter((v) => {
-      return settings.filters.star <= parseInt(picasa[v.name].starCount || "0");
+      return parseInt(picasa[v.name].starCount || "0") >= settings.filters.star;
     });
   }
 
@@ -128,4 +128,8 @@ export async function getFileExifData(entry: AlbumEntry): Promise<any> {
   const service = await getService();
   const exif = await service.exifData(entry);
   return exif;
+}
+
+export async function getFilesExifData(entries: AlbumEntry[]): Promise<any> {
+  return Promise.all(entries.map((e) => getFileExifData(e)));
 }

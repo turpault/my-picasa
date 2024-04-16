@@ -2,6 +2,7 @@ import * as tf from "@tensorflow/tfjs-node";
 import * as faceapi from "@vladmandic/face-api";
 import { mkdir, readFile } from "fs/promises";
 import { join } from "path";
+import { lock } from "../../../shared/lib/mutex";
 import { Queue } from "../../../shared/lib/queue";
 import {
   FaceList,
@@ -15,7 +16,6 @@ import {
   isAnimated,
   isPicture,
   jsonifyObject,
-  lock,
   pathForEntryMetadata,
   setReady,
   sleep,
@@ -43,10 +43,10 @@ import {
 import { socketCount } from "../../utils/socketList";
 import { media } from "../rpcFunctions/albumUtils";
 import {
+  getPicasaEntry,
   listAlbumsOfKind,
   readAlbumEntries,
   readAlbumIni,
-  getPicasaEntry,
   updatePicasa,
   updatePicasaEntry,
 } from "../rpcFunctions/picasa-ini";

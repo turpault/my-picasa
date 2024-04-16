@@ -1,6 +1,6 @@
-import { compareAlbumEntry, range } from "../../../shared/lib/utils";
+import { compareAlbumEntry, range, uuid } from "../../../shared/lib/utils";
 import { thumbnailUrl } from "../../imageProcess/client";
-import { $, _$ } from "../../lib/dom";
+import { $, _$, elementFromEntry, setIdForEntry } from "../../lib/dom";
 import { getService } from "../../rpc/connect";
 import { AlbumEntrySelectionManager } from "../../selection/selection-manager";
 import { AlbumEntry, AlbumEntryPicasa } from "../../types/types";
@@ -9,17 +9,6 @@ class PicasaEntryCarouselElement extends HTMLElement {
   connectedCallback() {
     this.classList.add("picasa-carousel-element");
     this.updateImage(undefined);
-    getService().then((s) => {
-      this.off = s.on(
-        "albumEntryAspectChanged",
-        async (e: { payload: AlbumEntryPicasa }) => {
-          const changedEntry = e.payload;
-          if (this.entry && compareAlbumEntry(changedEntry, this.entry) === 0) {
-            this.updateImage(this.entry);
-          }
-        }
-      );
-    });
   }
 
   async updateImage(entry: AlbumEntry | undefined) {
@@ -42,18 +31,36 @@ class PicasaEntryCarouselElement extends HTMLElement {
 export class PicasaEntryCarousel extends HTMLElement {
   static observedAttributes = ["count"];
   private selection: AlbumEntrySelectionManager | undefined;
+  private off: Function | undefined;
   setSelectionList(selection: AlbumEntrySelectionManager) {
+    if (this.off) this.off();
     this.selection = selection;
     this.createElements();
-    this.selection.events.on("activeChanged", (event) => {
-      this.place();
-    });
-    this.selection.events.on("added", () => this.createElements());
-    this.selection.events.on("removed", () => this.createElements());
+    const off = [
+      this.selection.events.on("activeChanged", (event) => {
+        this.place();
+      }),
+      this.selection.events.on("changed", () => {
+        this.createElements();
+      }),
+    ];
+    this.off = () => off.forEach((o) => o());
   }
   connectedCallback() {
     this.classList.add("picasa-carousel");
     this.createElements();
+    this.carouselId = uuid();
+    getService().then((s) => {
+      s.on(
+        "albumEntryAspectChanged",
+        async (e: { payload: AlbumEntryPicasa }) => {
+          const elem = elementFromEntry(e.payload, this.carouselId);
+          if (elem.exists()) {
+            (elem.get() as PicasaEntryCarouselElement).updateImage(e.payload);
+          }
+        }
+      );
+    });
   }
   createElements() {
     const e = $(this);
@@ -71,8 +78,10 @@ export class PicasaEntryCarousel extends HTMLElement {
         $(
           `<picasa-carousel-element class="strip-btn" loading="lazy"></picasa-carousel-element>`
         )
-          .on("click", () => {
-            this.select(index);
+          .on("click", (e) => {
+            this.select(
+              parseInt($(e.target as HTMLElement).attr("index")) || 0
+            );
           })
           .get() as PicasaEntryCarouselElement
     ));
@@ -89,8 +98,14 @@ export class PicasaEntryCarousel extends HTMLElement {
     const centerElement = Math.floor(this.count() / 2);
     range(this.count()).forEach((index) => {
       const indexInList = index - centerElement + this.selection.activeIndex();
-      this.btns[index].updateImage(this.selection.selected()[indexInList]);
-      $(this.btns[index]).addRemoveClass("selected", index === centerElement);
+      const entry = this.selection.selected()[indexInList];
+      this.btns[index].updateImage(entry);
+      if (entry) {
+        setIdForEntry($(this.btns[index]), entry, this.carouselId);
+      }
+      $(this.btns[index])
+        .addRemoveClass("selected", index === centerElement)
+        .attr("index", indexInList);
     });
     this.leftB.addRemoveClass("disabled", this.selection.activeIndex() === 0);
     this.rightB.addRemoveClass(
@@ -112,6 +127,7 @@ export class PicasaEntryCarousel extends HTMLElement {
   private btns: PicasaEntryCarouselElement[] = [];
   private leftB: _$;
   private rightB: _$;
+  private carouselId: string;
 }
 
 export function registerCarousel() {

@@ -1,5 +1,6 @@
 import { resolve } from "path";
 import { $ } from "../lib/dom";
+import { t } from "./strings";
 
 export enum Button {
   Ok = "Ok",
@@ -38,4 +39,8 @@ export async function message(
       );
     });
   });
+}
+
+export function notImplemented() {
+  return message(t("Not implemented yet"));
 }

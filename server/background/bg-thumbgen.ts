@@ -1,17 +1,17 @@
 import { bouncingBall } from "cli-spinners";
 import { watch } from "fs";
 import Spinnies from "spinnies";
-import { imageInfo } from "../imageOperations/info";
-import { folders, waitUntilWalk } from "./bg-walker";
-import { imagesRoot } from "../utils/constants";
 import { isMediaUrl, sleep } from "../../shared/lib/utils";
 import { AlbumEntry, ThumbnailSizeVals } from "../../shared/types/types";
+import { imageInfo } from "../imageOperations/info";
 import { media } from "../rpc/rpcFunctions/albumUtils";
-import { isIdle, waitUntilIdle } from "../utils/busy";
 import {
   makeThumbnail,
-  shouldMakeImageThumbnail,
+  readOrMakeThumbnail,
 } from "../rpc/rpcFunctions/thumbnail";
+import { waitUntilIdle } from "../utils/busy";
+import { imagesRoot } from "../utils/constants";
+import { folders, waitUntilWalk } from "./bg-walker";
 
 export async function buildThumbs() {
   let spinnerName = Date.now().toString();
@@ -54,7 +54,7 @@ export async function buildThumbs() {
         await imageInfo(picture);
         const should = await Promise.all(
           sizes.map(({ size, animated }) =>
-            shouldMakeImageThumbnail(picture, size, animated)
+            readOrMakeThumbnail(picture, size, animated)
           )
         );
         if (should.filter((s) => s).length > 0) {

@@ -2,7 +2,7 @@ import fastifystatic from "@fastify/static";
 import { default as websocketPlugin } from "@fastify/websocket";
 import Fastify, { FastifyInstance, RouteShorthandOptions } from "fastify";
 import { join } from "path";
-import { lockedLocks, startLockMonitor } from "../shared/lib/utils";
+import { lockedLocks, startLockMonitor } from "../shared/lib/mutex";
 import { SocketAdaptorInterface } from "../shared/socket/socket-adaptor-interface";
 import { WsAdaptor } from "../shared/socket/ws-adaptor";
 import { buildFavoriteFolder } from "./background/bg-favorites";
@@ -16,7 +16,7 @@ import { startAlbumUpdateNotification } from "./rpc/albumTypes/fileAndFolders";
 import { initProjects } from "./rpc/albumTypes/projects";
 import { RPCInit } from "./rpc/index";
 import { asset } from "./rpc/routes/asset";
-import { thumbnail } from "./rpc/routes/thumbnail";
+import { albumThumbnail, thumbnail } from "./rpc/routes/thumbnail";
 import { albumWithData } from "./rpc/rpcFunctions/albumUtils";
 import { startSentry } from "./sentry";
 import { busy, measureCPULoad } from "./utils/busy";
@@ -78,6 +78,24 @@ function setupRoutes(server: FastifyInstance) {
 
   server.get("/stats", async (request, reply) => {
     return { series: await history(), locks: lockedLocks() };
+  });
+
+  server.get("/thumbnail/:albumkey/:resolution", async (request, reply) => {
+    const { albumkey, resolution } = request.params as any;
+    const album = albumWithData(albumkey);
+
+    if (!album) {
+      reply.code(404);
+      reply.send();
+      return {};
+    }
+    const animated = (request.query as any)["animated"] !== undefined;
+    3;
+
+    const r = await albumThumbnail(album, resolution, animated);
+    reply.type(r.mime);
+    reply.header("cache-control", "no-cache");
+    return r.data;
   });
 
   server.get(

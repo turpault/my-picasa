@@ -16,7 +16,7 @@ export function groupBy<T, K>(
   a: T[],
   field: keyof T,
   transform?: (v: any) => K
-) {
+): Map<K, T[]> {
   const result = new Map<K, T[]>();
   for (const item of a) {
     let value = (item[field] as unknown) as K;
@@ -132,7 +132,7 @@ const debounceFcts = new Map<
  */
 export async function debounce(
   f: Function,
-  delay?: number,
+  delay: number = 1000,
   guid?: string,
   atStart?: boolean
 ) {
@@ -168,13 +168,13 @@ export async function debounce(
  * @param atStart weather to call the function at the start or at the end of the delay
  * @returns
  */
-export function debounced(
-  f: Function,
-  delay?: number,
-  atStart?: boolean
-): Function {
-  return (...args: any[]) =>
-    debounce(() => f(...args), delay, undefined, atStart);
+export function debounced<T extends Function>(
+  f: T,
+  delay: number = 1000,
+  atStart: boolean = false
+): T {
+  return (((...args: any[]) =>
+    debounce(() => f(...args), delay, undefined, atStart)) as unknown) as T;
 }
 
 export function isMediaUrl(url: string): boolean {
@@ -387,99 +387,11 @@ export function flattenObject(ob: any) {
   return toReturn;
 }
 
-class Mutex {
-  constructor() {
-    this.current = Promise.resolve();
-    this.nest = 0;
-  }
-  private current: Promise<void>;
-  private nest: number;
-  lockDate: Date = new Date();
-  lock() {
-    let _resolve: Function;
-    this.lockDate = new Date();
-    const p = new Promise<void>((resolve) => {
-      _resolve = () => {
-        if (Date.now() - this.lockDate.getTime() > 1000) {
-          //debugger;
-        }
-        this.lockDate = new Date();
-        this.nest--;
-        return resolve();
-      };
-    });
-    // Caller gets a promise that resolves when the current outstanding
-    // lock resolves
-    const rv = this.current.then(() => _resolve);
-    // Don't allow the next request until the new promise is done
-    this.current = p;
-    // Return the new promise
-    this.nest++;
-    return rv;
-  }
-  locked() {
-    return this.nest > 0;
-  }
-  lockCount() {
-    return this.nest;
-  }
-}
-const locks: Map<string, Mutex> = new Map();
-
-let lastCheck = Date.now();
-function checkForVeryLongLocks() {
-  const now = Date.now();
-  if (now < lastCheck + 1000) {
-    return;
-  }
-  lastCheck = now;
-  const table = Array.from(locks.entries())
-    .filter(([name, mutex]) => mutex.locked())
-    .map(([name, mutex]) => ({
-      name,
-      duration: now - mutex.lockDate.getTime(),
-    }))
-    .filter((l) => l.duration > 1000);
-  if (table.length > 0) {
-    console.warn("These locks are taking longer than expected");
-    console.table(table);
-  }
-}
-
-function pruneLocks() {
-  // Prune unused mutexes
-  for (const [name, mutex] of locks.entries()) {
-    if (!mutex.locked()) {
-      locks.delete(name);
-    }
-  }
-  checkForVeryLongLocks();
-}
-
 export function differs(a: any, b: any) {
   return (
     Object.getOwnPropertyNames(a).find((p) => a[p] !== b[p]) ||
     Object.getOwnPropertyNames(b).find((p) => a[p] !== b[p])
   );
-}
-
-export async function lock(label: string): Promise<Function> {
-  pruneLocks();
-  if (!locks.has(label)) {
-    locks.set(label, new Mutex());
-  }
-  return locks.get(label)!.lock();
-}
-
-export function awaiters(label: string): number {
-  pruneLocks();
-  return locks.get(label)?.lockCount() || 0;
-}
-
-export function lockedLocks(): string[] {
-  return Array.from(locks)
-    .filter((l) => l[1].locked())
-    .map((l) => l[0]);
 }
 
 export function valuesOfEnum<T>(e: T): any[] {
@@ -492,8 +404,14 @@ export function keysOfEnum<T>(e: T): (keyof T)[] {
   ) as unknown) as (keyof T)[];
 }
 
-export function startLockMonitor() {
-  setInterval(checkForVeryLongLocks, 10000);
+export function decodeRotate(rotateString?: string): number {
+  const rotateValue = rotateString
+    ? rotateString.match(/rotate\((\d+)\)/)
+    : undefined;
+  // rotation increment
+  const value =
+    parseInt(rotateValue && rotateValue.length ? rotateValue[1] : "0") || 0;
+  return value;
 }
 
 export function escapeXml(unsafe: string): string {
@@ -611,4 +529,17 @@ export function jsonifyObject(instance: any): any {
     }
   }
   return jsonObj;
+}
+
+export function substitute(
+  template: string,
+  values: { [key: string]: string }
+) {
+  return template.replace(/\$([A-Z0-9_]+)\$/g, (match, p1) => {
+    const v = values[p1];
+    if (v === undefined) {
+      throw `No value for ${p1}`;
+    }
+    return v;
+  });
 }

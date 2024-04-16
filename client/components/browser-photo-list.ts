@@ -1,4 +1,5 @@
-import { dateOfAlbumFromName, lock, range } from "../../shared/lib/utils";
+import { lock } from "../../shared/lib/mutex";
+import { dateOfAlbumFromName, range } from "../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
@@ -13,7 +14,7 @@ import { getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
 import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { AlbumListEventSource, AppEventSource } from "../uiTypes";
-import { Button, message } from "./message";
+import { Button, message, notImplemented } from "./message";
 import { t } from "./strings";
 import {
   entryAboveBelow,
@@ -67,14 +68,21 @@ export async function makePhotoList(
 
   let running = false;
   const events = dataSource.emitter;
-
+  let editing = false;
   // UI State events
   const off = [
     appEvents.on("tabChanged", ({ win }) => {
       tabIsActive = $(container).isParent(win);
     }),
+    appEvents.on("edit", (event) => {
+      if (event.active) {
+        editing = true;
+      } else {
+        editing = false;
+      }
+    }),
     appEvents.on("keyDown", async ({ code, win, meta, shift }) => {
-      if (!tabIsActive) return;
+      if (!tabIsActive || editing) return;
       switch (code) {
         case "Space":
           if (selectionManager.selected().length > 0) {
@@ -128,16 +136,7 @@ export async function makePhotoList(
       }
     }),
     events.on("thumbnailDblClicked", async (event) => {
-      const s = await getService();
-      const { entries } = await s.media(event.entry.album);
-      const initialIndex = entries.findIndex(
-        (e: AlbumEntry) => e.name === event.entry.name
-      );
-      if (initialIndex === -1) {
-        return;
-      }
-      selectionManager.setSelection(entries);
-      selectionManager.setActiveIndex(initialIndex);
+      selectionManager.select(event.entry);
       appEvents.emit("edit", { active: true });
     }),
     events.on("thumbnailClicked", (e) => {
@@ -199,8 +198,13 @@ export async function makePhotoList(
       } else if (e.modifiers.multi) {
         selectionManager.toggle(e.entry);
       } else {
-        selectionManager.clear();
-        selectionManager.select(e.entry);
+        if (selectionManager.isPinned(e.entry)) {
+          selectionManager.setPin(e.entry, false);
+          selectionManager.deselect(e.entry);
+        } else {
+          selectionManager.clear();
+          selectionManager.select(e.entry);
+        }
       }
     }),
     appEvents.on("tabDeleted", ({ win }) => {
@@ -291,10 +295,12 @@ export async function makePhotoList(
         // Check if the album should be redrawn or not
         const element = elementAtIndex(event.index);
         if (element) {
+          console.info("photo-list - invalidateAt", event.index);
           const hasChanged = await populateElement(
             element,
             dataSource.albumAtIndex(event.index)
           );
+          console.info("photo-list - invalidateAt / after", event.index);
           if (hasChanged) {
             doReflow |= REFLOW_FULL;
           }
@@ -623,7 +629,7 @@ export async function makePhotoList(
       for (const c of container.children()) {
         const thisTop = parseInt(c.css("top"));
         console.info(
-          `New top for ${albumFromElement(c, elementPrefix)!.name} is ${
+          `New top for ${albumFromElement(c, elementPrefix)?.name} is ${
             thisTop - displayedTop
           }`
         );
@@ -764,6 +770,7 @@ export async function makePhotoList(
           $(".edit-album-name", e).get().focus();
         }
       });
+      $(".play-album", e).on("click", notImplemented);
       $(".edit-album-name", e).on("click", async () => {
         if (title.attr("contenteditable") === "true") {
           title.attr("contenteditable", "false");
@@ -814,22 +821,24 @@ export async function makePhotoList(
 
       const photosContainer = $(".photos", e);
 
-      photosContainer.on("dragover", async (ev) => {
+      photosContainer.on("dragover", (ev) => {
         ev.preventDefault();
       });
-      photosContainer.on("drop", async (ev) => {
+      photosContainer.on("drop", (ev) => {
         const album = albumFromElement(e, elementPrefix)!;
         onDrop(ev, album, selectionManager, thumbElementPrefix);
       });
-      /*
+
       photosContainer.on("dragenter", (ev) => {
         e.addClass("album-drop-area");
         ev.preventDefault();
       });
+
       photosContainer.on("dragleave", (ev) => {
         e.removeClass("album-drop-area");
         ev.preventDefault();
-      });*/
+      });
+
       title.on("click", async (ev: any) => {
         if (title.attr("contenteditable") === "true") {
           return;

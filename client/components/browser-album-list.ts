@@ -1,5 +1,5 @@
 import { uuid } from "../../shared/lib/utils";
-import { Album, JOBNAMES, Node } from "../../shared/types/types";
+import { Album, AlbumWithData, JOBNAMES, Node } from "../../shared/types/types";
 import { AlbumIndexedDataSource } from "../album-data-source";
 import {
   $,
@@ -54,23 +54,27 @@ export async function makeAlbumList(
     $(e).attachData({ indent });
     const container = $(".browser-list-albums", e);
     for (const album of node.albums) {
-      const label = `${
-        album.shortcut
-          ? String.fromCharCode(0x245f + parseInt(album.shortcut)) + " "
-          : ""
-      }${album.name}`;
-      const renderedAlbum = $(
-        `
-        <div class="browser-list-text">
-        <span class="browser-list-count"/>${album.count}</span>
-        <div class="browser-list-label">${label}</div>
-        </div>`
-      );
-      setIdForAlbum(renderedAlbum, album, elementPrefix);
+      const renderedAlbum = renderAlbum(album);
       container.append(renderedAlbum);
     }
     if (node.childs.length > 0) renderNodes(node.childs, e, indent + 1);
     return e;
+  }
+  function renderAlbum(album: AlbumWithData): _$ {
+    const label = `${
+      album.shortcut
+        ? String.fromCharCode(0x245f + parseInt(album.shortcut)) + " "
+        : ""
+    }${album.name}`;
+    const r = $(
+      `
+      <div class="browser-list-text">
+      <span class="browser-list-count"/>${album.count}</span>
+      <div class="browser-list-label">${label}</div>
+      </div>`
+    );
+    setIdForAlbum(r, album, elementPrefix);
+    return r;
   }
 
   function renderNodes(nodes: Node[], folders: _$, indent: number = 0): _$ {
@@ -100,7 +104,16 @@ export async function makeAlbumList(
         folders.empty();
         renderNodes(albumDataSource.getHierarchy().childs, folders);
       }),
-
+      events.on("invalidateFrom", (event) => {
+        folders.empty();
+        renderNodes(albumDataSource.getHierarchy().childs, folders);
+      }),
+      events.on("invalidateAt", (event) => {
+        const e = elementFromAlbum(event.album, elementPrefix);
+        if (!e.exists()) return;
+        const n = renderAlbum(event.album);
+        e.replaceWith(n);
+      }),
       events.on("nodeChanged", (event) => {
         const node = event.node;
         const original = getElementFromNode(node);
@@ -117,20 +130,28 @@ export async function makeAlbumList(
     img.src = "resources/images/icons/actions/duplicate-50.png";
     let dropTarget: HTMLElement | undefined;
     container
-      .on("click", async function (ev) {
+      .on("click", function (ev) {
+        console.info("click");
         const item = $(ev.target as HTMLElement);
         if (item.hasClass("browser-list-head")) {
           const node = $(ev.target as HTMLElement).getData().node as Node;
           albumDataSource.toggleCollapse(node);
-          return;
+          return true;
         }
         const album = albumFromElement(item, elementPrefix)!;
-        if (!album) return;
+        if (!album) return true;
         lastSelectedAlbum = album;
+        events.emit("selected", { album });
+        return true;
+      })
+      .on("dblclick", async function (ev) {
+        console.info("dblclick");
+        const item = $(ev.target as HTMLElement);
+        const album = albumFromElement(item, elementPrefix)!;
+        if (!album) return;
         const s = await getService();
         const media = await s.media(album);
         selectionManager.setSelection(media.entries);
-        events.emit("selected", { album });
       })
       .on("dragenter", (ev: DragEvent) => {
         ev.preventDefault();
@@ -167,6 +188,7 @@ export async function makeAlbumList(
         }
       })
       .on("drop", async (ev: any) => {
+        debugger;
         ev.stopPropagation();
         if (dropTarget) {
           $(dropTarget).removeClass("drop-area");

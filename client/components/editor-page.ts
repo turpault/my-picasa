@@ -4,42 +4,40 @@ import {
   JOBNAMES,
 } from "../../shared/types/types";
 import { setupAutocolor } from "../features/autocolor";
-import { setupBlur } from "../features/blur";
-import { setupBrightness } from "../features/brightness";
 import { setupBW } from "../features/bw";
 import { setupContrast } from "../features/contrast";
-import { setupCrop } from "../features/crop";
-import { setupFill } from "../features/fill";
-import { setupFilters } from "../features/filter";
 import { setupFlip } from "../features/flip";
 import { setupMirror } from "../features/mirror";
-import { setupPolaroid } from "../features/polaroid";
-import { setupRotate } from "../features/rotate";
 import { setupSepia } from "../features/sepia";
-import { setupSharpen } from "../features/sharpen";
-import { setupTilt } from "../features/tilt";
 import { $ } from "../lib/dom";
 import { toggleStar } from "../lib/handles";
 import { getService } from "../rpc/connect";
 import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
 import { ImageController } from "./image-controller";
-import { makeImageStrip } from "./image-strip";
-import { makeMetadata } from "./metadata";
 import { t } from "./strings";
-import { deleteTabWin } from "./tabs";
-import { GENERAL_TOOL_TAB, makeTools } from "./tools";
+import { makeTools } from "./tools";
 
-import { compareAlbumEntry } from "../../shared/lib/utils";
+import { PicasaFilter, compareAlbumEntry } from "../../shared/lib/utils";
+import { setupCrop } from "../features/crop";
+import { State } from "../lib/state";
 import { makeEditorHeader } from "./editor-header";
 import { makeHistogram } from "./histogram";
-import { makeIdentify } from "./identify";
+import { ApplicationState } from "./selection-meta";
+import { ToolEditor } from "./tool-editor";
+import { setupTilt } from "../features/tilt";
+import { setupBlur } from "../features/blur";
+import { setupBrightness } from "../features/brightness";
+import { setupFill } from "../features/fill";
+import { setupPolaroid } from "../features/polaroid";
+import { setupSharpen } from "../features/sharpen";
+import { setupFilters } from "../features/filter";
 
 const editHTML = `
 <div class="fill editor-page">
   <div class="fill tools">
     <div class="tools-tab-bar">
-      <picasa-multi-button class="tools-tab-bar-buttons" items="url:resources/images/wrench.svg|url:resources/images/contrast.svg|url:resources/images/brush.svg|url:resources/images/green-brush.svg|url:resources/images/blue-brush.svg"></picasa-button>
+      <picasa-multi-button inverse class="tools-tab-bar-buttons" selected="0" items="url:resources/images/wrench.svg|url:resources/images/contrast.svg|url:resources/images/brush.svg|url:resources/images/green-brush.svg|url:resources/images/blue-brush.svg"></picasa-button>
     </div>
     <div class="tools-tab-contents">
       <div page="1" class="tools-tab-page tools-tab-page-wrench"></div>
@@ -47,7 +45,12 @@ const editHTML = `
       <div page="3" class="tools-tab-page tools-tab-page-brush"></div>
       <div page="4" class="tools-tab-page tools-tab-page-green-brush"></div>
       <div page="5" class="tools-tab-page tools-tab-page-blue-brush"></div>
+      <div class="tools-bar-undo-redo">
+        <picasa-button class="tools-bar-undo tools-bar-undo-redo-button"></picasa-button>
+        <picasa-button class="tools-bar-redo tools-bar-undo-redo-button"></picasa-button>
+      </div>
     </div>
+    <div class="editor-controls"></div>
     <div class="histogram">
       ${t("Histogram data and informations about the camera")}
       <div class="histogram-camera-model"></div>
@@ -70,58 +73,95 @@ const editHTML = `
 
 export async function makeEditorPage(
   appEvents: AppEventSource,
-  selectionManager: AlbumEntrySelectionManager
+  selectionManager: AlbumEntrySelectionManager,
+  state: ApplicationState
 ) {
   const editor = $(editHTML);
   editor.hide();
+  const editorControls = $(".editor-controls", editor);
 
   const image = $(".edited-image", editor);
   const video = $(".edited-video", editor);
   const imageContainer = $(".image-container", editor);
-  const [wrench, contrast, brush, greenBrush, blueBrush] = editor.all(
-    ".tools-tab-page"
-  );
+  const pages = editor.all(".tools-tab-page");
+  const [wrench, contrast, brush, greenBrush, blueBrush] = pages;
   //const tool = $(toolsHTML);
   //const metadata = $(".metadata", editor);
   const histogram = $(".histogram", editor);
   //const identify = $(".identify", editor);
   //const album = $(".album-contents", editor);
-  const editorHeader = makeEditorHeader(selectionManager);
+
+  const editorSelectionManager = selectionManager.clone();
+  editorSelectionManager.events.on("activeChanged", (event) => {
+    selectionManager.select(event.key);
+    selectionManager.setActive(event.key);
+  });
+
+  const editorHeader = makeEditorHeader(appEvents, editorSelectionManager);
+
   editor.append(editorHeader);
+
+  function updateEditorSize() {
+    const metaVisible = state.getValue("META_PAGE") !== undefined;
+    $(".image-container", editor).css({
+      right: metaVisible ? "300px" : 0,
+    });
+  }
+
+  state.events.on("META_PAGE", updateEditorSize);
+  updateEditorSize();
+
   //album.append(tool);
 
-  const imageController = new ImageController(image, video, selectionManager);
+  const refreshTab = () => {
+    pages.forEach((page, index) =>
+      page.show(index === parseInt(tabBar.attr("selected")))
+    );
+  };
+  const tabBar = $(".tools-tab-bar-buttons", editor).on("click", refreshTab);
+  refreshTab();
+
+  const imageController = new ImageController(
+    image,
+    video,
+    editorSelectionManager
+  );
   const toolRegistrar = makeTools(
-    { editor, wrench, contrast, brush, greenBrush, blueBrush },
+    editor,
+    { wrench, contrast, brush, greenBrush, blueBrush },
     imageController
   );
-  // Add all the activable features
-  //setupCrop(imageContainer, imageController, toolRegistrar);
-  //setupTilt(imageContainer, imageController, toolRegistrar);
-  //setupBrightness(imageController, toolRegistrar);
-  //setupAutocolor(imageController, toolRegistrar);
-  setupBW(imageController, toolRegistrar);
-  setupContrast(imageController, toolRegistrar);
-  //setupFill(imageController, toolRegistrar);
-  //setupSepia(imageController, toolRegistrar);
-  //setupPolaroid(imageController, toolRegistrar);
-  //setupRotate(imageController, toolRegistrar);
-  //setupFlip(imageController, toolRegistrar);
-  //setupMirror(imageController, toolRegistrar);
-  //setupBlur(imageController, toolRegistrar);
-  //setupSharpen(imageController, toolRegistrar);
-  //setupFilters(imageController, toolRegistrar);
+  const toolEditor = new ToolEditor(false, editorControls, imageContainer);
 
-  toolRegistrar.selectPage(GENERAL_TOOL_TAB);
+  // Add all the activable features
+  setupCrop(imageContainer, imageController, toolRegistrar, toolEditor);
+  setupTilt(imageContainer, imageController, toolRegistrar, toolEditor);
+  setupBrightness(imageController, toolRegistrar, toolEditor);
+  setupAutocolor(imageController, toolRegistrar, toolEditor);
+  setupBW(imageController, toolRegistrar, toolEditor);
+  setupContrast(imageController, toolRegistrar, toolEditor);
+  setupFill(imageController, toolRegistrar, toolEditor);
+  setupSepia(imageController, toolRegistrar, toolEditor);
+  setupPolaroid(imageController, toolRegistrar, toolEditor);
+  setupFlip(imageController, toolRegistrar, toolEditor);
+  setupMirror(imageController, toolRegistrar, toolEditor);
+  setupBlur(imageController, toolRegistrar, toolEditor);
+  setupSharpen(imageController, toolRegistrar, toolEditor);
+  setupFilters(imageController, toolRegistrar, toolEditor);
   //const refreshMetadataFct = makeMetadata(metadata);
   //makeIdentify(identify, imageController);
   const refreshHistogramFct = makeHistogram(histogram);
 
   const s = await getService();
+  const undoBtn = $(".tools-bar-undo", editor);
+  const redoBtn = $(".tools-bar-redo", editor);
+  const localState = new State();
+  localState.setValue("lastUndone", undefined);
+  localState.setValue("lastOperation", undefined);
 
   const updateStarCount = async (entry: AlbumEntry) => {
     const s = await getService();
-    const metadata = await s.getAlbumEntryMetadata(entry);
+    const metadata = entry ? await s.getAlbumEntryMetadata(entry) : {};
     $(".star", imageContainer).css({
       display: metadata.star ? "" : "none",
       width: `${parseInt(metadata.starCount || "1") * 40}px`,
@@ -140,22 +180,83 @@ export async function makeEditorPage(
       //refreshMetadataFct(entry, [entry], info);
     }),
 
-    imageController.events.on("updated", async ({ liveContext }) => {
-      refreshHistogramFct(liveContext);
+    imageController.events.on("updated", async ({}) => {
+      refreshHistogramFct(await imageController.getLiveThumbnailContext());
+      const operations = [...imageController.operations()];
+      const lastOperation = operations.pop();
+      redoBtn.hide();
+      localState.setValue("lastOperation", lastOperation);
+    }),
+    localState.events.on(
+      "lastOperation",
+      (lastOperation: PicasaFilter | undefined) => {
+        undoBtn.addRemoveClass("disabled", !lastOperation);
+        if (lastOperation) {
+          const tool = toolRegistrar.tool(lastOperation.name);
+          const toolName = tool ? tool.displayName : lastOperation.name;
+          undoBtn.text(`${t("Undo")} ${toolName}`);
+        } else {
+          undoBtn.text(`${t("Undo")}`);
+        }
+      }
+    ),
+    localState.events.on(
+      "lastUndone",
+      (lastUndone: PicasaFilter | undefined) => {
+        redoBtn.addRemoveClass("disabled", !lastUndone);
+        if (lastUndone) {
+          const tool = toolRegistrar.tool(lastUndone.name);
+          const toolName = tool ? tool.displayName : lastUndone.name;
+          redoBtn.text(`${t("Redo")} ${toolName}`);
+          redoBtn.show();
+        } else {
+          redoBtn.hide();
+        }
+      }
+    ),
+    undoBtn.on("click", () => {
+      const lastOperation = localState.getValue("lastOperation");
+      if (lastOperation) {
+        imageController.deleteOperation(lastOperation.name);
+        localState.setValue("lastUndone", lastOperation);
+      }
+    }),
+    redoBtn.on("click", () => {
+      const lastUndone = localState.getValue("lastUndone") as PicasaFilter;
+      if (lastUndone) {
+        imageController.addOperation(lastUndone);
+        localState.setValue("lastUndone", undefined);
+      }
     }),
 
-    selectionManager.events.on("activeChanged", async (event) => {
+    editorSelectionManager.events.on("activeChanged", async (event) => {
       updateStarCount(event.key);
     }),
-    appEvents.on("edit", (event) => {
+    appEvents.on("edit", async (event) => {
       if (event.active) {
         editing = true;
+        state.setValue("META_SINGLE_SELECTION_MODE", true);
+
+        if (selectionManager.selected().length === 1) {
+          // Create a new selection manager with the current album
+          const active = selectionManager.active();
+          const album = active.album;
+          s.media(album).then((e: { entries: AlbumEntry[] }) => {
+            editorSelectionManager.setSelection(e.entries, active);
+          });
+        } else {
+          editorSelectionManager.setSelection(
+            selectionManager.selected(),
+            selectionManager.active()
+          );
+        }
         editor.show();
         imageController.show();
       } else {
         editing = false;
         editor.hide();
         imageController.hide();
+        state.setValue("META_SINGLE_SELECTION_MODE", false);
       }
     }),
     appEvents.on("keyDown", ({ code, win, ctrl, key, preventDefault }) => {
@@ -167,11 +268,11 @@ export async function makeEditorPage(
             return true;
           case "ArrowLeft":
             preventDefault();
-            selectionManager.setActivePrevious();
+            editorSelectionManager.setActivePrevious();
             return true;
           case "ArrowRight":
             preventDefault();
-            selectionManager.setActiveNext();
+            editorSelectionManager.setActiveNext();
             return true;
           case "Escape":
             preventDefault();
@@ -187,7 +288,7 @@ export async function makeEditorPage(
             if (shortcuts[key]) {
               const target = shortcuts[key];
               s.createJob(JOBNAMES.EXPORT, {
-                source: selectionManager.selected(),
+                source: editorSelectionManager.selected(),
                 destination: target,
               });
             }
@@ -201,7 +302,12 @@ export async function makeEditorPage(
     s.on(
       "albumEntryAspectChanged",
       async (e: { payload: AlbumEntryPicasa }) => {
-        if (compareAlbumEntry(e.payload, selectionManager.active()) === 0) {
+        if(!editorSelectionManager.active()) {
+          return;
+        }
+        if (
+          compareAlbumEntry(e.payload, editorSelectionManager.active()) === 0
+        ) {
           updateStarCount(e.payload);
         }
       }

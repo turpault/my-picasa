@@ -2,7 +2,7 @@ import { _$ } from "./lib/dom";
 import { Emitter } from "./lib/event";
 import { PicasaFilter } from "./lib/utils";
 import { AlbumEntrySelectionManager } from "./selection/selection-manager";
-import { Album, AlbumEntry, Node } from "./types/types";
+import { Album, AlbumEntry, AlbumWithData, Node } from "./types/types";
 
 export type PanZoomEvent = {
   pan: { x: number; y: number };
@@ -11,8 +11,6 @@ export type PanZoomEvent = {
 
 export type ImageControllerEvent = {
   updated: {
-    context: string;
-    liveContext: string;
     caption: string;
     filters: PicasaFilter[];
     entry: AlbumEntry;
@@ -74,6 +72,7 @@ export type AlbumListEvent = {
   };
   invalidateAt: {
     index: number;
+    album: AlbumWithData;
   };
   thumbnailClicked: {
     modifiers: {
