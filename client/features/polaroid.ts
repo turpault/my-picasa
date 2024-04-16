@@ -1,77 +1,26 @@
 import { ImageController } from "../components/image-controller";
-import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
-import { toolHeader } from "../element-templates";
-import { transform } from "../imageProcess/client";
-import { $ } from "../lib/dom";
-import { fromHex, isPicture, toHex2 } from "../../shared/lib/utils";
 import { t } from "../components/strings";
+import { PAGES, ToolRegistrar } from "../components/tools";
+
+import { ToolEditor } from "../components/tool-editor";
+import { ParametrizableTool } from "./baseTool";
 
 export function setupPolaroid(
-  imageController: ImageController,
-  toolRegistrar: ToolRegistrar
+  controller: ImageController,
+  toolRegistrar: ToolRegistrar,
+  editor: ToolEditor
 ) {
-  const name = t("Polaroid");
-  toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
-    multipleFamily: name,
-    filterName: name,
-    enable: (e) => isPicture(e),
-    build: function (angle: number, bgcolor: string, text: string) {
-      return {
-        name: this.filterName,
-        args: [
-          "1",
-          angle.toString(),
-          bgcolor.replace("#", ""),
-          encodeURIComponent(text),
-        ],
-      };
-    },
-    icon: async function (context) {
-      await transform(context, [this.build(10, "#ffffff", "preview")]);
-      return true;
-    },
-    activate: async function () {
-      imageController.addOperation(this.build(10, "#000000", ""));
-      return true;
-    },
-    buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController, toolRegistrar, this);
-
-      e.append(`<div><div class="tool-control slidecontainer">
-          <label>Angle</label>
-          <input type="range" min="-10" max="10" value="0" class="angle slider">
-        </div>
-        <div class="tool-control">
-          <label >Background</label>
-          <input type="color" class="colorpicker" value="#ffffff">      
-        </div>
-        <div class="tool-control">
-          <label>Text</label>
-          <input class="tool-text" value="">      
-        </div>
-      <div>
-    </div>
-    </div>`);
-      const update = () => {
-        const color = $(".colorpicker", e).val();
-        const angle = $(".angle", e).val();
-        const text = $(".tool-text", e).val();
-        imageController.updateOperation(index, this.build(angle, color, text));
-      };
-      // Convert argb to rgb
-      const cols = fromHex(args[2]);
-      let rgb: string = args[2];
-      if (cols.length === 4) {
-        rgb = cols.slice(1).map(toHex2).join("");
-      }
-      $(".colorpicker", e).val("#" + rgb);
-      $(".angle", e).val(parseInt(args[1]));
-      $(".tool-text", e).val(decodeURIComponent(args[3]));
-
-      $(".colorpicker", e).on("change", update);
-      $(".angle", e).on("change", update);
-      $(".tool-text", e).on("change", update);
-      return { ui: e.get()! };
-    },
-  });
+  toolRegistrar.registerTool(
+    PAGES.CONTRAST,
+    new ParametrizableTool(t("Polaroid"), "Polaroid", controller, editor, [
+      {
+        name: "Angle",
+        type: "range",
+        range: { min: -10, max: 10 },
+        default: 10,
+      },
+      { name: "Background Colour", type: "color", default: "#ffffff" },
+      { name: "Text", type: "text", default: "preview" },
+    ])
+  );
 }

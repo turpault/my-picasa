@@ -1,8 +1,9 @@
 import { inspect } from "util";
-import { lock, uuid } from "../../shared/lib/utils";
+import { lock } from "../../shared/lib/mutex";
+import { uuid } from "../../shared/lib/utils";
 import { SocketAdaptorInterface } from "../../shared/socket/socket-adaptor-interface";
 import { busy } from "../utils/busy";
-import { inc, rate } from "../utils/stats";
+import { rate } from "../utils/stats";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Describles a client-specific set of options.

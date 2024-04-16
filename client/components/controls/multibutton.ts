@@ -1,7 +1,8 @@
 import { $, _$ } from "../../lib/dom";
+import { State } from "../../lib/state";
 
 export class PicasaMultiButton extends HTMLElement {
-  static observedAttributes = ["selected", "items"];
+  static observedAttributes = ["selected", "items", "inverse", "toggle"];
   private elements: _$[] = [];
   // connect component
   connectedCallback() {
@@ -37,8 +38,19 @@ export class PicasaMultiButton extends HTMLElement {
   }
   select(index: number, set?: boolean) {
     const selected = new Set(this.selected());
-    const c = this.getAttribute("selected") || "";
-    if (this.hasAttribute("multiselect")) {
+    const multi = this.hasAttribute("multiselect");
+    const toggle = this.hasAttribute("toggle");
+    if (toggle) {
+      if (selected.has(index) && set !== true) {
+        selected.delete(index);
+      } else {
+        if (!multi || index === -1) {
+          selected.clear();
+        }
+        if (index !== -1) selected.add(index);
+      }
+      this.setAttribute("selected", Array.from(selected).join(","));
+    } else if (multi) {
       if (selected.has(index)) {
         if (set === true) {
           return; /// Already selected
@@ -58,7 +70,10 @@ export class PicasaMultiButton extends HTMLElement {
       }
       this.setAttribute("selected", index.toString());
     }
-    this.dispatchEvent(new InputEvent("select", {}));
+    const event = new InputEvent("select");
+    (event as any).index = index;
+    (event as any).indices = this.selected();
+    this.dispatchEvent(event);
   }
   selected(): number[] {
     const c = this.getAttribute("selected") || "";
@@ -80,9 +95,22 @@ export class PicasaMultiButton extends HTMLElement {
 
   highlight() {
     const c = this.getAttribute("selected") || "";
+    const inverse = this.getAttribute("inverse") !== null;
     const sels = c.length ? c.split(",").map((v) => parseInt(v)) : [];
     this.elements.forEach((e, index) => {
-      e.addRemoveClass("picasa-multi-button-active", sels.includes(index));
+      e.addRemoveClass(
+        "picasa-multi-button-shaded",
+        sels.includes(index) ? !inverse : inverse
+      );
+    });
+  }
+  bind<K>(state: State<K>, key: keyof K, list: any[]) {
+    this.addEventListener("select", (ev) => {
+      const index = (ev as any).index;
+      state.setValue(key, list[index]);
+    });
+    state.events.on(key, (ev) => {
+      this.select(list.indexOf(ev));
     });
   }
 }

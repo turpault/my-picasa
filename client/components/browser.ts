@@ -2,16 +2,15 @@ import { idFromAlbumEntry } from "../../shared/lib/utils";
 import { AlbumEntry, JOBNAMES } from "../../shared/types/types";
 import { AlbumIndexedDataSource } from "../album-data-source";
 import { $ } from "../lib/dom";
+import { State } from "../lib/state";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
-import { makeAlbumList } from "./browser-album-list";
-import { makeBrowserHeader } from "./browser-header";
 import { makeBrowserNavigator } from "./browser-navigator";
-import { makePhotoList } from "./browser-photo-list";
 import { makeButtons } from "./browser-photo-list-buttons";
 import { makeEditorPage } from "./editor-page";
 import { Button, message } from "./message";
+import { SelectionStateDef, makeMetadata } from "./selection-meta";
 import { t } from "./strings";
 
 const html = `<div class="browser fill" >
@@ -32,35 +31,27 @@ export async function makeBrowser(
     idFromAlbumEntry
   );
 
-  selectionManager.events.on("added", () => {
-    emitter.emit("browserSelectionChanged", {
-      selection: selectionManager.selected(),
-    });
-  });
-  selectionManager.events.on("removed", () => {
+  selectionManager.events.on("changed", () => {
     emitter.emit("browserSelectionChanged", {
       selection: selectionManager.selected(),
     });
   });
 
+  const state = new State<SelectionStateDef>();
   win.append(
-    await makeBrowserNavigator(emitter, albumDataSource, selectionManager)
+    await makeBrowserNavigator(
+      emitter,
+      albumDataSource,
+      selectionManager,
+      state
+    )
   );
-  win.append(await makeEditorPage(emitter, selectionManager));
-  win.append(await makeButtons(emitter, selectionManager));
+  win.append(await makeEditorPage(emitter, selectionManager, state));
+  win.append(await makeButtons(emitter, selectionManager, state));
+  const metadata = makeMetadata(selectionManager, state);
+  win.append(metadata);
 
   const tab = $(tabHtml);
-  // Status change events
-  /*$(".new-album-button", tab).on("click", async () => {
-    const newAlbum = await question(
-      "New album name",
-      "Please type the new album name"
-    );
-    if (newAlbum) {
-      const s = await getService();
-      s.makeAlbum(newAlbum);
-    }
-  });*/
 
   emitter.on("keyDown", (e) => {
     if (e.win === win) {

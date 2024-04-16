@@ -586,11 +586,7 @@ export async function makeMosaicPage(
       observer.observe(e.get());
       return () => observer.disconnect();
     })(),
-    selectionManager.events.on("added", ({ key }) => {
-      project.payload.images = selectionManager.selected() as AlbumEntryWithMetadata[];
-      projectUpdated(true, true);
-    }),
-    selectionManager.events.on("removed", ({ key }) => {
+    selectionManager.events.on("changed", () => {
       project.payload.images = selectionManager.selected() as AlbumEntryWithMetadata[];
       projectUpdated(true, true);
     }),
