@@ -1,38 +1,16 @@
 import { ImageController } from "../components/image-controller";
-import { GENERAL_TOOL_TAB, ToolRegistrar } from "../components/tools";
-import { toolHeader } from "../element-templates";
-import { transform } from "../imageProcess/client";
-import { isPicture } from "../../shared/lib/utils";
 import { t } from "../components/strings";
+import { ToolEditor } from "../components/tool-editor";
+import { PAGES, ToolRegistrar } from "../components/tools";
+import { FilterTool } from "./baseTool";
 
 export function setupSepia(
-  imageController: ImageController,
-  toolRegistrar: ToolRegistrar
+  controller: ImageController,
+  toolRegistrar: ToolRegistrar,
+  editor: ToolEditor
 ) {
-  const name = t("Sepia");
-  toolRegistrar.registerTool(name, GENERAL_TOOL_TAB, {
-    multipleFamily: name,
-    filterName: "sepia",
-    enable: (e) => isPicture(e),
-    build: function () {
-      return {
-        name: this.filterName,
-        args: ["1"],
-      };
-    },
-    icon: async function (context) {
-      await transform(context, [this.build()]);
-      return true;
-    },
-    activate: async function (index: number, args?: string[]) {
-      if (!args) {
-        imageController.addOperation(this.build());
-      }
-      return true;
-    },
-    buildUI: function (index: number, args: string[]) {
-      const e = toolHeader(name, index, imageController, toolRegistrar, this);
-      return { ui: e.get()! };
-    },
-  });
+  toolRegistrar.registerTool(
+    PAGES.BRUSH,
+    new FilterTool(t("Sepia"), "sepia", controller, editor)
+  );
 }

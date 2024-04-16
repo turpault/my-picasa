@@ -11,6 +11,9 @@ class PicasaSlider extends HTMLInputElement {
   resized() {
     const min = parseFloat(this.getAttribute("min") || "");
     const max = parseFloat(this.getAttribute("max") || "");
+    if (max - min < 100) {
+      this.setAttribute("step", ((max - min) / 100).toString());
+    }
 
     const ticks = [
       min,

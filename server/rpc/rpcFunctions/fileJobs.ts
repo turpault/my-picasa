@@ -1,6 +1,7 @@
 import { copyFile, mkdir, rename, stat } from "fs/promises";
 import { basename, dirname, extname, join, relative, sep } from "path";
-import { lock, sleep, uuid } from "../../../shared/lib/utils";
+import { lock } from "../../../shared/lib/mutex";
+import { sleep, uuid } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
@@ -26,7 +27,7 @@ import { addToUndo, registerUndoProvider } from "../../utils/undo";
 import { eraseFace } from "../albumTypes/faces";
 import { setRank } from "./albumUtils";
 import { openWithFinder } from "./osascripts";
-import { readAlbumIni, getPicasaEntry, updatePicasaEntry } from "./picasa-ini";
+import { getPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasa-ini";
 import { copyThumbnails } from "./thumbnail-cache";
 
 const jobs: Job[] = [];

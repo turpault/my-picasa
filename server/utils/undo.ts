@@ -9,6 +9,9 @@ import { broadcast } from "./socketList";
 
 const undoFile = join(imagesRoot, ".mypicasa.undo");
 const undoneFile = join(imagesRoot, ".mypicasa.undone");
+const recentUndos: undoStep[] = [];
+undoList().then((lst) => recentUndos.push(...lst.slice(-10)));
+
 const undoStream = createWriteStream(undoFile, {
   flags: "a",
   encoding: "utf-8",
@@ -23,16 +26,20 @@ export function addToUndo(
   description: string,
   payload: any
 ) {
+  const item = {
+    uuid: uuid(),
+    description,
+    timestamp: new Date().getTime(),
+    operation,
+    payload,
+  };
   undoStream.write(
     `${JSON.stringify({
-      uuid: uuid(),
-      description,
-      timestamp: new Date().getTime(),
-      operation,
-      payload,
+      item,
     })}\n`
   );
-  broadcast("undoChanged", {});
+  recentUndos.push(item);
+  broadcast("undoChanged", { undoSteps: recentUndos });
 }
 
 export type doFunction = (operation: string, payload: any) => void;
@@ -54,8 +61,10 @@ export async function undo(id: string) {
           op.operation as string,
           op.payload as object
         );
+        const idx = recentUndos.findIndex((x) => x.uuid === id);
+        if (idx !== -1) recentUndos.slice(idx, 1);
         undoneStream.write(`${id}\n`);
-        broadcast("undoChanged", {});
+        broadcast("undoChanged", { undoSteps: recentUndos });
       }
     }
   }
@@ -82,6 +91,8 @@ export async function undoList(): Promise<undoStep[]> {
         payload: op.payload as object,
       });
     });
-    reader.on("close", () => resolve(res));
+    reader.on("close", () => {
+      resolve(res);
+    });
   });
 }

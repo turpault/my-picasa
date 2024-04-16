@@ -1,10 +1,10 @@
 import { mkdirSync } from "fs";
 import { readFile, readdir, unlink } from "fs/promises";
 import { join, parse } from "path";
+import { lock } from "../../../shared/lib/mutex";
 import {
   debounce,
   idFromAlbumEntry,
-  lock,
   valuesOfEnum,
 } from "../../../shared/lib/utils";
 import {
@@ -19,15 +19,11 @@ import {
   idFromKey,
   keyFromID,
 } from "../../../shared/types/types";
-import {
-  ThumbnailSizes,
-  imagesRoot,
-  projectFolder,
-} from "../../utils/constants";
+import { makeMosaic } from "../../imageOperations/image-edits/mosaic";
+import { ThumbnailSizes, projectFolder } from "../../utils/constants";
 import { fileExists, safeWriteFile } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { queueNotification } from "./fileAndFolders";
-import { makeMosaic } from "../../imageOperations/image-edits/mosaic";
 
 type ProjectFile = Album & { projects: { [id: string]: AlbumEntry } };
 

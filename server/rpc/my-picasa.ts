@@ -26,37 +26,38 @@ import {
   getProjects,
   writeProject,
 } from "./albumTypes/projects";
+import { ServiceMap } from "./rpc-handler";
 import {
+  getAlbumEntryMetadata,
+  getAlbumMetadata,
   getSourceEntry,
   media,
   mediaCount,
   monitorAlbums,
-  getAlbumMetadata,
   setRank,
   sortAlbum,
-  getAlbumEntryMetadata,
 } from "./rpcFunctions/albumUtils";
 import { clientException, clientLog } from "./rpcFunctions/clientLog";
 import { exifData } from "./rpcFunctions/exif";
 import { createFSJob, getJob, waitJob } from "./rpcFunctions/fileJobs";
 import {
   folder,
+  getFileContents,
   makeAlbum,
   openAlbumEntryInFinder,
   openAlbumInFinder,
-  getFileContents,
   writeFileContents,
 } from "./rpcFunctions/fs";
 import {
-  getShortcuts,
   getPicasaEntry,
+  getShortcuts,
   rotate,
+  setCaption,
+  setFilters,
   toggleStar,
-  updatePicasaEntry,
 } from "./rpcFunctions/picasa-ini";
 import { clientReady } from "./rpcFunctions/ready";
 import { setAlbumShortcut } from "./rpcFunctions/shortcuts";
-import { ServiceMap } from "./rpc-handler";
 
 /**
  * ConcurrencyService IDL
@@ -163,9 +164,13 @@ export const PicisaClient: ServiceMap = {
       handler: getPicasaEntry,
       arguments: ["entry:object"],
     },
-    updatePicasaEntry: {
-      handler: updatePicasaEntry,
-      arguments: ["entry:object", "field:string", "value:any"],
+    setFilters: {
+      handler: setFilters,
+      arguments: ["entry:object", "filters:string"],
+    },
+    setCaption: {
+      handler: setCaption,
+      arguments: ["entry:object", "caption:string"],
     },
     makeAlbum: {
       handler: makeAlbum,

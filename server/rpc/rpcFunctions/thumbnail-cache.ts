@@ -1,14 +1,23 @@
-import { copyFile, readFile, rename, unlink } from "fs/promises";
+import { copyFile, readFile, rename, stat, unlink } from "fs/promises";
 import { join } from "path";
-import { isVideo, lock } from "../../../shared/lib/utils";
+import { lock } from "../../../shared/lib/mutex";
+import { decodeRotate, isPicture, isVideo } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
   ThumbnailSize,
   ThumbnailSizeVals,
   idFromKey,
 } from "../../../shared/types/types";
+import { entryRelativePath } from "../../imageOperations/info";
 import { imagesRoot } from "../../utils/constants";
 import { fileExists, safeWriteFile } from "../../utils/serverUtils";
+import {
+  cachedFilterKey,
+  dimensionsFilterKey,
+  readAlbumIni,
+  rotateFilterKey,
+  updatePicasaEntries,
+} from "./picasa-ini";
 
 export async function deleteImageFileMetas(entry: AlbumEntry): Promise<void> {
   for (const k of ThumbnailSizeVals) {
@@ -90,6 +99,23 @@ export async function deleteThumbnailFromCache(
     }
   }
 }
+export async function updateCacheData(
+  entry: AlbumEntry,
+  transform: string,
+  size: ThumbnailSize,
+  dimensions: string,
+  rotate: string
+) {
+  const picasaFilterLabel = cachedFilterKey[size];
+  const picasaSizeLabel = dimensionsFilterKey[size];
+  const picasaRotateLabel = rotateFilterKey[size];
+
+  updatePicasaEntries(entry, {
+    [picasaFilterLabel]: transform,
+    [picasaSizeLabel]: dimensions,
+    [picasaRotateLabel]: rotate,
+  });
+}
 
 export async function copyThumbnails(
   entry: AlbumEntry,
@@ -117,4 +143,43 @@ export async function copyThumbnails(
       }
     }
   }
+}
+
+export async function shouldMakeThumbnail(
+  entry: AlbumEntry,
+  size: ThumbnailSize,
+  animated: boolean
+): Promise<boolean> {
+  const picasa = await readAlbumIni(entry.album);
+  const sourceStat = await stat(
+    join(imagesRoot, entryRelativePath(entry))
+  ).catch(() => undefined);
+
+  if (!sourceStat) {
+    // Source file is gone
+    return false;
+  }
+  const picasaFilterLabel = cachedFilterKey[size];
+  const picasaSizeLabel = dimensionsFilterKey[size];
+  const picasaRotateLabel = rotateFilterKey[size];
+  const cachedTransform = picasa[entry.name][picasaFilterLabel] || "";
+  const cachedSize = picasa[entry.name][picasaSizeLabel];
+  const cachedRotate = decodeRotate(picasa[entry.name][picasaRotateLabel]);
+
+  picasa[entry.name] = picasa[entry.name] || {};
+  const transform = picasa[entry.name].filters || "";
+  const rotate = decodeRotate(picasa[entry.name].rotate);
+  const { path } = thumbnailPathFromEntryAndSize(entry, size, animated);
+  const fileExistsAndIsNotOutdated = await stat(path)
+    .then((s) => s.size !== 0 && s.mtime > sourceStat.mtime)
+    .catch(() => false);
+  if (
+    !fileExistsAndIsNotOutdated ||
+    (cachedSize === undefined && isPicture(entry)) ||
+    transform !== cachedTransform ||
+    rotate !== cachedRotate
+  ) {
+    return true;
+  }
+  return false;
 }

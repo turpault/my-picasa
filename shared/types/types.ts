@@ -7,6 +7,7 @@ export type PicasaSection = { [name: string]: string };
 export type extraFields =
   | `cached:filters:${ThumbnailSize}`
   | `cached:dimensions:${ThumbnailSize}`
+  | `cached:rotate:${ThumbnailSize}`
   | `originalAlbumName`
   | `originalAlbumKey`
   | `originalName`;

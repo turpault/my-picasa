@@ -10,8 +10,8 @@ import {
   isVideo,
   setReady,
 } from "../../shared/lib/utils";
-import { AlbumEntry } from "../../shared/types/types";
-import { events } from "../events/events";
+import { AlbumEntry, AlbumEntryPicasa } from "../../shared/types/types";
+import { events } from "../events/server-events";
 import { addImageInfo, updateImageDate } from "../imageOperations/info";
 import { buildImage } from "../imageOperations/sharp-processor";
 import { media } from "../rpc/rpcFunctions/albumUtils";
@@ -62,16 +62,21 @@ export async function buildFavoriteFolder() {
     await mkdir(favoritesFolder, { recursive: true });
   }
   await waitUntilWalk();
-  events.on("favoriteChanged", onFavoriteChanged);
 
   await exportAllMissing();
+  events.on("favoriteChanged", onImageChanged);
+  events.on("filtersChanged", onImageChanged);
+  events.on("rotateChanged", onImageChanged);
   setReady(readyLabelKey);
 }
-async function onFavoriteChanged(e: { entry: AlbumEntry; starCount: number }) {
+
+async function onImageChanged(e: { entry: AlbumEntryPicasa }) {
   await ready;
-  if (e.starCount == 0) {
+  if (e.entry.metadata.starCount || "0" == "0") {
     await deleteFavorite(e.entry);
   } else {
+    // Recreate the favorite
+    await deleteFavorite(e.entry);
     await exportFavorite(e.entry);
   }
 }

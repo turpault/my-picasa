@@ -1,9 +1,4 @@
-import { ImageController } from "./components/image-controller";
-import { t } from "./components/strings";
-import { ToolRegistrar } from "./components/tools";
-import { $ } from "./lib/dom";
-import { ITool } from "./uiTypes";
-
+/*
 export function toolHeader(
   displayName: string,
   imageCtrl: ImageController,
@@ -60,14 +55,15 @@ export function toolHeader(
       display: tool.editable ? "" : ["none", "important"],
     })
     .on("click", () => {
-      toolRegistrar.edit(index, displayName);
+      //toolRegistrar.edit(index, displayName);
     });
   $(".reset-tool", e)
     .css({
       display: tool.reset ? "" : ["none", "important"],
     })
     .on("click", () => {
-      toolRegistrar.reset(index, displayName);
+      //toolRegistrar.reset(index, displayName);
     });
   return e;
 }
+*/

@@ -6,6 +6,7 @@ import {
   uuid,
 } from "../../shared/lib/utils";
 import {
+  Album,
   AlbumEntry,
   AlbumEntryPicasa,
   AlbumEntryWithMetadata,
@@ -76,10 +77,12 @@ export async function cloneContext(
 ): Promise<string> {
   const c = await getService();
   const newContext = await c.cloneContext(context, hint);
+  console.warn("Copying context", context, "to", newContext, new Error().stack);
   return newContext;
 }
 
 export async function destroyContext(context: string): Promise<void> {
+  console.warn("Destroying context", context, new Error().stack);
   const c = await getService();
   await c.destroyContext(context);
 }
@@ -127,6 +130,21 @@ export function thumbnailUrl(
     )}/${fixedEncodeURIComponent(entry.name)}/${fixedEncodeURIComponent(
       size
     )}` + `?cacheBust=${cacheBustId(entry)}${animated ? "&animated" : ""}`
+  );
+}
+
+export function albumThumbnailUrl(
+  album: Album,
+  size: ThumbnailSize = "th-medium",
+  animated: boolean = true
+): string {
+  if (!album) {
+    return "";
+  }
+  return (
+    `http://localhost:${getServicePort()}/thumbnail/${fixedEncodeURIComponent(
+      album.key
+    )}/${fixedEncodeURIComponent(size)}` + `${animated ? "&animated" : ""}`
   );
 }
 

@@ -16,6 +16,8 @@ import {
   clipColor,
   decodeOperations,
   decodeRect,
+  decodeRotate,
+  encodeOperations,
   fromBase64,
   fromHex,
   namify,
@@ -26,6 +28,12 @@ import {
 import { imagesRoot } from "../utils/constants";
 import { rotateRectangle } from "../../shared/lib/geometry";
 import { Queue } from "../../shared/lib/queue";
+import {
+  getPicasaEntry,
+  setFilters,
+  setRotate,
+  updatePicasaEntry,
+} from "../rpc/rpcFunctions/picasa-ini";
 
 const contexts = new Map<string, Sharp>();
 const options = new Map<string, AlbumEntryMetaData>();
@@ -37,7 +45,7 @@ const s = promisify(sizeOf);
 function getContext(context: string): Sharp {
   const j = contexts.get(context);
   if (!j) {
-    throw new Error(`context ${context} not found`);
+    throw new Error(`context "${context}" not found`);
   }
   return j;
 }
@@ -68,6 +76,11 @@ export async function dimensions(
   return { width: metadata.width!, height: metadata.height! };
 }
 
+function colorFromArg(arg: string) {
+  arg = arg.replace("#", "");
+  return "#" + (arg.length > 6 ? arg.slice(2) + arg.slice(0, 2) : arg);
+}
+
 export async function buildNewContext(
   width: number,
   height: number
@@ -91,7 +104,10 @@ export async function buildNewContext(
 
 export async function buildContext(entry: AlbumEntry): Promise<string> {
   const relPath = entryRelativePath(entry);
-  const fileData = await readFile(join(imagesRoot, relPath));
+  const [picasaData, fileData] = await Promise.all([
+    getPicasaEntry(entry),
+    readFile(join(imagesRoot, relPath)),
+  ]);
   const contextId = namify(relPath) + "-" + uuid();
 
   try {
@@ -102,6 +118,30 @@ export async function buildContext(entry: AlbumEntry): Promise<string> {
       .withMetadata()
       .rotate();
 
+    // Extract filters with rotate=1,x and transform to rotate=rotate(x)
+    let rotate = decodeRotate(picasaData.rotate);
+    if (picasaData.filters) {
+      const filters = decodeOperations(picasaData.filters);
+      const filterRotate = filters.find((f) => f.name === "rotate");
+      if (filterRotate) {
+        const filterRotateValue = filterRotate.args[1];
+        if (filterRotateValue) {
+          picasaData.rotate = `rotate(${filterRotateValue})`;
+          rotate = decodeRotate(picasaData.rotate);
+        }
+        filters.splice(filters.indexOf(filterRotate), 1);
+        setFilters(entry, encodeOperations(filters));
+        setRotate(entry, picasaData.rotate);
+      }
+    }
+    // rotate=rotate(3), in 90 increments
+    if (rotate !== 0) {
+      // rotation increment
+      if (rotate > 0) {
+        s = await branchContext(s);
+        s = s.rotate(-90 * rotate);
+      }
+    }
     contexts.set(contextId, s);
     return contextId;
   } catch (e: any) {
@@ -603,7 +643,7 @@ export async function transform(
 
         const angle = parseFloat(args[1]);
         let c = j.clone();
-        const text = decodeURIComponent(args[2]);
+        const text = decodeURIComponent(args[3] ?? "");
         const metadata = await c.metadata();
         const w = metadata.width!;
         const h = metadata.height!;
@@ -654,11 +694,7 @@ export async function transform(
           raw: updated.info,
           failOnError: false,
         });
-        const col =
-          "#" +
-          (args[2].length > 6
-            ? args[2].slice(2) + args[2].slice(0, 2)
-            : args[2]);
+        const col = colorFromArg(args[2]);
         j = j.rotate(angle, { background: col });
         break;
       }

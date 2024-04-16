@@ -140,7 +140,7 @@ function buildThumbnail(
   });
   e.on("dragover", (event) => {
     // prevent default to allow drop
-    event.preventDefault();
+    //event.preventDefault();
   });
   e.on("dragenter", async (ev: DragEvent) => {
     ev.preventDefault();
@@ -277,19 +277,20 @@ export async function makeThumbnailManager(
   const settings = getSettings();
   root.style.setProperty("--thumbnail-size", `${settings.iconSize}px`);
 
-  selectionManager.events.on("added", ({ key }) => {
+  selectionManager.events.on("changed", ({ added, removed }) => {
     // Element might be not displayed
-    try {
-      const e = elementFromEntry(key, elementPrefix);
-      if (e.exists()) e.addClass("selected");
-    } catch (e) {}
-  });
-  selectionManager.events.on("removed", ({ key }) => {
-    // Element might be not displayed
-    try {
-      const e = elementFromEntry(key, elementPrefix);
-      if (e.exists()) e.removeClass("selected");
-    } catch (e) {}
+    added.forEach((key) => {
+      try {
+        const e = elementFromEntry(key, elementPrefix);
+        if (e.exists()) e.addClass("selected");
+      } catch (e) {}
+    });
+    removed.forEach((key) => {
+      try {
+        const e = elementFromEntry(key, elementPrefix);
+        if (e.exists()) e.removeClass("selected");
+      } catch (e) {}
+    });
   });
 }
 export async function thumbnailData(

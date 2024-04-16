@@ -4,6 +4,7 @@ import {
   idFromAlbumEntry,
 } from "../../shared/lib/utils";
 import { Album, AlbumEntry, AlbumKind } from "../types/types";
+import { State, StateDef } from "./state";
 
 export function NodeListToFirstElem(
   e: HTMLElement | NodeListOf<HTMLElement> | undefined
@@ -34,12 +35,13 @@ export function setImageDataToCanvasElement(
   ctx.putImageData(imagedata, 0, 0);
 }
 
-export class _$ {
-  constructor(
-    e: Element | HTMLElement | string | _$,
-    from?: HTMLElement | null | _$
-  ) {
-    this._e = this.resolve(e, from || null);
+export class _$<T extends HTMLElement = HTMLElement> {
+  constructor(e: Element | T | string | _$, from?: HTMLElement | null | _$) {
+    this._e = e ? this.resolve(e, from || null) : null;
+  }
+  static fromId(id: string): _$ {
+    const byId = document.getElementById(id);
+    return new _$(byId);
   }
   id(val: string): _$;
   id(): string;
@@ -74,7 +76,7 @@ export class _$ {
     });
     return this;
   }
-  get(): HTMLElement {
+  get(): T {
     if (!this._e) {
       throw new Error("No element");
     }
@@ -198,7 +200,8 @@ export class _$ {
   hide() {
     this.css("display", "none");
   }
-  show() {
+  show(show = true) {
+    if (!show) return this.hide();
     this.css("display", null);
   }
   clientRect(): DOMRect {
@@ -355,18 +358,28 @@ export class _$ {
   }
 
   private resolve(
-    e: Element | HTMLElement | string | _$,
+    e: Element | T | string | _$,
     from: HTMLElement | null | _$
-  ): HTMLElement | null {
+  ): T | null {
     if (e instanceof HTMLElement) {
-      return e;
+      return e as T;
     }
     if (e instanceof Element) {
       throw new Error("Bad type");
     }
     if (e instanceof _$) {
-      return e.get();
+      return (e as _$<T>).get();
     }
+    if (typeof e === "string" && e.trim().startsWith("<")) {
+      const n = document.createElement("div");
+      n.innerHTML = e;
+      if (n.children.length === 1) {
+        return n.children[0] as T;
+      } else if (n.children.length > 1) {
+        throw new Error("Too many children");
+      }
+    }
+
     let _from: HTMLElement | null | Document;
     if (from instanceof _$) {
       _from = from.get();
@@ -381,32 +394,27 @@ export class _$ {
         if (_from !== document) {
           throw new Error(`Get by id should not pass an element`);
         }
-        return document.getElementById(e.slice(1));
+        return document.getElementById(e.slice(1)) as T;
       }
       const byId = document.getElementById(e);
       if (byId) {
-        return byId;
+        return byId as T;
       }
       const bySelector = _from.querySelector(e);
       if (bySelector) {
-        return bySelector as HTMLElement;
+        return bySelector as T;
       }
     } catch (err) {}
-    const n = document.createElement("div");
-    n.innerHTML = e;
-    if (n.children.length === 1) {
-      return n.children[0] as HTMLElement;
-    }
     return null;
   }
-  private _e: HTMLElement | null;
+  private _e: T | null;
 }
 
-export function $(
-  e: Element | HTMLElement | string | _$,
+export function $<T extends HTMLElement = HTMLElement>(
+  e: Element | T | string | _$,
   from: HTMLElement | null | _$ = null
-): _$ {
-  return new _$(e, from);
+): _$<T> {
+  return new _$<T>(e, from);
 }
 
 export function preLoadImage(url: string): Promise<HTMLImageElement> {
@@ -461,7 +469,7 @@ function idFromAlbum(a: Album, qualifier: string): string {
 // Name HTML element from/to AlbumEntry
 export function elementFromEntry(entry: AlbumEntry, qualifier: string) {
   const id = idFromAlbumEntry(entry, qualifier);
-  return $(id);
+  return _$.fromId(id);
 }
 export function albumEntryFromElement(
   e: _$,
@@ -488,5 +496,19 @@ export function albumEntryFromElementOrChild(
 }
 
 export function setIdForEntry(e: _$, entry: AlbumEntry, qualifier: string) {
-  e.id(idFromAlbumEntry(entry, qualifier));
+  e.id(entry ? idFromAlbumEntry(entry, qualifier) : "");
+}
+
+export function bindStateToControl<T extends StateDef>(
+  state: State<T>,
+  control: _$,
+  name: keyof T
+) {
+  state.events.on(name, (value) => {
+    control.val(value);
+  });
+  control.on("input", () => {
+    const value = control.val();
+    state.setValue(name, value);
+  });
 }

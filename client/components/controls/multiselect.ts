@@ -122,14 +122,19 @@ export function makeMultiselectImageList(
     );
   });
 
-  selectionManager.events.on("added", ({ key }) => {
-    const id = idFromAlbumEntry(key, name);
-    $(`#${id}`).optional()?.addRemoveClass("multiselect-image-selected", true);
-  });
-
-  selectionManager.events.on("removed", ({ key }) => {
-    const id = idFromAlbumEntry(key, name);
-    $(`#${id}`).optional()?.addRemoveClass("multiselect-image-selected", false);
+  selectionManager.events.on("changed", ({ added, removed }) => {
+    added.forEach((key) => {
+      const id = idFromAlbumEntry(key, name);
+      $(`#${id}`)
+        .optional()
+        ?.addRemoveClass("multiselect-image-selected", true);
+    });
+    removed.forEach((key) => {
+      const id = idFromAlbumEntry(key, name);
+      $(`#${id}`)
+        .optional()
+        ?.addRemoveClass("multiselect-image-selected", false);
+    });
   });
 
   return e;

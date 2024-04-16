@@ -3,7 +3,7 @@ import { join } from "path";
 import { AlbumEntry, idFromKey } from "../../shared/types/types";
 import { imagesRoot } from "./constants";
 import { extname } from "path";
-import { lock } from "../../shared/lib/utils";
+import { lock } from "../../shared/lib/mutex";
 
 export async function fileExists(path: string): Promise<boolean> {
   return stat(path)

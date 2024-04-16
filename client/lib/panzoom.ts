@@ -134,6 +134,8 @@ export class ImagePanZoomController {
     this.panner.zoomAbs(initialLeft, initialTop, initialZoom);
     this.panner.moveTo(initialLeft, initialTop);
 
+    console.info("recenter", this.panner.getTransform());
+
     await this.waitNextFrame();
 
     if (this.rotation !== 0) {
@@ -142,6 +144,7 @@ export class ImagePanZoomController {
     }
   }
   async enable(enabled: boolean) {
+    console.info("enable", enabled, this.panner.getTransform());
     if (enabled) {
       this.rotation = 0;
       this.element.css({

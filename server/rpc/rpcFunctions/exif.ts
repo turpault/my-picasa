@@ -1,7 +1,8 @@
 import exifr from "exifr";
 import { Stats } from "fs";
 import { stat } from "fs/promises";
-import { isPicture, isVideo, lock } from "../../../shared/lib/utils";
+import { lock } from "../../../shared/lib/mutex";
+import { isPicture, isVideo } from "../../../shared/lib/utils";
 import { AlbumEntry } from "../../../shared/types/types";
 import { dimensionsFromFile as dimensionsFromFileBuffer } from "../../imageOperations/sharp-processor";
 import { entryFilePath } from "../../utils/serverUtils";
@@ -106,7 +107,13 @@ export async function exifData(entry: AlbumEntry): Promise<any> {
     try {
       const stats = await stat(path);
       if (picasaEntry.exif) {
-        return { ...JSON.parse(picasaEntry.exif), ...stats };
+        try {
+          return { ...JSON.parse(picasaEntry.exif), ...stats };
+        } catch (e) {
+          console.error(
+            `Exception while parsing exif for ${path}: ${e}, will get exif data from file`
+          );
+        }
       }
       const tags = await exifr.parse(path).catch((e: any) => {
         console.error(`Exception while reading exif for ${path}: ${e}`);

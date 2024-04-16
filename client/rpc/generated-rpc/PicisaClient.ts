@@ -150,9 +150,14 @@ export class PicisaClient {
       'args': { entry } 
     });
   }
-  async updatePicasaEntry(entry: object, field: string, value: any):Promise<any> {
-    return this.emit('PicisaClient:updatePicasaEntry', {
-      'args': { entry, field, value } 
+  async setFilters(entry: object, filters: string):Promise<any> {
+    return this.emit('PicisaClient:setFilters', {
+      'args': { entry, filters } 
+    });
+  }
+  async setCaption(entry: object, caption: string):Promise<any> {
+    return this.emit('PicisaClient:setCaption', {
+      'args': { entry, caption } 
     });
   }
   async makeAlbum(name: string):Promise<any> {

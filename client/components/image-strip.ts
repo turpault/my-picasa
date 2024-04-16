@@ -6,8 +6,8 @@ const ImageStrip = `
   <picasa-carousel count="9" class="image-strip"></picasa-carousel>
   `;
 
-export function makeImageStrip(selector: AlbumEntrySelectionManager) {
+export function makeImageStrip(selectionManager: AlbumEntrySelectionManager) {
   const picList = $(ImageStrip).get() as PicasaEntryCarousel;
-  picList.setSelectionList(selector);
+  picList.setSelectionList(selectionManager);
   return picList;
 }
