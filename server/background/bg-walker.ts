@@ -93,13 +93,13 @@ export async function refreshAlbums(albums: AlbumWithData[]) {
 
 export async function onRenamedAlbums(from: Album, to: Album) {
   const idx = lastWalk.findIndex((f) => f.key == from.key);
-  if (idx === -1) {
+  if (idx !== -1) {
     const old = { ...lastWalk[idx] };
     lastWalk[idx] = { ...lastWalk[idx], ...to };
     queueNotification({
       type: "albumRenamed",
-      album: old,
-      altAlbum: lastWalk[idx],
+      altAlbum: old,
+      album: lastWalk[idx],
     });
   }
 }

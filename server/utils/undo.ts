@@ -3,13 +3,14 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import { createInterface } from "readline";
 import { uuid } from "../../shared/lib/utils";
-import { undoStep } from "../../shared/types/types";
+import { UndoStep } from "../../shared/types/types";
 import { imagesRoot } from "./constants";
 import { broadcast } from "./socketList";
+import { fileExists } from "./serverUtils";
 
 const undoFile = join(imagesRoot, ".mypicasa.undo");
 const undoneFile = join(imagesRoot, ".mypicasa.undone");
-const recentUndos: undoStep[] = [];
+const recentUndos: UndoStep[] = [];
 undoList().then((lst) => recentUndos.push(...lst.slice(-10)));
 
 const undoStream = createWriteStream(undoFile, {
@@ -26,18 +27,14 @@ export function addToUndo(
   description: string,
   payload: any
 ) {
-  const item = {
+  const item: UndoStep = {
     uuid: uuid(),
     description,
     timestamp: new Date().getTime(),
     operation,
     payload,
   };
-  undoStream.write(
-    `${JSON.stringify({
-      item,
-    })}\n`
-  );
+  undoStream.write(`${JSON.stringify(item)}\n`);
   recentUndos.push(item);
   broadcast("undoChanged", { undoSteps: recentUndos });
 }
@@ -70,13 +67,14 @@ export async function undo(id: string) {
   }
 }
 
-export async function undoList(): Promise<undoStep[]> {
-  return new Promise<undoStep[]>(async (resolve) => {
+export async function undoList(): Promise<UndoStep[]> {
+  if ((await fileExists(undoFile)) === false) return [];
+  return new Promise<UndoStep[]>(async (resolve) => {
     const readUndo = createReadStream(undoFile, { encoding: "utf-8" });
     const undoneOperations = (
       await readFile(undoneFile, { encoding: "utf-8" }).catch((e) => "")
     ).split("\n");
-    const res: undoStep[] = [];
+    const res: UndoStep[] = [];
     const reader = createInterface(readUndo);
     reader.on("line", (line) => {
       const op = JSON.parse(line);

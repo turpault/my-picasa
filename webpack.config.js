@@ -1,7 +1,6 @@
 const path = require('path');
-const CopyPlugin = require("copy-webpack-plugin");
 
-module.exports = {
+module.exports = [{
   entry: './client/app.ts',
   devtool: "source-map",
   module: {
@@ -21,4 +20,4 @@ module.exports = {
     sourceMapFilename: 'app.js.map',
     path: path.resolve(__dirname, 'public', 'dist'),
   }
-};
+}];

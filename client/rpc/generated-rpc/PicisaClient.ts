@@ -210,6 +210,11 @@ export class PicisaClient {
       'args': { group } 
     });
   }
+  async getConvolutionKernelNames():Promise<any> {
+    return this.emit('PicisaClient:getConvolutionKernelNames', {
+      'args': {  } 
+    });
+  }
   async getFilterGroups():Promise<any> {
     return this.emit('PicisaClient:getFilterGroups', {
       'args': {  } 

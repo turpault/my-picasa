@@ -3,8 +3,17 @@ import { join, relative, sep } from "path";
 import { folder } from "../rpc/rpcFunctions/fs";
 import { sleep } from "../../shared/lib/utils";
 import { imagesRoot } from "../utils/constants";
+import { typeHandlers } from "image-size/dist/types";
+import { convolutionKernels } from "./convolutionFilters/convolutionFilters";
+import { Kernel } from "sharp";
 const { applyLUT } = require("./native-filters/build/Release/lut3d");
 const { histogram } = require("./native-filters/build/Release/histogram");
+const {
+  solarize: solarizeNative,
+} = require("./native-filters/build/Release/solarize");
+const {
+  heatmap: heatmapNative,
+} = require("./native-filters/build/Release/heatmap");
 
 export const filtersFolder = ".filters";
 /**
@@ -62,6 +71,13 @@ export function getFilterList(group?: string): string[] {
   return Object.keys(allFilters).filter(
     (f) => !group || allFilters[f].group === group
   );
+}
+
+export function getConvolutionKernelNames(): string[] {
+  return Object.keys(convolutionKernels);
+}
+export function getConvolution(name: string): Kernel {
+  return convolutionKernels[name];
 }
 
 async function read3DLUT(title: string): Promise<LUT3D> {
@@ -142,4 +158,19 @@ export async function getHistogram(
 ): Promise<{ r: number[]; g: number[]; b: number[] }> {
   const h = histogram(buffer, pixelSize);
   return { r: h[0], g: h[1], b: h[2] };
+}
+
+export async function solarize(
+  buffer: Buffer,
+  pixelSize: number,
+  threshold: number
+): Promise<boolean> {
+  return solarizeNative(buffer, pixelSize, threshold);
+}
+
+export async function heatmap(
+  buffer: Buffer,
+  pixelSize: number
+): Promise<boolean> {
+  return heatmapNative(buffer, pixelSize);
 }

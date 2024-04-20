@@ -3,7 +3,14 @@ import sizeOf from "image-size";
 import { join } from "path";
 import sharp, { Metadata, OverlayOptions, Sharp } from "sharp";
 import { promisify } from "util";
-import { applyAllFilters, applyFilter, getHistogram } from "./image-filters";
+import {
+  applyAllFilters,
+  applyFilter,
+  getConvolution,
+  getHistogram,
+  heatmap,
+  solarize,
+} from "./image-filters";
 import { entryRelativePath } from "./info";
 import {
   AlbumEntry,
@@ -222,6 +229,10 @@ export function exifToSharpMeta(obj: { [key: string]: any }): any {
 #| sharpen     |                                     | sharpen                        | 1                             |  New
 #| resize      | max Dimension                       | resize image (nearest)         | 1, 1500                       | Personal
 #| label       | text, font size, position (n,s,e,w) | Adds a label to the image      | 1, "hello", 12, s             | Personal
+#| filter:name |                                     | Apply a filter to the image    | filter:All                    | Personal
+#| solarize    | threshold                           | solarize filter                | solarize=1,0.500000;          | Personal
+#| heatmap     |                                     | heatmap filter                 | heatmap=1;                    | Personal
+#| convolute   | kernel                              | convolute filter               | convolute=1,name;             | Personal
 
 # LEGEND:
 # ! = float between 0 and 1, precision:6
@@ -304,15 +315,67 @@ export async function transform(
         break;
       case "blur":
         {
-          const amount = parseFloat(args[1]);
-          if (amount !== 0) j = j.blur(amount);
+          const meta = await j.metadata();
+          let amount = Math.max(parseFloat(args[1] || "0.3"), 0.3);
+          // 0.3 is the minimum blur
+          // Adjust the blur amount to the image size
+          amount = 0.3 + ((amount - 0.3) * meta.width!) / 4000;
+          if (amount !== 0.3) j = j.blur(amount);
         }
         break;
       case "sharpen":
         const amount = parseFloat(args[1]);
         j = j.sharpen(amount);
         break;
+      case "solarize":
+        {
+          const threshold = parseFloat(args[1]);
+          const r = await j.raw().toBuffer({ resolveWithObject: true });
+          const pixelSize = r.info.channels as 3 | 4;
+          await solarize(r.data, r.info.channels, threshold * 255);
+          j = j.composite([
+            {
+              input: r.data,
+              raw: {
+                width: r.info.width,
+                height: r.info.height,
+                channels: pixelSize,
+              },
+            },
+          ]);
+        }
 
+        break;
+      case "heatmap":
+        {
+          const r = await j.raw().toBuffer({ resolveWithObject: true });
+          const pixelSize = r.info.channels as 3 | 4;
+          await heatmap(r.data, r.info.channels);
+          j = j.composite([
+            {
+              input: r.data,
+              raw: {
+                width: r.info.width,
+                height: r.info.height,
+                channels: pixelSize,
+              },
+            },
+          ]);
+        }
+
+        break;
+      case "convolute":
+        {
+          const name = args[1];
+          if (name) {
+            const kernel = getConvolution(name);
+            if (kernel) {
+              j = j.convolve(kernel);
+            }
+          }
+        }
+
+        break;
       case "tilt":
         const angleDeg = 10 * parseFloat(args[1]); // in degrees
         if (angleDeg != 0) {

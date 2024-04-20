@@ -14,7 +14,6 @@ import {
   AlbumEntry,
   AlbumEntryMetaData,
   AlbumEntryPicasa,
-  AlbumKind,
   FaceData,
 } from "../../shared/types/types";
 import {
@@ -137,12 +136,12 @@ export class ImageController {
   }
 
   async show() {
-    if(!this.shown) {
+    if (!this.shown) {
       this.shown = true;
       this.display();
     }
   }
-  async hide() {    
+  async hide() {
     this.entry = undefined;
     this.shown = false;
   }

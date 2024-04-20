@@ -72,6 +72,9 @@ export type AlbumListEvent = {
   };
   invalidateAt: {
     index: number;
+  };
+  renamed: {
+    oldAlbum: AlbumWithData;
     album: AlbumWithData;
   };
   thumbnailClicked: {

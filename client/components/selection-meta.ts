@@ -10,7 +10,7 @@ import {
   AlbumEntry,
   AlbumEntryMetaData,
   AlbumWithData,
-  undoStep,
+  UndoStep,
 } from "../types/types";
 import { t } from "./strings";
 type MetaTransform = {
@@ -104,7 +104,7 @@ export type SelectionStateDef = {
   META_SINGLE_SELECTION_MODE: boolean;
   active: AlbumEntry | null;
   selected: AlbumEntry[];
-  undo: undoStep[];
+  undo: UndoStep[];
   stars: number;
 };
 export type ApplicationState = State<SelectionStateDef>;

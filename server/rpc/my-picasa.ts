@@ -3,6 +3,7 @@ import { Exceptions } from "../../shared/types/exceptions";
 import { folders } from "../background/bg-walker";
 import { generateMosaicFile } from "../imageOperations/image-edits/mosaic";
 import {
+  getConvolutionKernelNames,
   getFilterGroups,
   getFilterList,
 } from "../imageOperations/image-filters";
@@ -217,6 +218,10 @@ export const PicisaClient: ServiceMap = {
     getFilterList: {
       handler: getFilterList,
       arguments: ["group:string"],
+    },
+    getConvolutionKernelNames: {
+      handler: getConvolutionKernelNames,
+      arguments: [],
     },
     getFilterGroups: {
       handler: getFilterGroups,

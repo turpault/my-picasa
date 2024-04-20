@@ -58,7 +58,7 @@ class CropTool extends ActivableTool {
       this.controller.addOperation(operation);
       return true;
     } else if (ok === null) {
-      // Do nothing
+      // Trash, do nothing 
     } else if (ok === false) {
       // undo
       if (!isNew) {

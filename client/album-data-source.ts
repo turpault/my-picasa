@@ -62,7 +62,6 @@ export class AlbumIndexedDataSource {
             for (const index of range(min, max)) {
               this.emitter.emit("invalidateAt", {
                 index,
-                album: this.albums[index],
               });
             }
           } else if (min === 0 && max === this.albums.length - 1) {
@@ -131,16 +130,25 @@ export class AlbumIndexedDataSource {
               break;
             case "albumRenamed":
               {
-                const up = this.updatedAlbum(event.album!, event.altAlbum!);
-                if (up) {
-                  invalidations.push(up.idx);
-                  invalidations.push(up.idx2);
+                this.emitter.emit("renamed", {
+                  album: event.album!,
+                  oldAlbum: event.altAlbum!,
+                });
+                const res = this.updatedAlbum(event.altAlbum, event.album);
+                if (res.idx === res.idx2) {
+                  // No order change, ignore
+                } else {
+                  invalidations.push(res.idx);
+                  invalidations.push(res.idx2);
                 }
               }
               break;
             case "albumAdded":
-              invalidations.push(this.addAlbum(event.album!));
-              invalidations.push(this.albums.length - 1);
+              const albumIndex = this.addAlbum(event.album!);
+              if (albumIndex !== -1) {
+                invalidations.push(this.addAlbum(event.album!));
+                invalidations.push(this.albums.length - 1);
+              }
           }
         }
         resolveAndInvalidate();
@@ -156,7 +164,7 @@ export class AlbumIndexedDataSource {
     // Find at which index the album should be added
     let index = this.allAlbums.findIndex((a) => a.key === album.key);
     if (index !== -1) {
-      return 0;
+      return -1;
     }
     this.allAlbums.push({ ...album });
     this.sortFolders();
@@ -182,7 +190,7 @@ export class AlbumIndexedDataSource {
     if (idxAll !== -1) {
       this.allAlbums[idxAll] = { ...this.allAlbums[idxAll], ...to };
       this.sortFolders();
-      const idx2 = this.albums.findIndex((a) => a.key === from.key);
+      const idx2 = this.albums.findIndex((a) => a.key === to.key);
       if (idx2 !== -1) {
         return { idx: idx !== -1 ? idx : 0, idx2 };
       }
@@ -223,6 +231,7 @@ export class AlbumIndexedDataSource {
 
   albumAtIndex(index: number): AlbumWithData {
     if (index >= this.albums.length) {
+      debugger;
       throw new Error("out of bounds");
     }
     return this.albums[index];
