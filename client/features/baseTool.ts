@@ -59,8 +59,9 @@ export class ActivableTool implements Tool {
 
 type Parameter = {
   name: string;
-  type: "range" | "text" | "color";
+  type: "range" | "text" | "color" | "select";
   range?: { min: number; max: number };
+  options?: string[];
   default: number | string;
 };
 type ParameterStateDef = {
@@ -89,11 +90,7 @@ export function toolHTML(
   ok: Function,
   cancel: Function,
   trash: Function
-): {
-  toolElement: _$;
-  controls: _$;
-  okCancel: _$;
-} {
+) {
   const s = substitute(parametrizableToolControlHtml, {
     ICON: icon,
     NAME: name,
@@ -106,12 +103,12 @@ export function toolHTML(
     toolElement
   );
   const okCancel = okCancelHtml(ok, cancel, trash);
-  okCancelContainer.append(okCancel);
-  return { toolElement, controls, okCancel };
+  okCancelContainer.append(okCancel.okCancelControls);
+  return { toolElement, controls, ...okCancel };
 }
 
 function okCancelHtml(ok: Function, cancel: Function, trash: Function) {
-  const h = $(`
+  const okCancelControls = $(`
     <div class="parametrizable-tool-controls-okcancel">
       <picasa-button type="ok" class="parametrizable-tool-control-ok">${t(
         "Apply"
@@ -123,16 +120,19 @@ function okCancelHtml(ok: Function, cancel: Function, trash: Function) {
       </picasa-button>
     </div>
   `);
-  $(".parametrizable-tool-control-ok", h).on("click", (ev: MouseEvent) =>
-    ok(ev)
-  );
-  $(".parametrizable-tool-control-cancel", h).on("click", (ev: MouseEvent) =>
-    cancel(ev)
-  );
-  $(".parametrizable-tool-control-trash", h).on("click", (ev: MouseEvent) =>
-    trash(ev)
-  );
-  return h;
+  const okControl = $(
+    ".parametrizable-tool-control-ok",
+    okCancelControls
+  ).on("click", (ev: MouseEvent) => ok(ev));
+  const cancelControl = $(
+    ".parametrizable-tool-control-cancel",
+    okCancelControls
+  ).on("click", (ev: MouseEvent) => cancel(ev));
+  const trashControl = $(
+    ".parametrizable-tool-control-trash",
+    okCancelControls
+  ).on("click", (ev: MouseEvent) => trash(ev));
+  return { okCancelControls, okControl, cancelControl, trashControl };
 }
 const parametrizableToolControlHtml = `
 <div class="parametrizable-tool-controls-pane">
@@ -288,6 +288,25 @@ export class ParametrizableTool implements Tool {
                 ".parametrizable-tool-controls-colorpicker",
                 ctrl
               );
+              bindStateToControl(state, input, param.name);
+              controls.append(ctrl);
+            }
+            break;
+          case "select":
+            {
+              const ctrl = $(`
+              <div>
+              <label>${t(param.name)}</label>
+                <select class="parametrizable-tool-controls-select">
+                ${param.options!.map(
+                  (o) =>
+                    `<option value="${o}" ${
+                      o === state.getValue(param.name) ? "selected" : ""
+                    }>${t(o)}</option>`
+                )}
+                </select>
+              </div>`);
+              const input = $(".parametrizable-tool-controls-select", ctrl);
               bindStateToControl(state, input, param.name);
               controls.append(ctrl);
             }

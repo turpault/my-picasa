@@ -1,6 +1,6 @@
 {
   "name": "picisa",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Picasa replacement in pure JS",
   "author": "Jocelyn Turpault (turpault@gmail.com)",
   "license": "MIT",
@@ -30,7 +30,7 @@
   "main": "dist/server/main.js",
   "browser": "dist/src/index.js",
   "scripts": {
-    "clean": "rimraf dist",
+    "clean": "rimraf dist picisa.dmg",
     "reset": "rimraf node_modules dist",
     "prebuild": "npm run clean; mkdir dist ; cp -R public dist",
     "build": "npm run native-filters && run-p build:*",
@@ -63,9 +63,8 @@
     "@types/spinnies": "^0.5.3",
     "@types/web": "^0",
     "@types/ws": "^7.4.1",
-    "copy-webpack-plugin": "^11.0.0",
     "cross-var": "^1",
-    "electron": "^15.3.1",
+    "electron": "^30.0.0",
     "electron-installer-dmg": "^4.0.0",
     "electron-packager": "^17.1.2",
     "glob": "^7",

@@ -18,10 +18,10 @@ export function setupBlur(
       editor,
       [
         {
-          name: "Radius",
+          name: "Effect",
           type: "range",
-          range: { min: 1, max: 1000 },
-          default: 10,
+          range: { min: 0.3, max: 100 },
+          default: 0.5,
         },
       ],
       undefined,

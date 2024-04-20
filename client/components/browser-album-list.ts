@@ -108,10 +108,19 @@ export async function makeAlbumList(
         folders.empty();
         renderNodes(albumDataSource.getHierarchy().childs, folders);
       }),
-      events.on("invalidateAt", (event) => {
-        const e = elementFromAlbum(event.album, elementPrefix);
+      events.on("renamed", (event) => {
+        if (!event.album) debugger;
+        const e = elementFromAlbum(event.oldAlbum, elementPrefix);
         if (!e.exists()) return;
         const n = renderAlbum(event.album);
+        e.replaceWith(n);
+      }),
+      events.on("invalidateAt", (event) => {
+        const album = albumDataSource.albumAtIndex(event.index);
+        if (!album) debugger;
+        const e = elementFromAlbum(album, elementPrefix);
+        if (!e.exists()) return;
+        const n = renderAlbum(album);
         e.replaceWith(n);
       }),
       events.on("nodeChanged", (event) => {

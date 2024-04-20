@@ -32,6 +32,9 @@ import { setupFill } from "../features/fill";
 import { setupPolaroid } from "../features/polaroid";
 import { setupSharpen } from "../features/sharpen";
 import { setupFilters } from "../features/filter";
+import { setupHeatmap } from "../features/heatmap";
+import { setupSolarize } from "../features/solarize";
+import { setupConvolutions } from "../features/convolutions";
 
 const editHTML = `
 <div class="fill editor-page">
@@ -140,6 +143,8 @@ export async function makeEditorPage(
   setupAutocolor(imageController, toolRegistrar, toolEditor);
   setupBW(imageController, toolRegistrar, toolEditor);
   setupContrast(imageController, toolRegistrar, toolEditor);
+  setupHeatmap(imageController, toolRegistrar, toolEditor);
+  setupSolarize(imageController, toolRegistrar, toolEditor);
   setupFill(imageController, toolRegistrar, toolEditor);
   setupSepia(imageController, toolRegistrar, toolEditor);
   setupPolaroid(imageController, toolRegistrar, toolEditor);
@@ -148,6 +153,7 @@ export async function makeEditorPage(
   setupBlur(imageController, toolRegistrar, toolEditor);
   setupSharpen(imageController, toolRegistrar, toolEditor);
   setupFilters(imageController, toolRegistrar, toolEditor);
+  setupConvolutions(imageController, toolRegistrar, toolEditor);
   //const refreshMetadataFct = makeMetadata(metadata);
   //makeIdentify(identify, imageController);
   const refreshHistogramFct = makeHistogram(histogram);
@@ -302,7 +308,7 @@ export async function makeEditorPage(
     s.on(
       "albumEntryAspectChanged",
       async (e: { payload: AlbumEntryPicasa }) => {
-        if(!editorSelectionManager.active()) {
+        if (!editorSelectionManager.active()) {
           return;
         }
         if (

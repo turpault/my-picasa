@@ -1,4 +1,4 @@
-import { undoStep } from "../../shared/types/types";
+import { UndoStep } from "../../shared/types/types";
 import { $, _$ } from "../lib/dom";
 import { Emitter } from "../lib/event";
 import { getService } from "../rpc/connect";

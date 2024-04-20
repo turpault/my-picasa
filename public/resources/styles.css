@@ -236,6 +236,10 @@
 .parametrizable-tool-controls-title h1 {
   display: inline-block;
   margin-left: 10px;
+  font-size: 20px;
+}
+.parametrizable-tool-controls-title h3 {
+  font-size: 16px;
 }
 .parametrizable-tool-controls-icon {
   width: 50px !important;
@@ -1030,9 +1034,7 @@ body {
   text-align: center;
 }
 
-.crop-controls-pane {
-
-}
+.crop-controls-pane {height: auto !important;}
 .crop-controls {
   text-align:center;
   margin: auto;

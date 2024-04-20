@@ -8,8 +8,15 @@ import {
 } from "../../shared/types/types";
 import { AlbumIndexedDataSource } from "../album-data-source";
 import { getAlbumInfo } from "../folder-utils";
-import { $, _$, albumFromElement, setIdForAlbum } from "../lib/dom";
+import {
+  $,
+  _$,
+  albumFromElement,
+  elementFromAlbum,
+  setIdForAlbum,
+} from "../lib/dom";
 import { toggleStar } from "../lib/handles";
+import { update } from "../lib/idb-keyval";
 import { getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
 import { AlbumEntrySelectionManager } from "../selection/selection-manager";
@@ -291,6 +298,13 @@ export async function makePhotoList(
   }
   container.attachData({
     events: [
+      events.on("renamed", async (event) => {
+        // Check if the album should be redrawn or not
+        const element = elementFromAlbum(event.oldAlbum, elementPrefix);
+        if (element) {
+          populateElement(element, event.album);
+        }
+      }),
       events.on("invalidateAt", async (event) => {
         // Check if the album should be redrawn or not
         const element = elementAtIndex(event.index);
@@ -513,10 +527,14 @@ export async function makePhotoList(
           for (const elem of prune) {
             moveToPool(elem);
           }
-          topIndex = parseInt(displayed[0].attr("index")!);
-          bottomIndex = parseInt(
-            displayed[displayed.length - 1].attr("index")!
-          );
+          if (displayed.length === 0) {
+            debugger;
+          } else {
+            topIndex = parseInt(displayed[0].attr("index")!);
+            bottomIndex = parseInt(
+              displayed[displayed.length - 1].attr("index")!
+            );
+          }
         }
       }
 
@@ -697,6 +715,7 @@ export async function makePhotoList(
     } else {
       $(".select-shortcut", e).val("");
     }
+    $(".name-container-name", e).innerHTML(album.name);
   }
 
   function getElement(): _$ {

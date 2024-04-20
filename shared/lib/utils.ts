@@ -201,7 +201,7 @@ export function isVideoUrl(url: string): boolean {
 }
 
 export function range(from: number, to?: number): number[] {
-  if (!to) {
+  if (to === undefined) {
     to = from - 1;
     from = 0;
   }

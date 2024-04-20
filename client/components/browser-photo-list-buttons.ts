@@ -6,7 +6,7 @@ import {
   AlbumEntryPicasa,
   JOBNAMES,
   Job,
-  undoStep,
+  UndoStep,
 } from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
 import { $, _$, elementFromEntry, setIdForEntry } from "../lib/dom";
@@ -512,7 +512,7 @@ export function makeButtons(
     debouncedRefresh();
   });
   getService().then((s) => {
-    s.on("undoChanged", (ev: { payload: { undoSteps: undoStep[] } }) => {
+    s.on("undoChanged", (ev: { payload: { undoSteps: UndoStep[] } }) => {
       localState.setValue("undo", ev.payload.undoSteps.reverse());
     });
     s.on(
