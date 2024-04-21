@@ -543,3 +543,22 @@ export function substitute(
     return v;
   });
 }
+
+/**
+ * Returns a memoizer function that will cache the results of the data function
+ * The cache is scoped to the returned memoize function (multiple memoizer functions will have different caches)
+ * @returns
+ */
+export function memoizer() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cache: { [key: string]: any } = {};
+  return function memoize<T>(
+    keys: string[],
+    data: () => Promise<T>
+  ): Promise<T> {
+    const k = keys.join(",");
+    if (cache[k]) return cache[k];
+    cache[k] = data();
+    return cache[k];
+  };
+}

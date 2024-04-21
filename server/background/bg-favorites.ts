@@ -1,6 +1,6 @@
 import { spawn } from "child_process";
 import exifr from "exifr";
-import { copyFile, mkdir, unlink, utimes } from "fs/promises";
+import { copyFile, mkdir, readFile, unlink, utimes } from "fs/promises";
 import { join } from "path";
 import { Queue } from "../../shared/lib/queue";
 import { RESIZE_ON_EXPORT_SIZE } from "../../shared/lib/shared-constants";
@@ -8,14 +8,24 @@ import {
   buildReadySemaphore,
   isPicture,
   isVideo,
+  memoizer,
   setReady,
+  sleep,
 } from "../../shared/lib/utils";
 import { AlbumEntry, AlbumEntryPicasa } from "../../shared/types/types";
 import { events } from "../events/server-events";
 import { addImageInfo, updateImageDate } from "../imageOperations/info";
 import { buildImage } from "../imageOperations/sharp-processor";
 import { media } from "../rpc/rpcFunctions/albumUtils";
-import { readAlbumIni } from "../rpc/rpcFunctions/picasa-ini";
+import {
+  PhotoFromPhotoApp,
+  getPhotoFavorites,
+} from "../rpc/rpcFunctions/osascripts";
+import {
+  getPicasaEntry,
+  readAlbumIni,
+  toggleStar,
+} from "../rpc/rpcFunctions/picasa-ini";
 import { waitUntilIdle } from "../utils/busy";
 import { PhotoLibraryPath, imagesRoot } from "../utils/constants";
 import {
@@ -64,6 +74,7 @@ export async function buildFavoriteFolder() {
   await waitUntilWalk();
 
   await exportAllMissing();
+  syncFavorites();
   events.on("favoriteChanged", onImageChanged);
   events.on("filtersChanged", onImageChanged);
   events.on("rotateChanged", onImageChanged);
@@ -199,4 +210,59 @@ async function exportAllMissing() {
     });
   }
   await q.drain();
+}
+
+const scannedFavorties = join(imagesRoot, ".scannedFavorites");
+export async function syncFavorites() {
+  await waitUntilWalk();
+  while (true) {
+    let scanned: PhotoFromPhotoApp[] = [];
+    try {
+      scanned = JSON.parse(
+        await readFile(scannedFavorties, { encoding: "utf-8" })
+      ) as PhotoFromPhotoApp[];
+    } catch (e) {
+      console.error(`Error reading scanned favorites: ${e}`);
+    }
+    const albums = await folders("");
+    const memoize = memoizer();
+    await getPhotoFavorites(async (photo, index, total) => {
+      console.info(`Scanning ${index} of ${total} (${photo.name})`);
+      if (
+        scanned.find(
+          (s) => s.name === photo.name && s.dateTaken === photo.dateTaken
+        )
+      ) {
+        // Found a picture that was already scanned, no need to go further than that
+        throw new Error(`Stop : already scanned ${photo.name}`);
+      }
+      const photoNameNoExt = removeExtension(photo.name);
+      const candidates = albums.filter((a) =>
+        a.name.startsWith(
+          `${photo.dateTaken.getFullYear().toString()}-${(
+            photo.dateTaken.getMonth() + 1
+          )
+            .toString()
+            .padStart(2, "0")}`
+        )
+      );
+      for (const album of candidates) {
+        await waitUntilIdle();
+        const m = await memoize(["media", album.name], () => media(album));
+        const entry = m.entries.find((e) => e.name.startsWith(photoNameNoExt));
+        if (entry) {
+          const picasa = await getPicasaEntry(entry);
+          if (!picasa.star) {
+            console.info(`Synchronized star ${photo.name} in ${album.name}`);
+            await toggleStar([entry]);
+            await exportFavorite(entry);
+          }
+          break;
+        }
+      }
+      scanned.push(photo);
+    });
+    safeWriteFile(scannedFavorties, JSON.stringify(scanned, null, 2));
+    await sleep(3600);
+  }
 }
