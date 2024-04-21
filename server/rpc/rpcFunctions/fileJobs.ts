@@ -26,7 +26,7 @@ import { broadcast } from "../../utils/socketList";
 import { addToUndo, registerUndoProvider } from "../../utils/undo";
 import { eraseFace } from "../albumTypes/faces";
 import { setRank } from "./albumUtils";
-import { openWithFinder } from "./osascripts";
+import { getPhotoFavorites, openWithFinder } from "./osascripts";
 import { getPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasa-ini";
 import { copyThumbnails } from "./thumbnail-cache";
 

@@ -7,7 +7,11 @@ import {
   idFromKey,
   keyFromID,
 } from "../../../shared/types/types";
-import { defaultNewFolder, imagesRoot } from "../../utils/constants";
+import {
+  defaultNewFolder,
+  imagesRoot,
+  specialFolders,
+} from "../../utils/constants";
 import { safeWriteFile } from "../../utils/serverUtils";
 import { openWithFinder } from "./osascripts";
 import { addOrRefreshOrDeleteAlbum } from "../../background/bg-walker";
@@ -65,4 +69,26 @@ export async function openAlbumInFinder(album: Album) {
 export async function openAlbumEntryInFinder(entry: AlbumEntry) {
   const p = join(imagesRoot, idFromKey(entry.album.key).id, entry.name);
   openWithFinder(p);
+}
+
+export async function walk(
+  folder: string,
+  cb: (path: string, modificationTime: Date) => void
+) {
+  const promises: Promise<void>[] = [];
+  const p = join(imagesRoot, folder);
+  const data = await readdir(p);
+  for (const f of data) {
+    if (!f.startsWith(".")) {
+      const s = await stat(join(p, f));
+      if (s.isDirectory()) {
+        if (!specialFolders.includes(f)) {
+          promises.push(walk(join(folder, f), cb));
+        }
+      } else {
+        cb(join(folder, f), s.mtime);
+      }
+    }
+  }
+  return Promise.all(promises).then(() => void 0);
 }
