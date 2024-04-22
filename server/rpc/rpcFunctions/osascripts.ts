@@ -85,6 +85,7 @@ export async function getPhotoFavorites(
   tell application "Photos"
           log (count every media item of album "favorites") 
           repeat with p in (every media item in album named "favorites")
+                  log "---"
                   log  (filename of p as string)
                   set {year:y, month:m, day:d} to (date of p)
                   set shortDate to y &  m  & d
@@ -99,6 +100,10 @@ export async function getPhotoFavorites(
   const result = await runScript(script, async (line) => {
     if (total === -1) {
       total = parseInt(line);
+      return true;
+    }
+    if (line === "---") {
+      name = "";
       return true;
     }
     if (name === "") {
