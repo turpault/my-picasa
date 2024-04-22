@@ -237,15 +237,24 @@ export async function syncFavorites() {
         throw new Error(`Stop : already scanned ${photo.name}`);
       }
       const photoNameNoExt = removeExtension(photo.name);
-      const candidates = albums.filter((a) =>
-        a.name.startsWith(
-          `${photo.dateTaken.getFullYear().toString()}-${(
-            photo.dateTaken.getMonth() + 1
-          )
-            .toString()
-            .padStart(2, "0")}`
-        )
-      );
+      const candidates = albums.filter((a) => {
+        const [albumDateYear, albumDateMonth] = a.name.split("-");
+        if (albumDateYear.length !== 4) {
+          return false;
+        }
+        const albumDateYearInt = parseInt(albumDateYear);
+        const albumDateMonthInt = parseInt(albumDateMonth);
+        if (albumDateYearInt < 1900 || albumDateYearInt > 3000) {
+          return false;
+        }
+        if (albumDateMonthInt < 1 || albumDateMonthInt > 12) {
+          return false;
+        }
+        return (
+          albumDateYearInt === photo.dateTaken.getFullYear() &&
+          Math.abs(albumDateMonthInt - (photo.dateTaken.getMonth() + 1)) <= 1
+        );
+      });
       for (const album of candidates) {
         await waitUntilIdle();
         const m = await memoize(["media", album.name], () => media(album));
