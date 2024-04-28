@@ -29,6 +29,7 @@ import {
   fromHex,
   namify,
   noop,
+  safeHtml,
   toHex2,
   uuid,
 } from "../../shared/lib/utils";
@@ -393,14 +394,15 @@ export async function transform(
           j = j.rotate(-angleDeg);
           j = await branchContext(j);
 
-          const rw = Math.floor(newRect.w * scale);
-          const rh = Math.floor(newRect.h * scale);
-          j = j.resize(rw, rh);
-          j = await branchContext(j);
+          if (scale !== 1) {
+            const rw = Math.floor(newRect.w * scale);
+            const rh = Math.floor(newRect.h * scale);
+            j = j.resize(rw, rh);
+            j = await branchContext(j);
 
-          const rl = Math.floor((rw - w) / 2);
-          const rt = Math.floor((rh - h) / 2);
-          /*const layers2: sharp.OverlayOptions[] = [
+            const rl = Math.floor((rw - w) / 2);
+            const rt = Math.floor((rh - h) / 2);
+            /*const layers2: sharp.OverlayOptions[] = [
           {
             input: {
               create: {
@@ -417,12 +419,13 @@ export async function transform(
         ];
 
         j = j.composite(layers2);*/
-          j = j.extract({
-            left: rl,
-            top: rt,
-            width: w,
-            height: h,
-          });
+            j = j.extract({
+              left: rl,
+              top: rt,
+              width: w,
+              height: h,
+            });
+          }
         }
         break;
       case "Orton":
@@ -568,10 +571,10 @@ export async function transform(
             layers.push(layer);
             /*const txtSvg =
               `<svg width="${tileSize}" height="${tileSize}"><text x="50%" y="80%" text-anchor="middle" dominant-baseline="middle" font-size="35" fill="#101010">${escapeXml(filtered[index].name)}</text></svg>`;
-            layers.push({ input: Buffer.from(txtSvg), top: posY, left: posX });
+            layers.push({ input: Buffer.from(safeHtml(txtSvg)), top: posY, left: posX });
             const txtSvgOutline =
               `<svg width="${tileSize}" height="${tileSize}"><text x="50%" y="80%" text-anchor="middle" dominant-baseline="middle" font-size="37" fill="#FFFFFF">${escapeXml(filtered[index].name)}</text></svg>`;
-            layers.push({ input: Buffer.from(txtSvgOutline), top: posY, left: posX });*/
+            layers.push({ input: Buffer.from(safeHtml(txtSvgOutline)), top: posY, left: posX });*/
           });
           j = j.composite(layers);
           console.time("endComposite");
@@ -668,7 +671,7 @@ export async function transform(
                   "font-size": fontSize,
                   fill: color || "rgb(0,255,0)",
                 },
-                name
+                safeHtml(name)
               ) +
               tag("rect", {
                 x: scaledPos.x,
@@ -742,9 +745,9 @@ export async function transform(
             h / 3
           )}" width="${Math.floor(w * 0.8)}"> <text x="0" y="${Math.floor(
             h / 5
-          )}" font-size="${Math.floor(
-            w / 20
-          )}" fill="#000000">${text}</text> </svg>`;
+          )}" font-size="${Math.floor(w / 20)}" fill="#000000">${safeHtml(
+            text
+          )}</text> </svg>`;
           layers.push({ input: Buffer.from(txtSvg), gravity: "south" });
         }
         newImage = newImage.composite(layers);
@@ -815,7 +818,9 @@ export async function transform(
         const svgHeight = fontSize * 1.6;
         const txtSvg = `<svg width="${w}" height="${svgHeight}"> 
         <rect x="0" cy="0" width="${w}" height="${fontSize}" fill="#FFFFFF" style="fill-opacity: .35;" />
-        <text  x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}" fill="#000000">${text}</text> 
+        <text  x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}" fill="#000000">${safeHtml(
+          text
+        )}</text> 
         </svg>`;
         layers.push({ input: Buffer.from(txtSvg), gravity: "south" });
 

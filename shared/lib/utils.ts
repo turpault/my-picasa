@@ -562,3 +562,9 @@ export function memoizer() {
     return cache[k];
   };
 }
+
+export function safeHtml(s: string) {
+  return s.replace(/[\u00A0-\u9999<>\&]/g, function (i) {
+    return "&#" + i.charCodeAt(0) + ";";
+  });
+}

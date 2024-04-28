@@ -2,8 +2,9 @@ import { inspect } from "util";
 import { lock } from "../../shared/lib/mutex";
 import { uuid } from "../../shared/lib/utils";
 import { SocketAdaptorInterface } from "../../shared/socket/socket-adaptor-interface";
-import { busy } from "../utils/busy";
+import { busy, lockIdleWorkers, releaseIdleWorkers } from "../utils/busy";
 import { rate } from "../utils/stats";
+import { captureException } from "../sentry";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Describles a client-specific set of options.
@@ -151,6 +152,7 @@ export function registerServices(
           let label: string = "";
           const lockName = name + "/" + uuid();
           const l = await lock(lockName);
+          lockIdleWorkers();
           try {
             const convertedArguments = getConvertedArguments(
               serviceFunc,
@@ -177,8 +179,15 @@ export function registerServices(
             const exception = er as Error;
             const errMessage = exception.message;
             console.info(errMessage, exception.stack);
-            callback(errMessage);
+            try {
+              callback(errMessage);
+            } catch (e: any) {
+              // Ignore errors on the callback
+              console.error(e);
+              captureException(e);
+            }
           } finally {
+            releaseIdleWorkers();
             l();
             busy();
             //console.timeEnd(label);

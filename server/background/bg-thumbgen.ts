@@ -13,11 +13,15 @@ import { waitUntilIdle } from "../utils/busy";
 import { imagesRoot } from "../utils/constants";
 import { folders, waitUntilWalk } from "./bg-walker";
 
+const USE_SPINNER = false;
+
 export async function buildThumbs() {
   let spinnerName = Date.now().toString();
   await waitUntilWalk();
-  const spinner = new Spinnies({ spinner: bouncingBall });
-  spinner.add(spinnerName, { text: "Building thumbs" });
+  const spinner = USE_SPINNER
+    ? new Spinnies({ spinner: bouncingBall })
+    : undefined;
+  if (spinner) spinner.add(spinnerName, { text: "Building thumbs" });
   let lastFSChange = new Date().getTime();
   watch(imagesRoot, { recursive: true }, (_eventType, filename) => {
     if (isMediaUrl(filename) && !filename.startsWith(".")) {
@@ -65,16 +69,18 @@ export async function buildThumbs() {
           );
           if (Date.now() > lastActivity + 2000) {
             lastActivity = Date.now();
-            spinner.update(spinnerName, {
-              text: `Building thumbs - ${picture.name}`,
-            });
+            if (spinner)
+              spinner.update(spinnerName, {
+                text: `Building thumbs - ${picture.name}`,
+              });
           }
         }
       }
     }
-    spinner.succeed(spinnerName, {
-      text: `Scan done - will wait for updates`,
-    });
+    if (spinner)
+      spinner.succeed(spinnerName, {
+        text: `Scan done - will wait for updates`,
+      });
     await sleep(20);
     const now = new Date().getTime();
     while (true) {
@@ -82,6 +88,7 @@ export async function buildThumbs() {
       if (lastFSChange > now) break;
     }
     spinnerName = Date.now().toString();
-    spinner.add(spinnerName, { text: "Changes detected, rescanning" });
+    if (spinner)
+      spinner.add(spinnerName, { text: "Changes detected, rescanning" });
   }
 }

@@ -1,7 +1,18 @@
 import { hrtime } from "process";
 import { sleep } from "../../shared/lib/utils";
+import { awaiters, lock } from "../../shared/lib/mutex";
 
 let lastActivity: number = 0;
+let activityCounter = 0;
+
+export function lockIdleWorkers() {
+  activityCounter++;
+  busy();
+}
+export function releaseIdleWorkers() {
+  activityCounter--;
+  busy();
+}
 
 export async function waitUntilIdle() {
   while (!isIdle()) {
@@ -10,7 +21,7 @@ export async function waitUntilIdle() {
 }
 
 export function isIdle() {
-  return new Date().getTime() - lastActivity > 10000;
+  return activityCounter === 0 && new Date().getTime() - lastActivity > 10000;
 }
 
 export function busy() {
