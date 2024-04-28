@@ -115,8 +115,8 @@ export async function getPhotoFavorites(
     const dateTaken = new Date(`${year} ${month} ${day}`);
 
     try {
-      await progress({ name, dateTaken }, index, total);
       index++;
+      await progress({ name, dateTaken }, index, total);
       name = "";
     } catch (e) {
       console.warn(`Aborting script because ${e}`);

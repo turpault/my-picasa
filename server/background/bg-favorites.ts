@@ -36,6 +36,7 @@ import {
   safeWriteFile,
 } from "../utils/serverUtils";
 import { folders, waitUntilWalk } from "./bg-walker";
+import { captureException } from "../sentry";
 
 const readyLabelKey = "favorites";
 const ready = buildReadySemaphore(readyLabelKey);
@@ -174,11 +175,8 @@ async function exportFavorite(entry: AlbumEntry): Promise<void> {
         }
         await utimes(targetFileName, dateTimeOriginal, dateTimeOriginal);
       } /* decode from folder */ else {
-        await utimes(
-          targetFileName,
-          albumNameToDate(entry.album.name),
-          albumNameToDate(entry.album.name)
-        );
+        const albumTime = albumNameToDate(entry.album.name);
+        await utimes(targetFileName, albumTime, albumTime);
       }
     }
     if (isVideo(entry)) {
@@ -227,7 +225,9 @@ export async function syncFavorites() {
     const albums = await folders("");
     const memoize = memoizer();
     await getPhotoFavorites(async (photo, index, total) => {
-      console.info(`Scanning ${index} of ${total} (${photo.name})`);
+      console.info(
+        `MacOS Photo scan: Scanning ${index} of ${total} (${photo.name})`
+      );
       if (
         scanned.find(
           (s) => s.name === photo.name && s.dateTaken === photo.dateTaken
@@ -264,7 +264,12 @@ export async function syncFavorites() {
           if (!picasa.star) {
             console.info(`Synchronized star ${photo.name} in ${album.name}`);
             await toggleStar([entry]);
-            await exportFavorite(entry);
+            try {
+              await exportFavorite(entry);
+            } catch (e: any) {
+              console.error(`Error exporting favorite ${entry.name}: ${e}`);
+              captureException(e);
+            }
           }
           break;
         }
@@ -272,6 +277,7 @@ export async function syncFavorites() {
       scanned.push(photo);
     });
     safeWriteFile(scannedFavorties, JSON.stringify(scanned, null, 2));
-    await sleep(3600);
+    // Wait 24 hours before scanning again
+    await sleep(24 * 3600);
   }
 }

@@ -35,7 +35,7 @@ const walkQueue = new Queue(10);
 export async function updateLastWalkLoop() {
   let iteration = 0;
   while (true) {
-    console.info(`Starting scan iteration ${iteration}`);
+    console.info(`Filesystem scan: iteration ${iteration}`);
     const old = [...lastWalk];
     walk("", imagesRoot, async (a: Album) => {
       addOrRefreshOrDeleteAlbum(a, "SkipCheckInfo");
