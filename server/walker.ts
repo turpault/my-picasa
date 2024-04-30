@@ -1,31 +1,31 @@
 import { Stats } from "fs";
 import { stat } from "fs/promises";
 import { join, relative } from "path";
-import { Queue } from "../../shared/lib/queue";
+import { Queue } from "../shared/lib/queue";
 import {
   alphaSorter,
   buildReadySemaphore,
   differs,
   setReady,
   sleep,
-} from "../../shared/lib/utils";
+} from "../shared/lib/utils";
 import {
   Album,
   AlbumKind,
   AlbumWithData,
   idFromKey,
   keyFromID,
-} from "../../shared/types/types";
+} from "../shared/types/types";
 import {
   assetsInFolderAlbum,
   queueNotification,
-} from "../rpc/albumTypes/fileAndFolders";
-import { mediaCount } from "../rpc/rpcFunctions/albumUtils";
+} from "./rpc/albumTypes/fileAndFolders";
+import { mediaCount } from "./rpc/rpcFunctions/albumUtils";
 import {
   albumentriesInFilter,
   readShortcut,
-} from "../rpc/rpcFunctions/picasa-ini";
-import { imagesRoot, specialFolders } from "../utils/constants";
+} from "./rpc/rpcFunctions/picasa-ini";
+import { imagesRoot, specialFolders } from "./utils/constants";
 
 const readyLabelKey = "fileWalker";
 const ready = buildReadySemaphore(readyLabelKey);
@@ -71,6 +71,8 @@ export async function updateLastWalkLoop() {
   }
 }
 export async function waitUntilWalk() {
+  console.info("Waiting for filesystem scan to complete", new Error().stack);
+
   return ready;
 }
 

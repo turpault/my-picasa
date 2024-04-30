@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/camelcase */
 import { Exceptions } from "../../shared/types/exceptions";
-import { folders } from "../background/bg-walker";
+import { folders } from "../walker";
 import { generateMosaicFile } from "../imageOperations/image-edits/mosaic";
 import {
   getConvolutionKernelNames,

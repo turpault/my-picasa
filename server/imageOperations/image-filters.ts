@@ -55,8 +55,6 @@ export async function parseLUTs() {
   } catch (e) {
     console.error(e);
   }
-  await sleep(3600);
-  parseLUTs();
 }
 
 export function getFilterGroups(): string[] {

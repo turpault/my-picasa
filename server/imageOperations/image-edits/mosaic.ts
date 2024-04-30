@@ -23,7 +23,7 @@ import { calculateImagePositions } from "../../../shared/lib/mosaic-positions";
 import { ProjectOutputFolder, imagesRoot } from "../../utils/constants";
 import { namify } from "../../../shared/lib/utils";
 import { safeWriteFile } from "../../utils/serverUtils";
-import { addOrRefreshOrDeleteAlbum } from "../../background/bg-walker";
+import { addOrRefreshOrDeleteAlbum } from "../../walker";
 
 export async function makeMosaic(
   entry: AlbumEntry,

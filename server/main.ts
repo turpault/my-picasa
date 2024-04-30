@@ -2,7 +2,7 @@ import { app, BrowserWindow } from "electron";
 import { join } from "path";
 import { sleep } from "../shared/lib/utils";
 import { clientEmitter } from "./rpc/rpcFunctions/ready";
-import { getPort, start } from "./start";
+import { getPort, startServer, startServices } from "./start";
 
 async function createSplash(): Promise<BrowserWindow> {
   const win = new BrowserWindow({
@@ -43,7 +43,8 @@ function createWindow() {
   const splash = await createSplash();
 
   const minSplash = sleep(10);
-  await start();
+  await startServer();
+  await startServices();
   const renderer = createWindow();
   client.on("ready", async () => {
     await minSplash;

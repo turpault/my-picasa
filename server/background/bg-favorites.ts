@@ -35,7 +35,7 @@ import {
   removeExtension,
   safeWriteFile,
 } from "../utils/serverUtils";
-import { folders, waitUntilWalk } from "./bg-walker";
+import { folders, waitUntilWalk } from "../walker";
 import { captureException } from "../sentry";
 
 const readyLabelKey = "favorites";
@@ -67,7 +67,7 @@ function albumNameToDate(name: string): Date {
   return new Date(y, m, d, 12);
 }
 
-export async function buildFavoriteFolder() {
+export async function buildFavoriteFolder(exitOnComplete: boolean) {
   const favoritesFolder = join(imagesRoot, "favorites");
   if (!(await fileExists(favoritesFolder))) {
     await mkdir(favoritesFolder, { recursive: true });
@@ -75,11 +75,11 @@ export async function buildFavoriteFolder() {
   await waitUntilWalk();
 
   await exportAllMissing();
-  syncFavorites();
   events.on("favoriteChanged", onImageChanged);
   events.on("filtersChanged", onImageChanged);
   events.on("rotateChanged", onImageChanged);
   setReady(readyLabelKey);
+  await syncFavorites(exitOnComplete);
 }
 
 async function onImageChanged(e: { entry: AlbumEntryPicasa }) {
@@ -211,7 +211,7 @@ async function exportAllMissing() {
 }
 
 const scannedFavorties = join(imagesRoot, ".scannedFavorites");
-export async function syncFavorites() {
+export async function syncFavorites(exitOnComplete: boolean) {
   await waitUntilWalk();
   while (true) {
     let scanned: PhotoFromPhotoApp[] = [];
@@ -278,6 +278,9 @@ export async function syncFavorites() {
     });
     safeWriteFile(scannedFavorties, JSON.stringify(scanned, null, 2));
     // Wait 24 hours before scanning again
+    if (exitOnComplete) {
+      break;
+    }
     await sleep(24 * 3600);
   }
 }

@@ -5,6 +5,19 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Launch Worker",
+      "request": "launch",
+      "runtimeArgs": [
+        "run-script",
+        "start-worker"
+      ],
+      "runtimeExecutable": "npm",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "type": "node"
+    },
+    {
       "name": "Run Current TS file",
       "program": "${file}",
       "request": "launch",
@@ -37,6 +50,9 @@
         "-r",
         "ts-node/register"
       ],
+      "env": {
+        "PICISA_PICTURE_FOLDER": "/Volumes/1TB USB/Photos"
+      },
       "skipFiles": [
         "<node_internals>/**"
       ],

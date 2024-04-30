@@ -1,4 +1,4 @@
-import { start } from "./start";
+import { startServer, startServices } from "./start";
 let port: any = process.argv.slice(-1)[0];
 
 try {
@@ -10,4 +10,8 @@ try {
   port = 5500;
 }
 
-start(port);
+async function start() {
+  await startServer(port);
+  await startServices();
+}
+start();

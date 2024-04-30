@@ -14,7 +14,7 @@ import {
 } from "../../utils/constants";
 import { safeWriteFile } from "../../utils/serverUtils";
 import { openWithFinder } from "./osascripts";
-import { addOrRefreshOrDeleteAlbum } from "../../background/bg-walker";
+import { addOrRefreshOrDeleteAlbum } from "../../walker";
 
 export async function getFileContents(file: string): Promise<string> {
   const p = join(imagesRoot, file);

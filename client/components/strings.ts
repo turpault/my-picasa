@@ -154,6 +154,12 @@ const stringTable: { [key: string]: any } = {
   portrait: { fr: "Portrait" },
   paysage: { fr: "Paysage" },
   "Not implemented yet": { fr: "Pas de panique Tab..." },
+  Heatmap: { fr: "Heatmap" },
+  Solarize: { fr: "Solarisation" },
+  "Apply a blur with a specific radius": {
+    fr: "Applique un flou avec un rayon spécifique",
+  },
+  Filter: { fr: "Filtre" },
 };
 const lang = window.navigator.language.split("-")[0];
 let str = new Set<string>();

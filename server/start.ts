@@ -5,24 +5,22 @@ import { join } from "path";
 import { lockedLocks, startLockMonitor } from "../shared/lib/mutex";
 import { SocketAdaptorInterface } from "../shared/socket/socket-adaptor-interface";
 import { WsAdaptor } from "../shared/socket/ws-adaptor";
-import { buildFavoriteFolder } from "./background/bg-favorites";
-import { buildGeolocation } from "./background/bg-geolocate";
-import { buildThumbs } from "./background/bg-thumbgen";
-import { updateLastWalkLoop, waitUntilWalk } from "./background/bg-walker";
+import { updateLastWalkLoop, waitUntilWalk } from "./walker";
 import { parseLUTs } from "./imageOperations/image-filters";
 import { encode } from "./imageOperations/sharp-processor";
-import { startFaceScan } from "./rpc/albumTypes/faces";
 import { startAlbumUpdateNotification } from "./rpc/albumTypes/fileAndFolders";
 import { initProjects } from "./rpc/albumTypes/projects";
 import { RPCInit } from "./rpc/index";
 import { asset } from "./rpc/routes/asset";
 import { albumThumbnail, thumbnail } from "./rpc/routes/thumbnail";
 import { albumWithData } from "./rpc/rpcFunctions/albumUtils";
+import { picasaIniCacheWriter } from "./rpc/rpcFunctions/picasa-ini";
 import { startSentry } from "./sentry";
 import { busy, measureCPULoad } from "./utils/busy";
 import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
-import { picasaIniCacheWriter } from "./rpc/rpcFunctions/picasa-ini";
+import { loadFaceAlbums } from "./rpc/albumTypes/faces";
+import { info } from "console";
 
 /** */
 
@@ -144,7 +142,7 @@ export function getPort() {
   return port;
 }
 
-export async function start(p?: number) {
+export async function startServer(p?: number) {
   try {
     // No port specified, get a random one
     if (!p) {
@@ -173,22 +171,29 @@ export async function start(p?: number) {
     setupRoutes(server);
     await server.listen({ port: p });
     console.info(`Ready to accept connections on port ${p}.`);
-
-    buildThumbs();
-    buildGeolocation();
-    updateLastWalkLoop();
-    measureCPULoad();
-    picasaIniCacheWriter();
-    startLockMonitor();
-    startAlbumUpdateNotification();
-    parseLUTs();
-    initProjects();
-    buildFavoriteFolder();
-    await waitUntilWalk();
-    startFaceScan();
-    console.info("Initial walk complete.");
   } catch (err) {
     console.error(err);
     process.exit(1);
   }
+}
+export async function startServices() {
+  info("Starting services...");
+  updateLastWalkLoop();
+  info("Measuring CPU load...");
+  measureCPULoad();
+  info("Starting picasa ini cache writer...");
+  picasaIniCacheWriter();
+  info("Starting lock monitor...");
+  startLockMonitor();
+  info("Starting album update notification...");
+  startAlbumUpdateNotification();
+  info("Parsing LUTs...");
+  await parseLUTs();
+  info("Initializing projects...");
+  await initProjects();
+  info("Loading face albums...");
+  await loadFaceAlbums();
+  info("Waiting until walk...");
+  await waitUntilWalk();
+  info("Ready...");
 }

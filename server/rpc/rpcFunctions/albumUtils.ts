@@ -30,10 +30,7 @@ import {
   queueNotification,
 } from "../albumTypes/fileAndFolders";
 import { readAlbumIni, getPicasaEntry, updatePicasaEntry } from "./picasa-ini";
-import {
-  getFolderAlbumData,
-  getFolderAlbums,
-} from "../../background/bg-walker";
+import { getFolderAlbumData, getFolderAlbums } from "../../walker";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
   const entries = (await media(entry.album)).entries.filter(

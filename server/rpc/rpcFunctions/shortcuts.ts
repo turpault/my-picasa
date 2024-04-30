@@ -1,5 +1,5 @@
 import { Album } from "../../../shared/types/types";
-import { addOrRefreshOrDeleteAlbum } from "../../background/bg-walker";
+import { addOrRefreshOrDeleteAlbum } from "../../walker";
 import { broadcast } from "../../utils/socketList";
 import { albumWithData } from "./albumUtils";
 import { getShortcuts, setPicasaAlbumShortcut } from "./picasa-ini";

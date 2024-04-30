@@ -11,11 +11,11 @@ import {
 } from "../rpc/rpcFunctions/thumbnail";
 import { waitUntilIdle } from "../utils/busy";
 import { imagesRoot } from "../utils/constants";
-import { folders, waitUntilWalk } from "./bg-walker";
+import { folders, waitUntilWalk } from "../walker";
 
 const USE_SPINNER = false;
 
-export async function buildThumbs() {
+export async function buildThumbs(exitOnComplete: boolean) {
   let spinnerName = Date.now().toString();
   await waitUntilWalk();
   const spinner = USE_SPINNER
@@ -81,6 +81,9 @@ export async function buildThumbs() {
       spinner.succeed(spinnerName, {
         text: `Scan done - will wait for updates`,
       });
+    if (exitOnComplete) {
+      break;
+    }
     await sleep(20);
     const now = new Date().getTime();
     while (true) {

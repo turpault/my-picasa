@@ -11,7 +11,7 @@ import {
   getPicasaEntry,
   updatePicasaEntry,
 } from "../rpc/rpcFunctions/picasa-ini";
-import { getFolderAlbums, waitUntilWalk } from "./bg-walker";
+import { getFolderAlbums, waitUntilWalk } from "../walker";
 
 const cacheFolder = `${imagesRoot}/.cacheGeoLocation`;
 const precision = 0.0001;
@@ -147,10 +147,8 @@ function geoInfoFromGeocodeXYZ(
     }));
 }
 
-export async function buildGeolocation() {
+export async function buildGeolocation(exitOnComplete: boolean) {
   await mkdir(cacheFolder, { recursive: true });
-
-  return; // Disabled for now
 
   await waitUntilWalk();
   let lastFSChange = new Date().getTime();
@@ -160,7 +158,6 @@ export async function buildGeolocation() {
     }
   });
 
-  await sleep(10);
   while (true) {
     const albums = await getFolderAlbums();
     for (const album of albums.reverse()) {
@@ -209,6 +206,9 @@ export async function buildGeolocation() {
           }
         }
       }
+    }
+    if (exitOnComplete) {
+      break;
     }
     await sleep(20);
     const now = new Date().getTime();

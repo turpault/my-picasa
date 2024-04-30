@@ -17,7 +17,7 @@ import {
   addOrRefreshOrDeleteAlbum,
   onRenamedAlbums,
   refreshAlbumKeys,
-} from "../../background/bg-walker";
+} from "../../walker";
 import { exportToFolder } from "../../imageOperations/export";
 import { generateMosaicFile } from "../../imageOperations/image-edits/mosaic";
 import { exportsFolder, imagesRoot } from "../../utils/constants";

@@ -93,8 +93,8 @@ export function toolHTML(
 ) {
   const s = substitute(parametrizableToolControlHtml, {
     ICON: icon,
-    NAME: name,
-    DETAILS: details,
+    NAME: t(name),
+    DETAILS: t(details),
   });
   const toolElement = $(s);
   const controls = $(".parametrizable-tool-controls", toolElement);
@@ -138,8 +138,8 @@ const parametrizableToolControlHtml = `
 <div class="parametrizable-tool-controls-pane">
   <div class="parametrizable-tool-controls-title">
   <img class="parametrizable-tool-controls-icon" src="$ICON$">
-  <h1>${t("$NAME$")}</h1>
-  <h3>${t("$DETAILS$")}</h3>
+  <h1>$NAME$</h1>
+  <h3>$DETAILS$</h3>
   </div>
   <div class="parametrizable-tool-controls"></div>
   <div class="parametrizable-tool-controls-okcancel"></div>
