@@ -71,8 +71,6 @@ export async function updateLastWalkLoop() {
   }
 }
 export async function waitUntilWalk() {
-  console.info("Waiting for filesystem scan to complete", new Error().stack);
-
   return ready;
 }
 

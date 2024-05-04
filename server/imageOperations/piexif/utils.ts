@@ -30,9 +30,9 @@ export const pack = (mark: string, array: Array<number>): string => {
   }
   let packed = '';
   let p = 1;
-  let val = null;
-  let c = null;
-  let valBinary = null;
+  let val = 0;
+  let c = "";
+  let valBinary = "";
 
   while ((c = mark[p])) {
     if (c.toLowerCase() == 'b') {
@@ -125,12 +125,12 @@ export const unpack = (mark: string, str: string): number[] => {
   } else {
     throw new Error("'unpack' error.");
   }
-  const unpacked = [];
+  const unpacked:number[] = [];
   let strPointer = 0;
   let p = 1;
-  let val = null;
-  let c = null;
-  let length = null;
+  let val = 0;
+  let c = "";
+  let length = 0;
   let sliced = '';
 
   while ((c = mark[p])) {
@@ -536,7 +536,7 @@ export const dictToBytes = (
 };
 
 export class ExifReader {
-  tiftag: string;
+  tiftag: string | null;
   endianMark: string;
   constructor(exifBinary: string) {
     let segments, app1;
@@ -560,10 +560,10 @@ export class ExifReader {
     }
   }
 
-  getIfd = (pointer: number, ifdName: TagsFieldNames): IExifElement => {
+  getIfd = (pointer: number, ifdName: TagsFieldNames): IExifElement | null => {
     const tagCount = unpack(
       this.endianMark + 'H',
-      this.tiftag.slice(pointer, pointer + 2),
+      this.tiftag!.slice(pointer, pointer + 2),
     )[0];
     if (tagCount == 0) {
       return null;
@@ -581,17 +581,17 @@ export class ExifReader {
       pointer = offset + 12 * x;
       const tag = unpack(
         this.endianMark + 'H',
-        this.tiftag.slice(pointer, pointer + 2),
+        this.tiftag!.slice(pointer, pointer + 2),
       )[0];
       const valueType = unpack(
         this.endianMark + 'H',
-        this.tiftag.slice(pointer + 2, pointer + 4),
+        this.tiftag!.slice(pointer + 2, pointer + 4),
       )[0];
       const valueNum = unpack(
         this.endianMark + 'L',
-        this.tiftag.slice(pointer + 4, pointer + 8),
+        this.tiftag!.slice(pointer + 4, pointer + 8),
       )[0];
-      const value = this.tiftag.slice(pointer + 8, pointer + 12);
+      const value = this.tiftag!.slice(pointer + 8, pointer + 12);
 
       const valueSet = [valueType, valueNum, value];
       if (tag in Tags[t]) {
@@ -602,26 +602,26 @@ export class ExifReader {
     return ifdObj;
   };
 
-  getFirstIfdPointer = (pointer: number, ifdName: TagsFieldNames): string => {
+  getFirstIfdPointer = (pointer: number, ifdName: TagsFieldNames): string | null=> {
     const tagCount = unpack(
       this.endianMark + 'H',
-      this.tiftag.slice(pointer, pointer + 2),
+      this.tiftag!.slice(pointer, pointer + 2),
     )[0];
     if (tagCount == 0) {
       return null;
     }
     const offset = pointer + 2;
-    let firstIfdPointer: string;
+    let firstIfdPointer: string | null = null;
     if (ifdName == '0th') {
       pointer = offset + 12 * tagCount;
-      firstIfdPointer = this.tiftag.slice(pointer, pointer + 4);
+      firstIfdPointer = this.tiftag!.slice(pointer, pointer + 4);
     }
 
     return firstIfdPointer;
   };
 
   convertValue = (val: any): any => {
-    let data = null;
+    let data: string | number[] | [number, number][] = "";
     const t = val[0];
     const length = val[1];
     const value = val[2];
@@ -633,7 +633,7 @@ export class ExifReader {
         pointer = unpack(this.endianMark + 'L', value)[0];
         data = unpack(
           this.endianMark + _nLoopStr('B', length),
-          this.tiftag.slice(pointer, pointer + length),
+          this.tiftag!.slice(pointer, pointer + length),
         );
       } else {
         data = unpack(
@@ -645,7 +645,7 @@ export class ExifReader {
       // ASCII
       if (length > 4) {
         pointer = unpack(this.endianMark + 'L', value)[0];
-        data = this.tiftag.slice(pointer, pointer + length - 1);
+        data = this.tiftag!.slice(pointer, pointer + length - 1);
       } else {
         data = value.slice(0, length - 1);
       }
@@ -655,7 +655,7 @@ export class ExifReader {
         pointer = unpack(this.endianMark + 'L', value)[0];
         data = unpack(
           this.endianMark + _nLoopStr('H', length),
-          this.tiftag.slice(pointer, pointer + length * 2),
+          this.tiftag!.slice(pointer, pointer + length * 2),
         );
       } else {
         data = unpack(
@@ -669,7 +669,7 @@ export class ExifReader {
         pointer = unpack(this.endianMark + 'L', value)[0];
         data = unpack(
           this.endianMark + _nLoopStr('L', length),
-          this.tiftag.slice(pointer, pointer + length * 4),
+          this.tiftag!.slice(pointer, pointer + length * 4),
         );
       } else {
         data = unpack(this.endianMark + _nLoopStr('L', length), value);
@@ -678,28 +678,28 @@ export class ExifReader {
       // RATIONAL
       pointer = unpack(this.endianMark + 'L', value)[0];
       if (length > 1) {
-        data = [];
+        data = [] as [number, number][];
         for (let x = 0; x < length; x++) {
           data.push([
             unpack(
               this.endianMark + 'L',
-              this.tiftag.slice(pointer + x * 8, pointer + 4 + x * 8),
+              this.tiftag!.slice(pointer + x * 8, pointer + 4 + x * 8),
             )[0],
             unpack(
               this.endianMark + 'L',
-              this.tiftag.slice(pointer + 4 + x * 8, pointer + 8 + x * 8),
-            )[0],
-          ]);
+              this.tiftag!.slice(pointer + 4 + x * 8, pointer + 8 + x * 8),
+            )[0]]
+          );
         }
       } else {
         data = [
           unpack(
             this.endianMark + 'L',
-            this.tiftag.slice(pointer, pointer + 4),
+            this.tiftag!.slice(pointer, pointer + 4),
           )[0],
           unpack(
             this.endianMark + 'L',
-            this.tiftag.slice(pointer + 4, pointer + 8),
+            this.tiftag!.slice(pointer + 4, pointer + 8),
           )[0],
         ];
       }
@@ -707,7 +707,7 @@ export class ExifReader {
       // UNDEFINED BYTES
       if (length > 4) {
         pointer = unpack(this.endianMark + 'L', value)[0];
-        data = this.tiftag.slice(pointer, pointer + length);
+        data = this.tiftag!.slice(pointer, pointer + length);
       } else {
         data = value.slice(0, length);
       }
@@ -715,16 +715,16 @@ export class ExifReader {
       // SRATIONAL
       pointer = unpack(this.endianMark + 'L', value)[0];
       if (length > 1) {
-        data = [];
+        data = [] as [number, number][];;
         for (let x = 0; x < length; x++) {
           data.push([
             unpack(
               this.endianMark + 'l',
-              this.tiftag.slice(pointer + x * 8, pointer + 4 + x * 8),
+              this.tiftag!.slice(pointer + x * 8, pointer + 4 + x * 8),
             )[0],
             unpack(
               this.endianMark + 'l',
-              this.tiftag.slice(pointer + 4 + x * 8, pointer + 8 + x * 8),
+              this.tiftag!.slice(pointer + 4 + x * 8, pointer + 8 + x * 8),
             )[0],
           ]);
         }
@@ -732,11 +732,11 @@ export class ExifReader {
         data = [
           unpack(
             this.endianMark + 'l',
-            this.tiftag.slice(pointer, pointer + 4),
+            this.tiftag!.slice(pointer, pointer + 4),
           )[0],
           unpack(
             this.endianMark + 'l',
-            this.tiftag.slice(pointer + 4, pointer + 8),
+            this.tiftag!.slice(pointer + 4, pointer + 8),
           )[0],
         ];
       }
@@ -781,7 +781,7 @@ export const splitIntoSegments = (data: string): string[] => {
   return segments;
 };
 
-const getExifSeg = (segments: Array<string>): string => {
+const getExifSeg = (segments: Array<string>): string | null => {
   let seg;
   for (let i = 0; i < segments.length; i++) {
     seg = segments[i];

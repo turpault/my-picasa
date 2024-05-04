@@ -4,6 +4,7 @@ import { awaiters, lock } from "../../shared/lib/mutex";
 
 let lastActivity: number = 0;
 let activityCounter = 0;
+let isWarm = false;
 
 export function lockIdleWorkers() {
   activityCounter++;
@@ -21,7 +22,11 @@ export async function waitUntilIdle() {
 }
 
 export function isIdle() {
-  return activityCounter === 0 && new Date().getTime() - lastActivity > 10000;
+  return (
+    activityCounter === 0 &&
+    isWarm === false &&
+    new Date().getTime() - lastActivity > 10000
+  );
 }
 
 export function busy() {
@@ -34,8 +39,6 @@ export async function measureCPULoad() {
     await sleep(1);
     const after = hrtime.bigint();
     const delay = after - before;
-    if (delay > 1005000000n) {
-      busy();
-    }
+    isWarm = delay > 1005000000n;
   }
 }

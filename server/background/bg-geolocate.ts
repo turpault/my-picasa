@@ -82,13 +82,18 @@ async function geoInfoFromGoogle(
   const apiKey = "AIzaSyDU5eZpGt84Gdn0T3DLluwL0Z9XjG8CeSw";
   const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`;
   function valueFromType(data: any, type: string) {
-    const component = data.results[0].address_components.find((c: any) =>
+    const component = data.results[0]!.address_components?.find((c: any) =>
       c.types.includes(type)
     );
     return component ? component.long_name : undefined;
   }
   const geo = await fetch(url)
     .then((response) => response.json())
+    .then((data) => {
+      if (!data || !data.results || !data.results[0])
+        throw new Error("No data");
+      return data;
+    })
     .then((data) => ({
       number: valueFromType(data, "street_number"),
       address: valueFromType(data, "route"),
@@ -153,7 +158,7 @@ export async function buildGeolocation(exitOnComplete: boolean) {
   await waitUntilWalk();
   let lastFSChange = new Date().getTime();
   watch(imagesRoot, { recursive: true }, (_eventType, filename) => {
-    if (isMediaUrl(filename) && !filename.startsWith(".")) {
+    if (filename && isMediaUrl(filename) && !filename.startsWith(".")) {
       lastFSChange = new Date().getTime();
     }
   });

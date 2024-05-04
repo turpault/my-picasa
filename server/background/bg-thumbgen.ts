@@ -1,6 +1,4 @@
-import { bouncingBall } from "cli-spinners";
 import { watch } from "fs";
-import Spinnies from "spinnies";
 import { isMediaUrl, sleep } from "../../shared/lib/utils";
 import { AlbumEntry, ThumbnailSizeVals } from "../../shared/types/types";
 import { imageInfo } from "../imageOperations/info";
@@ -18,13 +16,9 @@ const USE_SPINNER = false;
 export async function buildThumbs(exitOnComplete: boolean) {
   let spinnerName = Date.now().toString();
   await waitUntilWalk();
-  const spinner = USE_SPINNER
-    ? new Spinnies({ spinner: bouncingBall })
-    : undefined;
-  if (spinner) spinner.add(spinnerName, { text: "Building thumbs" });
   let lastFSChange = new Date().getTime();
   watch(imagesRoot, { recursive: true }, (_eventType, filename) => {
-    if (isMediaUrl(filename) && !filename.startsWith(".")) {
+    if (filename && isMediaUrl(filename) && !filename.startsWith(".")) {
       lastFSChange = new Date().getTime();
     }
   });
@@ -69,18 +63,10 @@ export async function buildThumbs(exitOnComplete: boolean) {
           );
           if (Date.now() > lastActivity + 2000) {
             lastActivity = Date.now();
-            if (spinner)
-              spinner.update(spinnerName, {
-                text: `Building thumbs - ${picture.name}`,
-              });
           }
         }
       }
     }
-    if (spinner)
-      spinner.succeed(spinnerName, {
-        text: `Scan done - will wait for updates`,
-      });
     if (exitOnComplete) {
       break;
     }
@@ -91,7 +77,5 @@ export async function buildThumbs(exitOnComplete: boolean) {
       if (lastFSChange > now) break;
     }
     spinnerName = Date.now().toString();
-    if (spinner)
-      spinner.add(spinnerName, { text: "Changes detected, rescanning" });
   }
 }
