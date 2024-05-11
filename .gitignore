@@ -40,6 +40,7 @@ public/dist
 
 .idea
 picisa-darwin-x64
+picisa-darwin-arm64
 public/client
 deployed
 server/imageOperations/native-filters/build

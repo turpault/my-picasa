@@ -3,6 +3,6 @@ import { startServices } from "./start";
 
 async function start() {
   await startServices();
-  await startBackgroundServices(false);
+  await startBackgroundServices();
 }
 start();

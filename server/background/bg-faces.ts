@@ -97,7 +97,7 @@ const faceProcessingQueue = new Queue(30);
 
 let parsedFaces = new Set<string>();
 
-export async function buildFaceScan(repeat: boolean) {
+export async function buildFaceScan() {
   await faceAlbumsReady();
   await tf.ready;
   await waitUntilWalk();
@@ -121,32 +121,28 @@ export async function buildFaceScan(repeat: boolean) {
   await faceapi.nets.ageGenderNet.loadFromDisk(modelPath);
   await faceapi.nets.faceExpressionNet.loadFromDisk(modelPath);
 
-  while (true) {
-    const albums = await getFolderAlbums();
+  const albums = await getFolderAlbums();
 
-    const inProgress = new Set<Album>();
-    for (const album of albums) {
-      faceProcessingQueue.add(async () => {
-        inProgress.add(album);
-        //await processFaces(album).catch(console.error);
-        inProgress.delete(album);
-      });
-    }
-    const t = setInterval(
-      () =>
-        console.info(
-          `Processing faces. Remaining ${faceProcessingQueue.length()} albums to process.`
-        ),
-      2000
-    );
-    await faceProcessingQueue.drain();
-    clearInterval(t);
-    await joinUnmatchedFeatures();
-    await exportAllFaces();
-
-    if (!repeat) break;
-    await sleep(24 * 60 * 60);
+  const inProgress = new Set<Album>();
+  for (const album of albums) {
+    faceProcessingQueue.add(async () => {
+      inProgress.add(album);
+      //await processFaces(album).catch(console.error);
+      inProgress.delete(album);
+    });
   }
+  const t = setInterval(
+    () =>
+      console.info(
+        `Processing faces. Remaining ${faceProcessingQueue.length()} albums to process.`
+      ),
+    2000
+  );
+  await faceProcessingQueue.drain();
+  clearInterval(t);
+  await joinUnmatchedFeatures();
+  await exportAllFaces();
+
 }
 
 let matcher: faceapi.FaceMatcher | undefined;
@@ -292,8 +288,7 @@ async function getClosestHashedFeature(feature: FaceLandmarkData) {
     // Good one !
     const hash = (feature.hash = match.label);
     console.info(
-      `Face feature matching with derived hash ${hash} [${
-        getFaceAlbumFromHash(hash)?.name
+      `Face feature matching with derived hash ${hash} [${getFaceAlbumFromHash(hash)?.name
       } with feature age ${feature.age} / ${feature.gender}]`
     );
     return hash;
@@ -401,8 +396,7 @@ async function processFaces(album: Album) {
         ) {
           // This is a match
           console.info(
-            `Face feature matching with hash ${f.hash} [${
-              getFaceAlbumFromHash(f.hash)?.name
+            `Face feature matching with hash ${f.hash} [${getFaceAlbumFromHash(f.hash)?.name
             } with feature age ${feature.age} / ${feature.gender}]`
           );
           feature.hash = f.hash;

@@ -21,6 +21,7 @@ import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
 import { loadFaceAlbums } from "./rpc/albumTypes/faces";
 import { info } from "console";
+import { initUndo } from "./utils/undo";
 
 /** */
 
@@ -177,6 +178,7 @@ export async function startServer(p?: number) {
   }
 }
 export async function startServices() {
+  await initUndo();
   info("Starting services...");
   updateLastWalkLoop();
   info("Measuring CPU load...");

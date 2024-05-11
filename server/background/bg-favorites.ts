@@ -67,7 +67,7 @@ function albumNameToDate(name: string): Date {
   return new Date(y, m, d, 12);
 }
 
-export async function buildFavoriteFolder(exitOnComplete: boolean) {
+export async function buildFavoriteFolder() {
   const favoritesFolder = join(imagesRoot, "favorites");
   if (!(await fileExists(favoritesFolder))) {
     await mkdir(favoritesFolder, { recursive: true });
@@ -75,11 +75,13 @@ export async function buildFavoriteFolder(exitOnComplete: boolean) {
   await waitUntilWalk();
 
   await exportAllMissing();
+}
+export async function monitorFavorites() {
   events.on("favoriteChanged", onImageChanged);
   events.on("filtersChanged", onImageChanged);
   events.on("rotateChanged", onImageChanged);
   setReady(readyLabelKey);
-  await syncFavorites(exitOnComplete);
+  await syncFavoritesFromPhotoApp();
 }
 
 async function onImageChanged(e: { entry: AlbumEntryPicasa }) {
@@ -148,10 +150,10 @@ async function exportFavorite(entry: AlbumEntry): Promise<void> {
         entry,
         entry,
         `compress=1,${RESIZE_ON_EXPORT_SIZE},;` +
-          transform +
-          `;label=1,${encodeURIComponent(
-            imageLabel
-          )},25,south` /*;exif=${encodeURIComponent(JSON.stringify(exif))}*/,
+        transform +
+        `;label=1,${encodeURIComponent(
+          imageLabel
+        )},25,south` /*;exif=${encodeURIComponent(JSON.stringify(exif))}*/,
         []
       );
       await safeWriteFile(
@@ -211,76 +213,70 @@ async function exportAllMissing() {
 }
 
 const scannedFavorties = join(imagesRoot, ".scannedFavorites");
-export async function syncFavorites(exitOnComplete: boolean) {
+export async function syncFavoritesFromPhotoApp() {
   await waitUntilWalk();
-  while (true) {
-    let scanned: PhotoFromPhotoApp[] = [];
-    try {
-      scanned = JSON.parse(
-        await readFile(scannedFavorties, { encoding: "utf-8" })
-      ) as PhotoFromPhotoApp[];
-    } catch (e) {
-      console.error(`Error reading scanned favorites: ${e}`);
-    }
-    const albums = await folders("");
-    const memoize = memoizer();
-    await getPhotoFavorites(async (photo, index, total) => {
-      console.info(
-        `MacOS Photo scan: Scanning ${index} of ${total} (${photo.name})`
-      );
-      if (
-        scanned.find(
-          (s) => s.name === photo.name && s.dateTaken === photo.dateTaken
-        )
-      ) {
-        // Found a picture that was already scanned, no need to go further than that
-        throw new Error(`Stop : already scanned ${photo.name}`);
-      }
-      const photoNameNoExt = removeExtension(photo.name);
-      const candidates = albums.filter((a) => {
-        const [albumDateYear, albumDateMonth] = a.name.split("-");
-        if (albumDateYear.length !== 4) {
-          return false;
-        }
-        const albumDateYearInt = parseInt(albumDateYear);
-        const albumDateMonthInt = parseInt(albumDateMonth);
-        if (albumDateYearInt < 1900 || albumDateYearInt > 3000) {
-          return false;
-        }
-        if (albumDateMonthInt < 1 || albumDateMonthInt > 12) {
-          return false;
-        }
-        return (
-          albumDateYearInt === photo.dateTaken.getFullYear() &&
-          Math.abs(albumDateMonthInt - (photo.dateTaken.getMonth() + 1)) <= 1
-        );
-      });
-      for (const album of candidates) {
-        await waitUntilIdle();
-        const m = await memoize(["media", album.name], () => media(album));
-        const entry = m.entries.find((e) => e.name.startsWith(photoNameNoExt));
-        if (entry) {
-          const picasa = await getPicasaEntry(entry);
-          if (!picasa.star) {
-            console.info(`Synchronized star ${photo.name} in ${album.name}`);
-            await toggleStar([entry]);
-            try {
-              await exportFavorite(entry);
-            } catch (e: any) {
-              console.error(`Error exporting favorite ${entry.name}: ${e}`);
-              captureException(e);
-            }
-          }
-          break;
-        }
-      }
-      scanned.push(photo);
-    });
-    safeWriteFile(scannedFavorties, JSON.stringify(scanned, null, 2));
-    // Wait 24 hours before scanning again
-    if (exitOnComplete) {
-      break;
-    }
-    await sleep(24 * 3600);
+  let scanned: PhotoFromPhotoApp[] = [];
+  try {
+    scanned = JSON.parse(
+      await readFile(scannedFavorties, { encoding: "utf-8" })
+    ) as PhotoFromPhotoApp[];
+  } catch (e) {
+    console.error(`Error reading scanned favorites: ${e}`);
   }
+  const albums = await folders("");
+  const memoize = memoizer();
+  await getPhotoFavorites(async (photo, index, total) => {
+    console.info(
+      `MacOS Photo scan: Scanning ${index} of ${total} (${photo.name})`
+    );
+    if (
+      scanned.find(
+        (s) => s.name === photo.name && s.dateTaken === photo.dateTaken
+      )
+    ) {
+      // Found a picture that was already scanned, no need to go further than that
+      throw new Error(`Stop : already scanned ${photo.name}`);
+    }
+    const photoNameNoExt = removeExtension(photo.name);
+    const candidates = albums.filter((a) => {
+      const [albumDateYear, albumDateMonth] = a.name.split("-");
+      if (albumDateYear.length !== 4) {
+        return false;
+      }
+      const albumDateYearInt = parseInt(albumDateYear);
+      const albumDateMonthInt = parseInt(albumDateMonth);
+      if (albumDateYearInt < 1900 || albumDateYearInt > 3000) {
+        return false;
+      }
+      if (albumDateMonthInt < 1 || albumDateMonthInt > 12) {
+        return false;
+      }
+      return (
+        albumDateYearInt === photo.dateTaken.getFullYear() &&
+        Math.abs(albumDateMonthInt - (photo.dateTaken.getMonth() + 1)) <= 1
+      );
+    });
+    for (const album of candidates) {
+      await waitUntilIdle();
+      const m = await memoize(["media", album.name], () => media(album));
+      const entry = m.entries.find((e) => e.name.startsWith(photoNameNoExt));
+      if (entry) {
+        const picasa = await getPicasaEntry(entry);
+        if (!picasa.star) {
+          console.info(`Synchronized star ${photo.name} in ${album.name}`);
+          await toggleStar([entry]);
+          try {
+            await exportFavorite(entry);
+          } catch (e: any) {
+            console.error(`Error exporting favorite ${entry.name}: ${e}`);
+            captureException(e);
+          }
+        }
+        break;
+      }
+    }
+    scanned.push(photo);
+  });
+  safeWriteFile(scannedFavorties, JSON.stringify(scanned, null, 2));
+  // Wait 24 hours before scanning again
 }

@@ -1,4 +1,4 @@
-import { createReadStream, createWriteStream } from "fs";
+import { WriteStream, createReadStream, createWriteStream } from "fs";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { createInterface } from "readline";
@@ -8,19 +8,24 @@ import { imagesRoot } from "./constants";
 import { broadcast } from "./socketList";
 import { fileExists } from "./serverUtils";
 
+const recentUndos: UndoStep[] = [];
+let undoStream: WriteStream;
+let undoneStream: WriteStream;
 const undoFile = join(imagesRoot, ".mypicasa.undo");
 const undoneFile = join(imagesRoot, ".mypicasa.undone");
-const recentUndos: UndoStep[] = [];
-undoList().then((lst) => recentUndos.push(...lst.slice(-10)));
+export async function initUndo() {
+  const lst = await undoList();
+  recentUndos.push(...lst.slice(-10));
 
-const undoStream = createWriteStream(undoFile, {
+  undoStream = createWriteStream(undoFile, {
   flags: "a",
   encoding: "utf-8",
 });
-const undoneStream = createWriteStream(undoneFile, {
+  undoneStream = createWriteStream(undoneFile, {
   flags: "a",
   encoding: "utf-8",
 });
+}
 
 export function addToUndo(
   operation: string,

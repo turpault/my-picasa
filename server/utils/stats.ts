@@ -1,4 +1,4 @@
-import { createWriteStream } from "fs";
+import { WriteStream, createWriteStream } from "fs";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { uuid } from "../../shared/lib/utils";
@@ -8,11 +8,16 @@ const sep = "§";
 function line(bucket: string, type: string, data: string) {
   return `${new Date().toISOString()}${sep}${bucket}${sep}${type}${sep}${data}\n`;
 }
-const statsFile = join(imagesRoot, ".mypicasa.stats");
-const stream = createWriteStream(statsFile, {
+const statFile = join(imagesRoot, ".mypicasa.stats");
+function getStream() {
+  const self = getStream as any;
+  self._stream = self.stream || createWriteStream(statFile, {
   flags: "a",
   encoding: "utf-8",
 });
+  return self._stream as WriteStream;
+}
+
 
 const delays: { [id: string]: { name: string; start: number } } = {};
 export function delayStart(name: string): string {
@@ -23,25 +28,24 @@ export function delayStart(name: string): string {
 
 export function delayEnd(id: string) {
   const e = delays[id];
-  stream.write(line(e.name, "set", `${new Date().getTime() - e.start}`));
+  getStream().write(line(e.name, "set", `${new Date().getTime() - e.start}`));
 }
 
 export function rate(counter: string, divider: number = 1) {
-  stream.write(line(counter, "rate", `${divider}`));
+  getStream().write(line(counter, "rate", `${divider}`));
 }
 export function inc(counter: string) {
-  stream.write(line(counter, "delta", "1"));
+  getStream().write(line(counter, "delta", "1"));
 }
 export function dec(counter: string) {
-  stream.write(line(counter, "delta", "-1"));
+  getStream().write(line(counter, "delta", "-1"));
 }
 export function set(counter: string, value: string | number) {
-  stream.write(line(counter, "set", `${value}`));
+  getStream().write(line(counter, "set", `${value}`));
 }
-rate("reboot", 60); // one cumulated mesure per minute
 
 export async function history(): Promise<object> {
-  let data = (await readFile(statsFile, { encoding: "utf-8" }))
+  let data = (await readFile(statFile, { encoding: "utf-8" }))
     .split("\n")
     .filter((v) => v);
   const res = new Map<
