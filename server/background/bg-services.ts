@@ -1,13 +1,16 @@
+import { populateExifData } from "./bg-exif";
 import { buildFaceScan } from "./bg-faces";
 import { buildFavoriteFolder } from "./bg-favorites";
 import { buildGeolocation } from "./bg-geolocate";
 import { buildThumbs } from "./bg-thumbgen";
+import { startRedis, stopRedis } from "./redis-process";
 
 export async function startBackgroundServices() {
-  await Promise.all([
-    buildThumbs(),
-    buildGeolocation(),
-    buildFavoriteFolder(),
-    buildFaceScan(),
-  ]);
+  await startRedis();
+  await buildFaceScan();
+  await populateExifData();
+  await buildGeolocation();
+  await buildThumbs();
+  await buildFavoriteFolder();
+  await stopRedis();
 }

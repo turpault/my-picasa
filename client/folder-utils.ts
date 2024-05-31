@@ -10,7 +10,7 @@ import { Settings, getSettings } from "./lib/settings";
 import { getService } from "./rpc/connect";
 
 export async function getMetadata(
-  entries: AlbumEntry[]
+  entries: AlbumEntry[],
 ): Promise<AlbumEntryPicasa[]> {
   const uniqueAlbums = entries.reduce((prev, val) => {
     if (!prev.find((a) => a.key === val.album.key)) {
@@ -23,7 +23,7 @@ export async function getMetadata(
     uniqueAlbums.map(async (a) => {
       const metadata = await s.getAlbumMetadata(a);
       return { album: a, picasa: metadata };
-    })
+    }),
   );
   return entries.map((entry) => {
     const p = picasa.find((e) => e.album.key === entry.album.key);
@@ -41,18 +41,19 @@ export async function getMetadata(
 }
 
 async function albumContents(
-  fh: Album
+  fh: Album,
+  filter: string = "",
 ): Promise<{
   entries: AlbumEntry[];
 }> {
   const service = await getService();
-  const { entries } = await service.media(fh);
+  const { entries } = await service.media(fh, filter);
   return { entries };
 }
 
 export async function getAlbumInfo(
   album: Album,
-  useSettings: boolean = false
+  useSettings: boolean = false,
 ): Promise<AlbumInfo & { filtered: boolean }> {
   let settings: Settings = {
     sort: "date",
@@ -71,7 +72,10 @@ export async function getAlbumInfo(
     settings = getSettings();
   }
   // Gettings contents might change the picasa data
-  const contents = await albumContents(album);
+  const contents = await albumContents(
+    album,
+    removeDiacritics(settings.filters.text).toLowerCase(),
+  );
   const picasa = await getAlbumMetadata(album);
   let entries = contents.entries;
 
@@ -85,14 +89,6 @@ export async function getAlbumInfo(
     entries = entries.filter((v) => settings.filters.video && isVideo(v));
   }
 
-  if (settings.filters.text) {
-    const textToFilter = removeDiacritics(settings.filters.text).toLowerCase();
-    entries = entries.filter(
-      (v) =>
-        removeDiacritics(v.album.name).toLowerCase().includes(textToFilter) ||
-        removeDiacritics(v.name).toLowerCase().includes(settings.filters.text)
-    );
-  }
   /*
   assets.sort((a, b) => {
     if (settings.sort === "date") {

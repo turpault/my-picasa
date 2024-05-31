@@ -4,7 +4,10 @@ import ini from "../../../shared/lib/ini";
 import { lock } from "../../../shared/lib/mutex";
 import { MAX_STAR } from "../../../shared/lib/shared-constants";
 import {
+  FaceList,
+  decodeFaces,
   decodeRotate,
+  encodeFaces,
   removeDiacritics,
   sleep,
 } from "../../../shared/lib/utils";
@@ -14,6 +17,7 @@ import {
   AlbumEntryMetaData,
   AlbumKind,
   AlbumMetaData,
+  ContactByHash,
   PicasaSection,
   ThumbnailSize,
   extraFields,
@@ -31,6 +35,7 @@ import { fileExists, safeWriteFile } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { rate } from "../../utils/stats";
 import { media } from "./albumUtils";
+import { normalizeName } from "../albumTypes/faces";
 
 export const cachedFilterKey: Record<ThumbnailSize, extraFields> = {
   "th-small": "cached:filters:th-small",
@@ -53,7 +58,7 @@ let picasaMap = new Map<string, AlbumMetaData>();
 let lastAccessPicasaMap = new Map<string, number>();
 let dirtyPicasaSet = new Map<string, Album>();
 let shortcuts: { [shotcut: string]: Album } = {};
-const GRACE_DELAY = 120000;
+const DEFAULT_GRACE_DELAY = "120";
 
 function albumPath(album: Album): string {
   const { id } = idFromKey(album.key);
@@ -87,6 +92,9 @@ function albumFromPath(path: string): Album {
 
 export async function picasaIniCacheWriter() {
   while (true) {
+    const grace_delay =
+      parseInt(process.env.PICASA_INI_GRACE_DELAY || DEFAULT_GRACE_DELAY) *
+      1000;
     const i = dirtyPicasaSet;
     dirtyPicasaSet = new Map<string, Album>();
     i.forEach(async (album) => {
@@ -101,12 +109,15 @@ export async function picasaIniCacheWriter() {
         return;
       }
       const lastAccess = lastAccessPicasaMap.get(key);
-      if (!lastAccess || Date.now() - lastAccess > GRACE_DELAY) {
+      if (!lastAccess || Date.now() - lastAccess > grace_delay) {
         picasaMap.delete(key);
         lastAccessPicasaMap.delete(key);
       }
     });
-    await sleep(10);
+    const picasaIniSleepDelay = parseInt(
+      process.env.PICASA_INI_SLEEP_DELAY || "10",
+    );
+    await sleep(picasaIniSleepDelay);
   }
 }
 
@@ -145,6 +156,7 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
       return picasaMap.get(album.key)!;
     }
     let target: string = albumPath(album);
+
     // Not in the map, read it
     const iniData = await readFile(target, {
       encoding: "utf8",
@@ -152,13 +164,8 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
     const i = ini.parse(iniData);
     // Read&fix data
     if (album.kind === AlbumKind.FOLDER) {
-      if (i.Picasa && i.Picasa.name && i.Picasa.name !== album.name) {
-        i.Picasa.name = album.name;
-      }
-      for (const key in i) {
-        if (i[key]["star"] && i[key]["starCount"] === undefined) {
-          i[key]["starCount"] = "1";
-        }
+      if (dataFix(album, i)) {
+        writePicasaIni(album, i);
       }
     }
     if (i?.Picasa?.shortcut !== undefined && !shortcuts[i.Picasa.shortcut]) {
@@ -180,7 +187,7 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
 
 export async function albumentriesInFilter(
   album: Album,
-  normalizedFilter: string
+  normalizedFilter: string,
 ): Promise<AlbumEntry[]> {
   if (removeDiacritics(album.name).toLowerCase().includes(normalizedFilter)) {
     return (await media(album)).entries;
@@ -201,7 +208,7 @@ export function entryWithMeta(entry: AlbumEntry, metadata: AlbumEntryMetaData) {
   };
 }
 export async function getPicasaEntry(
-  entry: AlbumEntry
+  entry: AlbumEntry,
 ): Promise<AlbumEntryMetaData> {
   const picasa = await readAlbumIni(entry.album);
   picasa[entry.name] = picasa[entry.name] || ({} as AlbumEntryMetaData);
@@ -210,7 +217,7 @@ export async function getPicasaEntry(
 
 async function readPicasaSection(
   album: Album,
-  section: string = "Picasa"
+  section: string = "Picasa",
 ): Promise<PicasaSection> {
   if (album.kind === AlbumKind.FOLDER) {
     const picasa = await readAlbumIni(album);
@@ -324,7 +331,7 @@ export async function updatePicasa(
   album: Album,
   field: string | null,
   value: string | null,
-  group: string = "Picasa"
+  group: string = "Picasa",
 ) {
   if (group.normalize() !== group) {
     debugger;
@@ -353,11 +360,12 @@ export async function updatePicasa(
 export async function updatePicasaEntry(
   entry: AlbumEntry,
   field: keyof AlbumEntryMetaData | "*",
-  value: any
+  value: any,
 ) {
   if (entry.name.normalize() !== entry.name) {
     debugger;
   }
+  let hasChanged = true;
   const picasa = await readAlbumIni(entry.album);
   picasa[entry.name] = picasa[entry.name] || ({} as AlbumEntryMetaData);
   if (value === "toggle") {
@@ -372,26 +380,33 @@ export async function updatePicasaEntry(
     }
   } else {
     if (value !== undefined && value !== null) {
-      picasa[entry.name][
-        field as keyof AlbumEntryMetaData
-      ] = value.toString() as never;
+      const valueAsString = `${value}`;
+      if (
+        picasa[entry.name][field as keyof AlbumEntryMetaData] !== valueAsString
+      ) {
+        picasa[entry.name][field as keyof AlbumEntryMetaData] = valueAsString;
+      } else {
+        hasChanged = false;
+      }
     } else {
       delete picasa[entry.name][field as keyof AlbumEntryMetaData];
     }
   }
 
-  if (["filters", "caption", "rotate", "star", "starCount"].includes(field)) {
-    broadcast("albumEntryAspectChanged", {
-      ...entry,
-      metadata: picasa[entry.name],
-    });
+  if (hasChanged) {
+    if (["filters", "caption", "rotate", "star", "starCount"].includes(field)) {
+      broadcast("albumEntryAspectChanged", {
+        ...entry,
+        metadata: picasa[entry.name],
+      });
+    }
+    writePicasaIni(entry.album, picasa);
   }
-  writePicasaIni(entry.album, picasa);
 }
 
 export async function updatePicasaEntries(
   entry: AlbumEntry,
-  kv: AlbumEntryMetaData
+  kv: AlbumEntryMetaData,
 ) {
   const picasa = await readAlbumIni(entry.album);
   let dirty = false;
@@ -425,4 +440,74 @@ export async function updatePicasaEntries(
     });
   }
   if (dirty) writePicasaIni(entry.album, picasa);
+}
+
+export function readContacts(picasaIni: AlbumMetaData): ContactByHash {
+  if (picasaIni.Contacts2) {
+    // includes a map of faces/ids
+    return Object.fromEntries(
+      Object.entries(picasaIni.Contacts2 as { [key: string]: string })
+        .map(([hash, value]) => {
+          if (typeof value === "string" && value.includes(";")) {
+            const [originalName, email, something] = value.split(";");
+            const name = normalizeName(originalName);
+            const key = keyFromID(name, AlbumKind.FACE);
+            return [hash, { originalName, email, something, name, key }];
+          } else {
+            return [hash, null];
+          }
+        })
+        .filter((v) => v[1] !== null),
+    );
+  }
+  return {};
+}
+
+function dataFix(album: Album, i: AlbumMetaData): boolean {
+  let changed = false;
+  const picasa = i.Picasa as PicasaSection;
+
+  if (picasa && picasa.name && picasa.name !== album.name) {
+    picasa.name = album.name;
+    changed = true;
+  }
+
+  for (const key in i) {
+    if (i[key]["star"] && i[key]["starCount"] === undefined) {
+      i[key]["starCount"] = "1";
+      changed = true;
+    }
+  }
+
+  if (picasa) {
+    if (picasa.shortcut && picasa.shortcut != picasa.shortcut.toLowerCase()) {
+      picasa.shortcut = picasa.shortcut.toLowerCase();
+      changed = true;
+    }
+  }
+
+  // remove legacy faceHashes
+  const contacts = (i.Contacts2 || {}) as { [key: string]: string };
+  for (const key in i) {
+    if (i[key].faces !== undefined) {
+      const faces: FaceList = [];
+      const face = decodeFaces(i[key].faces!);
+      for (const f of [...face]) {
+        if (f.hash.startsWith("facehash:")) {
+          i[key].faces = encodeFaces(faces);
+          changed = true;
+        } else {
+          faces.push(f);
+        }
+      }
+    }
+  }
+  for (const key in contacts) {
+    if (key.includes("facehash:")) {
+      delete contacts[key];
+      changed = true;
+    }
+  }
+
+  return changed;
 }

@@ -1,5 +1,5 @@
 import { readFile } from "fs/promises";
-import sizeOf from "image-size";
+import imageSize from "image-size";
 import { join } from "path";
 import sharp, { Metadata, OverlayOptions, Sharp } from "sharp";
 import { promisify } from "util";
@@ -48,8 +48,6 @@ const options = new Map<string, AlbumEntryMetaData>();
 const debug = true;
 const debugInfo = debug ? console.info : noop;
 
-const s = promisify(sizeOf);
-
 function getContext(context: string): Sharp {
   const j = contexts.get(context);
   if (!j) {
@@ -62,22 +60,28 @@ function setContext(context: string, j: Sharp) {
   contexts.set(context, j);
 }
 
-export async function dimensionsFromFileBuffer(
-  file: Buffer
-): Promise<{ width: number; height: number }> {
-  const d = await sizeOf(file);
-  return { width: d!.width!, height: d!.height! };
+export function dimensionsFromFileBuffer(file: Buffer): {
+  width: number;
+  height: number;
+} {
+  try {
+    const d = imageSize(file);
+    return { width: d!.width!, height: d!.height! };
+  } catch (e) {
+    console.error(`An error occurred while getting dimensions of an image`, e);
+    return { width: 0, height: 0 };
+  }
 }
 
 export async function dimensionsFromFile(
-  file: string
+  file: string,
 ): Promise<{ width: number; height: number }> {
-  const d = await s(file);
-  return { width: d!.width!, height: d!.height! };
+  const buffer = await readFile(file);
+  return dimensionsFromFileBuffer(buffer);
 }
 
 export async function dimensions(
-  data: Buffer
+  data: Buffer,
 ): Promise<{ width: number; height: number }> {
   let s = sharp(data, { limitInputPixels: false, failOnError: false }).rotate();
   const metadata = await s.metadata();
@@ -91,7 +95,7 @@ function colorFromArg(arg: string) {
 
 export async function buildNewContext(
   width: number,
-  height: number
+  height: number,
 ): Promise<string> {
   const contextId = uuid();
   const j = sharp({
@@ -154,14 +158,14 @@ export async function buildContext(entry: AlbumEntry): Promise<string> {
     return contextId;
   } catch (e: any) {
     console.error(
-      `An error occured while reading file ${entry.name} in folder ${entry.album.key} : ${e.message}`
+      `An error occured while reading file ${entry.name} in folder ${entry.album.key} : ${e.message}`,
     );
     throw e;
   }
 }
 export async function cloneContext(
   context: string,
-  hint: string
+  hint: string,
 ): Promise<string> {
   const j = getContext(context);
 
@@ -177,7 +181,7 @@ export async function cloneContext(
 function tag(
   name: string,
   attrs: { [n: string]: any },
-  contents: string = ""
+  contents: string = "",
 ): string {
   return `<${name} ${Object.keys(attrs)
     .map((a) => `${a}="${attrs[a].toString()}"`)
@@ -188,7 +192,7 @@ export function exifToSharpMeta(obj: { [key: string]: any }): any {
   const asSharp = Object.fromEntries(
     Object.entries(obj)
       .filter(([_key, value]) => value !== undefined)
-      .map(([key, value]) => [key, value.toString()])
+      .map(([key, value]) => [key, value.toString()]),
   );
   return asSharp;
 }
@@ -227,7 +231,7 @@ export function exifToSharpMeta(obj: { [key: string]: any }): any {
 #| mirror      |                                     | mirror                         | 1                             |  New
 #| flip        |                                     | flip                           | 1                             |  New
 #| blur        |                                     | blur                           | 1                             |  New
-#| sharpen     |                                     | sharpen                        | 1                             |  New
+#| sharpen     | sigma (0<sigma<=10)                 | sharpen                        | 1, 10                         |  New
 #| resize      | max Dimension                       | resize image (nearest)         | 1, 1500                       | Personal
 #| label       | text, font size, position (n,s,e,w) | Adds a label to the image      | 1, "hello", 12, s             | Personal
 #| filter:name |                                     | Apply a filter to the image    | filter:All                    | Personal
@@ -243,7 +247,7 @@ export function exifToSharpMeta(obj: { [key: string]: any }): any {
 */
 export async function transform(
   context: string,
-  transformation: string
+  transformation: string,
 ): Promise<string> {
   // Transform is <cmd>=arg,arg;<cmd>...
   const operations = decodeOperations(transformation);
@@ -325,8 +329,10 @@ export async function transform(
         }
         break;
       case "sharpen":
-        const amount = parseFloat(args[1]);
-        j = j.sharpen(amount);
+        const amount = args[1]
+          ? Math.max(Math.min(parseFloat(args[1]), 10), 0.0001)
+          : 2;
+        j = j.sharpen({ sigma: amount });
         break;
       case "solarize":
         {
@@ -536,7 +542,7 @@ export async function transform(
           const filtered = await applyAllFilters(
             r.data,
             r.info.channels,
-            group
+            group,
           );
           console.timeEnd("applyAllFilters");
           // create a tapestry with all the resulting data
@@ -671,7 +677,7 @@ export async function transform(
                   "font-size": fontSize,
                   fill: color || "rgb(0,255,0)",
                 },
-                safeHtml(name)
+                safeHtml(name),
               ) +
               tag("rect", {
                 x: scaledPos.x,
@@ -742,11 +748,11 @@ export async function transform(
         ];
         if (text) {
           const txtSvg = `<svg height="${Math.floor(
-            h / 3
+            h / 3,
           )}" width="${Math.floor(w * 0.8)}"> <text x="0" y="${Math.floor(
-            h / 5
+            h / 5,
           )}" font-size="${Math.floor(w / 20)}" fill="#000000">${safeHtml(
-            text
+            text,
           )}</text> </svg>`;
           layers.push({ input: Buffer.from(txtSvg), gravity: "south" });
         }
@@ -819,7 +825,7 @@ export async function transform(
         const txtSvg = `<svg width="${w}" height="${svgHeight}"> 
         <rect x="0" cy="0" width="${w}" height="${fontSize}" fill="#FFFFFF" style="fill-opacity: .35;" />
         <text  x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}" fill="#000000">${safeHtml(
-          text
+          text,
         )}</text> 
         </svg>`;
         layers.push({ input: Buffer.from(txtSvg), gravity: "south" });
@@ -853,7 +859,7 @@ export async function blitMultiple(
       left: number;
       top: number;
     };
-  }[]
+  }[],
 ): Promise<void> {
   let targetContext = getContext(target);
   const compositeLayers = await Promise.all(
@@ -875,7 +881,7 @@ export async function blitMultiple(
         top,
         left,
       };
-    })
+    }),
   );
   targetContext = targetContext.composite(compositeLayers);
   setContext(target, targetContext);
@@ -885,7 +891,7 @@ export async function blit(
   target: string,
   source: string,
   left: number,
-  top: number
+  top: number,
 ): Promise<void> {
   left = Math.round(left);
   top = Math.round(top);
@@ -911,7 +917,7 @@ export async function blit(
 }
 
 export async function histogram(
-  context: string
+  context: string,
 ): Promise<{ r: number[]; g: number[]; b: number[] }> {
   const sourceContext = getContext(context);
   const pixels = await sourceContext
@@ -922,7 +928,7 @@ export async function histogram(
 }
 export async function setOptions(
   context: string,
-  _options: AlbumEntryMetaData
+  _options: AlbumEntryMetaData,
 ): Promise<void> {
   options.set(context, _options);
   return;
@@ -935,16 +941,16 @@ export async function destroyContext(context: string): Promise<void> {
 
 const emptyPng = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAA1BMVEUAAACnej3aAAAAAXRSTlMAQObYZgAAAApJREFUCNdjYAAAAAIAAeIhvDMAAAAASUVORK5CYII=",
-  "base64"
+  "base64",
 );
 const emptyJpg = Buffer.from(
   "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD3+iiigD//2Q==",
-  "base64"
+  "base64",
 );
 export async function encode(
   context: string,
   mime: ImageMimeType = "image/jpeg",
-  format: ImageEncoding = "Buffer"
+  format: ImageEncoding = "Buffer",
 ): Promise<{ width: number; height: number; data: Buffer | string }> {
   let j: sharp.Sharp;
   try {
@@ -1008,7 +1014,7 @@ export async function encode(
 
 export async function execute(
   context: string,
-  operations: string[][]
+  operations: string[][],
 ): Promise<void> {
   for (const operation of operations) {
     let j = getContext(context);
@@ -1042,7 +1048,7 @@ export async function buildImage(
   entry: AlbumEntry,
   options: any | undefined,
   transformations: string | undefined,
-  extraOperations: any[] | undefined
+  extraOperations: any[] | undefined,
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
   return buildImageQueue.add(async () => {
     const label = `BuildImage for image ${entry.album.name} / ${
@@ -1081,7 +1087,7 @@ export async function buildImage(
 const buildFaceImageQueue = new Queue(4, { fifo: false });
 export async function buildFaceImage(
   entry: AlbumEntry,
-  faceData: FaceData
+  faceData: FaceData,
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
   return buildFaceImageQueue.add(async () => {
     const label = `Thumbnail for face ${entry.album.name} / ${entry.name}`;
@@ -1108,7 +1114,7 @@ export async function buildFaceImage(
 }
 
 export async function imageMetadata(
-  data: Buffer
+  data: Buffer,
 ): Promise<Metadata | undefined> {
   try {
     let s = sharp(data, {

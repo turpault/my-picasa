@@ -23,13 +23,13 @@ export async function getFileContents(file: string): Promise<string> {
 
 export async function writeFileContents(
   file: string,
-  data: string
+  data: string,
 ): Promise<void> {
   return safeWriteFile(join(imagesRoot, file), data);
 }
 
 export async function folder(
-  folder: string
+  folder: string,
 ): Promise<{ name: string; kind: "directory" | "file" }[]> {
   const p = join(imagesRoot, folder);
   const data = await readdir(p);
@@ -38,8 +38,8 @@ export async function folder(
       stat(join(p, e)).then((s) => ({
         name: e,
         kind: s.isDirectory() ? "directory" : "file",
-      }))
-    )
+      })),
+    ),
   );
   return stats
     .filter((p) => p.status === "fulfilled")
@@ -56,7 +56,7 @@ export async function makeAlbum(name: string): Promise<Album> {
         name,
         kind: AlbumKind.FOLDER,
       };
-      addOrRefreshOrDeleteAlbum(a);
+      addOrRefreshOrDeleteAlbum(a, undefined, true);
       return a;
     });
 }
@@ -73,7 +73,7 @@ export async function openAlbumEntryInFinder(entry: AlbumEntry) {
 
 export async function walk(
   folder: string,
-  cb: (path: string, modificationTime: Date) => void
+  cb: (path: string, modificationTime: Date) => void,
 ) {
   const promises: Promise<void>[] = [];
   const p = join(imagesRoot, folder);

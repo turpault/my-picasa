@@ -15,11 +15,11 @@ export async function sleep(delay: number) {
 export function groupBy<T, K>(
   a: T[],
   field: keyof T,
-  transform?: (v: any) => K
+  transform?: (v: any) => K,
 ): Map<K, T[]> {
   const result = new Map<K, T[]>();
   for (const item of a) {
-    let value = (item[field] as unknown) as K;
+    let value = item[field] as unknown as K;
     if (transform) value = transform(value);
     if (!result.has(value as K)) {
       result.set(value as K, []);
@@ -31,7 +31,7 @@ export function groupBy<T, K>(
 export function sortByKey<T>(
   array: T[],
   keys: (keyof T)[],
-  order: ("alpha" | string[] | "numeric")[]
+  order: ("alpha" | string[] | "numeric")[],
 ) {
   array.sort(alphaSorter(false, keys as string[], order));
 }
@@ -40,7 +40,7 @@ export const noop = (..._a: any[]) => {};
 export function alphaSorter(
   caseSensitive: boolean = true,
   keys: (string | undefined)[] = [undefined],
-  order: ("alpha" | string[] | "numeric")[] = ["alpha"]
+  order: ("alpha" | string[] | "numeric")[] = ["alpha"],
 ): (a: any, b: any) => number {
   return (_a, _b) => {
     for (const [idx, key] of keys.entries()) {
@@ -134,7 +134,7 @@ export async function debounce(
   f: Function,
   delay: number = 1000,
   guid?: string,
-  atStart?: boolean
+  atStart?: boolean,
 ) {
   delay = delay ? delay : 1000;
   const key = guid || f;
@@ -171,10 +171,10 @@ export async function debounce(
 export function debounced<T extends Function>(
   f: T,
   delay: number = 1000,
-  atStart: boolean = false
+  atStart: boolean = false,
 ): T {
-  return (((...args: any[]) =>
-    debounce(() => f(...args), delay, undefined, atStart)) as unknown) as T;
+  return ((...args: any[]) =>
+    debounce(() => f(...args), delay, undefined, atStart)) as unknown as T;
 }
 
 export function isMediaUrl(url: string): boolean {
@@ -188,7 +188,7 @@ export function isPicture(entry: AlbumEntry): boolean {
 
 export function isAnimated(entry: AlbumEntry): boolean {
   return !!animatedPictureExtensions.find((e) =>
-    entry.name.toLowerCase().endsWith(e)
+    entry.name.toLowerCase().endsWith(e),
   );
 }
 
@@ -200,24 +200,23 @@ export function isVideoUrl(url: string): boolean {
   return !!videoExtensions.find((e) => url.toLowerCase().endsWith(e));
 }
 
-export function range(from: number, to?: number): number[] {
+export function range(from: number, to?: number, step: number = 1): number[] {
   if (to === undefined) {
     to = from - 1;
     from = 0;
   }
-  const dir = from < to ? 1 : -1;
+  const dir = from < to ? step : -step;
   const res = [];
-  while (from != to) {
+  while (from <= to) {
     res.push(from);
     from += dir;
   }
-  res.push(from);
   return res;
 }
 
 export function rectanglesIntersect(
   a: { p1: { x: number; y: number }; p2: { x: number; y: number } },
-  b: { p1: { x: number; y: number }; p2: { x: number; y: number } }
+  b: { p1: { x: number; y: number }; p2: { x: number; y: number } },
 ) {
   if (Math.min(a.p1.x, a.p2.x) > Math.max(b.p1.x, b.p2.x)) return false;
   if (Math.min(b.p1.x, b.p2.x) > Math.max(a.p1.x, a.p2.x)) return false;
@@ -346,7 +345,8 @@ export function decodeOperations(operations: string): PicasaFilter[] {
   return res;
 }
 
-export type FaceList = { hash: string; rect: string }[];
+export type Face = { hash: string; rect: string };
+export type FaceList = Face[];
 export function decodeFaces(faces: string): FaceList {
   return faces
     .split(";")
@@ -399,9 +399,9 @@ export function valuesOfEnum<T>(e: T): any[] {
 }
 
 export function keysOfEnum<T>(e: T): (keyof T)[] {
-  return (Object.keys(e as any).filter((k) =>
-    Number.isNaN(Number(k))
-  ) as unknown) as (keyof T)[];
+  return Object.keys(e as any).filter((k) =>
+    Number.isNaN(Number(k)),
+  ) as unknown as (keyof T)[];
 }
 
 export function decodeRotate(rotateString?: string): number {
@@ -459,7 +459,7 @@ export function albumEntryFromId(id: string): AlbumEntry | null {
 
 export function idFromAlbumEntry(
   entry: AlbumEntry,
-  qualifier: string = ""
+  qualifier: string = "",
 ): string {
   return `${qualifier}${sep}entry${sep}${entry.album.key}${sep}${entry.album.name}${sep}${entry.album.kind}${sep}${entry.name}`;
 }
@@ -533,7 +533,7 @@ export function jsonifyObject(instance: any): any {
 
 export function substitute(
   template: string,
-  values: { [key: string]: string }
+  values: { [key: string]: string },
 ) {
   return template.replace(/\$([A-Z0-9_]+)\$/g, (match, p1) => {
     const v = values[p1];
@@ -554,7 +554,7 @@ export function memoizer() {
   const cache: { [key: string]: any } = {};
   return function memoize<T>(
     keys: string[],
-    data: () => Promise<T>
+    data: () => Promise<T>,
   ): Promise<T> {
     const k = keys.join(",");
     if (cache[k]) return cache[k];

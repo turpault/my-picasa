@@ -11,11 +11,15 @@
         "run-script",
         "start-worker"
       ],
+      "env": {
+        "DEBUG": "*,-redis:*,-ioredis:*"
+      },
       "runtimeExecutable": "npm",
       "skipFiles": [
         "<node_internals>/**"
       ],
-      "type": "node"
+      "type": "node",
+      "console": "integratedTerminal"
     },
     {
       "name": "Run Current TS file",

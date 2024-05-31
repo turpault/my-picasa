@@ -19,6 +19,9 @@ import {
   updatePicasaEntries,
 } from "./picasa-ini";
 
+import Debug from "debug";
+const debug = Debug("thumbnail");
+
 export async function deleteImageFileMetas(entry: AlbumEntry): Promise<void> {
   for (const k of ThumbnailSizeVals) {
     await deleteThumbnailFromCache(entry, k);
@@ -28,14 +31,14 @@ export async function deleteImageFileMetas(entry: AlbumEntry): Promise<void> {
 export function thumbnailPathFromEntryAndSize(
   entry: AlbumEntry,
   size: ThumbnailSize,
-  animated: boolean
+  animated: boolean,
 ) {
   if (isVideo(entry))
     return {
       path: join(
         imagesRoot,
         idFromKey(entry.album.key).id,
-        `.${size}-${entry.name}${animated ? "" : ".non-animated"}.gif`
+        `.${size}-${entry.name}${animated ? "" : ".non-animated"}.gif`,
       ),
       mime: "image/gif",
     };
@@ -44,19 +47,19 @@ export function thumbnailPathFromEntryAndSize(
       path: join(
         imagesRoot,
         idFromKey(entry.album.key).id,
-        `.${size}-${entry.name}`
+        `.${size}-${entry.name}`,
       ),
       mime: "image/jpeg",
     };
 }
 
-export async function readThumbnailFromCache(
+export async function readThumbnailBufferFromCache(
   entry: AlbumEntry,
   size: ThumbnailSize,
-  animated: boolean
+  animated: boolean,
 ): Promise<Buffer | undefined> {
   const { path } = thumbnailPathFromEntryAndSize(entry, size, animated);
-  const unlock = await lock("readThumbnailFromCache: " + path);
+  const unlock = await lock("readThumbnailBufferFromCache: " + path);
   let d: Buffer | undefined;
   try {
     d = await readFile(path);
@@ -72,7 +75,7 @@ export async function writeThumbnailToCache(
   entry: AlbumEntry,
   size: ThumbnailSize,
   data: Buffer,
-  animated: boolean
+  animated: boolean,
 ): Promise<void> {
   const { path } = thumbnailPathFromEntryAndSize(entry, size, animated);
   const unlock = await lock("writeThumbnailToCache: " + path);
@@ -87,7 +90,7 @@ export async function writeThumbnailToCache(
 
 export async function deleteThumbnailFromCache(
   entry: AlbumEntry,
-  size: ThumbnailSize
+  size: ThumbnailSize,
 ): Promise<void> {
   for (const animated of [true, false]) {
     const { path } = thumbnailPathFromEntryAndSize(entry, size, animated);
@@ -104,7 +107,7 @@ export async function updateCacheData(
   transform: string,
   size: ThumbnailSize,
   dimensions: string,
-  rotate: string
+  rotate: string,
 ) {
   const picasaFilterLabel = cachedFilterKey[size];
   const picasaSizeLabel = dimensionsFilterKey[size];
@@ -120,19 +123,19 @@ export async function updateCacheData(
 export async function copyThumbnails(
   entry: AlbumEntry,
   target: AlbumEntry,
-  move: boolean
+  move: boolean,
 ): Promise<void> {
   for (const animated of [true, false]) {
     for (const size of ThumbnailSizeVals) {
       const { path: source } = thumbnailPathFromEntryAndSize(
         entry,
         size,
-        animated
+        animated,
       );
       const { path: dest } = thumbnailPathFromEntryAndSize(
         target,
         size,
-        animated
+        animated,
       );
       if (await fileExists(source)) {
         if (move) {
@@ -148,11 +151,11 @@ export async function copyThumbnails(
 export async function shouldMakeThumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize,
-  animated: boolean
+  animated: boolean,
 ): Promise<boolean> {
   const picasa = await readAlbumIni(entry.album);
   const sourceStat = await stat(
-    join(imagesRoot, entryRelativePath(entry))
+    join(imagesRoot, entryRelativePath(entry)),
   ).catch(() => undefined);
 
   if (!sourceStat) {
@@ -170,15 +173,39 @@ export async function shouldMakeThumbnail(
   const transform = picasa[entry.name].filters || "";
   const rotate = decodeRotate(picasa[entry.name].rotate);
   const { path } = thumbnailPathFromEntryAndSize(entry, size, animated);
-  const fileExistsAndIsNotOutdated = await stat(path)
-    .then((s) => s.size !== 0 && s.mtime > sourceStat.mtime)
-    .catch(() => false);
-  if (
-    !fileExistsAndIsNotOutdated ||
-    (cachedSize === undefined && isPicture(entry)) ||
-    transform !== cachedTransform ||
-    rotate !== cachedRotate
-  ) {
+  const thumbStats = await stat(path).catch((e) => {});
+  if (!thumbStats) {
+    debug(
+      `Thumbnail for media ${entry.album.name}/${entry.name} does not exist (${path})`,
+    );
+    return true;
+  }
+  if (thumbStats.mtime < sourceStat.mtime) {
+    debug(`Thumbnail for media ${entry.album.name}/${entry.name} is outdated`);
+    return true;
+  }
+  if (thumbStats.size === 0) {
+    debug(
+      `Thumbnail for media ${entry.album.name}/${entry.name} has no size data`,
+    );
+    return true;
+  }
+  if (cachedSize === undefined && isPicture(entry)) {
+    debug(
+      `Thumbnail for media ${entry.album.name}/${entry.name} has no size data`,
+    );
+    return true;
+  }
+  if (transform !== cachedTransform) {
+    debug(
+      `Thumbnail for media ${entry.album.name}/${entry.name} has different transform data`,
+    );
+    return true;
+  }
+  if (rotate !== cachedRotate) {
+    debug(
+      `Thumbnail for media ${entry.album.name}/${entry.name} has different rotate data`,
+    );
     return true;
   }
   return false;

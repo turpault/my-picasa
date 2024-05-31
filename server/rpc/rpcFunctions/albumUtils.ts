@@ -3,6 +3,7 @@ import {
   idFromAlbumEntry,
   isPicture,
   isVideo,
+  removeDiacritics,
   sortByKey,
 } from "../../../shared/lib/utils";
 import {
@@ -31,10 +32,11 @@ import {
 } from "../albumTypes/fileAndFolders";
 import { readAlbumIni, getPicasaEntry, updatePicasaEntry } from "./picasa-ini";
 import { getFolderAlbumData, getFolderAlbums } from "../../walker";
+import { GeoPOI } from "../../background/poi/get-poi";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
   const entries = (await media(entry.album)).entries.filter(
-    (e) => idFromAlbumEntry(e, "") !== idFromAlbumEntry(entry, "")
+    (e) => idFromAlbumEntry(e, "") !== idFromAlbumEntry(entry, ""),
   );
   entries.splice(rank, 0, entry);
   await assignRanks(entries);
@@ -51,7 +53,7 @@ function notifyAlbumOrderUpdated(album: Album) {
     },
     100,
     "setRank/" + album.name,
-    false
+    false,
   );
 }
 
@@ -85,8 +87,8 @@ export async function sortAlbum(album: Album, order: string): Promise<void> {
           return e1.name.toLowerCase() < e2.name.toLowerCase()
             ? -1
             : e1.name.toLowerCase() > e2.name.toLowerCase()
-            ? 1
-            : 0;
+              ? 1
+              : 0;
         });
         await assignRanks(sorted);
         notifyAlbumOrderUpdated(album);
@@ -147,18 +149,49 @@ export async function mediaCount(album: Album): Promise<{ count: number }> {
 }
 
 /**
+ * Returns true if the entry should be included in the filtered list
+ * @param entry The entry
+ * @param AlbumEntryMetaData the picasa metadata for that entry
+ * @param filter a lowercase diacritic-insensitive filter
+ * @returns
+ */
+function inFilter(entry: AlbumEntry, meta: AlbumEntryMetaData, filter: string) {
+  if (filter === "") return true;
+  return (
+    removeDiacritics(entry.name).toLowerCase().includes(filter) ||
+    (meta.caption &&
+      removeDiacritics(meta.caption).toLowerCase().includes(filter)) ||
+    removeDiacritics(entry.album.name).toLowerCase().includes(filter) ||
+    (meta.text && removeDiacritics(meta.text).toLowerCase().includes(filter)) ||
+    (meta.geoPOI &&
+      removeDiacritics(
+        JSON.parse(meta.geoPOI)
+          .map((g: GeoPOI) => g.loc)
+          .join("|"),
+      )
+        .toLowerCase()
+        .includes(filter))
+  );
+}
+
+/**
  * Returns the contents of an album, sorted by its rank
  * @param album
  * @returns
  */
-export async function media(album: Album): Promise<{ entries: AlbumEntry[] }> {
+export async function media(
+  album: Album,
+  filter?: string,
+): Promise<{ entries: AlbumEntry[] }> {
   if (album.kind === AlbumKind.FOLDER) {
     let [picasa, assets] = await Promise.all([
       readAlbumIni(album),
       assetsInFolderAlbum(album),
     ]);
 
-    let entries = assets.entries;
+    let entries = assets.entries.filter((e) =>
+      filter ? inFilter(e, picasa[e.name], filter) : true,
+    );
     for (const entry of entries) {
       if (isPicture(entry)) {
         if (!picasa[entry.name] || !picasa[entry.name].dateTaken) {
@@ -175,7 +208,7 @@ export async function media(album: Album): Promise<{ entries: AlbumEntry[] }> {
             updatePicasaEntry(
               entry,
               "dateTaken",
-              exif.stats.ctime.toISOString()
+              exif.stats.ctime.toISOString(),
             );
           }
         }
@@ -202,14 +235,14 @@ async function sortAssetsByRank(entries: AlbumEntry[]) {
     entries.map(async (entry) => {
       const meta = await getPicasaEntry(entry);
       Object.assign(entry, { rank: meta.rank });
-    })
+    }),
   );
 
   sortByKey(entries as (AlbumEntry & { rank: any })[], ["rank"], ["numeric"]);
 }
 
 export function albumWithData(
-  album: Album | string
+  album: Album | string,
 ): AlbumWithData | undefined {
   const kind = typeof album === "string" ? idFromKey(album).kind : album.kind;
   const key = typeof album === "string" ? album : album.key;
@@ -242,7 +275,7 @@ export async function getAlbumMetadata(album: Album) {
               ini[name].dateTaken = originalEntry.dateTaken;
             if (originalEntry.star) ini[name].star = originalEntry.star;
           }
-        })
+        }),
       );
       return ini;
     }

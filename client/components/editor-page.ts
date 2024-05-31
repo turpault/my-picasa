@@ -77,7 +77,7 @@ const editHTML = `
 export async function makeEditorPage(
   appEvents: AppEventSource,
   selectionManager: AlbumEntrySelectionManager,
-  state: ApplicationState
+  state: ApplicationState,
 ) {
   const editor = $(editHTML);
   editor.hide();
@@ -118,7 +118,7 @@ export async function makeEditorPage(
 
   const refreshTab = () => {
     pages.forEach((page, index) =>
-      page.show(index === parseInt(tabBar.attr("selected")))
+      page.show(index === parseInt(tabBar.attr("selected"))),
     );
   };
   const tabBar = $(".tools-tab-bar-buttons", editor).on("click", refreshTab);
@@ -127,12 +127,12 @@ export async function makeEditorPage(
   const imageController = new ImageController(
     image,
     video,
-    editorSelectionManager
+    editorSelectionManager,
   );
   const toolRegistrar = makeTools(
     editor,
     { wrench, contrast, brush, greenBrush, blueBrush },
-    imageController
+    imageController,
   );
   const toolEditor = new ToolEditor(false, editorControls, imageContainer);
 
@@ -204,7 +204,7 @@ export async function makeEditorPage(
         } else {
           undoBtn.text(`${t("Undo")}`);
         }
-      }
+      },
     ),
     localState.events.on(
       "lastUndone",
@@ -218,7 +218,7 @@ export async function makeEditorPage(
         } else {
           redoBtn.hide();
         }
-      }
+      },
     ),
     undoBtn.on("click", () => {
       const lastOperation = localState.getValue("lastOperation");
@@ -247,13 +247,13 @@ export async function makeEditorPage(
           // Create a new selection manager with the current album
           const active = selectionManager.active();
           const album = active.album;
-          s.media(album).then((e: { entries: AlbumEntry[] }) => {
+          s.media(album, "").then((e: { entries: AlbumEntry[] }) => {
             editorSelectionManager.setSelection(e.entries, active);
           });
         } else {
           editorSelectionManager.setSelection(
             selectionManager.selected(),
-            selectionManager.active()
+            selectionManager.active(),
           );
         }
         editor.show();
@@ -316,7 +316,7 @@ export async function makeEditorPage(
         ) {
           updateStarCount(e.payload);
         }
-      }
+      },
     ),
   ];
   /*const z = $(".zoom-ctrl", tool);

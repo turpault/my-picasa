@@ -13,10 +13,10 @@ export async function setAlbumShortcut(album: Album, shortcut: string) {
   await setPicasaAlbumShortcut(album, shortcut);
 
   if (previous) {
-    addOrRefreshOrDeleteAlbum(previous);
+    addOrRefreshOrDeleteAlbum(previous, undefined, true);
   }
   if (shortcut) {
-    addOrRefreshOrDeleteAlbum(album);
+    addOrRefreshOrDeleteAlbum(album, undefined, true);
   }
 
   broadcast("shortcutsUpdated", {});

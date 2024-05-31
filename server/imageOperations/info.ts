@@ -22,7 +22,7 @@ import { readFile } from "fs/promises";
 import { safeWriteFile } from "../utils/serverUtils";
 
 export async function imageInfo(
-  entry: AlbumEntry
+  entry: AlbumEntry,
 ): Promise<AlbumEntryWithMetadata> {
   const res: AlbumEntryWithMetadata = {
     ...entry,
@@ -48,14 +48,19 @@ export async function imageInfo(
       if (options.filters) {
         await transform(context, options.filters!);
       }
-      const encoded = await encode(context);
-      res.meta.width = encoded.width;
-      res.meta.height = encoded.height;
-      await destroyContext(context);
-      updatePicasaEntries(entry, {
-        dimensions: `${encoded.width}x${encoded.height}`,
-        dimensionsFromFilter: options.filters,
-      });
+      try {
+        const encoded = await encode(context);
+        res.meta.width = encoded.width;
+        res.meta.height = encoded.height;
+        updatePicasaEntries(entry, {
+          dimensions: `${encoded.width}x${encoded.height}`,
+          dimensionsFromFilter: options.filters,
+        });
+      } catch (e) {
+        console.error("Error getting image info", e);
+      } finally {
+        await destroyContext(context);
+      }
     }
     res.meta.transform = options.filters;
   }
@@ -68,7 +73,7 @@ export function entryRelativePath(entry: AlbumEntry): string {
 
 export function addImageInfo(
   image: Buffer,
-  value: { softwareInfo: string; imageDescription: string }
+  value: { softwareInfo: string; imageDescription: string },
 ): Buffer {
   const imageStr = image.toString("binary");
   const exif = load(imageStr);
@@ -76,7 +81,7 @@ export function addImageInfo(
     ...exif["0th"],
     [TagValues.ImageIFD.ProcessingSoftware]: value.softwareInfo,
     [TagValues.ImageIFD.ImageDescription]: removeDiacritics(
-      `${value.softwareInfo}: ${value.imageDescription}`
+      `${value.softwareInfo}: ${value.imageDescription}`,
     ),
   };
   var exifStr = dump(exif);
@@ -94,6 +99,6 @@ export async function updateImageDate(fileName: string, time: Date) {
   var exifStr = dump(exif);
   await safeWriteFile(
     fileName,
-    Buffer.from(insert(exifStr, imageStr), "binary")
+    Buffer.from(insert(exifStr, imageStr), "binary"),
   );
 }

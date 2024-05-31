@@ -123,7 +123,7 @@ export const PicisaClient: ServiceMap = {
     },
     media: {
       handler: media,
-      arguments: ["album:object"],
+      arguments: ["album:object", "filter:string"],
     },
     mediaCount: {
       handler: mediaCount,

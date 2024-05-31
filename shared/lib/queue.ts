@@ -12,8 +12,9 @@ export class Queue {
     this.resolveFct = [];
     this.rejectFct = [];
     this.concurrency = concurrency;
-    this.active = 0;
-    this.total = 0;
+    this._active = 0;
+    this._total = 0;
+    this._done = 0;
     this.options = options || {};
     this.event = buildEmitter<QueueEvent>(false);
   }
@@ -22,16 +23,16 @@ export class Queue {
     return new Promise<T>((resolve, reject) => {
       this.resolveFct.push(resolve);
       this.rejectFct.push(reject);
-      this.total++;
+      this._total++;
       this.changed();
       this.startIfNeeded();
     });
   }
   private changed() {
     this.event.emit("changed", {
-      waiting: this.promises.length - this.active,
-      progress: this.active,
-      done: this.total,
+      waiting: this.promises.length - this._active,
+      progress: this._active,
+      done: this._total,
     });
   }
   clear() {
@@ -42,6 +43,12 @@ export class Queue {
   length() {
     return this.promises.length;
   }
+  done() {
+    return this._done;
+  }
+  total() {
+    return this._total;
+  }
   async drain() {
     return new Promise<void>((resolve) => {
       this.event.once("drain", () => {
@@ -50,7 +57,7 @@ export class Queue {
     });
   }
   async startIfNeeded() {
-    while (this.active < this.concurrency) {
+    while (this._active < this.concurrency) {
       if (this.promises.length > 0) {
         let resolver: Function;
         let rejecter: Function;
@@ -64,7 +71,7 @@ export class Queue {
           resolver = this.resolveFct.pop()!;
           rejecter = this.rejectFct.pop()!;
         }
-        this.active++;
+        this._active++;
         this.changed();
 
         promiseFunctor()
@@ -78,9 +85,10 @@ export class Queue {
           })
           .catch((e: any) => rejecter(e))
           .finally(() => {
-            this.active--;
+            this._done++;
+            this._active--;
             this.changed();
-            if (this.active === 0 && this.promises.length === 0) {
+            if (this._active === 0 && this.promises.length === 0) {
               this.event.emit("drain", {});
             }
             this.startIfNeeded();
@@ -96,7 +104,8 @@ export class Queue {
   private resolveFct: ((v: any) => void)[];
   private rejectFct: ((v: any) => void)[];
   private concurrency: number;
-  private active: number;
-  private total: number;
+  private _active: number;
+  private _total: number;
+  private _done: number;
   private options: { fifo?: boolean };
 }

@@ -50,7 +50,7 @@ const initialVerticalPosition = 10000;
 export async function makePhotoList(
   appEvents: AppEventSource,
   dataSource: AlbumIndexedDataSource,
-  selectionManager: AlbumEntrySelectionManager
+  selectionManager: AlbumEntrySelectionManager,
 ): Promise<_$> {
   appEvents.emit("ready", { state: false });
   let tabIsActive = false;
@@ -104,7 +104,7 @@ export async function makePhotoList(
               const e = entryLeftRight(
                 entry,
                 thumbElementPrefix,
-                code === "ArrowRight"
+                code === "ArrowRight",
               );
               if (e) {
                 if (!meta && !shift) {
@@ -123,7 +123,7 @@ export async function makePhotoList(
               const e = entryAboveBelow(
                 entry,
                 thumbElementPrefix,
-                code === "ArrowDown"
+                code === "ArrowDown",
               );
               if (e) {
                 if (!meta && !shift) {
@@ -174,13 +174,13 @@ export async function makePhotoList(
               if (idx === fromAlbumIndex) {
                 sels.splice(
                   0,
-                  sels.findIndex((e) => e.name === from!.name)
+                  sels.findIndex((e) => e.name === from!.name),
                 );
               }
               if (idx === toAlbumIndex) {
                 sels.splice(
                   sels.findIndex((e) => e.name === to.name) + 1,
-                  sels.length
+                  sels.length,
                 );
               }
               for (const sel of fromAlbumIndex < toAlbumIndex
@@ -247,7 +247,7 @@ export async function makePhotoList(
       newPos,
       dragStartPos,
       selectionManager,
-      thumbElementPrefix
+      thumbElementPrefix,
     );
     // Find all the elements intersecting with the area.
   });
@@ -312,7 +312,7 @@ export async function makePhotoList(
           console.info("photo-list - invalidateAt", event.index);
           const hasChanged = await populateElement(
             element,
-            dataSource.albumAtIndex(event.index)
+            dataSource.albumAtIndex(event.index),
           );
           console.info("photo-list - invalidateAt / after", event.index);
           if (hasChanged) {
@@ -349,7 +349,7 @@ export async function makePhotoList(
           if (indexOf(d) === visible) {
             await populateElement(
               visibleElement()!,
-              dataSource.albumAtIndex(index)
+              dataSource.albumAtIndex(index),
             );
           } else {
             moveToPool(d);
@@ -513,7 +513,7 @@ export async function makePhotoList(
                 visibleScrollArea.bottom + minDistancesAboveBelowFold * 1.5
             ) {
               console.info(
-                `Pruning album ${album.name} : Visible Area = ${visibleScrollArea.top}/${visibleScrollArea.bottom} - Element (${elemPos.top}/${elemPos.bottom})`
+                `Pruning album ${album.name} : Visible Area = ${visibleScrollArea.top}/${visibleScrollArea.bottom} - Element (${elemPos.top}/${elemPos.bottom})`,
               );
               prune.push(elem);
             } else {
@@ -532,7 +532,7 @@ export async function makePhotoList(
           } else {
             topIndex = parseInt(displayed[0].attr("index")!);
             bottomIndex = parseInt(
-              displayed[displayed.length - 1].attr("index")!
+              displayed[displayed.length - 1].attr("index")!,
             );
           }
         }
@@ -609,7 +609,7 @@ export async function makePhotoList(
         for (const elem of displayed.slice(0, parseInt(index)).reverse()) {
           elem.css(
             "top",
-            `${parseInt(lastElem.css("top")) - elem.get().clientHeight}px`
+            `${parseInt(lastElem.css("top")) - elem.get().clientHeight}px`,
           );
           elem.css("opacity", "1");
           lastElem = elem;
@@ -649,7 +649,7 @@ export async function makePhotoList(
         console.info(
           `New top for ${albumFromElement(c, elementPrefix)?.name} is ${
             thisTop - displayedTop
-          }`
+          }`,
         );
         c.css("top", `${thisTop - displayedTop}px`);
       }
@@ -660,7 +660,7 @@ export async function makePhotoList(
   async function albumWithThumbnails(
     album: Album,
     e: _$,
-    events: AlbumListEventSource
+    events: AlbumListEventSource,
   ): Promise<boolean> {
     const headerElement = $(".name-container", e);
     const photosElement = $(".photos", e);
@@ -688,7 +688,7 @@ export async function makePhotoList(
       info.assets.length,
       events,
       selectionManager,
-      thumbElementPrefix
+      thumbElementPrefix,
     );
 
     const keys = info.assets.map((p) => p.name).reverse();
@@ -702,8 +702,8 @@ export async function makePhotoList(
           { album, name },
           info.metadata[name],
           selectionManager,
-          thumbElementPrefix
-        )
+          thumbElementPrefix,
+        ),
       );
     }
     await Promise.allSettled(p);
@@ -730,31 +730,31 @@ export async function makePhotoList(
               <div class="name-container-date"/></div>
               <div class="name-container-buttons"/>
               <picasa-button data-tooltip-below="${t(
-                "Play slideshow"
+                "Play slideshow",
               )}" icon="resources/images/icons/actions/play.svg" class="play-album">Play</picasa-button>
               <picasa-button data-tooltip-below="${t(
-                "Delete Album"
+                "Delete Album",
               )}" class="trash-album" icon="resources/images/icons/actions/trash.svg"></picasa-button>
                 <picasa-button data-tooltip-below="${t(
-                  "Open in Finder"
+                  "Open in Finder",
                 )}" class="open-in-finder" icon="resources/images/icons/actions/finder.svg"></picasa-button>
                 <picasa-button data-tooltip-below="${t(
-                  "Edit Album Name"
+                  "Edit Album Name",
                 )}" class="edit-album-name" icon="resources/images/icons/actions/pen-50.png"></picasa-button>
                 <span  style="display: inline-block; width: 1px;" class="vertical-separator"></span>
                 <picasa-button  data-tooltip-below="${t(
-                  "Sort by Name"
+                  "Sort by Name",
                 )}" class="sort-by-name" icon="resources/images/icons/actions/sort-name-50.png"></picasa-button >
                 <picasa-button  data-tooltip-below="${t(
-                  "Sort by Date"
+                  "Sort by Date",
                 )}" class="sort-by-date" icon="resources/images/icons/actions/sort-date-50.png"></picasa-button >
                 <picasa-button  data-tooltip-below="${t(
-                  "Reverse Sort"
+                  "Reverse Sort",
                 )}" class="reverse-sort" icon="resources/images/icons/actions/sort-reverse-50.png"></picasa-button >
                 <span  style="display: inline-block; width: 1px;" class="vertical-separator"></span>
                 <label>${t("Shortcut")}</label>
                 <select is="picasa-select" data-tooltip-below="${t(
-                  "Select shortcut for this folder"
+                  "Select shortcut for this folder",
                 )}" class="select-shortcut select-no-arrow" icon="resources/images/icons/actions/finger-50.png">
                 <option value="" selected>${t("None")}</option>
                 ${["1", "2", "3", "4", "5", "6", "7", "8", "9"]
@@ -765,7 +765,7 @@ export async function makePhotoList(
           </div>
           <div class="photos album-photos"></div>
         </div>
-      `
+      `,
       );
       const title = $(".name-container-name", e);
       title.on("blur", async () => {
@@ -889,7 +889,7 @@ export async function makePhotoList(
   }
   async function populateElement(
     e: _$,
-    album: AlbumWithData
+    album: AlbumWithData,
   ): Promise<boolean> {
     const hasChanged = await albumWithThumbnails(album, e, events);
     setIdForAlbum(e, album, elementPrefix);
@@ -909,7 +909,7 @@ export async function makePhotoList(
         .get()
         .insertBefore(
           albumElement.get(),
-          container.get().firstChild!.nextSibling
+          container.get().firstChild!.nextSibling,
         );
       displayed.unshift(albumElement);
       console.info(`Adding album ${album.name} at top`);
@@ -967,7 +967,7 @@ export async function makePhotoList(
       const v = visibleElement();
       const album = albumFromElement(v!, elementPrefix)!;
       const s = await getService();
-      const assets = (await s.media(album)).entries;
+      const assets = (await s.media(album, "")).entries;
       initialList = assets;
     }
 

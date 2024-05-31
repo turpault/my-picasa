@@ -1,11 +1,9 @@
 import { readFile } from "fs/promises";
 import { join, relative, sep } from "path";
-import { folder } from "../rpc/rpcFunctions/fs";
-import { sleep } from "../../shared/lib/utils";
-import { imagesRoot } from "../utils/constants";
-import { typeHandlers } from "image-size/dist/types";
-import { convolutionKernels } from "./convolutionFilters/convolutionFilters";
 import { Kernel } from "sharp";
+import { folder } from "../rpc/rpcFunctions/fs";
+import { imagesRoot } from "../utils/constants";
+import { convolutionKernels } from "./convolutionFilters/convolutionFilters";
 const { applyLUT } = require("./native-filters/build/Release/lut3d");
 const { histogram } = require("./native-filters/build/Release/histogram");
 const {
@@ -60,14 +58,14 @@ export async function parseLUTs() {
 export function getFilterGroups(): string[] {
   const groups = Object.values(allFilters).reduce(
     (prev, cur) => (prev.includes(cur.group) ? prev : [...prev, cur.group]),
-    [] as string[]
+    [] as string[],
   );
   return groups;
 }
 
 export function getFilterList(group?: string): string[] {
   return Object.keys(allFilters).filter(
-    (f) => !group || allFilters[f].group === group
+    (f) => !group || allFilters[f].group === group,
   );
 }
 
@@ -122,7 +120,7 @@ async function read3DLUTFile(path: string): Promise<LUT3D> {
 export async function applyFilter(
   buffer: Buffer,
   pixelSize: number,
-  filterName: string
+  filterName: string,
 ): Promise<void> {
   try {
     const lut = await read3DLUT(filterName);
@@ -137,7 +135,7 @@ export async function applyFilter(
 export async function applyAllFilters(
   buffer: Buffer,
   pixelSize: number,
-  group?: string
+  group?: string,
 ): Promise<{ filtered: Buffer; name: string }[]> {
   const filterList = await getFilterList(group);
   const res: { filtered: Buffer; name: string }[] = await Promise.all(
@@ -145,14 +143,14 @@ export async function applyAllFilters(
       const filtered = Buffer.from(buffer);
       await applyFilter(filtered, pixelSize, name);
       return { filtered, name };
-    })
+    }),
   );
   return res;
 }
 
 export async function getHistogram(
   buffer: Buffer,
-  pixelSize: number
+  pixelSize: number,
 ): Promise<{ r: number[]; g: number[]; b: number[] }> {
   const h = histogram(buffer, pixelSize);
   return { r: h[0], g: h[1], b: h[2] };
@@ -161,14 +159,14 @@ export async function getHistogram(
 export async function solarize(
   buffer: Buffer,
   pixelSize: number,
-  threshold: number
+  threshold: number,
 ): Promise<boolean> {
   return solarizeNative(buffer, pixelSize, threshold);
 }
 
 export async function heatmap(
   buffer: Buffer,
-  pixelSize: number
+  pixelSize: number,
 ): Promise<boolean> {
   return heatmapNative(buffer, pixelSize);
 }

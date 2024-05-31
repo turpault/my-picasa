@@ -1,10 +1,7 @@
-import { Queue } from "../../../shared/lib/queue";
 import {
   buildReadySemaphore,
-  encodeRect,
   fromBase64,
   setReady,
-  uuid,
 } from "../../../shared/lib/utils";
 import {
   Album,
@@ -14,9 +11,10 @@ import {
   AlbumWithData,
   Contact,
   FaceData,
-  HashInAlbumList,
+  ContactByHash,
   keyFromID,
 } from "../../../shared/types/types";
+import { getFolderAlbums } from "../../walker";
 import { media } from "../rpcFunctions/albumUtils";
 import {
   getPicasaEntry,
@@ -26,12 +24,7 @@ import {
   updatePicasa,
   updatePicasaEntry,
 } from "../rpcFunctions/picasa-ini";
-import { deleteFaceImage, getFaceImage } from "../rpcFunctions/thumbnail";
-import { join } from "path";
-import { facesFolder } from "../../utils/constants";
-import { readFile } from "fs/promises";
-import { getFolderAlbums, waitUntilWalk } from "../../walker";
-import { isString } from "util";
+import { deleteFaceImage } from "../rpcFunctions/thumbnail";
 
 const readyLabelKey = "faceWalker";
 const ready = buildReadySemaphore(readyLabelKey);
@@ -67,11 +60,9 @@ export function getFaceAlbums(): FaceAlbumWithData[] {
 }
 
 export async function loadFaceAlbums() {
-  await loadReferenceFeatures();
-
   const faceAlbums = await listAlbumsOfKind(AlbumKind.FACE);
   const albumAndData: [Album, AlbumEntry[]][] = await Promise.all(
-    faceAlbums.map(async (album) => [album, await readFaceAlbumEntries(album)])
+    faceAlbums.map(async (album) => [album, await readFaceAlbumEntries(album)]),
   );
   const albumWithData: AlbumWithData[] = albumAndData.map((a) => ({
     ...a[0],
@@ -97,18 +88,18 @@ export async function getFaceData(entry: AlbumEntry): Promise<FaceData> {
     name: picasaEntry.originalName!,
   };
 
-  const [albumKey, label, face] = JSON.parse(fromBase64(entry.name));
+  const [_albumKey, label, face] = JSON.parse(fromBase64(entry.name));
   return { originalEntry, label, ...face, faceAlbum: entry.album };
 }
 
 export async function readFaceAlbumEntries(
-  album: Album
+  album: Album,
 ): Promise<AlbumEntry[]> {
   return await readAlbumEntries(album);
 }
 
 export async function getFaceAlbumsWithData(
-  _filter: string = ""
+  _filter: string = "",
 ): Promise<AlbumWithData[]> {
   // Create 'fake' albums with the faces
   await ready;
@@ -167,53 +158,6 @@ export function getFaceAlbumFromHash(hash: string): FaceAlbumWithData {
 
 export function addFaceAlbumByHash(hash: string, faceAlbum: FaceAlbumWithData) {
   faceAlbumsByHash[hash] = faceAlbum;
-}
-
-export async function loadReferenceFeatures() {
-  // Scan all the contacts
-  const albums = await getFolderAlbums();
-  for (const album of albums) {
-    const picasaIni = await readAlbumIni(album);
-    const contacts = readContacts(picasaIni);
-    const faceAlbumsByName = getFaceAlbumsByName();
-    for (const [hash, contact] of Object.entries(contacts)) {
-      allContacts[contact.key] = contact;
-      if (!faceAlbumsByName[contact.key]) {
-        const faceAlbum: FaceAlbumWithData = {
-          count: 0,
-          name: contact.originalName,
-          key: contact.key,
-          hash: [],
-          kind: AlbumKind.FACE,
-        };
-        faceAlbumsByName[contact.key] = faceAlbum;
-      }
-      const faceAlbum = faceAlbumsByName[contact.key]!;
-
-      faceAlbumsByHash[hash] = faceAlbum;
-    }
-  }
-}
-
-export function readContacts(picasaIni: AlbumMetaData): HashInAlbumList {
-  if (picasaIni.Contacts2) {
-    // includes a map of faces/ids
-    return Object.fromEntries(
-      Object.entries(picasaIni.Contacts2 as { [key: string]: string })
-        .map(([hash, value]) => {
-          if (typeof value === "string" && value.includes(";")) {
-            const [originalName, email, something] = value.split(";");
-            const name = normalizeName(originalName);
-            const key = keyFromID(name, AlbumKind.FACE);
-            return [hash, { originalName, email, something, name, key }];
-          } else {
-            return [hash, null];
-          }
-        })
-        .filter((v) => v[1] !== null)
-    );
-  }
-  return {};
 }
 
 /**

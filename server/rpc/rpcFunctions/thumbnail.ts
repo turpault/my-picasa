@@ -1,8 +1,7 @@
 import { mkdir, readFile, unlink } from "fs/promises";
-import imageSize from "image-size";
 import { extname, join } from "path";
 import { lock } from "../../../shared/lib/mutex";
-import { decodeRotate, isVideo } from "../../../shared/lib/utils";
+import { decodeRotate, isPicture, isVideo } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
   AlbumKind,
@@ -27,29 +26,17 @@ import { getFaceData } from "../albumTypes/faces";
 import { makeProjectThumbnail } from "../albumTypes/projects";
 import { readAlbumIni } from "./picasa-ini";
 import {
-  readThumbnailFromCache,
+  readThumbnailBufferFromCache,
   shouldMakeThumbnail,
   thumbnailPathFromEntryAndSize,
   updateCacheData,
   writeThumbnailToCache,
 } from "./thumbnail-cache";
 
-export async function makeThumbnail(
-  entry: AlbumEntry,
-  size: ThumbnailSize = "th-medium",
-  animated: boolean
-): Promise<Buffer | void> {
-  if (videoExtensions.includes(extname(entry.name).substr(1).toLowerCase())) {
-    return makeVideoThumbnail(entry, size, animated);
-  } else {
-    return makeImageThumbnail(entry, size, animated);
-  }
-}
-
 export async function readOrMakeThumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize = "th-medium",
-  animated: boolean = true
+  animated: boolean = true,
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
   if (entry.album.kind == AlbumKind.FACE) {
     // Extract a face thumbnail
@@ -70,6 +57,24 @@ export async function readOrMakeThumbnail(
   }
 }
 
+export async function makeThumbnailIfNeeded(
+  entry: AlbumEntry,
+  size: ThumbnailSize = "th-medium",
+  animated: boolean = true,
+) {
+  try {
+    if (isPicture(entry)) {
+      return await makeImageThumbnailIfNeeded(entry, size, animated);
+    } else {
+      return await makeVideoThumbnailIfNeeded(entry, size, animated);
+    }
+  } catch (e) {
+    console.error(
+      `Error making thumbnail for ${entry.album.key}/${entry.name}: ${e}`,
+    );
+  }
+}
+
 async function makeFaceThumbnail(entry: AlbumEntry) {
   const data = await getFaceImage(entry);
   const d = await dimensionsFromFileBuffer(data);
@@ -78,7 +83,7 @@ async function makeFaceThumbnail(entry: AlbumEntry) {
 async function makeImageThumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize,
-  animated: boolean
+  animated: boolean,
 ): Promise<Buffer | undefined> {
   const lockLabel = `makeImageThumbnail: ${entry.album.key}-${entry.name}-${size}`;
   const release = await lock(lockLabel);
@@ -107,7 +112,7 @@ async function makeImageThumbnail(
       transform,
       size,
       `${res.width}x${res.height}`,
-      rotate
+      rotate,
     );
     await writeThumbnailToCache(entry, size, res.data, animated);
     return res.data;
@@ -117,46 +122,45 @@ async function makeImageThumbnail(
   }
 }
 
-async function readOrMakeImageThumbnail(
+async function makeImageThumbnailIfNeeded(
   entry: AlbumEntry,
   size: ThumbnailSize,
-  animated: boolean
-): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
-  const lockLabel = `readOrMakeImageThumbnail: ${entry.album.key}-${entry.name}-${size}`;
-  const release = await lock(lockLabel);
+  animated: boolean,
+) {
   inc("thumbnail");
   try {
     if (await shouldMakeThumbnail(entry, size, animated)) {
       await makeImageThumbnail(entry, size, animated);
     }
-    let jpegBuffer = await readThumbnailFromCache(entry, size, animated);
-    if (!jpegBuffer) {
-      throw new Error("Cannot read thumbnail buffer");
-    }
-    const imgSize = imageSize(jpegBuffer);
-
-    return {
-      data: jpegBuffer,
-      width: imgSize.width!,
-      height: imgSize.height!,
-      mime: "image/jpeg",
-    };
   } finally {
     dec("thumbnail");
-    release();
   }
+}
+
+async function readOrMakeImageThumbnail(
+  entry: AlbumEntry,
+  size: ThumbnailSize,
+  animated: boolean,
+): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
+  let jpegBuffer = await readThumbnailBufferFromCache(entry, size, animated);
+  if (!jpegBuffer) {
+    throw new Error("Cannot read thumbnail buffer");
+  }
+  const imgSize = dimensionsFromFileBuffer(jpegBuffer);
+
+  return {
+    data: jpegBuffer,
+    width: imgSize.width!,
+    height: imgSize.height!,
+    mime: "image/jpeg",
+  };
 }
 
 async function makeVideoThumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize = "th-medium",
-  animated: boolean
+  animated: boolean,
 ): Promise<undefined | Buffer> {
-  const { path } = thumbnailPathFromEntryAndSize(entry, size, animated);
-  if (!(await shouldMakeThumbnail(entry, size, animated))) {
-    return undefined;
-  }
-
   const unlock = await lock(
     "makeVideoThumbnail: " +
       entry.album.key +
@@ -164,7 +168,7 @@ async function makeVideoThumbnail(
       entry.name +
       " " +
       size +
-      (animated ? " animated" : "")
+      (animated ? " animated" : ""),
   );
   try {
     const picasa = await readAlbumIni(entry.album);
@@ -174,15 +178,16 @@ async function makeVideoThumbnail(
       rotate: decodeRotate(rotate),
       transform,
     });
-    const imgSize = imageSize(data);
+    const imgSize = dimensionsFromFileBuffer(data);
+    await writeThumbnailToCache(entry, size, data, animated);
+
     await Promise.all([
-      safeWriteFile(path, data),
       updateCacheData(
         entry,
         transform,
         size,
         `${imgSize.width!}x${imgSize.height!}`,
-        rotate
+        rotate,
       ),
     ]);
     return data;
@@ -191,63 +196,66 @@ async function makeVideoThumbnail(
   }
 }
 
+async function makeVideoThumbnailIfNeeded(
+  entry: AlbumEntry,
+  size: ThumbnailSize,
+  animated: boolean,
+) {
+  inc("thumbnail");
+  try {
+    if (await shouldMakeThumbnail(entry, size, animated)) {
+      await makeVideoThumbnail(entry, size, animated);
+    }
+  } finally {
+    dec("thumbnail");
+  }
+}
+
 async function readOrMakeVideoThumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize,
-  animated: boolean
+  animated: boolean,
 ): Promise<{ data: Buffer; width: number; height: number; mime: string }> {
   let res: { data: Buffer; width: number; height: number } | undefined;
+  await makeVideoThumbnailIfNeeded(entry, size, animated);
   const { path, mime } = thumbnailPathFromEntryAndSize(entry, size, animated);
-  if (await shouldMakeThumbnail(entry, size, animated)) {
-    const data = await makeVideoThumbnail(entry, size, animated);
-    if (data) {
-      const d = await dimensionsFromFileBuffer(data);
-      res = { data, ...d };
-    }
-  } else {
-    const data = await readFile(path);
-    const d = await dimensionsFromFileBuffer(data);
-    res = { data, ...d };
-  }
-  if (!res) {
-    throw new Error("No result");
-  } else {
-    return { ...res, mime };
-  }
+  const data = await readFile(path);
+  const d = await dimensionsFromFileBuffer(data);
+  return { data, ...d, mime };
 }
 
 function faceImagePath(
   entry: AlbumEntry,
-  faceData: FaceData
+  faceData: FaceData,
 ): { folder: string; path: string } {
   const folder = join(
     facesFolder,
     "thumbnails",
-    faceData.originalEntry.album.name
+    faceData.originalEntry.album.name,
   );
   return {
     folder,
     path: join(
       folder,
       `${faceData.hash}-${faceData.rect}-${removeExtension(
-        faceData.originalEntry.name
-      )}.jpg`
+        faceData.originalEntry.name,
+      )}.jpg`,
     ),
   };
 }
 export async function getFaceImage(entry: AlbumEntry): Promise<Buffer>;
 export async function getFaceImage(
   entry: AlbumEntry,
-  onlyCheck: boolean
+  onlyCheck: boolean,
 ): Promise<void>;
 export async function getFaceImage(
   entry: AlbumEntry,
-  onlyCheck: boolean = false
+  onlyCheck: boolean = false,
 ): Promise<void | Buffer> {
   const faceData = await getFaceData(entry);
   const { folder, path } = faceImagePath(entry, faceData);
   const unlock = await lock(
-    "getFaceImage: " + entry.album.key + " " + entry.name
+    "getFaceImage: " + entry.album.key + " " + entry.name,
   );
   try {
     if (!(await fileExists(path))) {

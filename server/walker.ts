@@ -38,7 +38,11 @@ export async function updateLastWalkLoop() {
     console.info(`Filesystem scan: iteration ${iteration}`);
     const old = [...lastWalk];
     walk("", imagesRoot, async (a: Album) => {
-      addOrRefreshOrDeleteAlbum(a, "SkipCheckInfo");
+      addOrRefreshOrDeleteAlbum(
+        a,
+        "SkipCheckInfo",
+        true /* we know it's added */,
+      );
     });
     await walkQueue.drain();
     const deletedAlbums: AlbumWithData[] = [];
@@ -67,7 +71,7 @@ export async function updateLastWalkLoop() {
       setReady(readyLabelKey);
     }
     iteration++;
-    await sleep(60 * 3); // Wait 3 minutes
+    await sleep(60 * 60); // Wait 60 minutes
   }
 }
 export async function waitUntilWalk() {
@@ -83,7 +87,7 @@ export async function refreshAlbumKeys(albums: string[]) {
       .map((key) => {
         return lastWalk.find((album) => album.key === key);
       })
-      .map((album) => addOrRefreshOrDeleteAlbum(album))
+      .map((album) => addOrRefreshOrDeleteAlbum(album)),
   );
 }
 
@@ -130,14 +134,15 @@ async function folderAlbumExists(album: Album): Promise<boolean> {
 
 export async function addOrRefreshOrDeleteAlbum(
   album: Album | undefined,
-  options?: "SkipCheckInfo"
+  options?: "SkipCheckInfo",
+  added?: boolean,
 ) {
   if (!album) {
     return;
   }
   if (lastWalk) {
     const idx = lastWalk.findIndex((f) => f.key == album.key);
-    if (!(await folderAlbumExists(album))) {
+    if (!added && !(await folderAlbumExists(album))) {
       if (idx >= 0) {
         const data = lastWalk.splice(idx, 1)[0];
         queueNotification({ type: "albumDeleted", album: data });
@@ -186,7 +191,7 @@ export async function addOrRefreshOrDeleteAlbum(
 async function walk(
   name: string,
   path: string,
-  cb: (a: Album) => Promise<void>
+  cb: (a: Album) => Promise<void>,
 ): Promise<void> {
   // Exclude special folders
   if (specialFolders.includes(path)) {
@@ -202,7 +207,7 @@ async function walk(
   // depth down first
   for (const child of m.folders.sort(alphaSorter()).reverse()) {
     walkQueue.add<Album[]>(() =>
-      walk(child.normalize(), join(path, child), cb)
+      walk(child.normalize(), join(path, child), cb),
     );
   }
 

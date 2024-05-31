@@ -65,7 +65,7 @@ function deleteFSJob(job: Job) {
 
 export async function createFSJob(
   jobName: string,
-  jobArgs: object
+  jobArgs: object,
 ): Promise<string> {
   const jobId = `Job:${uuid()}`;
   const completion = await lock(jobId);
@@ -214,7 +214,7 @@ async function copyJob(job: Job): Promise<Album[]> {
         const newEntry = { album: dest, name: targetName };
         await copyFile(
           entryFilePath(s),
-          join(imagesRoot, idFromKey(dest.key).id, targetName)
+          join(imagesRoot, idFromKey(dest.key).id, targetName),
         );
         await copyMetadata(s, newEntry, false);
         job.out.push(newEntry);
@@ -225,7 +225,7 @@ async function copyJob(job: Job): Promise<Album[]> {
         job.progress.remaining--;
         job.changed();
       }
-    })
+    }),
   );
   job.status = "finished";
   job.changed();
@@ -272,7 +272,7 @@ async function deleteAlbumJob(job: Job): Promise<Album[]> {
   addToUndo(
     JOBNAMES.RESTORE_ALBUM,
     `Delete album $1|${source.name}`,
-    undoDeleteAlbumPayload
+    undoDeleteAlbumPayload,
   );
   job.status = "finished";
   job.changed();
@@ -307,7 +307,7 @@ async function renameAlbumJob(job: Job): Promise<Album[]> {
   try {
     await rename(
       join(imagesRoot, idFromKey(source.key).id),
-      join(imagesRoot, idFromKey(targetAlbum.key).id)
+      join(imagesRoot, idFromKey(targetAlbum.key).id),
     );
     undoDeleteAlbumPayload.source = targetAlbum;
     onRenamedAlbums(source, targetAlbum);
@@ -321,7 +321,7 @@ async function renameAlbumJob(job: Job): Promise<Album[]> {
     addToUndo(
       JOBNAMES.RENAME_ALBUM,
       `Rename album $1 to $2|${source.name}|${targetAlbum.name}`,
-      undoDeleteAlbumPayload
+      undoDeleteAlbumPayload,
     );
   }
   job.status = "finished";
@@ -354,7 +354,7 @@ async function restoreJob(job: Job): Promise<Album[]> {
         job.progress.remaining--;
         job.changed();
       }
-    })
+    }),
   );
   job.status = "finished";
   job.changed();
@@ -377,7 +377,7 @@ async function restoreAlbumJob(job: Job): Promise<Album[]> {
     }
     const newKey = join(
       dirname(idFromKey(source.key).id),
-      basename(source.key).substr(1)
+      basename(source.key).substr(1),
     );
     const to = join(imagesRoot, idFromKey(newKey).id);
     await rename(from, to);
@@ -387,7 +387,7 @@ async function restoreAlbumJob(job: Job): Promise<Album[]> {
         key: keyFromID(newKey, AlbumKind.FOLDER),
         kind: AlbumKind.FOLDER,
       },
-      updatedAlbums
+      updatedAlbums,
     );
   } catch (e: any) {
     job.errors.push(e.message as string);
@@ -432,12 +432,12 @@ async function deleteJob(job: Job): Promise<Album[]> {
         job.progress.remaining--;
         job.changed();
       }
-    })
+    }),
   );
   addToUndo(
     JOBNAMES.RESTORE,
     `Delete $1 files...|${source.length}`,
-    undoDeletePayload
+    undoDeletePayload,
   );
   job.status = "finished";
   job.changed();
@@ -470,7 +470,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
         let destPath = join(
           imagesRoot,
           idFromKey(s.destination.key).id,
-          targetName
+          targetName,
         );
         let idx = 1;
         while (!found) {
@@ -485,7 +485,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
               destPath = join(
                 imagesRoot,
                 idFromKey(s.destination.key).id,
-                targetName
+                targetName,
               );
             })
             .catch((e) => {});
@@ -493,11 +493,11 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
         await copyMetadata(
           s.source,
           { album: s.destination, name: targetName },
-          true
+          true,
         );
         await rename(
           entryFilePath(s.source),
-          join(imagesRoot, idFromKey(s.destination.key).id, targetName)
+          join(imagesRoot, idFromKey(s.destination.key).id, targetName),
         );
         undoMultiMovePayload.source.push({
           source: {
@@ -524,7 +524,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
     addToUndo(
       JOBNAMES.MULTI_MOVE,
       `Move $1 files to $2...|${source.length}|${source[0].destination.name}`,
-      undoMultiMovePayload
+      undoMultiMovePayload,
     );
   }
   job.status = "finished";
@@ -546,7 +546,7 @@ async function exportJob(job: Job): Promise<Album[]> {
     ? join(imagesRoot, idFromKey(destination.key).id)
     : join(
         exportsFolder,
-        "exports-" + new Date().toLocaleString().replace(/\//g, "-")
+        "exports-" + new Date().toLocaleString().replace(/\//g, "-"),
       );
   job.name = "Exporting to " + (destination ? destination.name : targetFolder);
   await mkdir(targetFolder, { recursive: true });
@@ -566,7 +566,7 @@ async function exportJob(job: Job): Promise<Album[]> {
   if (!destination) {
     openWithFinder(targetFolder, true);
   } else {
-    addOrRefreshOrDeleteAlbum(destination);
+    addOrRefreshOrDeleteAlbum(destination, undefined, true);
   }
   return [];
 }
@@ -587,7 +587,7 @@ async function buildProject(job: Job): Promise<Album[]> {
         case ProjectType.MOSAIC:
           const newEntry = await generateMosaicFile(
             source,
-            job.data.argument.width
+            job.data.argument.width,
           );
           updatedAlbums.push(source.album);
           job.out = job.out ? [...job.out, newEntry] : [newEntry];
@@ -605,7 +605,7 @@ async function buildProject(job: Job): Promise<Album[]> {
 async function copyMetadata(
   source: AlbumEntry,
   dest: AlbumEntry,
-  deleteSource: boolean = false
+  deleteSource: boolean = false,
 ) {
   const sourceIniData = await readAlbumIni(source.album);
   if (sourceIniData[source.name]) {

@@ -11,13 +11,14 @@ function line(bucket: string, type: string, data: string) {
 const statFile = join(imagesRoot, ".mypicasa.stats");
 function getStream() {
   const self = getStream as any;
-  self._stream = self.stream || createWriteStream(statFile, {
-  flags: "a",
-  encoding: "utf-8",
-});
+  self._stream =
+    self._stream ||
+    createWriteStream(statFile, {
+      flags: "a",
+      encoding: "utf-8",
+    });
   return self._stream as WriteStream;
 }
-
 
 const delays: { [id: string]: { name: string; start: number } } = {};
 export function delayStart(name: string): string {
@@ -61,14 +62,14 @@ export async function history(): Promise<object> {
       case "delta":
         bucketVals.set(
           bucket,
-          (val = (bucketVals.get(bucket) || 0) + parseInt(data))
+          (val = (bucketVals.get(bucket) || 0) + parseInt(data)),
         );
         break;
       case "rate":
         const dateDiv = Math.floor(dateInSec / parseInt(data));
         bucketVals.set(
           bucket + dateDiv,
-          (val = (bucketVals.get(bucket + dateDiv) || 0) + 1)
+          (val = (bucketVals.get(bucket + dateDiv) || 0) + 1),
         );
         break;
       case "set":

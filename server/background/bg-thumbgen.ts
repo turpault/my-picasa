@@ -1,18 +1,10 @@
-import { watch } from "fs";
-import { isMediaUrl, sleep } from "../../shared/lib/utils";
+import Debug from "debug";
 import { AlbumEntry, ThumbnailSizeVals } from "../../shared/types/types";
 import { imageInfo } from "../imageOperations/info";
 import { media } from "../rpc/rpcFunctions/albumUtils";
-import {
-  makeThumbnail,
-  readOrMakeThumbnail,
-} from "../rpc/rpcFunctions/thumbnail";
-import { waitUntilIdle } from "../utils/busy";
-import { imagesRoot } from "../utils/constants";
+import { makeThumbnailIfNeeded } from "../rpc/rpcFunctions/thumbnail";
 import { folders, waitUntilWalk } from "../walker";
-
-const USE_SPINNER = false;
-
+const debug = Debug("app:bg-thumbgen");
 export async function buildThumbs() {
   await waitUntilWalk();
   const sizes = ThumbnailSizeVals.filter((f) => !f.includes("large"))
@@ -22,14 +14,7 @@ export async function buildThumbs() {
     ])
     .flat();
   const albums = await folders("");
-  let hasCreatedThumb = false;
-  let lastActivity = Date.now();
   for (const album of albums.reverse()) {
-    if (hasCreatedThumb) {
-      await sleep(1);
-    } else {
-      await sleep(0.1);
-    }
     let m: { entries: AlbumEntry[] };
     try {
       m = await media(album);
@@ -37,24 +22,16 @@ export async function buildThumbs() {
       // Yuck folder is gone...
       continue;
     }
-    for (const picture of m.entries) {
-      await waitUntilIdle();
-      await imageInfo(picture);
-      const should = await Promise.all(
-        sizes.map(({ size, animated }) =>
-          readOrMakeThumbnail(picture, size, animated)
-        )
-      );
-      if (should.filter((s) => s).length > 0) {
+    debug("buildThumbs: Processing album", album.name);
+    await Promise.all(
+      m.entries.map(async (picture) => {
+        await imageInfo(picture);
         await Promise.all(
           sizes.map(({ size, animated }) =>
-            makeThumbnail(picture, size, animated)
-          )
+            makeThumbnailIfNeeded(picture, size, animated),
+          ),
         );
-        if (Date.now() > lastActivity + 2000) {
-          lastActivity = Date.now();
-        }
-      }
-    }
+      }),
+    );
   }
 }

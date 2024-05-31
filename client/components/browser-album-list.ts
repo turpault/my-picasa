@@ -21,7 +21,7 @@ const html = `<div class="w3-theme fill folder-pane">
 export async function makeAlbumList(
   appEvents: AppEventSource,
   albumDataSource: AlbumIndexedDataSource,
-  selectionManager: AlbumEntrySelectionManager
+  selectionManager: AlbumEntrySelectionManager,
 ) {
   const container = $(html);
 
@@ -44,10 +44,10 @@ export async function makeAlbumList(
       `
       <div class="folder-row ${node.collapsed ? "folder-collapsed" : ""}">
         <div class="browser-list-head browser-list-head-${indent}">${
-        node.name
-      }</div>
+          node.name
+        }</div>
         <div class="browser-list-albums"></div>
-      </div>`
+      </div>`,
     );
     setElementNodeId(node, e);
     $(".browser-list-head", e).attachData({ node });
@@ -71,7 +71,7 @@ export async function makeAlbumList(
       <div class="browser-list-text">
       <span class="browser-list-count"/>${album.count}</span>
       <div class="browser-list-label">${label}</div>
-      </div>`
+      </div>`,
     );
     setIdForAlbum(r, album, elementPrefix);
     return r;
@@ -159,7 +159,7 @@ export async function makeAlbumList(
         const album = albumFromElement(item, elementPrefix)!;
         if (!album) return;
         const s = await getService();
-        const media = await s.media(album);
+        const media = await s.media(album, "");
         selectionManager.setSelection(media.entries);
       })
       .on("dragenter", (ev: DragEvent) => {
