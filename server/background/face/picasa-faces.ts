@@ -1,17 +1,24 @@
 import {
-  FaceList,
   decodeFaces,
   encodeFaces,
   idFromAlbumEntry,
 } from "../../../shared/lib/utils";
 import {
+  FaceList,
   Album,
   AlbumEntry,
   Contact,
   ContactByHash,
+  Face,
+  AlbumEntryMetaData,
 } from "../../../shared/types/types";
+import {
+  addReferenceToFaceAlbum,
+  removeReferenceToFaceAlbum,
+} from "../../rpc/albumTypes/faces";
 import { media } from "../../rpc/rpcFunctions/albumUtils";
 import {
+  PicasaBaseKeys,
   getPicasaEntry,
   readAlbumIni,
   readContacts,
@@ -71,12 +78,38 @@ export async function addFaceRectToEntry(
   if (faces.find((f) => f.hash === referenceId)) {
     return;
   }
-  faces.push({
+  const face: Face = {
     hash: referenceId,
     rect,
-  });
-  addContact(entry.album, referenceId, contact);
-  return updatePicasaEntry(entry, name, encodeFaces(faces));
+  };
+  faces.push(face);
+  await Promise.all([
+    addContact(entry.album, referenceId, contact),
+    addReferenceToFaceAlbum(face, referenceId, contact),
+    updatePicasaEntry(entry, name, encodeFaces(faces)),
+  ]);
+  return;
+}
+
+export async function removeFaceFromEntry(
+  entry: AlbumEntry,
+  face: Face,
+  contact: Contact,
+) {
+  const current = await getPicasaEntry(entry);
+  for (const name of [
+    "faces",
+    "candidateFaces",
+  ] as (keyof AlbumEntryMetaData)[]) {
+    const iniFaces = (current[name] as string) || "";
+    const faces = decodeFaces(iniFaces);
+    const newFaces = faces.filter((f) => f.hash !== face.hash);
+    if (faces.length !== newFaces.length) {
+      removeReferenceToFaceAlbum(contact, face.hash);
+      updatePicasaEntry(entry, name, encodeFaces(newFaces));
+    }
+  }
+  return;
 }
 
 async function addContact(album: Album, hash: string, contact: Contact) {
@@ -84,6 +117,6 @@ async function addContact(album: Album, hash: string, contact: Contact) {
     album,
     hash,
     [contact.originalName, contact.email, contact.something].join(";"),
-    "Contacts2",
+    PicasaBaseKeys.Contacts2,
   );
 }

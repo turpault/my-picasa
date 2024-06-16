@@ -175,10 +175,10 @@ export type FolderEvent = {
   updated: { folders: Album[] };
 };
 
-export type FaceData = {
-  faceAlbum: Album;
-  hash: string;
-  rect: string;
+export type Face = { hash: string; rect: string };
+export type FaceList = Face[];
+
+export type FaceData = Face & {
   label: string;
   originalEntry: AlbumEntry;
 };

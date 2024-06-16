@@ -20,7 +20,6 @@ import {
   transform,
 } from "../imageOperations/sharp-processor";
 import { undo, undoList } from "../utils/undo";
-import { getFaceAlbumFromHash } from "./albumTypes/faces";
 import {
   createProject,
   getProject,
@@ -238,10 +237,6 @@ export const PicisaClient: ServiceMap = {
     getSourceEntry: {
       handler: getSourceEntry,
       arguments: ["entry:object"],
-    },
-    getFaceAlbumFromHash: {
-      handler: getFaceAlbumFromHash,
-      arguments: ["hash:string"],
     },
     rotate: {
       handler: rotate,

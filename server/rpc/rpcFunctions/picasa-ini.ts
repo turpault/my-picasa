@@ -4,7 +4,6 @@ import ini from "../../../shared/lib/ini";
 import { lock } from "../../../shared/lib/mutex";
 import { MAX_STAR } from "../../../shared/lib/shared-constants";
 import {
-  FaceList,
   decodeFaces,
   decodeRotate,
   encodeFaces,
@@ -12,6 +11,7 @@ import {
   sleep,
 } from "../../../shared/lib/utils";
 import {
+  FaceList,
   Album,
   AlbumEntry,
   AlbumEntryMetaData,
@@ -23,6 +23,7 @@ import {
   extraFields,
   idFromKey,
   keyFromID,
+  Contact,
 } from "../../../shared/types/types";
 import { events } from "../../events/server-events";
 import {
@@ -72,6 +73,14 @@ function albumPath(album: Album): string {
   }
 }
 
+export function albumFromNameAndKind(name: string, kind: AlbumKind): Album {
+  return {
+    kind,
+    key: keyFromID(name, kind),
+    name,
+  };
+}
+
 function albumFromPath(path: string): Album {
   let kind: AlbumKind;
   if (path.startsWith(facesFolder)) {
@@ -83,11 +92,7 @@ function albumFromPath(path: string): Album {
   }
   const fileName = basename(path);
   const name = fileName.split(".ini")[0];
-  return {
-    kind,
-    key: keyFromID(name, kind),
-    name,
-  };
+  return albumFromNameAndKind(name, kind);
 }
 
 export async function picasaIniCacheWriter() {
@@ -115,21 +120,33 @@ export async function picasaIniCacheWriter() {
       }
     });
     const picasaIniSleepDelay = parseInt(
-      process.env.PICASA_INI_SLEEP_DELAY || "10",
+      process.env.PICASA_WRITE_SLEEP_DELAY || "10",
     );
     await sleep(picasaIniSleepDelay);
   }
 }
 
+export const PicasaBaseKeys = {
+  Contacts2: "Contacts2",
+  Picasa: "Picasa",
+  contact: "contact",
+};
+
 export async function readAlbumEntries(album: Album): Promise<AlbumEntry[]> {
+  const keys = Object.values(PicasaBaseKeys);
   const data = await readAlbumIni(album);
-  return Object.keys(data).map((key) => ({
-    album,
-    name: key,
-  }));
+  return Object.keys(data)
+    .filter((k) => !keys.includes(k))
+    .map((key) => ({
+      album,
+      name: key,
+    }));
 }
 
-export async function listAlbumsOfKind(kind: AlbumKind): Promise<Album[]> {
+export async function listAlbumsOfKind(
+  kind: AlbumKind,
+  filter?: string,
+): Promise<Album[]> {
   const d = {
     [AlbumKind.FACE]: facesFolder,
     [AlbumKind.PROJECT]: projectFolder,
@@ -140,7 +157,14 @@ export async function listAlbumsOfKind(kind: AlbumKind): Promise<Album[]> {
     await mkdir(d, { recursive: true });
   }
   const files = await readdir(d);
-  const iniFiles = files.filter((file) => file.endsWith(".ini"));
+  const iniFiles = files
+    .filter((file) => file.endsWith(".ini") && !file.startsWith("."))
+    .filter((file) => {
+      if (filter) {
+        return file.includes(filter);
+      }
+      return true;
+    });
   return iniFiles.map((ini) => join(d, ini)).map(albumFromPath);
 }
 
@@ -168,8 +192,11 @@ export async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
         writePicasaIni(album, i);
       }
     }
-    if (i?.Picasa?.shortcut !== undefined && !shortcuts[i.Picasa.shortcut]) {
-      shortcuts[i.Picasa.shortcut] = album;
+    if (
+      i[PicasaBaseKeys.Picasa]?.shortcut !== undefined &&
+      !shortcuts[i[PicasaBaseKeys.Picasa].shortcut]
+    ) {
+      shortcuts[i[PicasaBaseKeys.Picasa].shortcut] = album;
       broadcast("shortcutsUpdated", {});
     }
 
@@ -215,18 +242,27 @@ export async function getPicasaEntry(
   return picasa[entry.name];
 }
 
-async function readPicasaSection(
+export async function readPicasaSection(
   album: Album,
-  section: string = "Picasa",
+  section: string = PicasaBaseKeys.Picasa,
 ): Promise<PicasaSection> {
-  if (album.kind === AlbumKind.FOLDER) {
-    const picasa = await readAlbumIni(album);
-    picasa[section] = picasa[section] || {};
-    return picasa[section] as PicasaSection;
-  } else
-    return {
-      shortcut: "",
-    };
+  const picasa = await readAlbumIni(album);
+  picasa[section] = picasa[section] || {};
+  return picasa[section] as PicasaSection;
+}
+export function writePicasaSection(
+  album: Album,
+  section: string,
+  data: PicasaSection,
+) {
+  for (const key in data) {
+    updatePicasa(album, key, data[key], section);
+  }
+}
+export async function deletePicasaSection(album: Album, section: string) {
+  const albumData = await readAlbumIni(album);
+  delete albumData[section];
+  writePicasaIni(album, albumData);
 }
 
 export async function readShortcut(album: Album): Promise<string | undefined> {
@@ -331,7 +367,7 @@ export async function updatePicasa(
   album: Album,
   field: string | null,
   value: string | null,
-  group: string = "Picasa",
+  group: string = PicasaBaseKeys.Picasa,
 ) {
   if (group.normalize() !== group) {
     debugger;
@@ -443,10 +479,12 @@ export async function updatePicasaEntries(
 }
 
 export function readContacts(picasaIni: AlbumMetaData): ContactByHash {
-  if (picasaIni.Contacts2) {
+  if (picasaIni[PicasaBaseKeys.Contacts2]) {
     // includes a map of faces/ids
     return Object.fromEntries(
-      Object.entries(picasaIni.Contacts2 as { [key: string]: string })
+      Object.entries(
+        picasaIni[PicasaBaseKeys.Contacts2] as { [key: string]: string },
+      )
         .map(([hash, value]) => {
           if (typeof value === "string" && value.includes(";")) {
             const [originalName, email, something] = value.split(";");
@@ -463,9 +501,25 @@ export function readContacts(picasaIni: AlbumMetaData): ContactByHash {
   return {};
 }
 
+export async function updateContactInAlbum(
+  album: Album,
+  hash: string,
+  contact: Contact,
+) {
+  const picasa = await readAlbumIni(album);
+  const contacts2 = (picasa[PicasaBaseKeys.Contacts2] =
+    picasa[PicasaBaseKeys.Contacts2] || {});
+  const value = `${contact.originalName};${contact.email};${contact.something}`;
+  if ((contacts2 as any)[hash] !== value) {
+    (contacts2 as any)[hash] =
+      `${contact.originalName};${contact.email};${contact.something}`;
+    writePicasaIni(album, picasa);
+  }
+}
+
 function dataFix(album: Album, i: AlbumMetaData): boolean {
   let changed = false;
-  const picasa = i.Picasa as PicasaSection;
+  const picasa = i[PicasaBaseKeys.Picasa] as PicasaSection;
 
   if (picasa && picasa.name && picasa.name !== album.name) {
     picasa.name = album.name;
@@ -487,7 +541,9 @@ function dataFix(album: Album, i: AlbumMetaData): boolean {
   }
 
   // remove legacy faceHashes
-  const contacts = (i.Contacts2 || {}) as { [key: string]: string };
+  const contacts = (i[PicasaBaseKeys.Contacts2] || {}) as {
+    [key: string]: string;
+  };
   for (const key in i) {
     if (i[key].faces !== undefined) {
       const faces: FaceList = [];

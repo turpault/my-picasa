@@ -3,6 +3,7 @@ import {
   Album,
   AlbumEntry,
   AlbumKind,
+  FaceList,
   animatedPictureExtensions,
   pictureExtensions,
   videoExtensions,
@@ -91,6 +92,15 @@ export function alphaSorter(
     return 0;
   };
 }
+export function mergeObjects<T>(a?: T, b?: Partial<T>): T {
+  const res = { ...a };
+  for (const key of Object.keys({ ...b, ...a })) {
+    if (b[key as keyof T]) {
+      res[key as keyof T] = b[key as keyof T] as any;
+    }
+  }
+  return res;
+}
 
 export function removeDiacritics(from: string): string {
   return from.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -100,6 +110,16 @@ export function uuid(): string {
   return (
     new Date().getTime().toString(36) + Math.random().toString(36).slice(2)
   );
+}
+
+export function hash(from: string): string {
+  return from
+    .split("")
+    .reduce((a, b) => {
+      a = (a << 5) - a + b.charCodeAt(0);
+      return a & a;
+    }, 0)
+    .toString(36);
 }
 
 export function fixedEncodeURIComponent(str: string): string {
@@ -345,8 +365,6 @@ export function decodeOperations(operations: string): PicasaFilter[] {
   return res;
 }
 
-export type Face = { hash: string; rect: string };
-export type FaceList = Face[];
 export function decodeFaces(faces: string): FaceList {
   return faces
     .split(";")

@@ -116,7 +116,7 @@ async function allPhotosInPhotoApp(): Promise<string[]> {
     spawn("sqlite3", [
       photoLibrary(),
       "select ZORIGINALFILENAME  from ZADDITIONALASSETATTRIBUTES",
-    ]).stdout
+    ]).stdout,
   );
   return list.split("\n").map(pruneExtraData);
 }
@@ -137,7 +137,7 @@ async function exportFavorite(entry: AlbumEntry): Promise<void> {
 
   const targetFileName = join(
     targetFolder,
-    entry.album.name + "-" + entry.name
+    entry.album.name + "-" + entry.name,
   );
   const entryMeta = (await readAlbumIni(entry.album))[entry.name];
   if (!entryMeta.star) return;
@@ -150,22 +150,22 @@ async function exportFavorite(entry: AlbumEntry): Promise<void> {
         entry,
         entry,
         `compress=1,${RESIZE_ON_EXPORT_SIZE},;` +
-        transform +
-        `;label=1,${encodeURIComponent(
-          imageLabel
-        )},25,south` /*;exif=${encodeURIComponent(JSON.stringify(exif))}*/,
-        []
+          transform +
+          `;label=1,${encodeURIComponent(
+            imageLabel,
+          )},25,south` /*;exif=${encodeURIComponent(JSON.stringify(exif))}*/,
+        [],
       );
       await safeWriteFile(
         targetFileName,
         addImageInfo(res.data, {
           softwareInfo: "PICISA",
           imageDescription: entry.album.name,
-        })
+        }),
       );
       const tags = await exifr.parse(targetFileName).catch((e: any) => {
         console.error(
-          `Exception while reading exif for ${targetFileName}: ${e}`
+          `Exception while reading exif for ${targetFileName}: ${e}`,
         );
         return {};
       });
@@ -188,7 +188,7 @@ async function exportFavorite(entry: AlbumEntry): Promise<void> {
       await utimes(
         targetFileName,
         albumNameToDate(entry.album.name),
-        albumNameToDate(entry.album.name)
+        albumNameToDate(entry.album.name),
       );
     }
   }
@@ -218,7 +218,7 @@ export async function syncFavoritesFromPhotoApp() {
   let scanned: PhotoFromPhotoApp[] = [];
   try {
     scanned = JSON.parse(
-      await readFile(scannedFavorties, { encoding: "utf-8" })
+      await readFile(scannedFavorties, { encoding: "utf-8" }),
     ) as PhotoFromPhotoApp[];
   } catch (e) {
     console.error(`Error reading scanned favorites: ${e}`);
@@ -227,11 +227,11 @@ export async function syncFavoritesFromPhotoApp() {
   const memoize = memoizer();
   await getPhotoFavorites(async (photo, index, total) => {
     console.info(
-      `MacOS Photo scan: Scanning ${index} of ${total} (${photo.name})`
+      `MacOS Photo scan: Scanning ${index} of ${total} (${photo.name})`,
     );
     if (
       scanned.find(
-        (s) => s.name === photo.name && s.dateTaken === photo.dateTaken
+        (s) => s.name === photo.name && s.dateTaken === photo.dateTaken,
       )
     ) {
       // Found a picture that was already scanned, no need to go further than that

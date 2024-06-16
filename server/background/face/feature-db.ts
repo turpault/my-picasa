@@ -1,29 +1,32 @@
+import * as faceapi from "@vladmandic/face-api";
 import Debug from "debug";
 import { Queue } from "../../../shared/lib/queue";
+
 import {
-  Face,
   decodeFaces,
   decodeRect,
   encodeRect,
-  range,
+  mergeObjects,
 } from "../../../shared/lib/utils";
-import { Album, AlbumEntry, Contact } from "../../../shared/types/types";
+import { Album, AlbumEntry, Contact, Face } from "../../../shared/types/types";
 import { media } from "../../rpc/rpcFunctions/albumUtils";
-import { readAlbumIni, readContacts } from "../../rpc/rpcFunctions/picasa-ini";
+import {
+  readAlbumIni,
+  readContacts,
+  updateContactInAlbum,
+} from "../../rpc/rpcFunctions/picasa-ini";
 import { getFolderAlbums } from "../../walker";
-import { getRedisClient } from "../poi/redis-client";
-import { addFaceRectToEntry } from "./picasa-faces";
-import { FaceLandmarkData, readReferencesOfEntry } from "./references";
+import { addFaceRectToEntry, removeFaceFromEntry } from "./picasa-faces";
+import {
+  FaceLandmarkData,
+  Reference,
+  readReferencesOfEntry,
+} from "./references";
+import { addReferenceToFaceAlbum } from "../../rpc/albumTypes/faces";
 const debug = Debug("app:face-db");
-const qualifier = "all_reference";
-const qualifier_identified = "identified_reference";
-const qualifier_contact = "contact";
-let identifiedContactHashes = new Map<string, string>();
+let identifiedReferenceContactKeyMap = new Map<string, Reference[]>(); //  contact.Key -> reference[]
+const contacts = new Map<string, Contact>();
 export async function populateDatabase() {
-  const client = await getRedisClient();
-  await client.del(qualifier);
-  await client.del(qualifier_identified);
-  await client.del(qualifier_contact);
   const albums = await getFolderAlbums();
   for (const album of albums) {
     const medias = await media(album);
@@ -33,60 +36,122 @@ export async function populateDatabase() {
         const references = await readReferencesOfEntry(media);
 
         if (references) {
+          // Add the identified reference
+          const identifiedContacts = await getPicasaIdentifiedReferences(media);
+          // Remove entries that have not been identified as a face here
+          for (const identifiedContact of identifiedContacts.slice()) {
+            if (!isIdenfiedContactInReferences(identifiedContact, references)) {
+              debug(
+                `populateDatabase: Removing face ${identifiedContact.face.hash} from ${media.name} - not in the list of references`,
+              );
+              identifiedContacts.splice(
+                identifiedContacts.indexOf(identifiedContact),
+                1,
+              );
+              removeFaceFromEntry(
+                media,
+                identifiedContact.face,
+                identifiedContact.contact,
+              );
+            }
+          }
           for (const reference of references) {
-            const referenceId = reference.id;
             const descriptors = reference.data.descriptor;
             if (!descriptors) {
               continue;
             }
 
-            const hash = faceHashFromDescriptors(descriptors);
-            await client.hset(qualifier, hash, referenceId);
-
-            // Add the identified reference
-            const identifiedContacts =
-              await getPicasaIdentifiedReferences(media);
-            for (const identifiedContact of identifiedContacts) {
-              await client.hset(
-                qualifier_contact,
-                identifiedContact.contact.key,
-                JSON.stringify(identifiedContact.contact),
-              );
-            }
             const identifiedContact = findFaceInRect(
               reference.data,
               identifiedContacts,
             );
             if (identifiedContact) {
-              await client.hset(
-                qualifier_identified,
-                hash,
-                JSON.stringify(identifiedContact),
+              const contact = mergeObjects(
+                contacts.get(identifiedContact.contact.key),
+                identifiedContact.contact,
               );
-              identifiedContactHashes.set(
-                hash,
-                identifiedContact.contact.originalName,
+
+              contacts.set(identifiedContact.contact.key, contact);
+              // Update the contact in the album
+              addReferenceToFaceAlbum(
+                identifiedContact.face,
+                reference.id,
+                contact,
               );
+              updateContactInAlbum(album, identifiedContact.face.hash, contact);
+              if (
+                !identifiedReferenceContactKeyMap.has(
+                  identifiedContact.contact.key,
+                )
+              ) {
+                identifiedReferenceContactKeyMap.set(
+                  identifiedContact.contact.key,
+                  [reference],
+                );
+              } else {
+                identifiedReferenceContactKeyMap
+                  .get(identifiedContact.contact.key)!
+                  .push(reference);
+              }
             }
           }
         }
       }),
     );
   }
-  identifiedContactHashes = new Map(
-    [...identifiedContactHashes.entries()].sort((a, b) =>
-      a[0] > b[0] ? 1 : -1,
-    ),
-  );
 }
-
+const FILTER_MAX_DISTANCE = 0.6;
+function pruneSimilarReferences() {
+  for (const contact of contacts.values()) {
+    debug(`pruneSimilarReferences: Processing contact ${contact.originalName}`);
+    // ignore references for that contact too close from each other
+    const references = identifiedReferenceContactKeyMap.get(contact.key)!;
+    debug(
+      `pruneSimilarReferences: Contact ${contact.originalName} has ${references.length} identified references`,
+    );
+    if (references.length > 1) {
+      for (const reference of references) {
+        for (const otherReference of references.slice(
+          references.indexOf(reference) + 1,
+        )) {
+          if (reference === otherReference) continue;
+          const descriptor = reference.data.descriptor;
+          const descriptor1 = otherReference.data.descriptor;
+          if (
+            faceapi.euclideanDistance(descriptor, descriptor1) <
+            FILTER_MAX_DISTANCE
+          ) {
+            references.splice(references.indexOf(otherReference), 1);
+            break;
+          }
+        }
+      }
+    }
+    debug(
+      `pruneSimilarReferences: Contact ${contact.originalName} Pruning complete ${references.length} left`,
+    );
+  }
+}
 export async function populateCandidates() {
+  pruneSimilarReferences();
+
+  let references: faceapi.LabeledFaceDescriptors[] = [];
+  for (const [contactId, referenceList] of identifiedReferenceContactKeyMap) {
+    references.push(
+      new faceapi.LabeledFaceDescriptors(
+        contactId,
+        referenceList.map((r) => r.data.descriptor),
+      ),
+    );
+  }
+  const matcher = new faceapi.FaceMatcher(references);
+
   // Limit the parallelism for the face parsing
   const faceProcessingQueue = new Queue(30);
   const albums = await getFolderAlbums();
   for (const album of albums) {
     faceProcessingQueue.add(async () => {
-      await populateCandidatesOfAlbum(album).catch(debug);
+      await populateCandidatesOfAlbum(album, matcher).catch(debug);
     });
   }
   const t = setInterval(
@@ -100,31 +165,29 @@ export async function populateCandidates() {
   clearInterval(t);
 }
 
-async function populateCandidatesOfAlbum(album: Album) {
-  const client = await getRedisClient();
+async function populateCandidatesOfAlbum(
+  album: Album,
+  matcher: faceapi.FaceMatcher,
+) {
   const medias = await media(album);
   debug(`populateCandidatesOfAlbum: Processing album ${album.name}`);
   for (const media of medias.entries) {
     const references = await readReferencesOfEntry(media);
-    if (references) {
-      for (const reference of references) {
-        const hash = faceHashFromDescriptors(reference.data.descriptor);
-        if (identifiedContactHashes.has(hash)) {
-          continue;
-        }
-        const closestHash = getClosestIdentifiedReference(hash);
-        if (closestHash) {
-          const contactStr = await client.hget(qualifier_identified, hash);
-          const contact = contactStr ? JSON.parse(contactStr) : null;
-          if (contact) {
-            addFaceRectToEntry(
-              media,
-              rectOfReference(reference.data),
-              contact,
-              reference.id,
-              true,
-            );
-          }
+    if (!references) continue;
+    for (const reference of references) {
+      const bestMatch = matcher.findBestMatch(reference.data.descriptor);
+      if (bestMatch) {
+        const contactKey = bestMatch.label;
+        const contact = contacts.get(contactKey)!;
+
+        if (contact) {
+          addFaceRectToEntry(
+            media,
+            rectOfReference(reference.data),
+            contact,
+            reference.id,
+            true,
+          );
         }
       }
     }
@@ -141,51 +204,8 @@ function rectOfReference(feature: FaceLandmarkData) {
   return rect;
 }
 
-const minDistance = BigInt(0x100000000);
-function getClosestIdentifiedReference(faceHash: string) {
-  // Find the closest identified contact using dichotomy
-  if (identifiedContactHashes.size === 0) {
-    return null;
-  }
+type IdentifiedContact = { face: Face; contact: Contact };
 
-  const candidates: string[] = [];
-  let previous: string | undefined;
-  for (const hash of identifiedContactHashes) {
-    if (hash[0] > faceHash) {
-      if (previous) {
-        candidates.push(previous);
-      }
-      candidates.push(hash[0]);
-      break;
-    } else previous = hash[0];
-  }
-
-  const hashAsNumber = BigInt("0x" + faceHash);
-  // Which one is the closest?
-  const distances = candidates
-    .map((hash) => hashAsNumber - BigInt("0x" + hash))
-    .map((v) => (v < 0 ? -v : v));
-
-  if (distances.length === 1 && distances[0] < minDistance) {
-    return candidates[0];
-  }
-  if (distances.length === 2) {
-    if (distances[0] < distances[1]) {
-      if (distances[0] < minDistance) {
-        return candidates[0];
-      }
-    } else {
-      if (distances[1] < minDistance) {
-        return candidates[1];
-      }
-    }
-  }
-  return null;
-}
-
-type IdentifiedContact = Face & {
-  contact: Contact;
-};
 async function getPicasaIdentifiedReferences(
   entry: AlbumEntry,
 ): Promise<IdentifiedContact[]> {
@@ -197,9 +217,18 @@ async function getPicasaIdentifiedReferences(
     const facesInEntry = decodeFaces(iniFaces);
     return facesInEntry
       .filter((face) => contacts[face.hash])
-      .map((face) => ({ ...face, contact: contacts[face.hash] }));
+      .map((face) => ({ face, contact: contacts[face.hash] }));
   }
   return [];
+}
+
+function isIdenfiedContactInReferences(
+  identifiedContact: IdentifiedContact,
+  references: Reference[],
+) {
+  return references.some((reference) =>
+    findFaceInRect(reference.data, [identifiedContact]),
+  );
 }
 
 function findFaceInRect(
@@ -208,7 +237,7 @@ function findFaceInRect(
 ) {
   const { width, height } = reference.detection.imageDims;
   const proximity = (a: IdentifiedContact, b: FaceLandmarkData) => {
-    const rect = decodeRect(a.rect);
+    const rect = decodeRect(a.face.rect);
     // Maps if each center is within the other rect
     const centerRect = {
       x: (rect.right + rect.left) / 2,
@@ -241,25 +270,4 @@ function findFaceInRect(
     }
   }
   return null;
-}
-
-const precision = Math.pow(2, 31);
-function faceHashFromDescriptors(descriptors: Float32Array) {
-  const descriptorArray = Array.from(descriptors).map((f) =>
-    Math.round((1 + f) * precision),
-  );
-  // slice the numbers bit by bit
-  const asBin = descriptorArray.map((f) => f.toString(2).padStart(32, "0"));
-  const finalBinaryValue = range(0, 31)
-    .map((bit) => {
-      return asBin.map((f) => f.slice(bit, bit + 1)).join("");
-    })
-    .join("");
-  // compact into a hex string
-  const hex = range(0, finalBinaryValue.length - 1, 4)
-    .map((i) => parseInt(finalBinaryValue.slice(i, i + 4), 2).toString(16))
-    .join("");
-  // 128 descriptors * 32 bits = 4096 bits
-  // or 1024 hex characters
-  return hex.padStart(1024, "0");
 }

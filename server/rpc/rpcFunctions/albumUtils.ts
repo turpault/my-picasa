@@ -15,8 +15,8 @@ import {
   idFromKey,
 } from "../../../shared/types/types";
 import {
+  getFaceAlbum,
   getFaceAlbums,
-  getFaceAlbumsWithData,
   getFaceData,
   readFaceAlbumEntries,
 } from "../albumTypes/faces";
@@ -251,7 +251,7 @@ export function albumWithData(
   } else if (kind === AlbumKind.PROJECT) {
     return getProjectAlbum(key);
   } else if (kind === AlbumKind.FACE) {
-    return getFaceAlbums().find((f) => f.key == key);
+    return getFaceAlbum(key);
   } else throw new Error(`Unknown kind ${kind}`);
 }
 
@@ -291,8 +291,8 @@ export async function getAlbumEntryMetadata(albumEntry: AlbumEntry) {
 
 export async function monitorAlbums(): Promise<{}> {
   const lastWalk = await getFolderAlbums();
-  const f = await getFaceAlbumsWithData("");
-  const p = await getProjectAlbums();
+  const f = getFaceAlbums();
+  const p = getProjectAlbums();
   queueNotification({ type: "albums", albums: [...lastWalk, ...f, ...p] });
   return {};
 }

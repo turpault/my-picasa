@@ -1,13 +1,18 @@
 import { mkdir, readFile, unlink } from "fs/promises";
-import { extname, join } from "path";
+import { join } from "path";
 import { lock } from "../../../shared/lib/mutex";
-import { decodeRotate, isPicture, isVideo } from "../../../shared/lib/utils";
+import {
+  decodeRotate,
+  hash,
+  isPicture,
+  isVideo,
+  namify,
+} from "../../../shared/lib/utils";
 import {
   AlbumEntry,
   AlbumKind,
   FaceData,
   ThumbnailSize,
-  videoExtensions,
 } from "../../../shared/types/types";
 import {
   buildFaceImage,
@@ -233,13 +238,14 @@ function faceImagePath(
     "thumbnails",
     faceData.originalEntry.album.name,
   );
+
   return {
     folder,
     path: join(
       folder,
-      `${faceData.hash}-${faceData.rect}-${removeExtension(
+      `${entry.album.name}-${removeExtension(
         faceData.originalEntry.name,
-      )}.jpg`,
+      )}-${hash(`${faceData.hash}-${faceData.rect}`)}.jpg`,
     ),
   };
 }
@@ -265,6 +271,11 @@ export async function getFaceImage(
       await safeWriteFile(path, image.data);
     }
     if (!onlyCheck) return await readFile(path);
+  } catch (e) {
+    console.error(
+      `Error getting face image for ${entry.album.key}/${entry.name}: ${e}`,
+    );
+    return;
   } finally {
     unlock();
   }

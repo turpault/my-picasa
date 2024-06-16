@@ -235,11 +235,6 @@ export class PicisaClient {
       'args': { entry } 
     });
   }
-  async getFaceAlbumFromHash(hash: string):Promise<any> {
-    return this.emit('PicisaClient:getFaceAlbumFromHash', {
-      'args': { hash } 
-    });
-  }
   async rotate(entries: object, direction: string):Promise<any> {
     return this.emit('PicisaClient:rotate', {
       'args': { entries, direction } 

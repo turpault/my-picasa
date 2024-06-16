@@ -50,6 +50,9 @@ export class Queue {
     return this._total;
   }
   async drain() {
+    if (this._active === 0 && this.length() === 0) {
+      return;
+    }
     return new Promise<void>((resolve) => {
       this.event.once("drain", () => {
         resolve();

@@ -1,5 +1,5 @@
 import L from "leaflet";
-import { FaceList, debounced, decodeFaces } from "../../shared/lib/utils";
+import { debounced, decodeFaces } from "../../shared/lib/utils";
 import { getFilesExifData, getMetadata } from "../folder-utils";
 import { albumThumbnailUrl } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
@@ -10,6 +10,7 @@ import {
   AlbumEntry,
   AlbumEntryMetaData,
   AlbumWithData,
+  FaceList,
   UndoStep,
 } from "../types/types";
 import { t } from "./strings";
@@ -111,7 +112,7 @@ export type ApplicationState = State<SelectionStateDef>;
 
 export function makeMetadata(
   selection: AlbumEntrySelectionManager,
-  state: ApplicationState
+  state: ApplicationState,
 ): _$ {
   const e = $(html);
   const title = $(".selection-metadata-header-title", e);
@@ -181,7 +182,7 @@ export function makeMetadata(
       if (!data.exifData) return;
       pages.metadata.e
         .append(
-          `<div class="metadata-section-filename">${data.entry.name}</div>`
+          `<div class="metadata-section-filename">${data.entry.name}</div>`,
         )
         .on("click", () => {
           selection.setActive(data.entry);
@@ -190,12 +191,12 @@ export function makeMetadata(
       for (const section of metaSections) {
         if (section.available.find((s) => !keys.includes(s)) === undefined) {
           pages.metadata.e.append(
-            `<div class="metadata-section">${t(section.label)}</div>`
+            `<div class="metadata-section">${t(section.label)}</div>`,
           );
           pages.metadata.e.append(
             `<div class="metadata-section-value">${section.transform(
-              data.exifData
-            )}</div>`
+              data.exifData,
+            )}</div>`,
           );
         }
       }
@@ -216,18 +217,18 @@ export function makeMetadata(
 
     const s = await getService();
     const faceAlbums = (await Promise.all(
-      faces.map((face) => s.getFaceAlbumFromHash(face.hash))
+      faces.map((face) => s.getFaceAlbumFromHash(face.hash)),
     )) as AlbumWithData[];
 
     const uniqueFaces = faceAlbums.reduce(
       (prev, val) =>
         !val.key || prev.find((a) => a.key === val.key) ? prev : [...prev, val],
-      [] as AlbumWithData[]
+      [] as AlbumWithData[],
     );
     uniqueFaces.forEach((faceAlbum) => {
       const url = albumThumbnailUrl(faceAlbum);
       pages.persons.e.append(
-        `<div class="selection-person-entry"><img class="selection-person-entry-thumb" src="${url}"><span class="selection-person-entry-label">${faceAlbum.name}</span></div>`
+        `<div class="selection-person-entry"><img class="selection-person-entry-thumb" src="${url}"><span class="selection-person-entry-label">${faceAlbum.name}</span></div>`,
       );
     });
   }
@@ -250,7 +251,7 @@ export function makeMetadata(
               width: `${parentSize.width - 14}px`,
               height: `${parentSize.height - 10}px`,
             });
-          })
+          }),
         ).observe(pages.location.e.parent().get());
       }
       markers.forEach((m) => m.remove());
