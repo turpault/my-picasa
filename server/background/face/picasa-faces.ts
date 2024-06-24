@@ -22,8 +22,10 @@ import {
   getPicasaEntry,
   readAlbumIni,
   readContacts,
+  readPicasaSection,
   updatePicasa,
   updatePicasaEntry,
+  writePicasaSection,
 } from "../../rpc/rpcFunctions/picasa-ini";
 import { getFolderAlbums, waitUntilWalk } from "../../walker";
 
@@ -69,9 +71,8 @@ export async function addFaceRectToEntry(
   rect: string,
   contact: Contact,
   referenceId: string,
-  candidate: boolean = false,
 ) {
-  const name = candidate ? "candidateFaces" : "faces";
+  const name = "faces";
   const current = await getPicasaEntry(entry);
   const iniFaces = current[name] || "";
   const faces = decodeFaces(iniFaces);
@@ -91,6 +92,33 @@ export async function addFaceRectToEntry(
   return;
 }
 
+export async function addCandidateFaceRectToEntry(
+  entry: AlbumEntry,
+  rect: string,
+  contact: Contact,
+  referenceId: string,
+  strategy: string,
+) {
+  const name = `candidateFaces-${strategy}`;
+  const current = await readPicasaSection(entry.album, name);
+  const iniFaces = current[entry.name] || "";
+  const faces = decodeFaces(iniFaces);
+  if (faces.find((f) => f.hash === referenceId)) {
+    return;
+  }
+  const face: Face = {
+    hash: referenceId,
+    rect,
+  };
+  faces.push(face);
+  current[entry.name] = encodeFaces(faces);
+  await Promise.all([
+    addContact(entry.album, referenceId, contact),
+    addReferenceToFaceAlbum(face, referenceId, contact),
+    writePicasaSection(entry.album, name, current),
+  ]);
+  return;
+}
 export async function removeFaceFromEntry(
   entry: AlbumEntry,
   face: Face,

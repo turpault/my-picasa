@@ -542,7 +542,9 @@ export function jsonifyObject(instance: any): any {
     if (key.startsWith("_")) continue;
     else jsonObj[key] = instance[key];
     let value = jsonObj[key];
-    if (typeof value === "object") {
+    if (value instanceof Float32Array) {
+      jsonObj[key] = Array.from(value);
+    } else if (typeof value === "object") {
       jsonObj[key] = jsonifyObject(value);
     }
   }

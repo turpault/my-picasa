@@ -41,7 +41,7 @@ export class Queue {
     copy.forEach((p) => p(false));
   }
   length() {
-    return this.promises.length;
+    return this.promises.length + this._active;
   }
   done() {
     return this._done;

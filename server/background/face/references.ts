@@ -7,7 +7,6 @@ import { lock } from "../../../shared/lib/mutex";
 import { Queue } from "../../../shared/lib/queue";
 import {
   albumEntryFromId,
-  debounce,
   idFromAlbumEntry,
   isAnimated,
   isPicture,
@@ -23,22 +22,10 @@ import {
   safeWriteFile,
 } from "../../utils/serverUtils";
 import { getFolderAlbums, waitUntilWalk } from "../../walker";
+import { FaceLandmarkData } from "./types";
+import { isUsefulReference } from "./face-utils";
 const debug = Debug("app:faces");
 
-export type FaceLandmarkData = { hash?: string } & faceapi.WithAge<
-  faceapi.WithGender<
-    faceapi.WithFaceExpressions<
-      faceapi.WithFaceDescriptor<
-        faceapi.WithFaceLandmarks<
-          {
-            detection: faceapi.FaceDetection;
-          },
-          faceapi.FaceLandmarks68
-        >
-      >
-    >
-  >
->;
 let optionsSSDMobileNet: faceapi.SsdMobilenetv1Options;
 
 // Limit the parallelism for the face parsing
@@ -93,7 +80,8 @@ function referencePath(entry: AlbumEntry) {
 }
 
 async function entryHasReferences(entry: AlbumEntry) {
-  return fileExists(referencePath(entry).path);
+  const p = referencePath(entry);
+  return fileExists(join(p.path, p.file));
 }
 
 const referenceQualifier = "reference";
@@ -101,6 +89,14 @@ export type Reference = {
   id: string;
   data: FaceLandmarkData;
 };
+
+export async function readReferencesFromReferenceId(
+  id: string,
+): Promise<Reference | undefined> {
+  const { entry, index } = decodeReferenceId(id);
+  const references = await readReferencesOfEntry(entry);
+  return references?.[parseInt(index)];
+}
 
 export async function readReferencesOfEntry(
   entry: AlbumEntry,
@@ -111,14 +107,17 @@ export async function readReferencesOfEntry(
     const buf = await readFile(path, {
       encoding: "utf-8",
     });
-    return (
-      JSON.parse(buf, (key, value) =>
-        key === "descriptor" ? new Float32Array(value) : value,
-      ) as FaceLandmarkData[]
-    ).map((data, index) => ({
-      id: `${idFromAlbumEntry(entry, referenceQualifier)}:${index}`,
-      data,
-    }));
+    return JSON.parse(buf, (key, value) =>
+      key === "descriptor"
+        ? new Float32Array(
+            value instanceof Array
+              ? value
+              : Object.entries(value)
+                  .filter(([k]) => !isNaN(parseInt(k)))
+                  .map(([k, v]) => v),
+          )
+        : value,
+    ) as Reference[];
   } catch (e) {
     return undefined;
   }
@@ -136,85 +135,94 @@ export async function referencesFromId(id: string) {
   return references?.[parseInt(index)];
 }
 
-async function writeReferencesOfEntry(
-  entry: AlbumEntry,
-  data: FaceLandmarkData[],
-) {
+async function writeReferencesOfEntry(entry: AlbumEntry, data: Reference[]) {
   const p = referencePath(entry);
   await mkdir(p.path, { recursive: true });
   await safeWriteFile(
     join(p.path, p.file),
-    JSON.stringify(data, (key, value) =>
-      key === "descriptor" ? Array.from(value) : value,
+    JSON.stringify(
+      data,
+      (key, value) => (key === "descriptor" ? Array.from(value) : value),
+      2,
     ),
   );
 }
 
 async function processFaces(album: Album) {
   const entries = await media(album);
-  for (const entry of entries.entries) {
-    if (await entryHasReferences(entry)) {
-      continue;
-    }
+  await Promise.all(
+    entries.entries.map(async (entry) => {
+      if (await entryHasReferences(entry)) {
+        return;
+      }
 
-    const imagePath = entryFilePath(entry);
-    const exists = await fileExists(imagePath);
-    if (!exists) {
-      continue;
-    }
-    await createReferenceFileIfNeeded(entry);
-  }
+      const imagePath = entryFilePath(entry);
+      const exists = await fileExists(imagePath);
+      if (!exists) {
+        return;
+      }
+      await createReferenceFileIfNeeded(entry);
+    }),
+  );
 }
 
+const referenceGeneratorQueue = new Queue(10);
 async function createReferenceFileIfNeeded(entry: AlbumEntry) {
   const imagePath = entryFilePath(entry);
   const exists = await fileExists(imagePath);
   if (isPicture(entry) && !isAnimated(entry)) {
     if (exists) {
-      let detectedReferences = (await readReferencesOfEntry(entry))?.map(
-        (r) => r.data,
+      let detectedReferences = (await readReferencesOfEntry(entry))?.filter(
+        (r) => isUsefulReference(r, "child"),
       );
       if (!detectedReferences) {
         debug(`Will generate references of file ${imagePath}`);
-        const l = await lock(`createReferenceFileIfNeeded:${imagePath}`);
-        try {
-          const buffer = await readFile(imagePath);
-          // Load image
-          const tensor = tf.tidy(() =>
-            tf.node
-              .decodeImage(buffer, 3, undefined, true)
-              .toFloat()
-              .expandDims(),
-          );
-          //const tensor = tf.node.decodeImage(buffer, undefined, undefined, true);
-          //const expandT = tf.expandDims(tensor, 0); // add batch dimension to tensor
-          const faceReferences = await faceapi
-            .detectAllFaces(
-              tensor as any, // as any because of some input issues
-              optionsSSDMobileNet,
-            )
-            .withFaceLandmarks()
-            .withFaceExpressions()
-            .withAgeAndGender()
-            .withFaceDescriptors();
-          tf.dispose(tensor);
+        await referenceGeneratorQueue.add(async () => {
+          const l = await lock(`createReferenceFileIfNeeded:${imagePath}`);
+          try {
+            const buffer = await readFile(imagePath);
+            // Load image
+            const tensor = tf.tidy(() =>
+              tf.node
+                .decodeImage(buffer, 3, undefined, true)
+                .toFloat()
+                .expandDims(),
+            );
+            //const tensor = tf.node.decodeImage(buffer, undefined, undefined, true);
+            //const expandT = tf.expandDims(tensor, 0); // add batch dimension to tensor
+            const faceReferences = await faceapi
+              .detectAllFaces(
+                tensor as any, // as any because of some input issues
+                optionsSSDMobileNet,
+              )
+              .withFaceLandmarks()
+              .withFaceExpressions()
+              .withAgeAndGender()
+              .withFaceDescriptors();
+            tf.dispose(tensor);
 
-          const detectedReferences = jsonifyObject(
-            // Only bigger mugshots !
-            faceReferences.filter(
-              (ref) =>
-                ref.alignedRect.box.width > 100 &&
-                ref.alignedRect.box.height > 100,
-            ),
-          ) as FaceLandmarkData[];
-          writeReferencesOfEntry(entry, detectedReferences);
-        } catch (e) {
-          debug("Warning:", imagePath, e, entry);
-          detectedReferences = [] as FaceLandmarkData[];
-          writeReferencesOfEntry(entry, detectedReferences);
-        } finally {
-          l();
-        }
+            const detectedReferences = (
+              jsonifyObject(
+                // Only bigger mugshots !
+                faceReferences,
+              ) as FaceLandmarkData[]
+            )
+              .map((data, index) => ({
+                data,
+                id: `${idFromAlbumEntry(entry, referenceQualifier)}:${index}`,
+              }))
+              .filter((reference: Reference) =>
+                isUsefulReference(reference, "child"),
+              );
+            writeReferencesOfEntry(entry, detectedReferences);
+          } catch (e) {
+            debug("Warning:", imagePath, e, entry);
+            detectedReferences = [] as Reference[];
+            writeReferencesOfEntry(entry, detectedReferences);
+          } finally {
+            l();
+          }
+        });
       }
       return detectedReferences;
     }

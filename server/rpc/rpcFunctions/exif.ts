@@ -119,8 +119,6 @@ export async function exifData(
         }
       }
       if (!exif) {
-        debugger;
-        const _ini2 = await getPicasaEntry(entry);
         const fileData = await readFile(path);
         const tags = await exifr.parse(fileData).catch((e: any) => {
           console.error(`Exception while reading exif for ${path}: ${e}`);

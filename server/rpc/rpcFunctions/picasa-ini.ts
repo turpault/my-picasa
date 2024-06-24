@@ -545,6 +545,10 @@ function dataFix(album: Album, i: AlbumMetaData): boolean {
     [key: string]: string;
   };
   for (const key in i) {
+    if ((i[key] as any).candidateFaces !== undefined) {
+      delete (i[key] as any).candidateFaces;
+      changed = true;
+    }
     if (i[key].faces !== undefined) {
       const faces: FaceList = [];
       const face = decodeFaces(i[key].faces!);
