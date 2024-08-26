@@ -9,29 +9,37 @@ export type ConnectionEvent = {
 export function connect(
   port: number,
   address: string,
-  ssl: boolean
+  ssl: boolean,
 ): Emitter<ConnectionEvent> {
   const events = buildEmitter<ConnectionEvent>(false);
   const socket = new WsAdaptor();
-  const reopen = () => {
+  let opening = false;
+  const reopen = async (delay: number = 0) => {
+    opening = true;
+    if (delay) await sleep(delay);
+
     const wSocket = new WebSocket(
-      `${ssl ? "wss://" : "ws://"}${address}:${port}/cmd`
+      `${ssl ? "wss://" : "ws://"}${address}:${port}/cmd`,
     );
     wSocket.onerror = (event: Event) => {
+      if (opening) {
+        return; // ignore errors while opening
+      }
       events.emit("disconnected", { event });
       try {
         wSocket.close();
       } catch (e) {}
-      sleep(1).finally(reopen);
+      reopen(1);
     };
     wSocket.onopen = () => {
+      opening = false;
       try {
         socket.socket(wSocket);
         const service = new PicisaClient();
         service.initialize(socket);
         events.emit("connected", { service });
       } catch (e) {
-        sleep(10).finally(reopen);
+        reopen(10);
       }
     };
     wSocket.onclose = () => {};

@@ -55,6 +55,7 @@ export async function getAlbumInfo(
   album: Album,
   useSettings: boolean = false,
 ): Promise<AlbumInfo & { filtered: boolean }> {
+  let filtered = false;
   let settings: Settings = {
     sort: "date",
     iconSize: 250,
@@ -63,6 +64,7 @@ export async function getAlbumInfo(
       video: false,
       people: false,
       location: false,
+      favoritePhoto: false,
       text: "",
     },
     inverseSort: false,
@@ -83,10 +85,17 @@ export async function getAlbumInfo(
     entries = entries.filter((v) => {
       return parseInt(picasa[v.name].starCount || "0") >= settings.filters.star;
     });
+    filtered = true;
   }
 
   if (settings.filters.video) {
     entries = entries.filter((v) => settings.filters.video && isVideo(v));
+    filtered = true;
+  }
+
+  if (settings.filters.favoritePhoto) {
+    entries = entries.filter((v) => picasa[v.name].photostar);
+    filtered = true;
   }
 
   /*
@@ -113,10 +122,7 @@ export async function getAlbumInfo(
   return {
     metadata: picasa,
     assets: entries,
-    filtered:
-      settings.filters.star !== 0 ||
-      settings.filters.video ||
-      settings.filters.text !== "",
+    filtered,
   };
 }
 

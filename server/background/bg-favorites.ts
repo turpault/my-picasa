@@ -1,6 +1,6 @@
 import { spawn } from "child_process";
 import exifr from "exifr";
-import { copyFile, mkdir, readFile, unlink, utimes } from "fs/promises";
+import { copyFile, mkdir, unlink, utimes } from "fs/promises";
 import { join } from "path";
 import { Queue } from "../../shared/lib/queue";
 import { RESIZE_ON_EXPORT_SIZE } from "../../shared/lib/shared-constants";
@@ -8,23 +8,25 @@ import {
   buildReadySemaphore,
   isPicture,
   isVideo,
-  memoizer,
   setReady,
-  sleep,
 } from "../../shared/lib/utils";
-import { AlbumEntry, AlbumEntryPicasa } from "../../shared/types/types";
+import {
+  AlbumEntry,
+  AlbumEntryPicasa,
+  AlbumEntryWithMetadata,
+} from "../../shared/types/types";
 import { events } from "../events/server-events";
-import { addImageInfo, updateImageDate } from "../imageOperations/info";
+import {
+  addImageInfo,
+  imageInfo,
+  updateImageDate,
+} from "../imageOperations/info";
 import { buildImage } from "../imageOperations/sharp-processor";
 import { media } from "../rpc/rpcFunctions/albumUtils";
+import { getPhotoFavorites } from "../rpc/rpcFunctions/osascripts";
 import {
-  PhotoFromPhotoApp,
-  getPhotoFavorites,
-} from "../rpc/rpcFunctions/osascripts";
-import {
-  getPicasaEntry,
   readAlbumIni,
-  toggleStar,
+  updatePicasaEntry,
 } from "../rpc/rpcFunctions/picasa-ini";
 import { waitUntilIdle } from "../utils/busy";
 import { PhotoLibraryPath, imagesRoot } from "../utils/constants";
@@ -36,7 +38,6 @@ import {
   safeWriteFile,
 } from "../utils/serverUtils";
 import { folders, waitUntilWalk } from "../walker";
-import { captureException } from "../sentry";
 
 const readyLabelKey = "favorites";
 const ready = buildReadySemaphore(readyLabelKey);
@@ -81,7 +82,6 @@ export async function monitorFavorites() {
   events.on("filtersChanged", onImageChanged);
   events.on("rotateChanged", onImageChanged);
   setReady(readyLabelKey);
-  await syncFavoritesFromPhotoApp();
 }
 
 async function onImageChanged(e: { entry: AlbumEntryPicasa }) {
@@ -212,71 +212,131 @@ async function exportAllMissing() {
   await q.drain();
 }
 
-const scannedFavorties = join(imagesRoot, ".scannedFavorites");
-export async function syncFavoritesFromPhotoApp() {
+export async function syncFavoritesFromPhotoApp(
+  progress: (progress: number, total: number) => void,
+) {
   await waitUntilWalk();
-  let scanned: PhotoFromPhotoApp[] = [];
-  try {
-    scanned = JSON.parse(
-      await readFile(scannedFavorties, { encoding: "utf-8" }),
-    ) as PhotoFromPhotoApp[];
-  } catch (e) {
-    console.error(`Error reading scanned favorites: ${e}`);
-  }
   const albums = await folders("");
-  const memoize = memoizer();
+  const alreadyStarred: AlbumEntryWithMetadata[] = [];
+  const allPhotos: {
+    metadata: AlbumEntryWithMetadata;
+    name: string;
+    dateTaken: number;
+  }[] = [];
+  const newStarred: AlbumEntryWithMetadata[] = [];
+  const promises: Promise<void>[] = [];
+
+  const fullListPromise = (async () => {
+    await Promise.all(
+      albums.map(async (album) => {
+        const m = await media(album);
+
+        for (const entry of m.entries) {
+          try {
+            const metadata = await imageInfo(entry);
+            allPhotos.push({
+              metadata,
+              name: removeExtension(entry.name).toLowerCase(),
+              dateTaken: new Date(metadata.raw.dateTaken!).getTime(),
+            });
+            if (metadata.raw.photostar) {
+              alreadyStarred.push(metadata);
+            }
+          } catch (e) {
+            console.error(`Error while getting image info for ${entry.name}`);
+            debugger;
+            continue;
+          }
+        }
+      }),
+    );
+    allPhotos.sort((a, b) => {
+      return a.name.localeCompare(b.name);
+    });
+  })();
+  function candidatesOf(name: string) {
+    // Dichotomy search in the sorted list of all the photos
+    let left = 0;
+    let right = allPhotos.length;
+    while (left < right) {
+      const mid = Math.floor((left + right) / 2);
+      const midName = allPhotos[mid].name;
+      if (midName === name) {
+        left = mid;
+        break;
+      }
+      if (midName < name) {
+        left = mid + 1;
+      } else {
+        right = mid;
+      }
+    }
+    if (allPhotos[left].name !== name) return [];
+    while (left > 0) {
+      if (allPhotos[left].name !== name) {
+        left++;
+        break;
+      }
+      left--;
+    }
+    // left is the first element of the list
+    right = left + 1;
+    while (allPhotos[right].name === name) {
+      right++;
+    }
+    return allPhotos.slice(left, right);
+  }
+
+  const MAX_DISTANCE = 1000 * 60 * 60 * 24;
   await getPhotoFavorites(async (photo, index, total) => {
+    await fullListPromise;
     console.info(
       `MacOS Photo scan: Scanning ${index} of ${total} (${photo.name})`,
     );
-    if (
-      scanned.find(
-        (s) => s.name === photo.name && s.dateTaken === photo.dateTaken,
-      )
-    ) {
-      // Found a picture that was already scanned, no need to go further than that
-      throw new Error(`Stop : already scanned ${photo.name}`);
-    }
-    const photoNameNoExt = removeExtension(photo.name);
-    const candidates = albums.filter((a) => {
-      const [albumDateYear, albumDateMonth] = a.name.split("-");
-      if (albumDateYear.length !== 4) {
-        return false;
-      }
-      const albumDateYearInt = parseInt(albumDateYear);
-      const albumDateMonthInt = parseInt(albumDateMonth);
-      if (albumDateYearInt < 1900 || albumDateYearInt > 3000) {
-        return false;
-      }
-      if (albumDateMonthInt < 1 || albumDateMonthInt > 12) {
-        return false;
-      }
-      return (
-        albumDateYearInt === photo.dateTaken.getFullYear() &&
-        Math.abs(albumDateMonthInt - (photo.dateTaken.getMonth() + 1)) <= 1
-      );
-    });
-    for (const album of candidates) {
-      await waitUntilIdle();
-      const m = await memoize(["media", album.name], () => media(album));
-      const entry = m.entries.find((e) => e.name.startsWith(photoNameNoExt));
-      if (entry) {
-        const picasa = await getPicasaEntry(entry);
-        if (!picasa.star) {
-          console.info(`Synchronized star ${photo.name} in ${album.name}`);
-          await toggleStar([entry]);
-          try {
-            await exportFavorite(entry);
-          } catch (e: any) {
-            console.error(`Error exporting favorite ${entry.name}: ${e}`);
-            captureException(e);
-          }
-        }
-        break;
+    progress(index, total);
+    const c1 = removeExtension(photo.name).toLowerCase();
+    const candidates = candidatesOf(c1);
+    let candidate: AlbumEntryWithMetadata | undefined;
+    if (candidates.length === 0) {
+      console.warn(`Photo ${photo.name} not found in the server`);
+      return;
+    } else if (candidates.length === 1) {
+      candidate = candidates[0].metadata;
+    } else {
+      // More than one candidate, check the date
+      const refTime = new Date(photo.dateTaken).getTime();
+      const sortedCandidates = candidates
+        .filter((c) => c.dateTaken)
+        .map((c) => ({
+          c,
+          distance: Math.abs(c.dateTaken - refTime),
+        }))
+        .sort((a, b) => {
+          return a.distance - b.distance;
+        });
+      if (
+        sortedCandidates.length > 0 &&
+        sortedCandidates[0].distance < MAX_DISTANCE
+      ) {
+        candidate = sortedCandidates[0].c.metadata;
+      } else {
+        console.warn(`Photo ${photo.name} not found in the server`);
+        return;
       }
     }
-    scanned.push(photo);
+    if (alreadyStarred.includes(candidate)) {
+      // do nothing
+    } else {
+      promises.push(updatePicasaEntry(candidate, "photostar", 1));
+      newStarred.push(candidate);
+    }
   });
-  safeWriteFile(scannedFavorties, JSON.stringify(scanned, null, 2));
-  // Wait 24 hours before scanning again
+  for (const photo of newStarred) {
+    if (alreadyStarred.includes(photo)) {
+      // do nothing
+    } else {
+      promises.push(updatePicasaEntry(photo, "photostar", undefined));
+    }
+  }
+  await Promise.all(promises);
 }

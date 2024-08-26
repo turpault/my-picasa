@@ -100,9 +100,6 @@ async function makeImageThumbnail(
     const transform = picasa[entry.name].filters || "";
     const rotate = picasa[entry.name].rotate || "";
 
-    if (!(await shouldMakeThumbnail(entry, size, animated))) {
-      return undefined;
-    }
     const res = await buildImage(entry, picasa[entry.name], transform, [
       [
         "resize",
@@ -147,6 +144,7 @@ async function readOrMakeImageThumbnail(
   size: ThumbnailSize,
   animated: boolean,
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
+  await makeImageThumbnailIfNeeded(entry, size, animated);
   let jpegBuffer = await readThumbnailBufferFromCache(entry, size, animated);
   if (!jpegBuffer) {
     throw new Error("Cannot read thumbnail buffer");

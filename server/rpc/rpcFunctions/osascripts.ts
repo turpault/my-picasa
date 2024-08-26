@@ -1,16 +1,17 @@
 import { spawn } from "child_process";
 import { info } from "console";
-import { writeFile } from "fs/promises";
+import { readFile, writeFile } from "fs/promises";
 import { basename, dirname, join } from "path";
 import { exportsFolder } from "../../utils/constants";
+import { tmpdir } from "os";
 
 async function runScript(
   script: string,
-  cb?: (line: string) => Promise<boolean | undefined>
+  cb?: (line: string) => Promise<boolean | undefined>,
 ): Promise<string> {
   const scriptName = join(
     exportsFolder,
-    "script-" + new Date().toLocaleString().replace(/\//g, "-")
+    "script-" + new Date().toLocaleString().replace(/\//g, "-"),
   );
   info("Running script", scriptName);
   await writeFile(scriptName, script);
@@ -43,7 +44,7 @@ set imageList to {}
 ${files
   .map(
     (file) =>
-      'copy (POSIX FILE "' + file + '") as alias to the end of |imageList|'
+      'copy (POSIX FILE "' + file + '") as alias to the end of |imageList|',
   )
   .join("\n")}
 tell application "Photos"
@@ -77,24 +78,37 @@ end tell
     return runScript(script);
   }
 }
-export type PhotoFromPhotoApp = { name: string; dateTaken: Date };
+export type PhotoFromPhotoApp = {
+  name: string;
+  dateTaken: Date;
+  caption: string;
+  keywords: string;
+  title: string;
+  id: string;
+};
 export async function getPhotoFavorites(
-  progress: (photo: PhotoFromPhotoApp, index: number, total: number) => void
+  progress: (photo: PhotoFromPhotoApp, index: number, total: number) => void,
 ): Promise<string[]> {
   const script = `
-  tell application "Photos"
-          log (count every media item of album "favorites") 
-          repeat with p in (every media item in album named "favorites")
-                  log "---"
-                  log  (filename of p as string)
-                  set {year:y, month:m, day:d} to (date of p)
-                  set shortDate to y &  m  & d
-                  log shortDate
-          end repeat
-  end tell
+tell application "Photos"
+	set albumPhotos to every media item in favorites album
+	set c to count of albumPhotos
+	log c
+	
+	repeat with thisPhoto in albumPhotos
+		set PhotoCaption to description of thisPhoto as string
+		set PhotoTitle to name of thisPhoto as string
+		set PhotoFileName to filename of thisPhoto as string
+		set PhotoID to id of thisPhoto as string
+		set PhotoDate to date of thisPhoto
+    set dateISO to (PhotoDate as «class isot» as string)
+    set {year:y, month:m, day:d} to PhotoDate
+		set PhotoKeywords to keywords of thisPhoto as string
+		log PhotoCaption & "|" & PhotoTitle & "|" & PhotoFileName & "|" & PhotoID & "|" & dateISO & "|" & PhotoKeywords 
+	end repeat
+end tell
     `;
   let total = -1;
-  let name = "";
   let index = 0;
 
   const result = await runScript(script, async (line) => {
@@ -102,27 +116,35 @@ export async function getPhotoFavorites(
       total = parseInt(line);
       return true;
     }
-    if (line === "---") {
-      name = "";
+    const [caption, title, name, id, isoDate, keywords] = line.split("|");
+    index++;
+    if (!name) {
       return true;
     }
-    if (name === "") {
-      name = line;
+    if (caption && caption.startsWith("PICISA:")) {
+      // Favorite that was reimported from PICISA
       return true;
     }
-    // it's the date
-    let [year, month, day] = line.split(",");
-    const dateTaken = new Date(`${year} ${month} ${day}`);
 
     try {
-      index++;
-      await progress({ name, dateTaken }, index, total);
-      name = "";
+      await progress(
+        {
+          caption,
+          title,
+          name,
+          id,
+          keywords,
+          dateTaken: new Date(isoDate),
+        },
+        index,
+        total,
+      );
     } catch (e) {
       console.warn(`Aborting script because ${e}`);
       return false;
     }
     return true;
   });
+  debugger;
   return result.split("\n");
 }

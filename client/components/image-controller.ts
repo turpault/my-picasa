@@ -38,9 +38,9 @@ import { ImageControllerEvent } from "../uiTypes";
 export class ImageController {
   constructor(
     private image: _$,
-    private video: _$,
+    private video: _$<HTMLVideoElement>,
     private selectionManager: AlbumEntrySelectionManager,
-    private rotate: string = ""
+    private rotate: string = "",
   ) {
     this.entry = undefined;
     this.context = "";
@@ -170,6 +170,7 @@ export class ImageController {
         const url = thumbnailUrl(this.entry, "th-large");
         this.image.css({ display: "" });
         this.video.css({ display: "none" });
+        this.video.get().pause();
         await preLoadImage(url);
         this.image.attr("src", url);
 
@@ -219,7 +220,7 @@ export class ImageController {
       if (!this.liveThumbContext) {
         this.liveThumbContext = await cloneContext(
           await this.getThumbnailContext(),
-          "thumbViewWithFilters"
+          "thumbViewWithFilters",
         );
         await setOptions(this.liveThumbContext, { caption: this.caption });
         await transform(this.liveThumbContext, this.operations());
@@ -243,7 +244,7 @@ export class ImageController {
         try {
           const clone = await cloneContext(
             await this.getLiveThumbnailContext(),
-            "preview"
+            "preview",
           );
           await transform(clone, [operation]);
           const url = await encode(clone, "image/jpeg", "base64url");
@@ -275,7 +276,7 @@ export class ImageController {
           console.info("clearing image");
           this.image.attr(
             "src",
-            "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
+            "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==",
           );
           // Apply the new filter list to the thumbnail image
           thumb = await this.getLiveThumbnailContext();
@@ -298,7 +299,7 @@ export class ImageController {
             const faceTransform: string[] = [];
             for (const face of this.faces) {
               faceTransform.push(
-                toBase64(JSON.stringify([face.label, face.rect, "#FF0000"]))
+                toBase64(JSON.stringify([face.label, face.rect, "#FF0000"])),
               );
             }
             await transform(liveContext, [
@@ -338,12 +339,13 @@ export class ImageController {
       this.video
         .empty()
         .append(`<source src="${assetUrl(this.entry)}" type="video/mp4">`);
-      const v = this.video.get() as HTMLVideoElement;
+      const v = this.video.get();
       v.load();
       v.play();
       this.events.emit("idle", {});
     }
   }
+
   private clearLiveContexts() {
     if (this.liveContext) {
       destroyContext(this.liveContext);

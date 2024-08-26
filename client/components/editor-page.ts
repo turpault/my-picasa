@@ -35,6 +35,7 @@ import { setupFilters } from "../features/filter";
 import { setupHeatmap } from "../features/heatmap";
 import { setupSolarize } from "../features/solarize";
 import { setupConvolutions } from "../features/convolutions";
+import { getAlbumInfo } from "../folder-utils";
 
 const editHTML = `
 <div class="fill editor-page">
@@ -84,7 +85,7 @@ export async function makeEditorPage(
   const editorControls = $(".editor-controls", editor);
 
   const image = $(".edited-image", editor);
-  const video = $(".edited-video", editor);
+  const video = $<HTMLVideoElement>(".edited-video", editor);
   const imageContainer = $(".image-container", editor);
   const pages = editor.all(".tools-tab-page");
   const [wrench, contrast, brush, greenBrush, blueBrush] = pages;
@@ -96,7 +97,7 @@ export async function makeEditorPage(
 
   const editorSelectionManager = selectionManager.clone();
   editorSelectionManager.events.on("activeChanged", (event) => {
-    selectionManager.select(event.key);
+    selectionManager.setSelection([event.key]);
     selectionManager.setActive(event.key);
   });
 
@@ -243,19 +244,11 @@ export async function makeEditorPage(
         editing = true;
         state.setValue("META_SINGLE_SELECTION_MODE", true);
 
-        if (selectionManager.selected().length === 1) {
-          // Create a new selection manager with the current album
-          const active = selectionManager.active();
-          const album = active.album;
-          s.media(album, "").then((e: { entries: AlbumEntry[] }) => {
-            editorSelectionManager.setSelection(e.entries, active);
-          });
-        } else {
-          editorSelectionManager.setSelection(
-            selectionManager.selected(),
-            selectionManager.active(),
-          );
-        }
+        const active = selectionManager.active();
+        const album = active.album;
+        const selection = await getAlbumInfo(album, true);
+        editorSelectionManager.setSelection(selection.assets, active);
+
         editor.show();
         imageController.show();
       } else {

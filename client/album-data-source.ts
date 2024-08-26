@@ -52,7 +52,7 @@ export class AlbumIndexedDataSource {
     const resolveAndInvalidate = debounced(() => {
       if (invalidations.length > 0) {
         const filtered = invalidations.filter(
-          (v) => v !== undefined
+          (v) => v !== undefined,
         ) as number[];
         if (filtered.length > 0) {
           const min = Math.min(...filtered);
@@ -85,9 +85,11 @@ export class AlbumIndexedDataSource {
 
       this.shortcutsUnreg = s.on("shortcutsUpdated", async () => {
         this.shortcuts = await s.getShortcuts();
-        invalidations.push(0);
-        invalidations.push(10);
-        resolveAndInvalidate();
+        if (gotEvent) {
+          invalidations.push(0);
+          invalidations.push(10);
+          resolveAndInvalidate();
+        }
       });
       this.unreg = s.on("albumEvent", async (e: any) => {
         for (const event of e.payload as AlbumChangeEvent[]) {
@@ -213,7 +215,7 @@ export class AlbumIndexedDataSource {
 
   isCollapsed(
     album: AlbumWithData,
-    node: Node = this.hierarchy
+    node: Node = this.hierarchy,
   ): boolean | undefined {
     if (node.albums.find((a) => a.key === album.key)) {
       return node.collapsed;
@@ -263,9 +265,10 @@ export class AlbumIndexedDataSource {
     this.albums = sorted.albums;
   }
 
-  private sortAlbums(
-    albumsFromServer: AlbumWithData[]
-  ): { node: Node; albums: AlbumWithData[] } {
+  private sortAlbums(albumsFromServer: AlbumWithData[]): {
+    node: Node;
+    albums: AlbumWithData[];
+  } {
     const filteredAlbums = albumsFromServer;
     const groups = groupBy(filteredAlbums, "kind");
 
@@ -280,7 +283,7 @@ export class AlbumIndexedDataSource {
     sortByKey(faces, ["name"], ["alpha"]);
 
     const foldersByYear = groupBy(folders, "name", (n: string) =>
-      n.slice(0, 4)
+      n.slice(0, 4),
     );
     const hierarchy: Node = {
       name: "",

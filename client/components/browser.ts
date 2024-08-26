@@ -23,12 +23,12 @@ const tabHtml = `<div class="tab-button browser-tab">
 
 export async function makeBrowser(
   emitter: AppEventSource,
-  albumDataSource: AlbumIndexedDataSource
+  albumDataSource: AlbumIndexedDataSource,
 ) {
   const win = $(html);
   const selectionManager = new SelectionManager<AlbumEntry>(
     [],
-    idFromAlbumEntry
+    idFromAlbumEntry,
   );
 
   selectionManager.events.on("changed", () => {
@@ -43,8 +43,8 @@ export async function makeBrowser(
       emitter,
       albumDataSource,
       selectionManager,
-      state
-    )
+      state,
+    ),
   );
   win.append(await makeEditorPage(emitter, selectionManager, state));
   win.append(await makeButtons(emitter, selectionManager, state));
@@ -62,32 +62,11 @@ export async function makeBrowser(
             s.createJob(JOBNAMES.EXPORT, {
               source: selectionManager.selected(),
               destination: target,
-            })
+            }),
           );
           e.preventDefault();
           return true;
         }
-      }
-      if (
-        (e.code === "Backspace" || e.code === "Delete") &&
-        selectionManager.selected().length > 0
-      ) {
-        message(
-          t(
-            `Do you want to delete $1 files|${
-              selectionManager.selected().length
-            }`
-          ),
-          [Button.Ok, Button.Cancel]
-        ).then(async (b) => {
-          if (b === Button.Ok) {
-            const s = await getService();
-            s.createJob(JOBNAMES.DELETE, {
-              source: selectionManager.selected(),
-            });
-          }
-        });
-        return true;
       }
     }
     return false;

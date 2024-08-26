@@ -260,6 +260,11 @@ export class PicisaClient {
       'args': { data, changeType } 
     });
   }
+  async getFaceDataFromAlbumEntry(entry: object):Promise<any> {
+    return this.emit('PicisaClient:getFaceDataFromAlbumEntry', {
+      'args': { entry } 
+    });
+  }
   async createProject(type: string, name: string):Promise<any> {
     return this.emit('PicisaClient:createProject', {
       'args': { type, name } 

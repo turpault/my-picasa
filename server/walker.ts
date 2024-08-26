@@ -37,13 +37,15 @@ export async function updateLastWalkLoop() {
   while (true) {
     console.info(`Filesystem scan: iteration ${iteration}`);
     const old = [...lastWalk];
-    walk("", imagesRoot, async (a: Album) => {
-      addOrRefreshOrDeleteAlbum(
-        a,
-        "SkipCheckInfo",
-        true /* we know it's added */,
-      );
-    });
+    walkQueue.add(() =>
+      walk("", imagesRoot, async (a: Album) => {
+        addOrRefreshOrDeleteAlbum(
+          a,
+          "SkipCheckInfo",
+          true /* we know it's added */,
+        );
+      }),
+    );
     await walkQueue.drain();
     const deletedAlbums: AlbumWithData[] = [];
     let startIndex = 0;
@@ -68,6 +70,7 @@ export async function updateLastWalkLoop() {
     }
 
     if (iteration === 0) {
+      console.info(`Album list retrieved`);
       setReady(readyLabelKey);
     }
     iteration++;

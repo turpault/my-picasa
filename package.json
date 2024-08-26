@@ -89,8 +89,8 @@
     "tslib": "^2"
   },
   "dependencies": {
-    "@fastify/static": "^5.0.0",
-    "@fastify/websocket": "^5.0.0",
+    "@fastify/static": "^7.0.4",
+    "@fastify/websocket": "^10.0.1",
     "@sentry/browser": "^7.112.2",
     "@sentry/node": "^7.112.2",
     "@sentry/tracing": "^7.112.2",

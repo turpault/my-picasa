@@ -1,3 +1,4 @@
+import { readFile } from "fs/promises";
 import { join } from "path";
 import { isPicture, isVideo, removeDiacritics } from "../../shared/lib/utils";
 import {
@@ -6,10 +7,13 @@ import {
   Filetype,
   idFromKey,
 } from "../../shared/types/types";
+import { exifDataAndStats } from "../rpc/rpcFunctions/exif";
 import {
   readAlbumIni,
   updatePicasaEntries,
+  updatePicasaEntry,
 } from "../rpc/rpcFunctions/picasa-ini";
+import { safeWriteFile } from "../utils/serverUtils";
 import { TagValues, dump, insert, load } from "./piexif/index";
 import {
   buildContext,
@@ -18,23 +22,39 @@ import {
   setOptions,
   transform,
 } from "./sharp-processor";
-import { readFile } from "fs/promises";
-import { safeWriteFile } from "../utils/serverUtils";
 
 export async function imageInfo(
   entry: AlbumEntry,
 ): Promise<AlbumEntryWithMetadata> {
-  const res: AlbumEntryWithMetadata = {
-    ...entry,
-    meta: { transform: "", type: Filetype.Picture, width: 0, height: 0 },
-  };
   const picasa = await readAlbumIni(entry.album);
   const options = picasa[entry.name] || {};
+  const res: AlbumEntryWithMetadata = {
+    ...entry,
+    raw: options,
+    meta: { transform: "", type: Filetype.Picture, width: 0, height: 0 },
+  };
   if (isVideo(entry)) {
     res.meta.type = Filetype.Video;
   } else if (isPicture(entry)) {
     res.meta.type = Filetype.Picture;
 
+    const exif = await exifDataAndStats(entry);
+    if (exif) {
+      // Fix dateTaken from exif, if available
+      let dateTaken =
+        exif.tags.DateTimeOriginal ||
+        exif.tags.CreateDate ||
+        exif.tags.ModifyDate ||
+        (exif.stats && exif.stats.mtime);
+      if (dateTaken && dateTaken instanceof Date) {
+        dateTaken = dateTaken.toISOString();
+      }
+
+      if (dateTaken && dateTaken !== res.raw.dateTaken) {
+        updatePicasaEntry(entry, "dateTaken", dateTaken);
+        res.raw.dateTaken = dateTaken;
+      }
+    }
     if (
       options.dimensions &&
       options.dimensionsFromFilter === options.filters

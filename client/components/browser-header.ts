@@ -2,6 +2,7 @@ import { $ } from "../lib/dom";
 import {
   getSettings,
   getSettingsEmitter,
+  updateFilterByFavoritePhoto,
   updateFilterByLocation,
   updateFilterByPeople,
   updateFilterByStar,
@@ -16,20 +17,20 @@ import { t } from "./strings";
 
 const html = `<div class="browser-header">
 <picasa-button class="new-album" icon="resources/images/folder-plus.svg">${t(
-  "New album"
+  "New album",
 )}</picasa-button>
 <span  style="display: inline-block; width: 1px;" class="vertical-separator"></span>
 <div id="filters" class="filters">
 <span class="filters-title">${t("Filters")}</span>
 <picasa-multi-button class="filter-button filter-by-favorite" items="☆|🌟|🌟🌟|🌟🌟🌟" selected="0" ></picasa-multi-button>
-<picasa-multi-button class="filter-button filter-by-type" items="🎞|👤|📍" selected="" multiselect></picasa-multi-button>
+<picasa-multi-button class="filter-button filter-by-type" items="🎞|👤|📍|" selected="" multiselect></picasa-multi-button>
 <span  style="display: inline-block; width: 1px;" class="vertical-separator"></span>
 <input class="filter-by-text" placeholder="🔍" type="text">
 </div>
 `;
 
 export async function makeBrowserHeader(
-  selectionManager: AlbumEntrySelectionManager
+  selectionManager: AlbumEntrySelectionManager,
 ) {
   const container = $(html);
   const filterFavorites = $(".filter-by-favorite", container);
@@ -46,6 +47,7 @@ export async function makeBrowserHeader(
     updateFilterByVideos(activeFilters.includes(0));
     updateFilterByPeople(activeFilters.includes(1));
     updateFilterByLocation(activeFilters.includes(2));
+    updateFilterByFavoritePhoto(activeFilters.includes(3));
   });
   filterText.on("input", () => {
     updateFilterByText(filterText.val());
@@ -56,6 +58,7 @@ export async function makeBrowserHeader(
     filters.select(0, settings.filters.video);
     filters.select(1, settings.filters.people);
     filters.select(2, settings.filters.location);
+    filters.select(3, settings.filters.favoritePhoto);
     filterFavorites.attr("selected", settings.filters.star);
   });
   $(".new-album", container).on("click", makeNewAlbum);

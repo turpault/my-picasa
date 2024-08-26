@@ -205,32 +205,16 @@ export function makeMetadata(
 
   async function updatePersons() {
     pages.persons.e.empty();
-    const faces = imageData
-      .map((i) => i.metadata.faces)
-      .filter((i) => !!i)
-      .map((faces) => decodeFaces(faces))
-      .flat()
-      .reduce((prev, val) => {
-        prev.find((a) => a.hash === val.hash) || prev.push(val);
-        return prev;
-      }, [] as FaceList);
-
-    const s = await getService();
-    const faceAlbums = (await Promise.all(
-      faces.map((face) => s.getFaceAlbumFromHash(face.hash)),
-    )) as AlbumWithData[];
-
-    const uniqueFaces = faceAlbums.reduce(
-      (prev, val) =>
-        !val.key || prev.find((a) => a.key === val.key) ? prev : [...prev, val],
-      [] as AlbumWithData[],
-    );
-    uniqueFaces.forEach((faceAlbum) => {
-      const url = albumThumbnailUrl(faceAlbum);
-      pages.persons.e.append(
-        `<div class="selection-person-entry"><img class="selection-person-entry-thumb" src="${url}"><span class="selection-person-entry-label">${faceAlbum.name}</span></div>`,
-      );
-    });
+    for (const data of imageData) {
+      const s = await getService();
+      const faces = await s.getFaceDataFromAlbumEntry(data.entry);
+      for (const face of faces) {
+        const url = albumThumbnailUrl(face.contact);
+        pages.persons.e.append(
+          `<div class="selection-person-entry"><img class="selection-person-entry-thumb" src="${url}"><span class="selection-person-entry-label">${face.name}</span></div>`,
+        );
+      }
+    }
   }
 
   let mapLeaflet: any;

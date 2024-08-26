@@ -58,6 +58,7 @@ import {
 } from "./rpcFunctions/picasa-ini";
 import { clientReady } from "./rpcFunctions/ready";
 import { setAlbumShortcut } from "./rpcFunctions/shortcuts";
+import { getFaceDataFromAlbumEntry } from "../background/face/picasa-faces";
 
 /**
  * ConcurrencyService IDL
@@ -257,6 +258,10 @@ export const PicisaClient: ServiceMap = {
     writeProject: {
       handler: writeProject,
       arguments: ["data:object", "changeType:string"],
+    },
+    getFaceDataFromAlbumEntry: {
+      handler: getFaceDataFromAlbumEntry,
+      arguments: ["entry:object"],
     },
     createProject: {
       handler: createProject,

@@ -1,7 +1,7 @@
 import { copyFile, mkdir, rename, stat } from "fs/promises";
 import { basename, dirname, extname, join, relative, sep } from "path";
 import { lock } from "../../../shared/lib/mutex";
-import { sleep, uuid } from "../../../shared/lib/utils";
+import { debounce, debounced, sleep, uuid } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
@@ -29,6 +29,7 @@ import { setRank } from "./albumUtils";
 import { getPhotoFavorites, openWithFinder } from "./osascripts";
 import { getPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasa-ini";
 import { copyThumbnails } from "./thumbnail-cache";
+import { syncFavoritesFromPhotoApp } from "../../background/bg-favorites";
 
 const jobs: Job[] = [];
 type MultiMoveJobArguments = {
@@ -75,7 +76,7 @@ export async function createFSJob(
     data: jobArgs as JobData,
     status: "queued",
     progress: {
-      start: 0,
+      total: 0,
       remaining: 0,
     },
     errors: [],
@@ -133,6 +134,8 @@ async function executeJob(job: Job): Promise<Album[]> {
       return renameAlbumJob(job);
     case JOBNAMES.BUILD_PROJECT:
       return buildProject(job);
+    case JOBNAMES.POPULATE_IPHOTO_FAVORITES:
+      return populateIPhotoFavorites(job);
     default:
       job.status = "finished";
       job.errors.push(`Unknown job name ${job.name}`);
@@ -183,7 +186,7 @@ async function copyJob(job: Job): Promise<Album[]> {
   const source = job.data.source as AlbumEntry[];
   const dest = job.data.destination as Album;
   const steps = source.length;
-  job.progress.start = steps;
+  job.progress.total = steps;
   job.progress.remaining = steps;
   job.changed();
   job.out = [];
@@ -248,7 +251,7 @@ async function deleteAlbumJob(job: Job): Promise<Album[]> {
   job.status = "started";
   const updatedAlbums: Album[] = [];
   const source = job.data.source as Album;
-  job.progress.start = 1;
+  job.progress.total = 1;
   job.progress.remaining = 1;
   job.changed();
 
@@ -293,7 +296,7 @@ async function renameAlbumJob(job: Job): Promise<Album[]> {
   const newName = job.data.name as string;
   undoDeleteAlbumPayload.name = source.name;
 
-  job.progress.start = 1;
+  job.progress.total = 1;
   job.progress.remaining = 1;
   job.changed();
 
@@ -335,7 +338,7 @@ async function restoreJob(job: Job): Promise<Album[]> {
   const updatedAlbums: Album[] = [];
   const source = job.data.source as AlbumEntry[];
   const steps = source.length;
-  job.progress.start = steps;
+  job.progress.total = steps;
   job.progress.remaining = steps;
   job.changed();
   await Promise.allSettled(
@@ -367,7 +370,7 @@ async function restoreAlbumJob(job: Job): Promise<Album[]> {
   const updatedAlbums: Album[] = [];
   const source = job.data.source as Album;
   const steps = 1;
-  job.progress.start = steps;
+  job.progress.total = steps;
   job.progress.remaining = steps;
   job.changed();
   try {
@@ -411,7 +414,7 @@ async function deleteJob(job: Job): Promise<Album[]> {
   const updatedAlbums: Album[] = [];
   const source = job.data.source as AlbumEntry[];
   const steps = source.length;
-  job.progress.start = steps;
+  job.progress.total = steps;
   job.progress.remaining = steps;
   job.changed();
   await Promise.allSettled(
@@ -458,7 +461,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
     rank: number;
   }[];
   const steps = source.length;
-  job.progress.start = steps;
+  job.progress.total = steps;
   job.progress.remaining = steps;
   job.changed();
   for (const s of source) {
@@ -539,7 +542,7 @@ async function exportJob(job: Job): Promise<Album[]> {
   const source = job.data.source as AlbumEntry[];
   const destination = job.data.destination;
   const steps = source.length;
-  job.progress.start = steps;
+  job.progress.total = steps;
   job.progress.remaining = steps;
   job.changed();
   const targetFolder = destination
@@ -576,7 +579,7 @@ async function buildProject(job: Job): Promise<Album[]> {
   job.status = "started";
   const updatedAlbums: Album[] = [];
   const sources = job.data.source as AlbumEntry[];
-  job.progress.start = 1;
+  job.progress.total = 1;
   job.progress.remaining = sources.length;
   job.changed();
 
@@ -618,4 +621,27 @@ async function copyMetadata(
   }
 
   await copyThumbnails(source, dest, deleteSource);
+}
+
+async function populateIPhotoFavorites(job: Job): Promise<Album[]> {
+  // Deleting a set of images means renaming them
+  job.status = "started";
+  job.progress.total = 1;
+  job.progress.remaining = 1;
+  job.changed();
+  const d = debounced(
+    (progress: number, total: number) => {
+      job.progress.total = total;
+      job.progress.remaining = total - progress;
+      job.changed();
+    },
+    2000,
+    true,
+  );
+
+  await syncFavoritesFromPhotoApp(d);
+
+  job.status = "finished";
+  job.changed();
+  return [];
 }

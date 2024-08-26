@@ -17,6 +17,7 @@ export type AlbumEntryMetaData = {
   latitude?: number;
   longitude?: number;
   exif?: string; // a JSON-encoded string with the EXIF data
+  photostar?: boolean; // Starred from MacOS photo app
   star?: boolean;
   starCount?: string;
   caption?: string;
@@ -49,7 +50,7 @@ export type Job = {
   name: string;
   data: JobData;
   status: "started" | "queued" | "finished";
-  progress: { start: number; remaining: number };
+  progress: { total: number; remaining: number };
   errors: string[];
   changed: Function;
   completion: Function;
@@ -69,6 +70,7 @@ export enum JOBNAMES {
   RESTORE_ALBUM = "Restore Album",
   RENAME_ALBUM = "Rename Album",
   BUILD_PROJECT = "Build Project",
+  POPULATE_IPHOTO_FAVORITES = "Import Favorites from Photo app",
 }
 
 export const ThumbnailSizeVals = ["th-small", "th-medium", "th-large"] as const;
@@ -159,6 +161,7 @@ export type AlbumEntry = {
 };
 export type AlbumEntryWithMetadata = AlbumEntry & {
   meta: ImageFileMeta;
+  raw: AlbumEntryMetaData;
 };
 
 export type AlbumEntryPicasa = AlbumEntry & {

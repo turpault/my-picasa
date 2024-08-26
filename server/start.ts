@@ -1,5 +1,5 @@
 import fastifystatic from "@fastify/static";
-import { default as websocketPlugin } from "@fastify/websocket";
+import FastifyWebsocket from "@fastify/websocket";
 import Fastify, { FastifyInstance, RouteShorthandOptions } from "fastify";
 import { join } from "path";
 import { lockedLocks, startLockMonitor } from "../shared/lib/mutex";
@@ -33,19 +33,21 @@ function socketAdaptorInit(serverClient: any): SocketAdaptorInterface {
 }
 
 export function socketInit(httpServer: FastifyInstance) {
-  httpServer.get("/cmd", { websocket: true }, (connection, req) => {
-    console.info("[socket]: Client has connected...");
-    const socket = socketAdaptorInit(connection.socket);
-    addSocket(socket);
-    socket.onDisconnect(() => {
-      removeSocket(socket);
-    });
+  httpServer.register(async function (fastify) {
+    fastify.get("/cmd", { websocket: true }, (connection, req) => {
+      console.info("[socket]: Client has connected...");
+      const socket = socketAdaptorInit(connection);
+      addSocket(socket);
+      socket.onDisconnect(() => {
+        removeSocket(socket);
+      });
 
-    RPCInit(socket, {});
+      RPCInit(socket, {});
 
-    connection.on("error", () => {
-      console.debug("[socket]: Socket had an error...");
-      removeSocket(socket);
+      connection.on("error", () => {
+        console.debug("[socket]: Socket had an error...");
+        removeSocket(socket);
+      });
     });
   });
 }
@@ -117,7 +119,7 @@ function setupRoutes(server: FastifyInstance) {
       reply.type(r.mime);
       reply.header("cache-control", "no-cache");
       return r.data;
-    }
+    },
   );
 
   server.get("/asset/:albumkey/:name", async (request, reply) => {
@@ -160,8 +162,7 @@ export async function startServer(p?: number) {
       root: join(__dirname, "..", "public"),
       prefix: "/", // optional: default '/',
     });
-
-    server.register(websocketPlugin);
+    server.register(FastifyWebsocket);
     await socketInit(server);
 
     server.addHook("preHandler", (request, reply, done) => {
@@ -170,7 +171,7 @@ export async function startServer(p?: number) {
     });
 
     setupRoutes(server);
-    await server.listen({ port: p });
+    await server.ready().then(() => server.listen({ port: p }));
     console.info(`Ready to accept connections on port ${p}.`);
   } catch (err) {
     console.error(err);

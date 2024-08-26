@@ -192,28 +192,7 @@ export async function media(
     let entries = assets.entries.filter((e) =>
       filter ? inFilter(e, picasa[e.name], filter) : true,
     );
-    for (const entry of entries) {
-      if (isPicture(entry)) {
-        if (!picasa[entry.name] || !picasa[entry.name].dateTaken) {
-          const exif = await exifDataAndStats(entry);
-          // dates, in fallback order
-          const pictureDate =
-            exif.tags.DateTimeOriginal ||
-            (exif.tags.CreateDate && new Date(exif.tags.CreateDate)) ||
-            (exif.tags.ModifyDate && new Date(exif.tags.ModifyDate));
-          if (pictureDate)
-            updatePicasaEntry(entry, "dateTaken", pictureDate.toISOString());
-          else if (exif.stats) {
-            // Default to file creation time
-            updatePicasaEntry(
-              entry,
-              "dateTaken",
-              exif.stats.ctime.toISOString(),
-            );
-          }
-        }
-      }
-    }
+
     await sortAssetsByRank(entries);
     await assignRanks(entries);
     return { entries };

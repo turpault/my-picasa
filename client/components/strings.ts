@@ -25,10 +25,8 @@ const stringTable: { [key: string]: any } = {
   Crop: { fr: "Recadrer" },
   "Crop Picture": { fr: "Recadrer la photo" },
   "Crop Details": {
-    en:
-      "Select a dimension below and drag the pointer over the image to select the part to crop.",
-    fr:
-      "Sélectionnez une dimension ci-dessous et faites glisser le pointeur sur l'image pour sélectionner la partie à recadrer.",
+    en: "Select a dimension below and drag the pointer over the image to select the part to crop.",
+    fr: "Sélectionnez une dimension ci-dessous et faites glisser le pointeur sur l'image pour sélectionner la partie à recadrer.",
   },
   Tilt: { fr: "Redresser" },
   Autocolor: { fr: "Couleur auto" },
@@ -160,6 +158,10 @@ const stringTable: { [key: string]: any } = {
     fr: "Applique un flou avec un rayon spécifique",
   },
   Filter: { fr: "Filtre" },
+  "iPhoto Favorites": { fr: "Favoris iPhoto" },
+  "Import Favorites from Photo app": {
+    fr: "Importer les favoris de l'app Photos",
+  },
 };
 const lang = window.navigator.language.split("-")[0];
 let str = new Set<string>();

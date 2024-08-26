@@ -22,6 +22,7 @@ import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
 import { DropListEvents, makeDropList } from "./controls/dropdown";
 import { PicasaMultiButton } from "./controls/multibutton";
+import { Button, message } from "./message";
 import { question } from "./question";
 import {
   ApplicationState,
@@ -76,7 +77,7 @@ function hotKeyToCode(hotKey: string) {
             throw new Error(`Unknown modifier ${m}`);
         }
       })
-      .map((n) => [n, true])
+      .map((n) => [n, true]),
   );
   return { modifiers, key };
 }
@@ -84,7 +85,7 @@ function hotKeyToCode(hotKey: string) {
 export function makeButtons(
   appEvents: AppEventSource,
   selectionManager: AlbumEntrySelectionManager,
-  state: ApplicationState
+  state: ApplicationState,
 ): _$ {
   const container = $(html);
   const buttons = $(".selection-actions-buttons", container);
@@ -207,7 +208,7 @@ export function makeButtons(
       tooltip: () =>
         `${t(
           "Move $1 item(s) to a new album",
-          localState.getValue("selected").length
+          localState.getValue("selected").length,
         )}`,
       execute: () => {
         question("New album name", "Please type the new album name").then(
@@ -224,7 +225,7 @@ export function makeButtons(
                 });
               });
             }
-          }
+          },
         );
       },
     },
@@ -286,18 +287,43 @@ export function makeButtons(
       },
     },
     {
+      name: JOBNAMES.POPULATE_IPHOTO_FAVORITES,
+      label: t("iPhoto Favorites"),
+      stateKeys: [],
+      icon: "resources/images/icons/actions/iphoto-50.png",
+      enabled: () => true,
+      tooltip: () => `${t("Synchronize favorites from Photos App")}`,
+      execute: async () => {
+        const s = await getService();
+        return s.createJob(JOBNAMES.POPULATE_IPHOTO_FAVORITES, {});
+      },
+    },
+    {
       name: t("Delete"),
       label: t("Delete"),
       icon: "resources/images/icons/actions/trash-50.png",
       stateKeys: ["selected"],
+      hotKey: "Backspace",
       enabled: () => localState.getValue("selected").length > 0,
       tooltip: () =>
         `${t("Delete $1 item(s)", localState.getValue("selected").length)}`,
       execute: async () => {
-        const s = await getService();
-        return s.createJob(JOBNAMES.DELETE, {
-          source: localState.getValue("selected"),
-        });
+        const b = await message(
+          t(
+            `Do you want to delete $1 files|${
+              localState.getValue("selected").length
+            }`,
+          ),
+          [Button.Ok, Button.Cancel],
+        );
+
+        if (b === Button.Ok) {
+          const s = await getService();
+          s.createJob(JOBNAMES.DELETE, {
+            source: localState.getValue("selected"),
+          });
+        }
+        return true;
       },
     },
   ];
@@ -326,7 +352,7 @@ export function makeButtons(
           iconpos="top"
           icon="${action.icon}">
           ${action.label}
-        </picasa-button>`
+        </picasa-button>`,
         );
         break;
     }
@@ -348,15 +374,15 @@ export function makeButtons(
     if (action.type !== "sep") {
       action.element!.addRemoveClass(
         "disabled",
-        !!action.enabled && !action.enabled()
+        !!action.enabled && !action.enabled(),
       );
       action.element!.addRemoveClass(
         "highlight",
-        !!action.highlight && action.highlight()
+        !!action.highlight && action.highlight(),
       );
       action.element!.addRemoveClass(
         "hidden",
-        !!action.visible && !action.visible()
+        !!action.visible && !action.visible(),
       );
       if (action.tooltip)
         action.element!.attr("data-tooltip-above", action.tooltip());
@@ -400,15 +426,15 @@ export function makeButtons(
   state.events.on("selected", () => {
     $(".quick-actions-rotate-left", container).addRemoveClass(
       "disabled",
-      !localState.getValue("selected")
+      !localState.getValue("selected"),
     );
     $(".quick-actions-rotate-right", container).addRemoveClass(
       "disabled",
-      !localState.getValue("selected")
+      !localState.getValue("selected"),
     );
     $(".quick-actions-star", container).addRemoveClass(
       "disabled",
-      !!localState.getValue("selected")
+      !!localState.getValue("selected"),
     );
   });
 
@@ -437,7 +463,7 @@ export function makeButtons(
             entry: activeEntry,
             metadata: albumMetadata[activeEntry.name],
           }
-        : undefined
+        : undefined,
     );
     const activeOnly = !!state.getValue("META_SINGLE_SELECTION_MODE");
 
@@ -456,14 +482,14 @@ export function makeButtons(
           selectionManager.isPinned(entry) ? "selection-thumb-pinned" : ""
         } entry" style="background-image: url(${thumbnailUrl(
           entry,
-          "th-small"
-        )})"/>`
+          "th-small",
+        )})"/>`,
       );
       lst
         .append(icon)
         .addRemoveClass(
           "selection-thumb-selected",
-          selectionManager.activeIndex() === index
+          selectionManager.activeIndex() === index,
         );
       setIdForEntry(icon, entry, elementPrefix);
     });
@@ -472,7 +498,7 @@ export function makeButtons(
         selectionManager.selected().length.toString() +
         " " +
         t("photos selected")
-      }</span>`
+      }</span>`,
     );
   });
   const updateLabel = debounced(() => {
@@ -525,7 +551,7 @@ export function makeButtons(
             "background-image": `url(${thumbnailUrl(e.payload, "th-small")})`,
           });
         }
-      }
+      },
     );
   });
   appEvents.on("tabChanged", () => {

@@ -7,6 +7,7 @@ export type Settings = {
     video: boolean;
     people: boolean;
     location: boolean;
+    favoritePhoto: boolean;
     text: string;
   };
   iconSize: number;
@@ -19,7 +20,14 @@ export type SettingsChangeEvent = {
 };
 const e = buildEmitter<SettingsChangeEvent>();
 const settings: Settings = {
-  filters: { star: 0, video: false, people: false, location: false, text: "" },
+  filters: {
+    star: 0,
+    video: false,
+    people: false,
+    location: false,
+    favoritePhoto: false,
+    text: "",
+  },
   sort: "date",
   inverseSort: false,
   iconSize: 250,
@@ -30,6 +38,7 @@ export async function makeSettings() {
   settings.filters.video = (await get("filterByVideos")) || false;
   settings.filters.people = (await get("filterByPeople")) || false;
   settings.filters.location = (await get("filterByLocation")) || false;
+  settings.filters.favoritePhoto = (await get("favoritePhoto")) || false;
   settings.filters.text = (await get("filterByText")) || "";
   settings.sort = (await get("sort")) || "date";
   settings.inverseSort = (await get("inverseSort")) || false;
@@ -47,6 +56,7 @@ async function changed(field: string) {
   await set("filterByVideos", settings.filters.video);
   await set("filterByPeople", settings.filters.people);
   await set("filterByLocation", settings.filters.location);
+  await set("filterByFavoritePhoto", settings.filters.favoritePhoto);
   await set("sort", settings.sort);
   await set("inverseSort", settings.inverseSort);
   await set("iconSize", settings.iconSize);
@@ -67,6 +77,10 @@ export function updateFilterByVideos(newValue: boolean) {
 export function updateFilterByLocation(newValue: boolean) {
   settings.filters.location = newValue;
   changed("filters.location");
+}
+export function updateFilterByFavoritePhoto(newValue: boolean) {
+  settings.filters.favoritePhoto = newValue;
+  changed("filters.favoritePhoto");
 }
 export function updateFilterByPeople(newValue: boolean) {
   settings.filters.people = newValue;

@@ -59,7 +59,7 @@ export class WsAdaptor implements SocketAdaptorInterface {
    */
   on(
     action: string,
-    callback: (payload: any, callback: Function) => void
+    callback: (payload: any, callback: Function) => void,
   ): Function {
     return this.handlerMap.on(action, callback as Handler<any>);
   }
@@ -71,7 +71,7 @@ export class WsAdaptor implements SocketAdaptorInterface {
   async emit(
     action: string,
     payload: any,
-    response?: (err: string, payload: any) => void
+    response?: (err: string, payload: any) => void,
   ): Promise<void> {
     let requestId = undefined;
     if (response) {
@@ -123,7 +123,7 @@ export class WsAdaptor implements SocketAdaptorInterface {
   private async emitRetry(
     message: string | object,
     remainingRetries: number,
-    retryDelay: number
+    retryDelay: number,
   ): Promise<void> {
     if (this.ws!.readyState !== 1) {
       if (this.ws!.onerror) this.ws!.onerror({} as Event);
@@ -132,12 +132,12 @@ export class WsAdaptor implements SocketAdaptorInterface {
         return this.emitRetry(
           message,
           remainingRetries - 1,
-          retryDelay * WsAdaptor.TIMEOUT_MULTIPLIER
+          retryDelay * WsAdaptor.TIMEOUT_MULTIPLIER,
         );
       }
       console.warn(
         "Socket has been closed, cannot send message",
-        JSON.stringify(message).slice(0, 50)
+        JSON.stringify(message).slice(0, 50),
       );
     }
     this.ws!.send(message.toString());
@@ -150,9 +150,7 @@ export class WsAdaptor implements SocketAdaptorInterface {
   private setMessageListener(): void {
     this.ws!.onmessage = (message: any) => {
       this.handleMessage(
-        message.data
-          ? message.data.toString()
-          : ((message as unknown) as string)
+        message.data ? message.data.toString() : (message as unknown as string),
       );
     };
   }
@@ -166,7 +164,7 @@ export class WsAdaptor implements SocketAdaptorInterface {
       args = JSON.parse(message);
     } catch (err) {
       console.log(
-        `Failed parsing message ${message}. Will be unable to respond.`
+        `Failed parsing message ${message}. Will be unable to respond.`,
       );
       return;
     }
@@ -186,7 +184,7 @@ export class WsAdaptor implements SocketAdaptorInterface {
    */
   private async handleIncomingRequest(
     message: string,
-    args: any
+    args: any,
   ): Promise<void> {
     await this.executeMiddleware(message);
 
@@ -236,7 +234,7 @@ export class WsAdaptor implements SocketAdaptorInterface {
     await Promise.all(
       this.middleware.map((fn) => {
         fn(message, () => {});
-      })
+      }),
     );
   }
 
@@ -248,7 +246,7 @@ export class WsAdaptor implements SocketAdaptorInterface {
 
     if (!requestId) {
       console.log(
-        `No requestId in the received response: ${JSON.stringify(args)}`
+        `No requestId in the received response: ${JSON.stringify(args)}`,
       );
       return;
     }

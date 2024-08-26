@@ -28,6 +28,7 @@ import {
   writePicasaSection,
 } from "../../rpc/rpcFunctions/picasa-ini";
 import { getFolderAlbums, waitUntilWalk } from "../../walker";
+import { readReferencesOfEntry, Reference } from "./references";
 
 type PicasaFeatures = {
   contacts: ContactByHash;
@@ -92,6 +93,34 @@ export async function addFaceRectToEntry(
   return;
 }
 
+export async function getFaceDataFromAlbumEntry(entry: AlbumEntry) {
+  const names = { faces: true, candidateFaces: false };
+  const promises: Promise<{
+    face: Face;
+    contact: Contact;
+    isCandidate?: boolean;
+    referenceData?: Reference;
+  }>[] = [];
+  const current = await getPicasaEntry(entry);
+  const referenceData = await readReferencesOfEntry(entry);
+  for (const [name, isCandidate] of Object.entries(names)) {
+    const iniFaces = (current as any)[name] || "";
+    const faces = decodeFaces(iniFaces);
+    promises.push(
+      ...faces.map(async (face) => {
+        const contact = await getContact(entry.album, face.hash);
+        return {
+          face,
+          contact,
+          isCandidate,
+          referenceData: referenceData?.find((r) => r.id === face.hash),
+        };
+      }),
+    );
+  }
+  return Promise.all(promises);
+}
+
 export async function addCandidateFaceRectToEntry(
   entry: AlbumEntry,
   rect: string,
@@ -119,6 +148,7 @@ export async function addCandidateFaceRectToEntry(
   ]);
   return;
 }
+
 export async function removeFaceFromEntry(
   entry: AlbumEntry,
   face: Face,
@@ -147,4 +177,14 @@ async function addContact(album: Album, hash: string, contact: Contact) {
     [contact.originalName, contact.email, contact.something].join(";"),
     PicasaBaseKeys.Contacts2,
   );
+}
+
+async function getContact(album: Album, hash: string): Promise<Contact> {
+  const section = await readPicasaSection(album, PicasaBaseKeys.Contacts2);
+  const data = section[hash];
+  if (!data) {
+    throw new Error(`Contact not found for hash ${hash}`);
+  }
+  const [originalName, email, something] = data.split(";");
+  return { key: originalName, originalName, email, something };
 }

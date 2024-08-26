@@ -302,7 +302,7 @@ export async function makePhotoList(
         // Check if the album should be redrawn or not
         const element = elementFromAlbum(event.oldAlbum, elementPrefix);
         if (element) {
-          populateElement(element, event.album);
+          populateElement(event.album, element);
         }
       }),
       events.on("invalidateAt", async (event) => {
@@ -310,9 +310,9 @@ export async function makePhotoList(
         const element = elementAtIndex(event.index);
         if (element) {
           console.info("photo-list - invalidateAt", event.index);
-          const hasChanged = await populateElement(
-            element,
+          const { hasChanged } = await populateElement(
             dataSource.albumAtIndex(event.index),
+            element,
           );
           console.info("photo-list - invalidateAt / after", event.index);
           if (hasChanged) {
@@ -348,8 +348,8 @@ export async function makePhotoList(
         if (indexOf(d) >= index && indexOf(d) <= to) {
           if (indexOf(d) === visible) {
             await populateElement(
-              visibleElement()!,
               dataSource.albumAtIndex(index),
+              visibleElement()!,
             );
           } else {
             moveToPool(d);
@@ -467,9 +467,18 @@ export async function makePhotoList(
     // Nothing to display, start at topIndex
     if (displayed.length === 0) {
       if (dataSource.length() > 0) {
-        const album = dataSource.albumAtIndex(topIndex);
-        const albumElement = getElement();
-        await populateElement(albumElement, album);
+        let albumElement: _$ | undefined;
+        while (albumElement === undefined && topIndex < dataSource.length()) {
+          const album = dataSource.albumAtIndex(topIndex);
+          const { element } = await populateElement(album);
+          if (element) {
+            albumElement = element;
+          } else { topIndex++ }
+        }
+        if (!albumElement) {
+          console.info("No album to display");
+          return;
+        }
         $(albumElement).css("top", `${initialVerticalPosition}px`); //index === 0 ? "0" : "100px");
         $(".invisible-pixel", container).css({
           top: `${initialVerticalPosition + container.height}px`,
@@ -659,9 +668,19 @@ export async function makePhotoList(
 
   async function albumWithThumbnails(
     album: Album,
-    e: _$,
+    e: _$ | undefined,
     events: AlbumListEventSource,
-  ): Promise<boolean> {
+  ): Promise<{ element: _$ | undefined; hasChanged: boolean }> {
+    const info = await getAlbumInfo(album, true /* use settings */);
+    // If the album is filtered and has no assets, we don't display it
+    // unless we are in the process of editing it
+    if (!e && info.filtered && info.assets.length === 0) {
+      return { element: undefined, hasChanged: false };
+    }
+    if (!e) {
+      e = getElement();
+    }
+
     const headerElement = $(".name-container", e);
     const photosElement = $(".photos", e);
 
@@ -677,12 +696,6 @@ export async function makePhotoList(
       : t("Unknown date");
     $(".name-container-date", headerElement).innerHTML(dateString);
 
-    const info = await getAlbumInfo(album, true /* use settings */);
-    if (info.filtered && info.assets.length === 0) {
-      e.hide();
-    } else {
-      e.show();
-    }
     const countChanged = makeNThumbnails(
       photosElement,
       info.assets.length,
@@ -707,7 +720,7 @@ export async function makePhotoList(
       );
     }
     await Promise.allSettled(p);
-    return countChanged;
+    return { element: e, hasChanged: countChanged };
   }
   function updateElement(e: _$, album: AlbumWithData) {
     if (album.shortcut) {
@@ -888,21 +901,26 @@ export async function makePhotoList(
     return e;
   }
   async function populateElement(
-    e: _$,
     album: AlbumWithData,
-  ): Promise<boolean> {
-    const hasChanged = await albumWithThumbnails(album, e, events);
-    setIdForAlbum(e, album, elementPrefix);
-    updateElement(e, album);
-    return hasChanged;
+    e?: _$,
+  ): Promise<{ element: _$ | undefined; hasChanged: boolean }> {
+    const { element, hasChanged } = await albumWithThumbnails(album, e, events);
+    if(element) {
+      setIdForAlbum(element, album, elementPrefix);
+      updateElement(element, album);
+    }
+    return { element, hasChanged };
   }
 
   async function addAtTop() {
     if (topIndex > 0) {
       topIndex--;
-      const albumElement = getElement();
       const album = dataSource.albumAtIndex(topIndex);
-      await populateElement(albumElement, album);
+      const { element: albumElement } = await populateElement(album);
+      if (!albumElement) {
+        console.info(`Album ${album.name} is empty, skipping`);
+        return;
+      }
       $(albumElement).css({ top: `0px`, opacity: 0 });
       albumElement.attr("index", topIndex.toString());
       container
@@ -919,9 +937,12 @@ export async function makePhotoList(
   async function addAtBottom() {
     if (bottomIndex < dataSource.length() - 1) {
       bottomIndex++;
-      const albumElement = getElement();
       const album = dataSource.albumAtIndex(bottomIndex);
-      await populateElement(albumElement, album);
+      const { element: albumElement } = await populateElement(album);
+      if (!albumElement) {
+        console.info(`Album ${album.name} is empty, skipping`);
+        return;
+      }
       $(albumElement).css({ top: `0px`, opacity: 0 });
       albumElement.attr("index", bottomIndex.toString());
       container
