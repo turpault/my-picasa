@@ -9,29 +9,30 @@ export type OffFunction = () => void;
 
 export type FilterFct<T = Record<string, unknown>> = (
   type: keyof T,
-  event: T[keyof T]
+  event: T[keyof T],
 ) => boolean;
 
 export interface Emitter<Events extends Record<EventType, unknown>> {
   on<Key extends "*" | keyof Events>(
     type: Key,
-    handler: Handler<Events[Key]>
+    handler: Handler<Events[Key]>,
   ): OffFunction;
+  has<Key extends "*" | keyof Events>(type: Key): number;
   once<Key extends keyof Events>(
     type: Key,
-    handler: Handler<Events[Key]>
+    handler: Handler<Events[Key]>,
   ): OffFunction;
 
   off(id: string): void;
 
   emit<Key extends keyof Events>(type: Key, event: Events[Key]): boolean;
   emit<Key extends keyof Events>(
-    type: undefined extends Events[Key] ? Key : never
+    type: undefined extends Events[Key] ? Key : never,
   ): boolean;
 }
 
 export function buildEmitter<Events extends Record<EventType, unknown>>(
-  weakRef: boolean = false
+  weakRef: boolean = false,
 ): Emitter<Events> {
   type HandlerEntry = { handler: Function; once: boolean };
   type EventHandlers = { [key: string]: WeakRef<HandlerEntry> };
@@ -39,10 +40,18 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
   const all: EventMap = {};
 
   const hardRefs: any[] = [];
+  const has = (type: "*" | keyof Events) => {
+    const typeAsString = type as string;
+    let handlers = all[typeAsString];
+    if (!handlers) {
+      return 0;
+    }
+    return Object.keys(handlers).length;
+  };
   const on = (
     type: "*" | keyof Events,
     handler: Function,
-    once: boolean = false
+    once: boolean = false,
   ) => {
     const typeAsString = type as string;
     const entry = { handler, once, off: false };
@@ -72,7 +81,7 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
 
   const emit = <Key extends keyof Events>(
     type: Key,
-    evt?: Events[Key]
+    evt?: Events[Key],
   ): boolean => {
     let res = false;
     const typeAsString = type as string;
@@ -87,7 +96,7 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
           }
           debugger;
           console.warn(
-            `Removing handler ${id} of type ${type.toString()} because the function was garbage collected`
+            `Removing handler ${id} of type ${type.toString()} because the function was garbage collected`,
           );
           off(id);
         } else {
@@ -116,5 +125,6 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
     once: once as any,
     off: off as any,
     emit: emit as any,
+    has: has as any,
   };
 }

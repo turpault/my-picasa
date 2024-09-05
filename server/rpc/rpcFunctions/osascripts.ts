@@ -145,6 +145,5 @@ end tell
     }
     return true;
   });
-  debugger;
   return result.split("\n");
 }

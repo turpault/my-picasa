@@ -4,6 +4,7 @@ import { fromBase64, idFromAlbumEntry, toBase64 } from "../shared/lib/utils";
 import { AlbumEntry, AlbumKind, ProjectType } from "../shared/types/types";
 import { AlbumIndexedDataSource } from "./album-data-source";
 import { makeBrowser } from "./components/browser";
+import { makeBugWidget } from "./components/bug-widget";
 import { registerButton } from "./components/controls/button";
 import { registerCarousel } from "./components/controls/carousel";
 import { registerMultiButton } from "./components/controls/multibutton";
@@ -66,6 +67,8 @@ async function init(port: number) {
 
   $(".tabs-container").append(makeTabs(emitter));
 
+  await makeBugWidget($("#action-new-bug"));
+
   makeHotkeys(emitter);
 
   //makeContextMenu();
@@ -76,7 +79,7 @@ async function init(port: number) {
     const { win, tab, selectionManager } = await makeGallery(
       params.initialIndex,
       params.initialList,
-      emitter
+      emitter,
     );
     makeTab(win, tab, { kind: "Gallery", selectionManager });
   }
@@ -89,7 +92,7 @@ async function init(port: number) {
       if (entry.album.name == ProjectType.MOSAIC) {
         const { win, tab, selectionManager } = await makeMosaicPage(
           emitter,
-          entry
+          entry,
         );
         makeTab(win, tab, { kind: "Mosaic", selectionManager });
       }
@@ -99,13 +102,13 @@ async function init(port: number) {
     const images = await albumEntriesWithMetadata(params.initialList);
     const name = await question(
       t("Mosaic Name"),
-      t("New mosaic " + new Date())
+      t("New mosaic " + new Date()),
     );
     if (name) {
       const projectId = await newMosaicProject(name, images);
       const { win, tab, selectionManager } = await makeMosaicPage(
         emitter,
-        projectId
+        projectId,
       );
       makeTab(win, tab, { kind: "Mosaic", selectionManager });
     }
@@ -113,7 +116,7 @@ async function init(port: number) {
   async function newBrowserPage() {
     const { win, tab, selectionManager } = await makeBrowser(
       emitter,
-      dataSource
+      dataSource,
     );
     makeTab(win, tab, { kind: "Browser", selectionManager });
 
@@ -145,7 +148,7 @@ async function init(port: number) {
         kind: "Browser",
         selectionManager: new SelectionManager<AlbumEntry>(
           [],
-          idFromAlbumEntry
+          idFromAlbumEntry,
         ),
       });
     }
@@ -163,17 +166,19 @@ async function init(port: number) {
   }
 
   if (showInNewWindow) {
-    const newWindow = (page: string) => (...args: any[]) => {
-      const arg = toBase64(JSON.stringify(args));
-      const url = new URL(location.href);
-      const searchParams = new URLSearchParams(location.search);
-      searchParams.delete("page");
-      searchParams.delete("params");
-      searchParams.append("page", page);
-      searchParams.append("params", arg);
-      url.search = searchParams.toString();
-      window.open(url.toString());
-    };
+    const newWindow =
+      (page: string) =>
+      (...args: any[]) => {
+        const arg = toBase64(JSON.stringify(args));
+        const url = new URL(location.href);
+        const searchParams = new URLSearchParams(location.search);
+        searchParams.delete("page");
+        searchParams.delete("params");
+        searchParams.append("page", page);
+        searchParams.append("params", arg);
+        url.search = searchParams.toString();
+        window.open(url.toString());
+      };
     const actions = {
       show: newWindow("gallery"),
       edit: newWindow("editor"),

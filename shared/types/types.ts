@@ -273,3 +273,10 @@ export type Contact = {
 export type ContactByHash = {
   [hash: string]: Contact;
 };
+
+export type Bug = {
+  description: string;
+  priority: number;
+  status: string;
+  created: Date;
+};

@@ -306,10 +306,11 @@
 }
 
 .tab-button-highlight {
-  /* background-color: rgb(243, 243, 243); */
+  /* background-color: rgb(243, 243, 243) !important; */
   color: black;
   font-weight: bold;
-  border-bottom: none;
+  border: 2px solid black !important;
+  border-bottom: none !important;
   /* border-width: 3px !important; */
   /* border-style: solid !important; */
   /* border-color: #0f4c81 #0f4c81 rgb(243, 243, 243) !important; */
@@ -534,6 +535,7 @@ body {
   bottom: 1px;
   height: 105px;
   border-top: 1px solid;
+  background-color: #e8e8e8;
 }
 
 .zoom-photo-list {
@@ -901,6 +903,8 @@ body {
 
 .browser-navigator {
   bottom: 110px;
+  top: 0px;
+  background-color: #e8e8e8;
 }
 
 .browser-tab-text {
@@ -1473,9 +1477,9 @@ body {
   /* border-width: 3px;
   border-style: solid;
   border-color: #e3e3e3 transparent rgb(255 255 255 / 0%);*/
-  border-bottom: none;
+  border-bottom: 1px solid black;
   /* background: linear-gradient(36deg, rgb(243, 243, 243) 0%, rgb(239, 239, 239) 33%, rgb(234, 234, 234) 66%, rgb(215, 215, 215) 100%, rgb(204, 204, 204) 100%); */
-  /*border-bottom: none !important;*/
+  /* border-bottom: none !important; */
   /*box-shadow: rgba(0, 0, 0, 0.1) -4px 8px 8px, rgba(0, 0, 0, 0.1) -8px 16px 16px, rgba(0, 0, 0, 0.15) -16px 32px 32px, rgba(0, 0, 0, 0.25) -32px 64px 64px;*/
   border-radius: 10px 10px 0px 0px;
   min-width: 189px;
@@ -1616,13 +1620,19 @@ body {
   box-shadow: silver 2px 2px 1px;
   text-indent: 0;
   width: max-content;
+  white-space: pre;
   top: 6px;
 }
 
 [data-tooltip-below]:hover::before {
   opacity: 1;
+  position: fixed;
   z-index: 10000;
   transition-delay: 1s;
+  /* right: 0px; */
+  /* top: 12px; */
+  /* margin-right: 5px; */
+  /* margin-left: initial; */
 }
 
 [data-tooltip-above]::before {
@@ -1632,7 +1642,7 @@ body {
   pointer-events: none;
   margin-right: 9px;
   margin-left: -25px;
-  margin-top: -70px;
+  margin-top: -97px;
   font-size: 12px;
   opacity: 0;
   background: rgb(67, 67, 67);
@@ -1917,7 +1927,7 @@ body {
 
 .mosaic-parameter-block {
   color: rgb(80, 80, 80);
-  font-family: sans-serif;
+  /* font-family: sans-serif; */
   font-weight: bold;
   width: 100%;
   overflow-x: hidden;
@@ -2333,4 +2343,20 @@ body {
 
 .job-running {
   animation: pulse 1s infinite ease-in-out;
+}
+
+#action-new-bug {
+  position: fixed;
+  right: 5px;
+  top: 5px;
+  width: 32px;
+  z-index: 10000;
+  height: 32px;
+}
+
+#action-new-bug::before {
+  right: 0px;
+  top: 12px;
+  margin-right: 5px;
+  margin-left: initial;
 }

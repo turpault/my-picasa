@@ -154,20 +154,21 @@ export class ImageController {
     this.image.attr("src", null);
     this.video.empty();
     this.faces = [];
+    const entry = this.entry;
 
     // Display something only if there is anything to display
-    if (this.entry) {
+    if (entry) {
       const s = await getService();
-      this.metadata = await s.getAlbumEntryMetadata(this.entry);
+      this.metadata = await s.getAlbumEntryMetadata(entry);
       const data = this.metadata;
 
       //this.caption = data.caption || "";
-      if (isPicture(this.entry)) {
+      if (isPicture(entry)) {
         this.filters = data.filters ? decodeOperations(data.filters) : [];
         this.rotate = data.rotate || "";
 
         // Load the thumbnail first (should already be available)
-        const url = thumbnailUrl(this.entry, "th-large");
+        const url = thumbnailUrl(entry, "th-large");
         this.image.css({ display: "" });
         this.video.css({ display: "none" });
         this.video.get().pause();
@@ -175,12 +176,12 @@ export class ImageController {
         this.image.attr("src", url);
 
         // Prepare the image contexts (original and mini version)
-        this.context = await buildContext(this.entry);
+        this.context = await buildContext(entry);
         // Clear thumbcontext - will be rebuilt on first access
         this.thumbContext = "";
         this.update(false);
       }
-      if (isVideo(this.entry)) {
+      if (isVideo(entry)) {
         this.image.css({ display: "none" });
         this.video.css({ display: "" });
         this.rotate = data.rotate || "";

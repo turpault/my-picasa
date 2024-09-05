@@ -21,7 +21,7 @@ import { getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
 import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { AlbumListEventSource, AppEventSource } from "../uiTypes";
-import { Button, message, notImplemented } from "./message";
+import { Button, message, notImplemented } from "./question";
 import { t } from "./strings";
 import {
   entryAboveBelow,
@@ -473,7 +473,9 @@ export async function makePhotoList(
           const { element } = await populateElement(album);
           if (element) {
             albumElement = element;
-          } else { topIndex++ }
+          } else {
+            topIndex++;
+          }
         }
         if (!albumElement) {
           console.info("No album to display");
@@ -905,7 +907,7 @@ export async function makePhotoList(
     e?: _$,
   ): Promise<{ element: _$ | undefined; hasChanged: boolean }> {
     const { element, hasChanged } = await albumWithThumbnails(album, e, events);
-    if(element) {
+    if (element) {
       setIdForAlbum(element, album, elementPrefix);
       updateElement(element, album);
     }

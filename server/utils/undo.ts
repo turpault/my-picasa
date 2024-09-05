@@ -8,29 +8,25 @@ import { imagesRoot } from "./constants";
 import { broadcast } from "./socketList";
 import { fileExists } from "./serverUtils";
 
-const recentUndos: UndoStep[] = [];
 let undoStream: WriteStream;
 let undoneStream: WriteStream;
 const undoFile = join(imagesRoot, ".mypicasa.undo");
 const undoneFile = join(imagesRoot, ".mypicasa.undone");
 export async function initUndo() {
-  const lst = await undoList();
-  recentUndos.push(...lst.slice(-10));
-
   undoStream = createWriteStream(undoFile, {
-  flags: "a",
-  encoding: "utf-8",
-});
+    flags: "a",
+    encoding: "utf-8",
+  });
   undoneStream = createWriteStream(undoneFile, {
-  flags: "a",
-  encoding: "utf-8",
-});
+    flags: "a",
+    encoding: "utf-8",
+  });
 }
 
-export function addToUndo(
+export async function addToUndo(
   operation: string,
   description: string,
-  payload: any
+  payload: any,
 ) {
   const item: UndoStep = {
     uuid: uuid(),
@@ -40,8 +36,8 @@ export function addToUndo(
     payload,
   };
   undoStream.write(`${JSON.stringify(item)}\n`);
-  recentUndos.push(item);
-  broadcast("undoChanged", { undoSteps: recentUndos });
+  const undoSteps = await undoList();
+  broadcast("undoChanged", { undoSteps });
 }
 
 export type doFunction = (operation: string, payload: any) => void;
@@ -61,12 +57,11 @@ export async function undo(id: string) {
       if (registrar[operation]) {
         registrar[operation].undoFct(
           op.operation as string,
-          op.payload as object
+          op.payload as object,
         );
-        const idx = recentUndos.findIndex((x) => x.uuid === id);
-        if (idx !== -1) recentUndos.slice(idx, 1);
         undoneStream.write(`${id}\n`);
-        broadcast("undoChanged", { undoSteps: recentUndos });
+        const undoSteps = await undoList();
+        broadcast("undoChanged", { undoSteps });
       }
     }
   }
@@ -95,7 +90,7 @@ export async function undoList(): Promise<UndoStep[]> {
       });
     });
     reader.on("close", () => {
-      resolve(res);
+      resolve(res.slice(-10));
     });
   });
 }

@@ -59,6 +59,7 @@ import {
 import { clientReady } from "./rpcFunctions/ready";
 import { setAlbumShortcut } from "./rpcFunctions/shortcuts";
 import { getFaceDataFromAlbumEntry } from "../background/face/picasa-faces";
+import { addBug, getBugs } from "./rpcFunctions/bugs";
 
 /**
  * ConcurrencyService IDL
@@ -274,6 +275,14 @@ export const PicisaClient: ServiceMap = {
     histogram: {
       handler: histogram,
       arguments: ["context:string"],
+    },
+    addBug: {
+      handler: addBug,
+      arguments: ["description:string"],
+    },
+    getBugs: {
+      handler: getBugs,
+      arguments: [],
     },
   },
 };

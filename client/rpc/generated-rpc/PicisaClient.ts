@@ -280,4 +280,14 @@ export class PicisaClient {
       'args': { context } 
     });
   }
+  async addBug(description: string):Promise<any> {
+    return this.emit('PicisaClient:addBug', {
+      'args': { description } 
+    });
+  }
+  async getBugs():Promise<any> {
+    return this.emit('PicisaClient:getBugs', {
+      'args': {  } 
+    });
+  }
 }

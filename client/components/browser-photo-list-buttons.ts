@@ -22,7 +22,7 @@ import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
 import { DropListEvents, makeDropList } from "./controls/dropdown";
 import { PicasaMultiButton } from "./controls/multibutton";
-import { Button, message } from "./message";
+import { Button, message } from "./question";
 import { question } from "./question";
 import {
   ApplicationState,
@@ -59,7 +59,8 @@ const html = `<div class="bottom-list-tools">
 
 function hotKeyToCode(hotKey: string) {
   const parts = hotKey.split("+");
-  const key = parts[parts.length - 1].toLowerCase();
+  let key = parts[parts.length - 1];
+  if (key.length === 1) key = key.toLowerCase();
   const modifierString = parts.slice(0, parts.length - 1);
   const modifiers = Object.fromEntries(
     modifierString
@@ -154,7 +155,6 @@ export function makeButtons(
         tooltip?: () => string;
         visible?: () => boolean;
         enabled?: () => boolean;
-        highlight?: () => boolean;
         dropdownReady?: (emitter: Emitter<DropListEvents>) => any;
       }
     | { element?: _$; execute?: () => any; type: "sep"; hotKey?: string };
@@ -166,7 +166,9 @@ export function makeButtons(
       icon: "resources/images/icons/actions/export-50.png",
       enabled: () => localState.getValue("selected").length > 0,
       tooltip: () =>
-        `${t("Export $1 item(s)", localState.getValue("selected").length)}`,
+        localState.getValue("selected")?.length
+          ? `${t("Export $1 item(s)", localState.getValue("selected")?.length)}`
+          : "",
       execute: async () => {
         if (localState.getValue("selected").length > 0) {
           const s = await getService();
@@ -185,7 +187,9 @@ export function makeButtons(
       enabled: () => localState.getValue("selected").length > 0,
       hotKey: "Ctrl+D",
       tooltip: () =>
-        `${t("Duplicate $1 item(s)", localState.getValue("selected").length)}`,
+        localState.getValue("selected")?.length
+          ? `${t("Duplicate $1 item(s)", localState.getValue("selected").length)}`
+          : "",
       execute: async () => {
         const s = await getService();
         const jobId = await s.createJob(JOBNAMES.DUPLICATE, {
@@ -206,10 +210,12 @@ export function makeButtons(
       icon: "resources/images/icons/actions/move-to-new-album-50.png",
       enabled: () => localState.getValue("selected").length > 0,
       tooltip: () =>
-        `${t(
-          "Move $1 item(s) to a new album",
-          localState.getValue("selected").length,
-        )}`,
+        localState.getValue("selected")?.length
+          ? `${t(
+              "Move $1 item(s) to a new album",
+              localState.getValue("selected").length,
+            )}`
+          : "",
       execute: () => {
         question("New album name", "Please type the new album name").then(
           async (newAlbum) => {
@@ -261,12 +267,13 @@ export function makeButtons(
       label: t("Undo"),
       stateKeys: ["undo"],
       icon: "resources/images/icons/actions/undo-50.png",
-      enabled: () => localState.getValue("undo").length > 0,
+      enabled: () => localState.getValue("undo")?.length > 0,
       hotKey: "Ctrl+Z",
-      tooltip: () =>
-        localState.getValue("undo").length > 0
+      tooltip: () => {
+        return localState.getValue("undo")?.length > 0
           ? `${t("Undo")} ${t(localState.getValue("undo")[0].description)}`
-          : t("Nothing to undo"),
+          : t("Nothing to undo");
+      },
       execute: async () => {
         const s = await getService();
         const undo = localState.getValue("undo")[0];
@@ -303,19 +310,27 @@ export function makeButtons(
       label: t("Delete"),
       icon: "resources/images/icons/actions/trash-50.png",
       stateKeys: ["selected"],
-      hotKey: "Backspace",
+      hotKey: "Delete",
       enabled: () => localState.getValue("selected").length > 0,
       tooltip: () =>
-        `${t("Delete $1 item(s)", localState.getValue("selected").length)}`,
+        localState.getValue("selected")?.length
+          ? `${t("Delete $1 item(s)", localState.getValue("selected").length)}`
+          : "",
       execute: async () => {
-        const b = await message(
-          t(
-            `Do you want to delete $1 files|${
-              localState.getValue("selected").length
-            }`,
-          ),
-          [Button.Ok, Button.Cancel],
-        );
+        let label =
+          localState.getValue("selected").length === 1
+            ? t(
+                `Do you want to delete the file $1|${
+                  localState.getValue("selected")[0].name
+                }`,
+              )
+            : t(
+                `Do you want to delete $1 files|${
+                  localState.getValue("selected").length
+                }`,
+              );
+
+        const b = await message(label, [Button.Ok, Button.Cancel]);
 
         if (b === Button.Ok) {
           const s = await getService();
@@ -345,10 +360,8 @@ export function makeButtons(
         action.element = $(
           `
         <picasa-button 
-          data-tooltip-above="${action.name}${
-            action.hotKey ? " (" + t(action.hotKey) + ")" : ""
-          }"
-          class="selection-actions-button" 
+          data-tooltip-above=""
+          class="selection-actions-button"
           iconpos="top"
           icon="${action.icon}">
           ${action.label}
@@ -377,21 +390,22 @@ export function makeButtons(
         !!action.enabled && !action.enabled(),
       );
       action.element!.addRemoveClass(
-        "highlight",
-        !!action.highlight && action.highlight(),
-      );
-      action.element!.addRemoveClass(
         "hidden",
         !!action.visible && !action.visible(),
       );
-      if (action.tooltip)
-        action.element!.attr("data-tooltip-above", action.tooltip());
+      action.element!.attr(
+        "data-tooltip-above",
+        `${
+          ((action.tooltip && action.tooltip()) || action.name) +
+          (action.hotKey ? " (" + action.hotKey + ")" : "")
+        }`,
+      );
     }
   }
   for (const action of actions) {
     if (action.type !== "sep") {
       action.stateKeys.forEach((key) => {
-        state.events.on(key, () => {
+        localState.events.on(key, () => {
           refreshAction(action);
         });
       });
@@ -405,8 +419,7 @@ export function makeButtons(
         if (action.hotKey) {
           const codeMod = hotKeyToCode(action.hotKey);
           if (
-            action.visible &&
-            action.visible() &&
+            (!action.visible || action.visible()) &&
             !!ev.alt === !!codeMod.modifiers.alt &&
             !!ev.shift === !!codeMod.modifiers.shift &&
             !!ev.ctrl === !!codeMod.modifiers.ctrl &&
@@ -472,6 +485,7 @@ export function makeButtons(
     } else {
       localState.setValue("selected", selectionManager.selected());
     }
+    localState.setValue("undo", await s.undoList());
   }
   localState.events.on("selected", () => {
     const lst = $(".selection-thumbs-icons", container);
@@ -557,5 +571,7 @@ export function makeButtons(
   appEvents.on("tabChanged", () => {
     localState.setValue("tabKind", activeTabContext().kind);
   });
+
+  refreshState();
   return container;
 }

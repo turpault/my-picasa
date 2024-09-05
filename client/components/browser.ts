@@ -9,7 +9,7 @@ import { AppEventSource } from "../uiTypes";
 import { makeBrowserNavigator } from "./browser-navigator";
 import { makeButtons } from "./browser-photo-list-buttons";
 import { makeEditorPage } from "./editor-page";
-import { Button, message } from "./message";
+import { Button, message } from "./question";
 import { SelectionStateDef, makeMetadata } from "./selection-meta";
 import { t } from "./strings";
 
@@ -53,19 +53,28 @@ export async function makeBrowser(
 
   const tab = $(tabHtml);
 
-  emitter.on("keyDown", (e) => {
+  emitter.on("keyDown", async (e) => {
     if (e.win === win) {
       if (e.ctrl) {
         if (albumDataSource.shortcuts[e.key]) {
           const target = albumDataSource.shortcuts[e.key];
-          getService().then((s) =>
+          if (
+            Button.Ok ===
+            (await message(
+              t(
+                `Are you sure you want to export $1 image(s) to $2 ?|${selectionManager.selected().length}|${target.name}`,
+              ),
+              [Button.Ok, Button.Cancel],
+            ))
+          ) {
+            e.preventDefault();
+            const s = await getService();
             s.createJob(JOBNAMES.EXPORT, {
               source: selectionManager.selected(),
               destination: target,
-            }),
-          );
-          e.preventDefault();
-          return true;
+            });
+            return true;
+          }
         }
       }
     }

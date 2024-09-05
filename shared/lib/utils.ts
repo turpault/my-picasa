@@ -225,11 +225,15 @@ export function range(from: number, to?: number, step: number = 1): number[] {
     to = from - 1;
     from = 0;
   }
-  const dir = from < to ? step : -step;
-  const res = [];
-  while (from <= to) {
-    res.push(from);
+  from = Math.floor(from);
+  to = Math.floor(to);
+  step = Math.abs(step);
+  const dir = from <= to ? step : -step;
+  const res: number[] = [];
+  res.push(from);
+  while (from !== to) {
     from += dir;
+    res.push(from);
   }
   return res;
 }

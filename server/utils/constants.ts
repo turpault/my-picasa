@@ -8,12 +8,14 @@ export const facesFolder = join(imagesRoot, "faces");
 export const favoritesFolder = join(imagesRoot, "favorites");
 export const exportsFolder = join(imagesRoot, "exports");
 export const projectFolder = join(imagesRoot, "projects");
+export const bugsFolder = join(imagesRoot, ".bugs");
 
 export const specialFolders = [
   facesFolder,
   favoritesFolder,
   exportsFolder,
   projectFolder,
+  bugsFolder,
 ];
 
 export const defaultNewFolder = new Date().getFullYear().toString();
@@ -25,7 +27,7 @@ export const PhotoLibraryPath =
   "/Volumes/1TB USB/Phototheque MacOS/Photothèque.photoslibrary";
 export const ProjectOutputFolder = join(
   defaultNewFolder,
-  new Date().getFullYear().toString() + " Mosaic Projects"
+  new Date().getFullYear().toString() + " Mosaic Projects",
 );
 export const ThumbnailSizes = {
   "th-small": 100,

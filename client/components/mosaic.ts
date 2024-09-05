@@ -1,8 +1,8 @@
 import { buildEmitter } from "../../shared/lib/event";
 import {
+  compareAlbumEntry,
   debounced,
   idFromAlbumEntry,
-  compareAlbumEntry,
   valuesOfEnum,
 } from "../../shared/lib/utils";
 import {
@@ -14,7 +14,6 @@ import {
   Format,
   GutterSizes,
   JOBNAMES,
-  Job,
   Layout,
   Mosaic,
   MosaicProject,
@@ -24,7 +23,6 @@ import {
 } from "../../shared/types/types";
 import { albumEntriesWithMetadata, thumbnailUrl } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
-import { update } from "../lib/idb-keyval";
 import { resizable } from "../lib/resizable";
 import { getService } from "../rpc/connect";
 import {
@@ -36,13 +34,12 @@ import {
   makeChoiceList,
   makeMultiselectImageList,
 } from "./controls/multiselect";
-import { message } from "./message";
 import {
   buildMosaicCells,
   buildSquareCells,
   leafs,
 } from "./mosaic-tree-builder";
-import { question } from "./question";
+import { message } from "./question";
 import { t } from "./strings";
 import { TabEvent, makeGenericTab } from "./tabs";
 
@@ -51,24 +48,24 @@ const editHTML = `
   <div class="mosaic-sidebar w3-theme">
     <div class="w3-bar-block mosaic-parameter-block mosaic-parameters">
       <div class="gradient-sidebar-title mosaic-parameters-title">${t(
-        "Mosaic Parameters"
+        "Mosaic Parameters",
       )}</div>
     </div>
     <div class="w3-bar-block  mosaic-parameter-block mosaic-actions">
       <div class="gradient-sidebar-title w3-bar-block mosaic-parameters-title">${t(
-        "Actions"
+        "Actions",
       )}</div>
       <a class="mosaic-shuffle w3-bar-item w3-button">${t("Shuffle")}</a>
       <a class="mosaic-import-selection w3-bar-item w3-button">${t(
-        "Import Selection"
+        "Import Selection",
       )}</a>
       <a class="mosaic-make w3-bar-item w3-button w3-green">${t(
-        "Make Image"
+        "Make Image",
       )}</a>
     </div>
     <div class="w3-bar-block mosaic-parameter-block mosaic-images">
       <div class="gradient-sidebar-title mosaic-image-list w3-bar-item">${t(
-        "Image List"
+        "Image List",
       )}</div>
     </div>
   </div>
@@ -88,11 +85,11 @@ function buildHTMLForNode(node: Cell): string {
       node.childs!.left.image
         ? `draggable="true" style="background-image: url(${thumbnailUrl(
             node.childs!.left.image!,
-            "th-large"
+            "th-large",
           )});"`
         : ""
     } id="${node.childs!.left.id}">${buildHTMLForNode(
-      node.childs!.left
+      node.childs!.left,
     )}</div>`;
   }
   if (node.childs && node.childs.right) {
@@ -102,11 +99,11 @@ function buildHTMLForNode(node: Cell): string {
       node.childs!.right.image
         ? `draggable="true" style="background-image: url(${thumbnailUrl(
             node.childs!.right.image,
-            "th-large"
+            "th-large",
           )});"`
         : ""
     } id="${node.childs!.right.id}">${buildHTMLForNode(
-      node.childs!.right
+      node.childs!.right,
     )}</div>`;
   }
   if (!node.childs) {
@@ -136,7 +133,7 @@ function rebuildMosaic(
   projectData: Mosaic,
   rebuild: boolean,
   selectionManager: AlbumEntrySelectionManager,
-  updated: (redraw: boolean, rebuild: boolean) => void
+  updated: (redraw: boolean, rebuild: boolean) => void,
 ): { reflow: Function } {
   container.empty();
 
@@ -157,7 +154,7 @@ function rebuildMosaic(
         root = buildSquareCells(
           projectData.images,
           projectData.seed,
-          width / height
+          width / height,
         );
         break;
     }
@@ -246,7 +243,7 @@ const GutterLabels: { [key in GutterSizes]: string } = {
 async function installHandlers(
   container: _$,
   projectData: Mosaic,
-  projectUpdated: (redraw: boolean, rebuildTree: boolean) => void
+  projectUpdated: (redraw: boolean, rebuildTree: boolean) => void,
 ) {
   function cellImageUpdated(cell: Cell) {
     container.all(`#${cell.id}`)[0]?.css({
@@ -259,12 +256,12 @@ async function installHandlers(
       "albumEntryAspectChanged",
       async (e: { payload: AlbumEntryPicasa }) => {
         const cell = leafs(projectData.root!).find(
-          (c) => c.image && compareAlbumEntry(c.image, e.payload) === 0
+          (c) => c.image && compareAlbumEntry(c.image, e.payload) === 0,
         );
         if (cell) {
           cellImageUpdated(cell);
         }
-      }
+      },
     ),
   ];
   container.on("click", (ev: MouseEvent) => {
@@ -302,12 +299,12 @@ async function installHandlers(
 }
 export async function newMosaicProject(
   name: string,
-  images: AlbumEntryWithMetadata[]
+  images: AlbumEntryWithMetadata[],
 ): Promise<AlbumEntry> {
   const s = await getService();
   const project = (await s.createProject(
     ProjectType.MOSAIC,
-    name
+    name,
   )) as MosaicProject;
   project.payload = {
     pool: images,
@@ -324,7 +321,7 @@ export async function newMosaicProject(
 }
 
 export async function loadMosaicProject(
-  entry: AlbumEntry
+  entry: AlbumEntry,
 ): Promise<MosaicProject> {
   const s = await getService();
   const project = (await s.getProject(entry)) as MosaicProject;
@@ -333,15 +330,15 @@ export async function loadMosaicProject(
   }
   project.payload.images = project.payload.pool.filter((img) =>
     project.payload.images.find(
-      (i) => idFromAlbumEntry(i, "") === idFromAlbumEntry(img, "")
-    )
+      (i) => idFromAlbumEntry(i, "") === idFromAlbumEntry(img, ""),
+    ),
   );
   return project;
 }
 
 export async function savemosaicProject(
   project: MosaicProject,
-  changeType: string
+  changeType: string,
 ) {
   const s = await getService();
   await s.writeProject(project, changeType);
@@ -368,7 +365,7 @@ function sanitizeTree(root: Cell) {
 
 export async function makeMosaicPage(
   appEvents: AppEventSource,
-  entry: AlbumEntry
+  entry: AlbumEntry,
 ) {
   const e = $(editHTML);
   const mosaic = $(".mosaic-grid", e);
@@ -381,12 +378,12 @@ export async function makeMosaicPage(
   const s = await getService();
   s.on(
     "projectChanged",
-    async (e: { payload: { project: Mosaic; changeType: string } }) => {}
+    async (e: { payload: { project: Mosaic; changeType: string } }) => {},
   );
 
   const selectionManager = new SelectionManager<AlbumEntry>(
     project.payload.images,
-    idFromAlbumEntry
+    idFromAlbumEntry,
   );
   const parameters = $(".mosaic-parameters", e);
 
@@ -420,7 +417,7 @@ export async function makeMosaicPage(
       project.payload,
       rebuildTree,
       selectionManager,
-      projectUpdated
+      projectUpdated,
     );
     requestAnimationFrame(() => r.reflow());
     reflow = r.reflow();
@@ -433,7 +430,7 @@ export async function makeMosaicPage(
       key: k,
     })),
     project.payload.orientation,
-    "dropdown"
+    "dropdown",
   );
   orientationDropdown.emitter.on("select", ({ key }) => {
     project.payload.orientation = key;
@@ -449,7 +446,7 @@ export async function makeMosaicPage(
       key: k,
     })),
     project.payload.size,
-    "dropdown"
+    "dropdown",
   );
   sizeDropdown.emitter.on("select", ({ key }) => {
     project.payload.size = key;
@@ -464,7 +461,7 @@ export async function makeMosaicPage(
       key: k,
     })),
     project.payload.gutter,
-    "dropdown"
+    "dropdown",
   );
   gutterDropdown.emitter.on("select", ({ key }) => {
     project.payload.gutter = key;
@@ -480,7 +477,7 @@ export async function makeMosaicPage(
       key: k,
     })),
     project.payload.layout,
-    "dropdown"
+    "dropdown",
   );
   layoutDropdown.emitter.on("select", ({ key }) => {
     project.payload.layout = key;
@@ -496,7 +493,7 @@ export async function makeMosaicPage(
       key: k,
     })),
     project.payload.format,
-    "dropdown"
+    "dropdown",
   );
   formatDropdown.emitter.on("select", ({ key }) => {
     project.payload.format = key;
@@ -510,7 +507,7 @@ export async function makeMosaicPage(
     project.payload.pool,
     selectionManager,
     "th-small",
-    "mosaic-image-control"
+    "mosaic-image-control",
   );
 
   $(".mosaic-images", e).empty().append(imageControl);
@@ -543,7 +540,7 @@ export async function makeMosaicPage(
       project.payload.pool,
       selectionManager,
       "th-small",
-      "mosaic-image-control"
+      "mosaic-image-control",
     );
 
     $(".mosaic-images", e).empty().append(imageControl);
@@ -570,14 +567,20 @@ export async function makeMosaicPage(
           !project.payload.pool
             .map((i) => idFromAlbumEntry(i))
             .includes(idFromAlbumEntry(img)) &&
-          img.album.kind === AlbumKind.FOLDER
+          img.album.kind === AlbumKind.FOLDER,
       );
 
       const ctrl = $(".mosaic-import-selection", e);
       ctrl.addRemoveClass("disabled", browserSelection.length === 0);
       ctrl.text(
-        `${t("Import Selection")} (${browserSelection.length || t("None")})`
+        `${t("Import Selection")} (${browserSelection.length || t("None")})`,
       );
+      ctrl.on("click", () => {
+        project.payload.images.push(
+          ...(selectionManager.selected() as AlbumEntryWithMetadata[]),
+        );
+        projectUpdated(true, true);
+      });
     }),
     (() => {
       const observer = new ResizeObserver(() => {
@@ -586,10 +589,6 @@ export async function makeMosaicPage(
       observer.observe(e.get());
       return () => observer.disconnect();
     })(),
-    selectionManager.events.on("changed", () => {
-      project.payload.images = selectionManager.selected() as AlbumEntryWithMetadata[];
-      projectUpdated(true, true);
-    }),
   ];
 
   const tabEvent = buildEmitter<TabEvent>();

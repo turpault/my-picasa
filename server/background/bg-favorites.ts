@@ -331,11 +331,11 @@ export async function syncFavoritesFromPhotoApp(
       newStarred.push(candidate);
     }
   });
-  for (const photo of newStarred) {
-    if (alreadyStarred.includes(photo)) {
+  for (const photo of allPhotos) {
+    if (newStarred.includes(photo.metadata)) {
       // do nothing
     } else {
-      promises.push(updatePicasaEntry(photo, "photostar", undefined));
+      promises.push(updatePicasaEntry(photo.metadata, "photostar", undefined));
     }
   }
   await Promise.all(promises);

@@ -5,6 +5,18 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Launch via NPM",
+      "request": "launch",
+      "runtimeArgs": [
+        "start"
+      ],
+      "runtimeExecutable": "npm",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "type": "node"
+    },
+    {
       "name": "Launch Worker",
       "request": "launch",
       "runtimeArgs": [
@@ -29,7 +41,7 @@
         "<node_internals>/**"
       ],
       "cwd": "${fileDirname}",
-      "runtimeExecutable": "${fileDirname}/node_modules/.bin/ts-node",
+      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/ts-node",
       "type": "node",
       "console": "integratedTerminal"
     },
