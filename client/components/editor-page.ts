@@ -75,6 +75,9 @@ const editHTML = `
   </div>
 </div>`;
 
+const lastOperationStack = "lastOperationStack";
+const lastUndoneStack = "lastUndoneStack";
+
 export async function makeEditorPage(
   appEvents: AppEventSource,
   selectionManager: AlbumEntrySelectionManager,
@@ -163,8 +166,8 @@ export async function makeEditorPage(
   const undoBtn = $(".tools-bar-undo", editor);
   const redoBtn = $(".tools-bar-redo", editor);
   const localState = new State();
-  localState.setValue("lastUndone", undefined);
-  localState.setValue("lastOperation", undefined);
+  localState.clearValue(lastUndoneStack);
+  localState.clearValue(lastOperationStack);
 
   const updateStarCount = async (entry: AlbumEntry) => {
     const s = await getService();
@@ -175,6 +178,31 @@ export async function makeEditorPage(
     });
   };
   let editing = false;
+  function updateLastOperation(lastOperation: PicasaFilter[] | undefined) {
+    const op = lastOperation?.[0]
+    undoBtn.addRemoveClass("disabled", !op);
+    if (op) {
+      undoBtn.show();
+      const tool = toolRegistrar.tool(op.name);
+      const toolName = tool ? tool.displayName : op.name;
+      undoBtn.text(`${t("Undo")} ${toolName}`);
+    } else {
+      undoBtn.hide();
+      undoBtn.text(`${t("Undo")}`);
+    }
+  }  
+  function updateLastUndone(lastUndone: PicasaFilter[] | undefined) {
+    const op = lastUndone?.[0]
+    redoBtn.addRemoveClass("disabled", !op);
+    if (op) {
+      const tool = toolRegistrar.tool(op.name);
+      const toolName = tool ? tool.displayName : op.name;
+      redoBtn.text(`${t("Redo")} ${toolName}`);
+      redoBtn.show();
+    } else {
+      redoBtn.hide();
+    }
+  }
 
   const off = [
     imageController.events.on("idle", () => {
@@ -187,52 +215,35 @@ export async function makeEditorPage(
       //refreshMetadataFct(entry, [entry], info);
     }),
 
+    
     imageController.events.on("updated", async ({}) => {
       refreshHistogramFct(await imageController.getLiveThumbnailContext());
-      const operations = [...imageController.operations()];
-      const lastOperation = operations.pop();
-      redoBtn.hide();
-      localState.setValue("lastOperation", lastOperation);
+      localState.setValue(lastOperationStack, imageController.operations().slice().reverse());
     }),
     localState.events.on(
-      "lastOperation",
-      (lastOperation: PicasaFilter | undefined) => {
-        undoBtn.addRemoveClass("disabled", !lastOperation);
-        if (lastOperation) {
-          const tool = toolRegistrar.tool(lastOperation.name);
-          const toolName = tool ? tool.displayName : lastOperation.name;
-          undoBtn.text(`${t("Undo")} ${toolName}`);
-        } else {
-          undoBtn.text(`${t("Undo")}`);
-        }
-      },
+      lastOperationStack, updateLastOperation
     ),
     localState.events.on(
-      "lastUndone",
-      (lastUndone: PicasaFilter | undefined) => {
-        redoBtn.addRemoveClass("disabled", !lastUndone);
-        if (lastUndone) {
-          const tool = toolRegistrar.tool(lastUndone.name);
-          const toolName = tool ? tool.displayName : lastUndone.name;
-          redoBtn.text(`${t("Redo")} ${toolName}`);
-          redoBtn.show();
-        } else {
-          redoBtn.hide();
-        }
-      },
+      lastUndoneStack, updateLastUndone
     ),
     undoBtn.on("click", () => {
-      const lastOperation = localState.getValue("lastOperation");
-      if (lastOperation) {
-        imageController.deleteOperation(lastOperation.name);
-        localState.setValue("lastUndone", lastOperation);
+      const lastOperation = [...localState.getValue(lastOperationStack) as PicasaFilter[]];
+      const op = lastOperation.shift();
+      if (op) {
+        imageController.deleteOperation(op.name);
+        const lastUndone = localState.getValue(lastUndoneStack) as PicasaFilter[];
+        localState.setValue(lastUndoneStack, [op, ...lastUndone]);
+        localState.setValue(lastOperationStack, lastOperation);
       }
     }),
     redoBtn.on("click", () => {
-      const lastUndone = localState.getValue("lastUndone") as PicasaFilter;
-      if (lastUndone) {
-        imageController.addOperation(lastUndone);
-        localState.setValue("lastUndone", undefined);
+      const lastUndone = [...localState.getValue(lastUndoneStack) as PicasaFilter[]];
+      const op = lastUndone.shift();
+      if (op) {
+        const lastOperation = localState.getValue(lastOperationStack) as PicasaFilter[];
+        localState.setValue(lastUndoneStack, lastUndone);
+        localState.setValue(lastOperationStack, [op, ...lastOperation]);
+        imageController.addOperation(op);
       }
     }),
 
@@ -244,6 +255,9 @@ export async function makeEditorPage(
         editing = true;
         state.setValue("META_SINGLE_SELECTION_MODE", true);
 
+        localState.setValue(lastOperationStack, []);
+        localState.setValue(lastUndoneStack, []);
+      
         const active = selectionManager.active();
         const album = active.album;
         const selection = await getAlbumInfo(album, true);
@@ -312,6 +326,7 @@ export async function makeEditorPage(
       },
     ),
   ];
+
   /*const z = $(".zoom-ctrl", tool);
   z.on("input", () => {
     imageController.zoom(z.val() / 10);

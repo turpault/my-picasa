@@ -2,9 +2,9 @@ import * as faceapi from "@vladmandic/face-api";
 import Debug from "debug";
 import { Queue } from "../../../shared/lib/queue";
 
-import { Album } from "../../../shared/types/types";
-import { media } from "../../rpc/rpcFunctions/albumUtils";
-import { getFolderAlbums } from "../../walker";
+import { Album, Reference } from "../../../shared/types/types";
+import { media } from "../../../server/rpc/rpcFunctions/albumUtils";
+import { getFolderAlbums } from "../../../server/walker";
 import {
   createCandidateThumbnail,
   findFaceInRect,
@@ -13,12 +13,15 @@ import {
   isUsefulReference,
   rectOfReference,
 } from "./face-utils";
-import { getContactByContactKey, getContacts } from "./contacts";
+import {
+  getContactByContactKey,
+  getContacts,
+} from "../../../server/rpc/albumTypes/contacts";
 import {
   addCandidateFaceRectToEntry,
   removeFaceFromEntry,
 } from "./picasa-faces";
-import { Reference, readReferencesOfEntry } from "./references";
+import { readReferencesOfEntry } from "../../../server/rpc/albumTypes/referenceFiles";
 
 let identifiedReferenceContactKeyMap = new Map<string, Reference[]>(); //  contact.Key -> reference[]
 const debug = Debug("app:face-matcher");
@@ -137,7 +140,7 @@ async function populateCandidates() {
     references.push(
       new faceapi.LabeledFaceDescriptors(
         contactId,
-        referenceList.map((r) => r.data.descriptor),
+        referenceList.map((r) => Float32Array.from(r.data.descriptor)),
       ),
     );
   }
@@ -172,7 +175,9 @@ async function populateCandidatesOfAlbum(
     const references = await readReferencesOfEntry(media);
     if (!references) continue;
     for (const reference of references) {
-      const bestMatch = matcher.findBestMatch(reference.data.descriptor);
+      const bestMatch = matcher.findBestMatch(
+        Float32Array.from(reference.data.descriptor),
+      );
       if (bestMatch) {
         const contactKey = bestMatch.label;
         const contact = await getContactByContactKey(contactKey)!;

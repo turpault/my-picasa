@@ -4,11 +4,11 @@ import Debug from "debug";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { hash, uuid } from "../../../shared/lib/utils";
-import { AlbumEntry, Contact } from "../../../shared/types/types";
-import { media } from "../../rpc/rpcFunctions/albumUtils";
-import { facesFolder } from "../../utils/constants";
-import { fileExists, safeWriteFile } from "../../utils/serverUtils";
-import { getFolderAlbums } from "../../walker";
+import { AlbumEntry, Contact, Reference } from "../../../shared/types/types";
+import { media } from "../../../server/rpc/rpcFunctions/albumUtils";
+import { facesFolder } from "../../../server/utils/constants";
+import { fileExists, safeWriteFile } from "../../../server/utils/serverUtils";
+import { getFolderAlbums } from "../../../server/walker";
 import { getRedisClient } from "../poi/redis-client";
 import {
   createCandidateThumbnail,
@@ -19,11 +19,11 @@ import {
 } from "./face-utils";
 import { addCandidateFaceRectToEntry } from "./picasa-faces";
 import {
-  Reference,
   decodeReferenceId,
   readReferencesFromReferenceId,
   readReferencesOfEntry,
-} from "./references";
+} from "../../../server/rpc/albumTypes/referenceFiles";
+import { FaceLandmarkData } from "./types";
 const debug = Debug("app:face-db");
 
 type Cluster = {

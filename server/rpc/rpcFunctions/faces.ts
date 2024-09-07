@@ -7,7 +7,6 @@ import {
   Contact,
   FaceData,
 } from "../../../shared/types/types";
-import { Reference, decodeReferenceId } from "../../background/face/references";
 import {
   PicasaBaseKeys,
   albumFromNameAndKind,
@@ -17,7 +16,8 @@ import {
   readAlbumIni,
   readPicasaSection,
   writePicasaSection,
-} from "../rpcFunctions/picasa-ini";
+} from "./picasa-ini";
+import { decodeReferenceId } from "../albumTypes/referenceFiles";
 
 export async function eraseFace(entry: AlbumEntry) {
   throw "Not implemented";

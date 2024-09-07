@@ -27,7 +27,7 @@ import {
 } from "../../utils/serverUtils";
 import { dec, inc } from "../../utils/stats";
 import { createGif } from "../../videoOperations/gif";
-import { getFaceData } from "../albumTypes/faces";
+import { getFaceData } from "./faces";
 import { makeProjectThumbnail } from "../albumTypes/projects";
 import { readAlbumIni } from "./picasa-ini";
 import {

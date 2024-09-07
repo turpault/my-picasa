@@ -1,9 +1,9 @@
 import Debug from "debug";
 import { AlbumEntry, ThumbnailSizeVals } from "../../shared/types/types";
-import { imageInfo } from "../imageOperations/info";
-import { media } from "../rpc/rpcFunctions/albumUtils";
-import { makeThumbnailIfNeeded } from "../rpc/rpcFunctions/thumbnail";
-import { folders, waitUntilWalk } from "../walker";
+import { imageInfo } from "../../server/imageOperations/info";
+import { media } from "../../server/rpc/rpcFunctions/albumUtils";
+import { makeThumbnailIfNeeded } from "../../server/rpc/rpcFunctions/thumbnail";
+import { folders, waitUntilWalk } from "../../server/walker";
 const debug = Debug("app:bg-thumbgen");
 export async function buildThumbs() {
   await waitUntilWalk();

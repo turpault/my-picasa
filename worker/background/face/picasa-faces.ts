@@ -11,12 +11,13 @@ import {
   ContactByHash,
   Face,
   AlbumEntryMetaData,
+  Reference,
 } from "../../../shared/types/types";
 import {
   addReferenceToFaceAlbum,
   removeReferenceToFaceAlbum,
-} from "../../rpc/albumTypes/faces";
-import { media } from "../../rpc/rpcFunctions/albumUtils";
+} from "../../../server/rpc/rpcFunctions/faces";
+import { media } from "../../../server/rpc/rpcFunctions/albumUtils";
 import {
   PicasaBaseKeys,
   getPicasaEntry,
@@ -26,9 +27,9 @@ import {
   updatePicasa,
   updatePicasaEntry,
   writePicasaSection,
-} from "../../rpc/rpcFunctions/picasa-ini";
-import { getFolderAlbums, waitUntilWalk } from "../../walker";
-import { readReferencesOfEntry, Reference } from "./references";
+} from "../../../server/rpc/rpcFunctions/picasa-ini";
+import { getFolderAlbums, waitUntilWalk } from "../../../server/walker";
+import { readReferencesOfEntry } from "../../../server/rpc/albumTypes/referenceFiles";
 
 type PicasaFeatures = {
   contacts: ContactByHash;

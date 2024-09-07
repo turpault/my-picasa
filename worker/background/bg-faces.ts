@@ -1,14 +1,14 @@
 import * as tf from "@tensorflow/tfjs-node";
 import Debug from "debug";
 import { Queue } from "../../shared/lib/queue";
-import { getFaceAlbums } from "../rpc/albumTypes/faces";
-import { media } from "../rpc/rpcFunctions/albumUtils";
-import { getFaceImage } from "../rpc/rpcFunctions/thumbnail";
-import { waitUntilWalk } from "../walker";
+import { getFaceAlbums } from "../../server/rpc/rpcFunctions/faces";
+import { media } from "../../server/rpc/rpcFunctions/albumUtils";
+import { getFaceImage } from "../../server/rpc/rpcFunctions/thumbnail";
+import { waitUntilWalk } from "../../server/walker";
 import { runClusterStrategy } from "./face/identify-cluster-strategy";
 import { runFaceMatcherStrategy } from "./face/identify-facematcher-strategy";
 import { startRedis, stopRedis } from "./redis-process";
-import { buildContactList } from "./face/contacts";
+import { buildContactList } from "../../server/rpc/albumTypes/contacts";
 import { populateReferences } from "./face/references";
 const debug = Debug("app:faces");
 

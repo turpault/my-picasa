@@ -1,9 +1,9 @@
 import { clearInterval } from "timers";
 import { Queue } from "../../shared/lib/queue";
 import { AlbumEntry } from "../../shared/types/types";
-import { media } from "../rpc/rpcFunctions/albumUtils";
-import { exifData } from "../rpc/rpcFunctions/exif";
-import { getFolderAlbums, waitUntilWalk } from "../walker";
+import { media } from "../../server/rpc/rpcFunctions/albumUtils";
+import { exifData } from "../../server/rpc/rpcFunctions/exif";
+import { getFolderAlbums, waitUntilWalk } from "../../server/walker";
 
 const debug = require("debug")("app:bg-exif");
 

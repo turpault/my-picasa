@@ -10,7 +10,7 @@ export function setupAutocolor(
   editor: ToolEditor
 ) {
   toolRegistrar.registerTool(
-    PAGES.BRUSH,
+    PAGES.WRENCH,
     new FilterTool(t("Autocolor"), "autocolor", controller, editor)
   );
 }

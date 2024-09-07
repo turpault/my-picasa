@@ -19,7 +19,7 @@ import { startSentry } from "./sentry";
 import { busy, measureCPULoad } from "./utils/busy";
 import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
-import { loadFaceAlbums } from "./rpc/albumTypes/faces";
+import { loadFaceAlbums } from "./rpc/rpcFunctions/faces";
 import { info } from "console";
 import { initUndo } from "./utils/undo";
 

@@ -1,7 +1,7 @@
 import { createReadStream } from "fs";
 import { createInterface } from "readline";
 import { getRedisClient } from "./redis-client";
-import { imagesRoot } from "../../utils/constants";
+import { imagesRoot } from "../../../server/utils/constants";
 import { join } from "path";
 import { readdir } from "fs/promises";
 

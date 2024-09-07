@@ -10,7 +10,7 @@ import {
   readAlbumIni,
   readContacts,
   updateContactInAlbum,
-} from "../../rpc/rpcFunctions/picasa-ini";
+} from "../rpcFunctions/picasa-ini";
 import { getFolderAlbums } from "../../walker";
 const contacts = new Map<string, Contact>();
 const contactsByContactKey = new Map<string, Contact>();

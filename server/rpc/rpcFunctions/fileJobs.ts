@@ -24,12 +24,12 @@ import { exportsFolder, imagesRoot } from "../../utils/constants";
 import { entryFilePath, fileExists } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { addToUndo, registerUndoProvider } from "../../utils/undo";
-import { eraseFace } from "../albumTypes/faces";
+import { eraseFace } from "./faces";
 import { setRank } from "./albumUtils";
 import { getPhotoFavorites, openWithFinder } from "./osascripts";
 import { getPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasa-ini";
 import { copyThumbnails } from "./thumbnail-cache";
-import { syncFavoritesFromPhotoApp } from "../../background/bg-favorites";
+import { syncFavoritesFromPhotoApp } from "./favorites";
 
 const jobs: Job[] = [];
 type MultiMoveJobArguments = {

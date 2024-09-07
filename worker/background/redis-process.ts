@@ -1,5 +1,4 @@
 import { spawn } from "child_process";
-import { start } from "repl";
 
 let proc: ReturnType<typeof spawn> | undefined;
 let startCount = 0;

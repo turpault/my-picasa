@@ -9,17 +9,19 @@ import {
 import {
   AlbumEntry,
   AlbumKind,
-  Contact,
-  Face,
+  Reference,
+  ReferenceData,
 } from "../../../shared/types/types";
-import { buildFaceImage } from "../../imageOperations/sharp-processor";
-import { readAlbumIni, readContacts } from "../../rpc/rpcFunctions/picasa-ini";
-import { facesFolder } from "../../utils/constants";
-import { fileExists, safeWriteFile } from "../../utils/serverUtils";
-import { Reference } from "./references";
+import { buildFaceImage } from "../../../server/imageOperations/sharp-processor";
+import {
+  readAlbumIni,
+  readContacts,
+} from "../../../server/rpc/rpcFunctions/picasa-ini";
+import { facesFolder } from "../../../server/utils/constants";
+import { fileExists, safeWriteFile } from "../../../server/utils/serverUtils";
 import { FaceLandmarkData, IdentifiedContact } from "./types";
 
-export function rectOfReference(feature: FaceLandmarkData) {
+export function rectOfReference(feature: ReferenceData) {
   const left = feature.alignedRect.box.left / feature.detection.imageWidth;
   const right = feature.alignedRect.box.right / feature.detection.imageWidth;
   const top = feature.alignedRect.box.top / feature.detection.imageHeight;
@@ -55,11 +57,11 @@ export function isIdentifiedContactInReferences(
 }
 
 export function findFaceInRect(
-  reference: FaceLandmarkData,
+  reference: ReferenceData,
   identifiedContacts: IdentifiedContact[],
 ) {
   const { width, height } = reference.detection.imageDims;
-  const proximity = (a: IdentifiedContact, b: FaceLandmarkData) => {
+  const proximity = (a: IdentifiedContact, b: ReferenceData) => {
     const rect = decodeRect(a.face.rect);
     // Maps if each center is within the other rect
     const centerRect = {

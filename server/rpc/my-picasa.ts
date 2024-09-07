@@ -58,8 +58,8 @@ import {
 } from "./rpcFunctions/picasa-ini";
 import { clientReady } from "./rpcFunctions/ready";
 import { setAlbumShortcut } from "./rpcFunctions/shortcuts";
-import { getFaceDataFromAlbumEntry } from "../background/face/picasa-faces";
 import { addBug, getBugs } from "./rpcFunctions/bugs";
+import { getFaceDataFromAlbumEntry } from "../../worker/background/face/picasa-faces";
 
 /**
  * ConcurrencyService IDL

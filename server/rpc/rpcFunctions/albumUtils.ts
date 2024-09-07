@@ -12,27 +12,26 @@ import {
   AlbumEntryMetaData,
   AlbumKind,
   AlbumWithData,
+  GeoPOI,
   idFromKey,
 } from "../../../shared/types/types";
+import { getFolderAlbumData, getFolderAlbums } from "../../walker";
 import {
   getFaceAlbum,
   getFaceAlbums,
   getFaceData,
   readFaceAlbumEntries,
-} from "../albumTypes/faces";
+} from "./faces";
+import {
+  assetsInFolderAlbum,
+  queueNotification,
+} from "../albumTypes/fileAndFolders";
 import {
   getProjectAlbum,
   getProjectAlbums,
   getProjects,
 } from "../albumTypes/projects";
-import { exifDataAndStats } from "./exif";
-import {
-  assetsInFolderAlbum,
-  queueNotification,
-} from "../albumTypes/fileAndFolders";
-import { readAlbumIni, getPicasaEntry, updatePicasaEntry } from "./picasa-ini";
-import { getFolderAlbumData, getFolderAlbums } from "../../walker";
-import { GeoPOI } from "../../background/poi/get-poi";
+import { getPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasa-ini";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
   const entries = (await media(entry.album)).entries.filter(

@@ -1,11 +1,7 @@
+import { GeoPOI } from "../../../shared/types/types";
 import { POI_TYPE } from "./poi-types";
 import { getRedisClient } from "./redis-client";
 
-export type GeoPOI = {
-  loc: string;
-  category: string;
-  distance: number;
-};
 export async function getLocations(
   lat: number,
   long: number,

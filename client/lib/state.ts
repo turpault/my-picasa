@@ -16,6 +16,13 @@ export class State<T extends StateDef> {
     this.events.emit(key, value);
     return true;
   }
+  clearValue(key: keyof T) {
+    if(key in this.state) {
+      delete this.state[key];
+      this.events.emit(key, undefined);
+    }
+    return true;
+  }
   setValue(key: keyof T, value: any) {
     if (typeof value === "object") {
       if (JSON.stringify(value) === JSON.stringify(this.state[key])) {

@@ -2,42 +2,40 @@ import { spawn } from "child_process";
 import exifr from "exifr";
 import { copyFile, mkdir, unlink, utimes } from "fs/promises";
 import { join } from "path";
-import { Queue } from "../../shared/lib/queue";
-import { RESIZE_ON_EXPORT_SIZE } from "../../shared/lib/shared-constants";
+import { RESIZE_ON_EXPORT_SIZE } from "../../../shared/lib/shared-constants";
 import {
   buildReadySemaphore,
   isPicture,
   isVideo,
   setReady,
-} from "../../shared/lib/utils";
+} from "../../../shared/lib/utils";
 import {
   AlbumEntry,
   AlbumEntryPicasa,
   AlbumEntryWithMetadata,
-} from "../../shared/types/types";
-import { events } from "../events/server-events";
+} from "../../../shared/types/types";
+import { events } from "../../events/server-events";
 import {
   addImageInfo,
   imageInfo,
   updateImageDate,
-} from "../imageOperations/info";
-import { buildImage } from "../imageOperations/sharp-processor";
-import { media } from "../rpc/rpcFunctions/albumUtils";
-import { getPhotoFavorites } from "../rpc/rpcFunctions/osascripts";
+} from "../../imageOperations/info";
+import { buildImage } from "../../imageOperations/sharp-processor";
+import { media } from "../../rpc/rpcFunctions/albumUtils";
+import { getPhotoFavorites } from "../../rpc/rpcFunctions/osascripts";
 import {
   readAlbumIni,
   updatePicasaEntry,
-} from "../rpc/rpcFunctions/picasa-ini";
-import { waitUntilIdle } from "../utils/busy";
-import { PhotoLibraryPath, imagesRoot } from "../utils/constants";
+} from "../../rpc/rpcFunctions/picasa-ini";
+import { PhotoLibraryPath, imagesRoot } from "../../utils/constants";
 import {
   entryFilePath,
   fileExists,
   mediaName,
   removeExtension,
   safeWriteFile,
-} from "../utils/serverUtils";
-import { folders, waitUntilWalk } from "../walker";
+} from "../../utils/serverUtils";
+import { folders, waitUntilWalk } from "../../walker";
 
 const readyLabelKey = "favorites";
 const ready = buildReadySemaphore(readyLabelKey);
@@ -68,15 +66,6 @@ function albumNameToDate(name: string): Date {
   return new Date(y, m, d, 12);
 }
 
-export async function buildFavoriteFolder() {
-  const favoritesFolder = join(imagesRoot, "favorites");
-  if (!(await fileExists(favoritesFolder))) {
-    await mkdir(favoritesFolder, { recursive: true });
-  }
-  await waitUntilWalk();
-
-  await exportAllMissing();
-}
 export async function monitorFavorites() {
   events.on("favoriteChanged", onImageChanged);
   events.on("filtersChanged", onImageChanged);
@@ -129,7 +118,7 @@ async function deleteFavorite(entry: AlbumEntry): Promise<void> {
   }
 }
 
-async function exportFavorite(entry: AlbumEntry): Promise<void> {
+export async function exportFavorite(entry: AlbumEntry): Promise<void> {
   const targetFolder = join(imagesRoot, "favorites");
   if (!(await fileExists(targetFolder))) {
     await mkdir(targetFolder, { recursive: true });
@@ -192,24 +181,6 @@ async function exportFavorite(entry: AlbumEntry): Promise<void> {
       );
     }
   }
-}
-
-async function exportAllMissing() {
-  // Job with no parameters
-  const albums = await folders("");
-  const q = new Queue(10);
-  for (const album of albums) {
-    q.add(async () => {
-      const m = await media(album);
-      for (const entry of m.entries) {
-        q.add(async () => {
-          await waitUntilIdle();
-          exportFavorite(entry);
-        });
-      }
-    });
-  }
-  await q.drain();
 }
 
 export async function syncFavoritesFromPhotoApp(

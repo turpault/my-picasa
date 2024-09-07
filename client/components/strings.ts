@@ -162,6 +162,8 @@ const stringTable: { [key: string]: any } = {
   "Import Favorites from Photo app": {
     fr: "Importer les favoris de l'app Photos",
   },
+  "Redo": {fr:"Refaire", en:"Redo"},
+  "Rotate the image": {fr:"Tourner l'image"}  
 };
 const lang = window.navigator.language.split("-")[0];
 let str = new Set<string>();

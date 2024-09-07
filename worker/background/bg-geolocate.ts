@@ -1,11 +1,11 @@
 import { AlbumEntry } from "../../shared/types/types";
-import { media } from "../rpc/rpcFunctions/albumUtils";
-import { exifData } from "../rpc/rpcFunctions/exif";
+import { media } from "../../server/rpc/rpcFunctions/albumUtils";
+import { exifData } from "../../server/rpc/rpcFunctions/exif";
 import {
   getPicasaEntry,
   updatePicasaEntry,
-} from "../rpc/rpcFunctions/picasa-ini";
-import { getFolderAlbums, waitUntilWalk } from "../walker";
+} from "../../server/rpc/rpcFunctions/picasa-ini";
+import { getFolderAlbums, waitUntilWalk } from "../../server/walker";
 import { getLocations } from "./poi/get-poi";
 import { initPOIDB } from "./poi/ingest";
 import { startRedis, stopRedis } from "./redis-process";

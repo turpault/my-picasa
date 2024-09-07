@@ -1,29 +1,32 @@
 import * as tf from "@tensorflow/tfjs-node";
 import * as faceapi from "@vladmandic/face-api";
 import Debug from "debug";
-import { mkdir, readFile } from "fs/promises";
+import { readFile } from "fs/promises";
 import { join } from "path";
+import {
+  readReferencesOfEntry,
+  referencePath,
+  writeReferencesOfEntry,
+} from "../../../server/rpc/albumTypes/referenceFiles";
+import { media } from "../../../server/rpc/rpcFunctions/albumUtils";
 import { lock } from "../../../shared/lib/mutex";
 import { Queue } from "../../../shared/lib/queue";
 import {
-  albumEntryFromId,
   idFromAlbumEntry,
   isAnimated,
   isPicture,
   jsonifyObject,
-  pathForEntryMetadata,
 } from "../../../shared/lib/utils";
-import { Album, AlbumEntry } from "../../../shared/types/types";
-import { media } from "../../rpc/rpcFunctions/albumUtils";
-import { facesFolder } from "../../utils/constants";
 import {
-  entryFilePath,
-  fileExists,
-  safeWriteFile,
-} from "../../utils/serverUtils";
-import { getFolderAlbums, waitUntilWalk } from "../../walker";
-import { FaceLandmarkData } from "./types";
+  Album,
+  AlbumEntry,
+  Reference,
+  ReferenceData,
+} from "../../../shared/types/types";
+import { entryFilePath, fileExists } from "../../../server/utils/serverUtils";
+import { getFolderAlbums, waitUntilWalk } from "../../../server/walker";
 import { isUsefulReference } from "./face-utils";
+import { FaceLandmarkData } from "./types";
 const debug = Debug("app:faces");
 
 let optionsSSDMobileNet: faceapi.SsdMobilenetv1Options;
@@ -71,81 +74,9 @@ export async function populateReferences() {
   clearInterval(t);
 }
 
-function referencePath(entry: AlbumEntry) {
-  const path = pathForEntryMetadata(entry);
-  return {
-    path: join(facesFolder, "references", ...path.path),
-    file: `${path.filename}.json`,
-  };
-}
-
 async function entryHasReferences(entry: AlbumEntry) {
   const p = referencePath(entry);
   return fileExists(join(p.path, p.file));
-}
-
-const referenceQualifier = "reference";
-export type Reference = {
-  id: string;
-  data: FaceLandmarkData;
-};
-
-export async function readReferencesFromReferenceId(
-  id: string,
-): Promise<Reference | undefined> {
-  const { entry, index } = decodeReferenceId(id);
-  const references = await readReferencesOfEntry(entry);
-  return references?.[parseInt(index)];
-}
-
-export async function readReferencesOfEntry(
-  entry: AlbumEntry,
-): Promise<Reference[] | undefined> {
-  try {
-    const c = referencePath(entry);
-    const path = join(c.path, c.file);
-    const buf = await readFile(path, {
-      encoding: "utf-8",
-    });
-    return JSON.parse(buf, (key, value) =>
-      key === "descriptor"
-        ? new Float32Array(
-            value instanceof Array
-              ? value
-              : Object.entries(value)
-                  .filter(([k]) => !isNaN(parseInt(k)))
-                  .map(([k, v]) => v),
-          )
-        : value,
-    ) as Reference[];
-  } catch (e) {
-    return undefined;
-  }
-}
-export function decodeReferenceId(id: string) {
-  const [mediaId, index] = id.split(":");
-  const entry = albumEntryFromId(mediaId)!;
-  if (!entry) throw new Error(`Invalid reference id ${id}`);
-  return { entry, index };
-}
-
-export async function referencesFromId(id: string) {
-  const { entry, index } = decodeReferenceId(id);
-  const references = await readReferencesOfEntry(entry!);
-  return references?.[parseInt(index)];
-}
-
-async function writeReferencesOfEntry(entry: AlbumEntry, data: Reference[]) {
-  const p = referencePath(entry);
-  await mkdir(p.path, { recursive: true });
-  await safeWriteFile(
-    join(p.path, p.file),
-    JSON.stringify(
-      data,
-      (key, value) => (key === "descriptor" ? Array.from(value) : value),
-      2,
-    ),
-  );
 }
 
 async function processFaces(album: Album) {
@@ -167,6 +98,8 @@ async function processFaces(album: Album) {
 }
 
 const referenceGeneratorQueue = new Queue(10);
+export const referenceQualifier = "reference";
+
 async function createReferenceFileIfNeeded(entry: AlbumEntry) {
   const imagePath = entryFilePath(entry);
   const exists = await fileExists(imagePath);
@@ -205,7 +138,7 @@ async function createReferenceFileIfNeeded(entry: AlbumEntry) {
               jsonifyObject(
                 // Only bigger mugshots !
                 faceReferences,
-              ) as FaceLandmarkData[]
+              ) as ReferenceData[]
             )
               .map((data, index) => ({
                 data,
