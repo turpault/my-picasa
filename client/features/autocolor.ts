@@ -11,6 +11,7 @@ export function setupAutocolor(
 ) {
   toolRegistrar.registerTool(
     PAGES.WRENCH,
-    new FilterTool(t("Autocolor"), "autocolor", controller, editor)
+    new FilterTool(t("Autocolor"), "autocolor", controller, editor,   "resources/images/icons/auto-color.png"
+  )
   );
 }

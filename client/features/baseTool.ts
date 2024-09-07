@@ -155,13 +155,16 @@ export class ParametrizableTool implements Tool {
     private parameters: Parameter[],
     private icon?: string,
     private details?: string
-  ) {}
+  ) {
+    this.buildPreviewIcon = !icon;
+  }
   private iconElement?: _$;
+  private buildPreviewIcon: boolean;
   async update(
-    operations: PicasaFilter[],
+    _operations: PicasaFilter[],
     thumbnailContext: string
   ): Promise<void> {
-    if (this.iconElement) {
+    if (this.iconElement && this.buildPreviewIcon) {
       this.iconElement.css({
         "background-image": `url("resources/images/spinning-gear.gif")`,
       });
@@ -357,8 +360,9 @@ export class FilterTool extends ParametrizableTool {
     public displayName: string,
     public filterName: string,
     public controller: ImageController,
-    toolEditor: ToolEditor
+    toolEditor: ToolEditor,
+    icon?: string
   ) {
-    super(displayName, filterName, controller, toolEditor, []);
+    super(displayName, filterName, controller, toolEditor, [], icon);
   }
 }
