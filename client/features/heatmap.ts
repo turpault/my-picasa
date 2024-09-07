@@ -12,6 +12,6 @@ export function setupHeatmap(
 ) {
   toolRegistrar.registerTool(
     PAGES.CONTRAST,
-    new ParametrizableTool(t("Heatmap"), "heatmap", controller, editor, [])
+    new ParametrizableTool("Heatmap", "heatmap", controller, editor, [])
   );
 }

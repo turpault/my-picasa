@@ -91,8 +91,8 @@ export async function setupCropPreview(
       resolve(null);
     };
     const { toolElement: toolControls, okControl, controls } = toolHTML(
-      t("Crop Picture"),
-      t("Crop Details"),
+      "Crop Picture",
+      "Crop Details",
       "resources/images/icons/crop.png",
       ok,
       cancel,

@@ -12,7 +12,7 @@ export function setupBrightness(
 ) {
   toolRegistrar.registerTool(
     PAGES.CONTRAST,
-    new ParametrizableTool(t("Brightness"), "finetune2", controller, editor, [
+    new ParametrizableTool("Brightness", "finetune2", controller, editor, [
       {
         name: "Brightness",
         type: "range",

@@ -12,7 +12,7 @@ export function setupContrast(
 ) {
   toolRegistrar.registerTool(
     PAGES.CONTRAST,
-    new ParametrizableTool(t("Contrast"), "contrast", controller, editor, [
+    new ParametrizableTool("Contrast", "contrast", controller, editor, [
       {
         name: "Amount",
         type: "range",

@@ -216,9 +216,11 @@ export async function makeEditorPage(
     }),
 
     
+    imageController.events.on("beforeupdate", async ({}) => {
+      localState.setValue(lastOperationStack, imageController.operations().slice().reverse());
+    }),
     imageController.events.on("updated", async ({}) => {
       refreshHistogramFct(await imageController.getLiveThumbnailContext());
-      localState.setValue(lastOperationStack, imageController.operations().slice().reverse());
     }),
     localState.events.on(
       lastOperationStack, updateLastOperation

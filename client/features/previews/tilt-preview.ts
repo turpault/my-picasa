@@ -75,8 +75,8 @@ export function setupTiltPreview(
       resolve(null);
     };
     const controls = toolHTML(
-      t("Tilt"),
-      t("Rotate the image"),
+      "Tilt",
+      "Rotate the image",
       "resources/images/icons/tilt.png",
       ok,
       cancel,

@@ -11,14 +11,14 @@ export function setupFill(
   editor: ToolEditor
 ) {
   toolRegistrar.registerTool(
-    PAGES.CONTRAST,
-    new ParametrizableTool(t("Extra Light"), "fill", controller, editor, [
+    PAGES.WRENCH,
+    new ParametrizableTool("Extra Light", "fill", controller, editor, [
       {
         name: "Amount",
         type: "range",
         range: { min: -1, max: 1 },
         default: 0.1,
       },
-    ])
+    ], "resources/images/icons/brightness.png")
   );
 }

@@ -11,6 +11,6 @@ export function setupMirror(
 ) {
   toolRegistrar.registerTool(
     PAGES.BRUSH,
-    new FilterTool(t("Mirror"), "mirror", controller, editor)
+    new FilterTool("Mirror", "mirror", controller, editor)
   );
 }

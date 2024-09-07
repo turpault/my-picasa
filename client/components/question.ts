@@ -11,8 +11,8 @@ export async function question(
       <p class="message">${message}</p>
       <input class="question" placeholder="${placeHolder}"></input>
       <div class="okcancel">
-      <a class="confirm w3-button w3-green">Ok</a>
-      <a class="cancel w3-button w3-red">Cancel</a>
+      <a class="confirm w3-button w3-green">${t("Ok")}</a>
+      <a class="cancel w3-button w3-red">${t("Cancel")}</a>
       </div>
     </div>
   </div>
@@ -84,7 +84,7 @@ export async function message(
         $(
           `<a class="button-${button} w3-button ${
             button === Button.Ok ? "w3-green confirm" : "cancel"
-          }">${button}</a>`,
+          }">${t(button)}</a>`,
         ).on("click", () => {
           resolve(button);
         }),

@@ -30,7 +30,7 @@ export class ToolRegistrar {
 
     const elem = tool.ui()!;
     this.pages[page].append(elem);
-    this.tools[tool.displayName] = { tool, component: elem };
+    this.tools[tool.filterName] = { tool, component: elem };
   }
 
   // Refresh icons from the updated context. Can be reentered
@@ -48,12 +48,12 @@ export class ToolRegistrar {
       await resizeContext(copy, 60);
       await commit(copy);
 
-      for (const [name, tool] of Object.entries(this.tools)) {
+      for (const [_name, tool] of Object.entries(this.tools)) {
         if (awaiters("updateToolUIs") > 1) {
           break;
         }
         if (tool.tool.update) {
-          await tool.tool.update(filters, context);
+          await tool.tool.update(filters, copy);
         }
       }
       destroyContext(copy);

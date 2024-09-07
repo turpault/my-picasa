@@ -12,7 +12,7 @@ export function setupSharpen(
 ) {
   toolRegistrar.registerTool(
     PAGES.CONTRAST,
-    new ParametrizableTool(t("Sharpen"), "sharpen", controller, editor, [
+    new ParametrizableTool("Sharpen", "sharpen", controller, editor, [
       {
         name: "Amount",
         type: "range",

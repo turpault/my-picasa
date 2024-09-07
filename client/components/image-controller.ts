@@ -268,6 +268,11 @@ export class ImageController {
     }
     const lockName = "image-update";
     if (isPicture(this.entry)) {
+      this.events.emit("beforeupdate", {
+        caption: this.caption,
+        filters: this.filters,
+        entry: this.entry,
+      });
       const l = await lock(lockName);
       this.clearLiveContexts();
       try {

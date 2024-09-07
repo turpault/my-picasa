@@ -12,7 +12,7 @@ export function setupPolaroid(
 ) {
   toolRegistrar.registerTool(
     PAGES.CONTRAST,
-    new ParametrizableTool(t("Polaroid"), "Polaroid", controller, editor, [
+    new ParametrizableTool("Polaroid", "Polaroid", controller, editor, [
       {
         name: "Angle",
         type: "range",

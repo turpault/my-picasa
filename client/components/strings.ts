@@ -33,6 +33,7 @@ const stringTable: { [key: string]: any } = {
   Greyscale: { fr: "Noir et blanc" },
   Contrast: { fr: "Contraste" },
   Brightness: { fr: "Luminosité" },
+  Highlights: {fr:"Lumières"},
   Sepia: { fr: "Sépia" },
   Polaroid: { fr: "Polaroid" },
   Flip: { fr: "Inverser" },
@@ -163,7 +164,13 @@ const stringTable: { [key: string]: any } = {
     fr: "Importer les favoris de l'app Photos",
   },
   "Redo": {fr:"Refaire", en:"Redo"},
-  "Rotate the image": {fr:"Tourner l'image"}  
+  "Rotate the image": {fr:"Tourner l'image"} ,
+  "": {fr:""},
+  "Amount": {fr:"Quantité"},
+  "Loading bugs...": {fr:"Chargement des bugs..."},
+"open": {fr:"ouvert", "en":"open"},
+"What is the bug?": {fr:"Quel est le bug?"},
+"Describe the bug": {fr:"Décrivez le bug"},
 };
 const lang = window.navigator.language.split("-")[0];
 let str = new Set<string>();
@@ -172,7 +179,7 @@ export function t(s: string, ...args: any[]): string {
   if (sp.length > 1) return t(sp[0], ...sp.slice(1), ...args);
 
   let res = stringTable[s]?.[lang];
-  if (!res) {
+  if (res === undefined) {
     if (lang !== "en") {
       str.add(`"${s}": {fr:"${s}"},`);
       console.log("Missing strings", Array.from(str).join("\n"));

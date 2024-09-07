@@ -11,6 +11,6 @@ export function setupSepia(
 ) {
   toolRegistrar.registerTool(
     PAGES.BRUSH,
-    new FilterTool(t("Sepia"), "sepia", controller, editor)
+    new FilterTool("Sepia", "sepia", controller, editor)
   );
 }

@@ -10,6 +10,11 @@ export type PanZoomEvent = {
 };
 
 export type ImageControllerEvent = {
+  beforeupdate: {
+    caption: string;
+    filters: PicasaFilter[];
+    entry: AlbumEntry;
+  };
   updated: {
     caption: string;
     filters: PicasaFilter[];

@@ -12,7 +12,7 @@ export function setupBlur(
   toolRegistrar.registerTool(
     PAGES.BRUSH,
     new ParametrizableTool(
-      t("Blur"),
+      "Blur",
       "blur",
       controller,
       editor,

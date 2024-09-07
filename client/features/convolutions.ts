@@ -14,7 +14,7 @@ export async function setupConvolutions(
   const kernels = (await s.getConvolutionKernelNames()) as string[];
   toolRegistrar.registerTool(
     PAGES.CONTRAST,
-    new ParametrizableTool(t("Filter"), `convolute`, controller, editor, [
+    new ParametrizableTool("Filter", `convolute`, controller, editor, [
       {
         name: "Kernel",
         type: "select",

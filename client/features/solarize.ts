@@ -12,7 +12,7 @@ export function setupSolarize(
 ) {
   toolRegistrar.registerTool(
     PAGES.CONTRAST,
-    new ParametrizableTool(t("Solarize"), "solarize", controller, editor, [
+    new ParametrizableTool("Solarize", "solarize", controller, editor, [
       {
         name: "Threshold",
         type: "range",

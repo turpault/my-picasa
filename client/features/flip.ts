@@ -11,6 +11,6 @@ export function setupFlip(
 ) {
   toolRegistrar.registerTool(
     PAGES.BRUSH,
-    new FilterTool(t("Flip"), "flip", controller, editor)
+    new FilterTool("Flip", "flip", controller, editor)
   );
 }

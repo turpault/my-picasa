@@ -12,7 +12,7 @@ export function setupBW(
 ) {
   toolRegistrar.registerTool(
     PAGES.BRUSH,
-    new ParametrizableTool(t("Greyscale"), "bw", imageController, editor, [
+    new ParametrizableTool("Greyscale", "bw", imageController, editor, [
       {
         name: "Amount",
         type: "range",
