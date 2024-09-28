@@ -64,6 +64,7 @@ export async function getAlbumInfo(
       video: false,
       people: false,
       location: false,
+      persons: [],
       favoritePhoto: false,
       text: "",
     },
@@ -90,6 +91,17 @@ export async function getAlbumInfo(
 
   if (settings.filters.video) {
     entries = entries.filter((v) => settings.filters.video && isVideo(v));
+    filtered = true;
+  }
+
+  if (settings.filters.persons && settings.filters.persons.length > 0) {
+    entries = entries.filter((v) => {
+      if (!picasa[v.name].persons) {
+        return false;
+      }
+      const persons = picasa[v.name].persons.split(",").map((p) => p.trim());
+      return settings.filters.persons.every((p) => persons.includes(p));
+    });
     filtered = true;
   }
 

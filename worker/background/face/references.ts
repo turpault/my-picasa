@@ -9,6 +9,8 @@ import {
   writeReferencesOfEntry,
 } from "../../../server/rpc/albumTypes/referenceFiles";
 import { media } from "../../../server/rpc/rpcFunctions/albumUtils";
+import { entryFilePath, fileExists } from "../../../server/utils/serverUtils";
+import { getFolderAlbums } from "../../../server/walker";
 import { lock } from "../../../shared/lib/mutex";
 import { Queue } from "../../../shared/lib/queue";
 import {
@@ -23,8 +25,6 @@ import {
   Reference,
   ReferenceData,
 } from "../../../shared/types/types";
-import { entryFilePath, fileExists } from "../../../server/utils/serverUtils";
-import { getFolderAlbums, waitUntilWalk } from "../../../server/walker";
 import { isUsefulReference } from "./face-utils";
 import { FaceLandmarkData } from "./types";
 const debug = Debug("app:faces");
@@ -34,9 +34,8 @@ let optionsSSDMobileNet: faceapi.SsdMobilenetv1Options;
 // Limit the parallelism for the face parsing
 const faceProcessingQueue = new Queue(30);
 
-export async function populateReferences() {
+export async function setupFaceAPI() {
   await tf.ready;
-  await waitUntilWalk();
   optionsSSDMobileNet = new faceapi.SsdMobilenetv1Options({
     minConfidence: 0.5,
     maxResults: 100,
@@ -52,7 +51,9 @@ export async function populateReferences() {
   await faceapi.nets.faceRecognitionNet.loadFromDisk(modelPath);
   await faceapi.nets.ageGenderNet.loadFromDisk(modelPath);
   await faceapi.nets.faceExpressionNet.loadFromDisk(modelPath);
+}
 
+export async function populateAllReferences() {
   const albums = await getFolderAlbums();
 
   const inProgress = new Set<Album>();
@@ -81,6 +82,7 @@ async function entryHasReferences(entry: AlbumEntry) {
 
 async function processFaces(album: Album) {
   const entries = await media(album);
+
   await Promise.all(
     entries.entries.map(async (entry) => {
       if (await entryHasReferences(entry)) {
@@ -160,5 +162,5 @@ async function createReferenceFileIfNeeded(entry: AlbumEntry) {
       return detectedReferences;
     }
   }
-  return [] as FaceLandmarkData[];
+  return [] as Reference[];
 }

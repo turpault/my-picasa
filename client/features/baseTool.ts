@@ -157,7 +157,6 @@ export class ParametrizableTool implements Tool {
     private details?: string
   ) {
     this.buildPreviewIcon = !icon;
-    if(filterName === "filter:Sepia") debugger;
   }
   private iconElement?: _$;
   private buildPreviewIcon: boolean;
@@ -166,8 +165,6 @@ export class ParametrizableTool implements Tool {
     thumbnailContext: string
   ): Promise<void> {
     if (this.iconElement && this.buildPreviewIcon) {
-      console.info("Filter name", this.filterName);
-      if(this.filterName === "sepia") debugger;
       this.iconElement.css({
         "background-image": `url("resources/images/spinning-gear.gif")`,
       });
@@ -334,8 +331,9 @@ export class ParametrizableTool implements Tool {
     });
   }
   ui() {
+    const displayName = this.filterName.includes(':') ? this.displayName : t(this.displayName);
     this.iconElement = $(
-      `<div class="tool-button"><label>${this.displayName}</label></div>`
+      `<div class="tool-button"><label>${displayName}</label></div>`
     )
       .on("click", () => this.activate())
       .on("mouseenter", () => {

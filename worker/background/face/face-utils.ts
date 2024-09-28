@@ -1,6 +1,13 @@
 import { mkdir } from "fs/promises";
 import { join } from "path";
 import {
+  readAlbumIni,
+  readContacts,
+} from "../../../server/rpc/rpcFunctions/picasa-ini";
+import { getFaceImage } from "../../../server/rpc/rpcFunctions/thumbnail";
+import { facesFolder } from "../../../server/utils/constants";
+import { fileExists, safeWriteFile } from "../../../server/utils/serverUtils";
+import {
   decodeFaces,
   decodeRect,
   encodeRect,
@@ -8,26 +15,38 @@ import {
 } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
-  AlbumKind,
   Reference,
   ReferenceData,
 } from "../../../shared/types/types";
-import { buildFaceImage } from "../../../server/imageOperations/sharp-processor";
-import {
-  readAlbumIni,
-  readContacts,
-} from "../../../server/rpc/rpcFunctions/picasa-ini";
-import { facesFolder } from "../../../server/utils/constants";
-import { fileExists, safeWriteFile } from "../../../server/utils/serverUtils";
-import { FaceLandmarkData, IdentifiedContact } from "./types";
+import { IdentifiedContact } from "./types";
 
 export function rectOfReference(feature: ReferenceData) {
-  const left = feature.alignedRect.box.left / feature.detection.imageWidth;
-  const right = feature.alignedRect.box.right / feature.detection.imageWidth;
-  const top = feature.alignedRect.box.top / feature.detection.imageHeight;
-  const bottom = feature.alignedRect.box.bottom / feature.detection.imageHeight;
+  const left = Math.max(
+    0,
+    feature.alignedRect.box.left / feature.detection.imageWidth,
+  );
+  const right = Math.min(
+    1,
+    feature.alignedRect.box.right / feature.detection.imageWidth,
+  );
+  const top = Math.max(
+    0,
+    feature.alignedRect.box.top / feature.detection.imageHeight,
+  );
+  const bottom = Math.min(
+    1,
+    feature.alignedRect.box.bottom / feature.detection.imageHeight,
+  );
+  if (
+    feature.alignedRect.box.width <= 0 ||
+    feature.alignedRect.box.height <= 0
+  ) {
+    debugger;
+    throw new Error("Invalid reference rect");
+  }
 
   const rect = encodeRect({ top, left, right, bottom });
+  if (rect.length > 16) debugger;
   return rect;
 }
 
@@ -37,7 +56,7 @@ export async function getPicasaIdentifiedReferences(
   const picasaIni = await readAlbumIni(entry.album);
 
   const contacts = readContacts(picasaIni);
-  const iniFaces = picasaIni[entry.name].faces;
+  const iniFaces = picasaIni[entry.name]?.faces;
   if (iniFaces) {
     const facesInEntry = decodeFaces(iniFaces);
     return facesInEntry
@@ -112,53 +131,48 @@ export function isUsefulReference(
     return false;
   }
 
-  if (reference.data.angle.roll && Math.abs(reference.data.angle.roll) > 60) {
+  const orientationAngle = usage === "master" ? 80 : 60;
+  if (
+    reference.data.angle.roll &&
+    Math.abs(reference.data.angle.roll) > orientationAngle
+  ) {
     return false;
   }
-  if (reference.data.angle.yaw && Math.abs(reference.data.angle.yaw) > 60) {
+  if (
+    reference.data.angle.yaw &&
+    Math.abs(reference.data.angle.yaw) > orientationAngle
+  ) {
     return false;
   }
-  if (reference.data.angle.pitch && Math.abs(reference.data.angle.pitch) > 30) {
+  if (
+    reference.data.angle.pitch &&
+    Math.abs(reference.data.angle.pitch) > orientationAngle / 2
+  ) {
     return false;
   }
   return true;
 }
+
 export async function createCandidateThumbnail(
   group: string,
   strategy: string,
   reference: Reference,
-  originalEntry: AlbumEntry,
   root: boolean,
+  explanation: string = "",
+  folder: string,
 ) {
-  const folder = join(facesFolder, `strategy-${strategy}`, group);
   await mkdir(folder, { recursive: true });
   const filePath = join(
     folder,
-    (root ? "---" : "") +
-      hash(reference.id) +
-      "-" +
-      reference.data.detection.className +
-      "-" +
-      reference.data.detection.classScore +
-      "-" +
-      reference.data.detection.score +
-      ".jpg",
+    ((root ? "---" : "") + hash(reference.id) + "-" + explanation).substring(
+      0,
+      240,
+    ) + ".jpg",
   );
   if (!(await fileExists(filePath))) {
     try {
-      const image = await buildFaceImage(
-        {
-          album: { key: group, kind: AlbumKind.FACE, name: group },
-          name: reference.id,
-        },
-        {
-          label: reference.id,
-          originalEntry,
-          hash: group,
-          rect: rectOfReference(reference.data),
-        },
-      );
-      await safeWriteFile(filePath, image.data);
+      const image = await getFaceImage(reference.id);
+      await safeWriteFile(filePath, image);
     } catch (e) {
       // ignore
     }

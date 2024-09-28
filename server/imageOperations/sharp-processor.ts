@@ -1,7 +1,7 @@
 import { readFile } from "fs/promises";
 import imageSize from "image-size";
 import { join } from "path";
-import sharp, { Metadata, OverlayOptions, Sharp } from "sharp";
+import sharp, { Metadata, OverlayOptions, Sharp, Stats } from "sharp";
 import { promisify } from "util";
 import {
   applyAllFilters,
@@ -18,6 +18,7 @@ import {
   FaceData,
   ImageEncoding,
   ImageMimeType,
+  Reference,
 } from "../../shared/types/types";
 import {
   clipColor,
@@ -42,6 +43,12 @@ import {
   setRotate,
   updatePicasaEntry,
 } from "../rpc/rpcFunctions/picasa-ini";
+import { getFaceRect } from "../rpc/rpcFunctions/faces";
+import {
+  decodeReferenceId,
+  readReferenceFromReferenceId,
+} from "../rpc/albumTypes/referenceFiles";
+import { rectOfReference } from "../../worker/background/face/face-utils";
 
 const contexts = new Map<string, Sharp>();
 const options = new Map<string, AlbumEntryMetaData>();
@@ -114,7 +121,7 @@ export async function buildNewContext(
   return contextId;
 }
 
-export async function buildContext(entry: AlbumEntry): Promise<string> {
+export async function buildRawContext(entry: AlbumEntry) {
   const relPath = entryRelativePath(entry);
   const [picasaData, fileData] = await Promise.all([
     getPicasaEntry(entry),
@@ -129,7 +136,37 @@ export async function buildContext(entry: AlbumEntry): Promise<string> {
     })
       .withMetadata()
       .rotate();
+    contexts.set(contextId, s);
+    return { contextId, picasaData };
+  } catch (e: any) {
+    console.error(
+      `An error occured while reading file ${entry.name} in folder ${entry.album.key} : ${e.message}`,
+    );
+    throw e;
+  }
+}
+export async function buildContextFromBuffer(buffer: Buffer): Promise<string> {
+  try {
+    const contextId = "buffer-" + uuid();
+    let s = sharp(buffer, {
+      limitInputPixels: false,
+      failOnError: false,
+    }).withMetadata();
+    contexts.set(contextId, s);
+    return contextId;
+  } catch (e: any) {
+    console.error(
+      `An error occured while building a context from a buffer : ${e.message}`,
+    );
+    debugger;
+    throw e;
+  }
+}
 
+export async function buildContext(entry: AlbumEntry): Promise<string> {
+  const { contextId, picasaData } = await buildRawContext(entry);
+  let s = getContext(contextId);
+  try {
     // Extract filters with rotate=1,x and transform to rotate=rotate(x)
     let rotate = decodeRotate(picasaData.rotate);
     if (picasaData.filters) {
@@ -289,6 +326,8 @@ export async function transform(
           const { info } = await j.raw().toBuffer({ resolveWithObject: true });
           const w = info.width!;
           const h = info.height!;
+          if (Math.floor(w * (crop.right - crop.left)) === 0) debugger;
+          if (Math.floor(h * (crop.bottom - crop.top)) === 0) debugger;
           if (
             h > 0 &&
             w > 0 &&
@@ -1086,24 +1125,58 @@ export async function buildImage(
 
 const buildFaceImageQueue = new Queue(4, { fifo: false });
 export async function buildFaceImage(
-  entry: AlbumEntry,
-  faceData: FaceData,
+  referenceId: string,
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
   return buildFaceImageQueue.add(async () => {
-    const label = `Thumbnail for face ${entry.album.name} / ${entry.name}`;
+    const label = `Thumbnail for face ${referenceId}`;
     console.time(label);
-    debugInfo(label);
     try {
-      const originalImageEntry = faceData.originalEntry;
-      const context = await buildContext(originalImageEntry);
-
-      await transform(context, `crop64=1,${faceData.rect}`);
-      const res = (await encode(context, "image/jpeg", "Buffer")) as {
+      const rect = await getFaceRect(referenceId);
+      const { entry: originalImageEntry } = decodeReferenceId(referenceId);
+      const { contextId } = await buildRawContext(originalImageEntry);
+      await transform(contextId, `crop64=1,${rect}`);
+      const res = (await encode(contextId, "image/jpeg", "Buffer")) as {
         width: number;
         height: number;
         data: Buffer;
       };
-      await destroyContext(context);
+      await destroyContext(contextId);
+      return { ...res, mime: "image/jpeg" };
+    } finally {
+      console.timeEnd(label);
+    }
+  });
+}
+
+export async function statsOfContext(context: string): Promise<Stats> {
+  const j = getContext(context);
+  return j.stats();
+}
+
+export async function buildFaceImageFromReference(
+  reference: Reference,
+): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
+  return buildFaceImageQueue.add(async () => {
+    const label = `Thumbnail for reference ${reference.id}`;
+    console.time(label);
+    debugInfo(label);
+    try {
+      const referenceData = await readReferenceFromReferenceId(reference.id);
+      if (!referenceData) {
+        throw "Reference not found";
+      }
+      const rect = rectOfReference(referenceData.data);
+
+      const { entry: originalImageEntry } = decodeReferenceId(reference.id);
+      const { contextId } = await buildRawContext(originalImageEntry);
+
+      await transform(contextId, `crop64=1,${rect}`);
+      const res = (await encode(contextId, "image/jpeg", "Buffer")) as {
+        width: number;
+        height: number;
+        data: Buffer;
+      };
+      await destroyContext(contextId);
       console.timeEnd(label);
       return { ...res, mime: "image/jpeg" };
     } catch (e) {

@@ -60,6 +60,7 @@ import { clientReady } from "./rpcFunctions/ready";
 import { setAlbumShortcut } from "./rpcFunctions/shortcuts";
 import { addBug, getBugs } from "./rpcFunctions/bugs";
 import { getFaceDataFromAlbumEntry } from "../../worker/background/face/picasa-faces";
+import { getPersons } from "./albumTypes/persons";
 
 /**
  * ConcurrencyService IDL
@@ -284,5 +285,9 @@ export const PicisaClient: ServiceMap = {
       handler: getBugs,
       arguments: [],
     },
+    getPersons: {
+      handler: getPersons,
+      arguments: [],
+    },    
   },
 };

@@ -1,5 +1,5 @@
 import { lock } from "../../shared/lib/mutex";
-import { dateOfAlbumFromName, range } from "../../shared/lib/utils";
+import { dateOfAlbumFromName, debounced, range } from "../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
@@ -39,6 +39,9 @@ const html = `<div class="w3-theme images-area">
   <div class="images disable-scrollbar">
     <div class="invisible-pixel">
     </div>
+    <div class="working-animation">
+      <img src="resources/images/spinning-gear.gif" />
+    <div>
   </div>
 <div style="display: none" class="dragregion"></div>
 </div>
@@ -469,12 +472,14 @@ export async function makePhotoList(
       if (dataSource.length() > 0) {
         let albumElement: _$ | undefined;
         while (albumElement === undefined && topIndex < dataSource.length()) {
+          showWorker();
           const album = dataSource.albumAtIndex(topIndex);
           const { element } = await populateElement(album);
           if (element) {
             albumElement = element;
           } else {
             topIndex++;
+            bottomIndex = topIndex;
           }
         }
         if (!albumElement) {
@@ -549,7 +554,7 @@ export async function makePhotoList(
         }
       }
 
-      const promises: Promise<void>[] = [];
+      const promises: Promise<boolean>[] = [];
 
       const firstItem = displayed[0];
       const lastItem = displayed[displayed.length - 1];
@@ -573,9 +578,11 @@ export async function makePhotoList(
         promises.push(addAtBottom());
       }
       if (promises.length > 0) {
-        console.info("Added items, will reflow");
-        doReflow |= REFLOW_TRIGGER;
-        await Promise.allSettled(promises);
+        const res = await Promise.allSettled(promises);
+        if (res.some((r) => r.status === "fulfilled" && r.value)) {
+          console.info("Added some items, will reflow");
+          doReflow |= REFLOW_TRIGGER;
+        }
       } else {
         // Nothing happened, we will repopulate when scrolling only
         doRepopulate = false;
@@ -914,14 +921,15 @@ export async function makePhotoList(
     return { element, hasChanged };
   }
 
-  async function addAtTop() {
+  async function addAtTop(): Promise<boolean> {
     if (topIndex > 0) {
+      showWorker();
       topIndex--;
       const album = dataSource.albumAtIndex(topIndex);
       const { element: albumElement } = await populateElement(album);
       if (!albumElement) {
         console.info(`Album ${album.name} is empty, skipping`);
-        return;
+        return false;
       }
       $(albumElement).css({ top: `0px`, opacity: 0 });
       albumElement.attr("index", topIndex.toString());
@@ -933,17 +941,20 @@ export async function makePhotoList(
         );
       displayed.unshift(albumElement);
       console.info(`Adding album ${album.name} at top`);
+      return true;
     }
+    return false;
   }
 
-  async function addAtBottom() {
+  async function addAtBottom(): Promise<boolean> {
     if (bottomIndex < dataSource.length() - 1) {
+      showWorker();
       bottomIndex++;
       const album = dataSource.albumAtIndex(bottomIndex);
       const { element: albumElement } = await populateElement(album);
       if (!albumElement) {
         console.info(`Album ${album.name} is empty, skipping`);
-        return;
+        return false;
       }
       $(albumElement).css({ top: `0px`, opacity: 0 });
       albumElement.attr("index", bottomIndex.toString());
@@ -952,7 +963,9 @@ export async function makePhotoList(
         .insertBefore(albumElement.get(), container.get().lastChild);
       displayed.push(albumElement);
       console.info(`Adding album ${album.name} at end`);
+      return true;
     }
+    return false;
   }
 
   async function rebuildViewStartingFrom(album: Album) {
@@ -980,6 +993,18 @@ export async function makePhotoList(
     ],
   });
 
+  const hideWorkerLater = debounced(
+    () => {
+      $(".working-animation", container).css("display", "none");
+    },
+    2000,
+    false,
+    true,
+  );
+  function showWorker() {
+    $(".working-animation", container).css("display", "block");
+    hideWorkerLater();
+  }
   async function startGallery() {
     let initialList: AlbumEntry[] = [];
     let initialIndex = 0;

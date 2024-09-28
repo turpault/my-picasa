@@ -22,6 +22,7 @@ import {
   removeFaceFromEntry,
 } from "./picasa-faces";
 import { readReferencesOfEntry } from "../../../server/rpc/albumTypes/referenceFiles";
+import { join } from "path";
 
 let identifiedReferenceContactKeyMap = new Map<string, Reference[]>(); //  contact.Key -> reference[]
 const debug = Debug("app:face-matcher");
@@ -149,7 +150,7 @@ async function populateCandidates() {
   // Limit the parallelism for the face parsing
   const faceProcessingQueue = new Queue(30);
   const albums = await getFolderAlbums();
-  for (const album of albums) {
+  for (const album of albums.sort((a, b) => -a.name.localeCompare(b.name))) {
     faceProcessingQueue.add(async () => {
       await populateCandidatesOfAlbum(album, matcher).catch(debug);
     });
@@ -186,6 +187,7 @@ async function populateCandidatesOfAlbum(
           addCandidateFaceRectToEntry(
             media,
             rectOfReference(reference.data),
+            contact.key,
             contact,
             reference.id,
             "facematcher",
@@ -194,8 +196,9 @@ async function populateCandidatesOfAlbum(
             contact.key,
             "facematcher",
             reference,
-            media,
             false,
+            "",
+            join("/tmp", contact.key),
           );
         }
       }

@@ -290,4 +290,9 @@ export class PicisaClient {
       'args': {  } 
     });
   }
+  async getPersons():Promise<any> {
+    return this.emit('PicisaClient:getPersons', {
+      'args': {  } 
+    });
+  }
 }

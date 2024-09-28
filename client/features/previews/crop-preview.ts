@@ -1,11 +1,12 @@
 import { Line, LineSegment, Point, Rectangle, Vector } from "ts-2d-geometry";
 import { RectArea } from "../../../shared/lib/utils";
+import { Orientation } from "../../../shared/types/types";
+import { PicasaMultiButton } from "../../components/controls/multibutton";
 import { ImageController } from "../../components/image-controller";
 import { t } from "../../components/strings";
 import { ToolEditor } from "../../components/tool-editor";
 import { $, _$ } from "../../lib/dom";
 import { State } from "../../lib/state";
-import { PicasaMultiButton } from "../../components/controls/multibutton";
 import { toolHTML } from "../baseTool";
 
 export type ValueChangeEvent = {
@@ -16,17 +17,54 @@ export type ValueChangeEvent = {
 function bounds(point: Point, area: Rectangle) {
   return new Point(
     Math.max(area.topLeft.x, Math.min(area.bottomRight.x, point.x)),
-    Math.max(area.topLeft.y, Math.min(area.bottomRight.y, point.y))
+    Math.max(area.topLeft.y, Math.min(area.bottomRight.y, point.y)),
   );
 }
 //export function draggableElement(e: _$, zoomController: PanZoomController): EventEmitter<
+
+export enum CROP_PREVIEW_STATE {
+  AREA = "area",
+  ORIENTATION = "orientation",
+  RATIO = "ratio",
+}
+
+export type CropPreviewStateDef = {
+  [CROP_PREVIEW_STATE.AREA]: RectArea;
+  [CROP_PREVIEW_STATE.ORIENTATION]: Orientation;
+  [CROP_PREVIEW_STATE.RATIO]: keyof typeof RatioList;
+};
+
+const RatioList = {
+  "4x6": "4x6",
+  "5x7": "5x7",
+  "8x10": "8x10",
+  "4x3": "4x3",
+  "16x9": "16x9",
+  "5x5": "5x5",
+  Free: "Free",
+};
+
+const Ratios = {
+  "4x6": 4 / 6,
+  "5x7": 5 / 7,
+  "8x10": 8 / 10,
+  "4x3": 3 / 4,
+  "16x9": 9 / 16,
+  "5x5": 1,
+  Free: 0,
+};
+
+const OrientationList = {
+  Portrait: Orientation.PORTRAIT,
+  Paysage: Orientation.PAYSAGE,
+};
 
 const toolControlHtml = `
 <div class="crop-controls-pane">
   <label>${t("Ratio")}</label>
   <picasa-multi-button class="crop-controls crop-ratio-control" selected="0" items="0|1"></picasa-multi-button>
   <label>${t("Orientation")}</label>
-  <picasa-multi-button class="crop-controls crop-orientation-control" selected="0" items="Portrait|Paysage"></picasa-multi-button>
+  <picasa-multi-button class="crop-controls crop-orientation-control" selected="0" items=""></picasa-multi-button>
 </div>
 `;
 
@@ -39,39 +77,13 @@ const overlayHTML = $(`
 </div>
 `);
 
-export enum CROP_PREVIEW_STATE {
-  AREA = "area",
-  ORIENTATION = "orientation",
-  RATIO = "ratio",
-}
-
-export type CropPreviewStateDef = {
-  [CROP_PREVIEW_STATE.AREA]: RectArea;
-  [CROP_PREVIEW_STATE.ORIENTATION]: "portrait" | "paysage";
-  [CROP_PREVIEW_STATE.RATIO]: keyof typeof RatioList;
-};
-
-const RatioList = {
-  "4x6": 4 / 6,
-  "5x7": 5 / 7,
-  "8x10": 8 / 10,
-  "4x3": 4 / 3,
-  "16x9": 16 / 9,
-  "5x5": 1,
-  Free: 0,
-};
-const OrientationList = {
-  portrait: "Portrait",
-  paysage: "Paysage",
-};
-
 export type CropPreviewState = State<CropPreviewStateDef>;
 
 export async function setupCropPreview(
   container: _$,
   toolEditor: ToolEditor,
   imageController: ImageController,
-  state: CropPreviewState
+  state: CropPreviewState,
 ) {
   return new Promise<boolean>((resolve) => {
     const observer = new ResizeObserver(() => moveCornersFromValue());
@@ -90,13 +102,17 @@ export async function setupCropPreview(
       toolEditor.deactivate();
       resolve(null);
     };
-    const { toolElement: toolControls, okControl, controls } = toolHTML(
+    const {
+      toolElement: toolControls,
+      okControl,
+      controls,
+    } = toolHTML(
       "Crop Picture",
       "Crop Details",
       "resources/images/icons/crop.png",
       ok,
       cancel,
-      trash
+      trash,
     );
     const overlay = $(overlayHTML);
     controls.append(toolControlHtml);
@@ -110,10 +126,11 @@ export async function setupCropPreview(
 
     const ratioLabels = Object.keys(RatioList).map(t);
     const orientationLabels = Object.keys(OrientationList).map(t);
+
     $(".crop-ratio-control", toolControls).attr("items", ratioLabels.join("|"));
     $(".crop-orientation-control", toolControls).attr(
       "items",
-      orientationLabels.join("|")
+      orientationLabels.join("|"),
     );
 
     $<PicasaMultiButton>(".crop-orientation-control", toolControls)
@@ -121,17 +138,17 @@ export async function setupCropPreview(
       .bind(
         state,
         CROP_PREVIEW_STATE.ORIENTATION,
-        Object.keys(OrientationList)
+        Object.values(OrientationList),
       );
     $<PicasaMultiButton>(".crop-ratio-control", toolControls)
       .get()
-      .bind(state, CROP_PREVIEW_STATE.RATIO, Object.keys(RatioList));
+      .bind(state, CROP_PREVIEW_STATE.RATIO, Object.values(RatioList));
 
     if (state.getValue(CROP_PREVIEW_STATE.RATIO) === undefined) {
       state.setValue(CROP_PREVIEW_STATE.RATIO, "4x6");
     }
     if (state.getValue(CROP_PREVIEW_STATE.ORIENTATION) === undefined) {
-      state.setValue(CROP_PREVIEW_STATE.ORIENTATION, "paysage");
+      state.setValue(CROP_PREVIEW_STATE.ORIENTATION, Orientation.PAYSAGE);
     }
 
     const corners: {
@@ -163,7 +180,7 @@ export async function setupCropPreview(
         updateValue: (value: RectArea, projected: Point) => {
           const toValue = imageController.zoomController.screenToCanvasRatio(
             projected.x,
-            projected.y
+            projected.y,
           );
           return {
             ...value,
@@ -193,7 +210,7 @@ export async function setupCropPreview(
         updateValue: (value: RectArea, projected: Point) => {
           const toValue = imageController.zoomController.screenToCanvasRatio(
             projected.x,
-            projected.y
+            projected.y,
           );
           return {
             ...value,
@@ -223,7 +240,7 @@ export async function setupCropPreview(
         updateValue: (value: RectArea, projected: Point) => {
           const toValue = imageController.zoomController.screenToCanvasRatio(
             projected.x,
-            projected.y
+            projected.y,
           );
           return {
             ...value,
@@ -253,7 +270,7 @@ export async function setupCropPreview(
         updateValue: (value: RectArea, projected: Point) => {
           const toValue = imageController.zoomController.screenToCanvasRatio(
             projected.x,
-            projected.y
+            projected.y,
           );
           return {
             ...value,
@@ -267,7 +284,7 @@ export async function setupCropPreview(
     function br2rect(v: DOMRect): Rectangle {
       return new Rectangle(
         new Point(v.x, v.y),
-        new Point(v.x + v.width, v.y + v.height)
+        new Point(v.x + v.width, v.y + v.height),
       );
     }
     let captured = false;
@@ -305,10 +322,11 @@ export async function setupCropPreview(
           const deltaY = Math.round(currentPos.y - initialMousePosMove.y);
 
           if ((ev.buttons === 1 && deltaX !== 0) || deltaY !== 0) {
-            const deltaInRatio = imageController.zoomController.deltaScreenToCanvasRatio(
-              deltaX,
-              deltaY
-            );
+            const deltaInRatio =
+              imageController.zoomController.deltaScreenToCanvasRatio(
+                deltaX,
+                deltaY,
+              );
             const currentValue = state.getValue(CROP_PREVIEW_STATE.AREA);
             const updated = {
               left: currentValue.left + deltaInRatio.x,
@@ -355,32 +373,39 @@ export async function setupCropPreview(
             const current = br2rect(overlay.get().getBoundingClientRect());
             const parent = br2rect(container.get()!.getBoundingClientRect());
             if (ev.buttons === 1) {
-              const ratio = state.getValue(CROP_PREVIEW_STATE.RATIO);
-              if (RatioList[ratio] === 0) {
+              const ratio = Ratios[state.getValue(CROP_PREVIEW_STATE.RATIO)];
+              const orientation = state.getValue(
+                CROP_PREVIEW_STATE.ORIENTATION,
+              ) as any as Orientation;
+              if (ratio === 0) {
                 const mouseInContainerCoordinates = new Point(
                   ev.clientX,
-                  ev.clientY
+                  ev.clientY,
                 ).translate(-parent.topLeft.x, -parent.topLeft.y);
 
-                const corner = imageController.zoomController.canvasBoundsOnScreen();
+                const corner =
+                  imageController.zoomController.canvasBoundsOnScreen();
                 const currentValue = state.getValue(CROP_PREVIEW_STATE.AREA);
                 const updatedValue = c.updateValue(
                   currentValue,
-                  bounds(mouseInContainerCoordinates, corner)
+                  bounds(mouseInContainerCoordinates, corner),
                 );
                 state.setValue(CROP_PREVIEW_STATE.AREA, updatedValue);
                 return;
               }
+              const ratioValue =
+                orientation == Orientation.PAYSAGE ? ratio : 1 / ratio;
               const opposite = c
                 .opposite(current)
                 .translate(-parent.topLeft.x, -parent.topLeft.y);
 
               const mouseInContainerCoordinates = new Point(
                 ev.clientX,
-                ev.clientY
+                ev.clientY,
               ).translate(-parent.topLeft.x, -parent.topLeft.y);
 
-              const corner = imageController.zoomController.canvasBoundsOnScreen();
+              const corner =
+                imageController.zoomController.canvasBoundsOnScreen();
 
               const intersect = (p: Point, v: Vector): Point => {
                 const l = new Line(p, v);
@@ -389,7 +414,7 @@ export async function setupCropPreview(
                   .map((lim) => l.intersect(lim).get())
                   .sort(
                     (a: Point, b: Point) =>
-                      p.distanceSquare(a) - p.distanceSquare(b)
+                      p.distanceSquare(a) - p.distanceSquare(b),
                   )[0];
               };
 
@@ -397,24 +422,35 @@ export async function setupCropPreview(
                 opposite,
                 intersect(
                   opposite,
-                  new Vector(1 * c.dir.x, RatioList[ratio] * c.dir.y)
-                )
+                  new Vector(1 * c.dir.x, ratioValue * c.dir.y),
+                ),
               );
               let seg2 = new LineSegment(
                 opposite,
                 intersect(
                   opposite,
-                  new Vector(1 * c.dir.x, (1 / RatioList[ratio]) * c.dir.y)
-                )
+                  new Vector(1 * c.dir.x, (1 / ratioValue) * c.dir.y),
+                ),
               );
               const projected1 = seg1.closestPoint(mouseInContainerCoordinates);
+              let projected = projected1;
+              /*
+              // Need to enable this code if we want to allow the user to change the orientation
+              // while dragging the corner
               const projected2 = seg2.closestPoint(mouseInContainerCoordinates);
-
-              let projected =
-                projected1.distanceSquare(mouseInContainerCoordinates) <
+              if (
+                projected1.distanceSquare(mouseInContainerCoordinates) >
                 projected2.distanceSquare(mouseInContainerCoordinates)
-                  ? projected1
-                  : projected2;
+              ) {
+                // We should inverse the orientation
+                state.setValue(
+                  CROP_PREVIEW_STATE.ORIENTATION,
+                  orientation === Orientation.PAYSAGE
+                    ? Orientation.PORTRAIT
+                    : Orientation.PAYSAGE,
+                );
+                projected = projected2;
+              }*/
 
               const currentValue = state.getValue(CROP_PREVIEW_STATE.AREA);
               const updatedValue = c.updateValue(currentValue, projected);
@@ -427,7 +463,7 @@ export async function setupCropPreview(
               </svg>`);*/
             }
           },
-          false
+          false,
         );
     }
 
@@ -440,48 +476,86 @@ export async function setupCropPreview(
         currentValue.bottom <= 1;
       okControl.addRemoveClass("disabled", !inBounds);
     });
-    state.events.on(CROP_PREVIEW_STATE.RATIO, () => {
-      let ratio = state.getValue(CROP_PREVIEW_STATE.RATIO);
+    const ratioUpdate = () => {
+      let ratio = Ratios[state.getValue(CROP_PREVIEW_STATE.RATIO)];
       const orientation = state.getValue(CROP_PREVIEW_STATE.ORIENTATION);
-      const currentValue = state.getValue(CROP_PREVIEW_STATE.AREA);
+      const currentValue = { ...state.getValue(CROP_PREVIEW_STATE.AREA) };
       // recalculate a good approximation based on the mode and current orientation
-      if (RatioList[ratio] === 0) {
+      if (ratio === 0) {
         let tmp = currentValue.right;
         currentValue.right = currentValue.bottom;
         currentValue.bottom = tmp;
         state.setValue(CROP_PREVIEW_STATE.AREA, currentValue);
         return;
       }
-      const ratioValue =
-        orientation == "paysage" ? RatioList[ratio] : 1 / RatioList[ratio];
+      let ratioValue = orientation == Orientation.PAYSAGE ? ratio : 1 / ratio;
+      // Adjust the ratio with the picture ratio
       const imageRatio =
         imageController.zoomController.naturalDimensions().width /
         imageController.zoomController.naturalDimensions().height;
-      if (ratioValue < imageRatio) {
-        currentValue.top = 0.1;
-        currentValue.bottom = 0.9;
-        const w = (0.8 * ratioValue) / imageRatio;
-        currentValue.left = (1 - w) / 2;
-        currentValue.right = (1 + w) / 2;
-      } else {
-        currentValue.left = 0.1;
-        currentValue.right = 0.9;
-        const h = (0.8 / ratioValue) * imageRatio;
-        currentValue.top = (1 - h) / 2;
-        currentValue.bottom = (1 + h) / 2;
+
+      ratioValue *= imageRatio;
+
+      // Keep the same surface with the new ratio
+      // and center the crop area
+      const surface =
+        (currentValue.right - currentValue.left) *
+        (currentValue.bottom - currentValue.top);
+      const newWidth = Math.sqrt(surface / ratioValue);
+      const newHeight = newWidth * ratioValue;
+      const center = {
+        x: (currentValue.left + currentValue.right) / 2,
+        y: (currentValue.top + currentValue.bottom) / 2,
+      };
+      currentValue.left = center.x - newWidth / 2;
+      currentValue.right = center.x + newWidth / 2;
+      currentValue.top = center.y - newHeight / 2;
+      currentValue.bottom = center.y + newHeight / 2;
+      // If the new ratio goes beyond the image, we need to adjust the crop area
+      if (currentValue.right - currentValue.left > 1) {
+        currentValue.right = 1;
+        currentValue.left = 0;
+        const newHeight = ratioValue;
+        currentValue.top = center.y - newHeight / 2;
+        currentValue.bottom = center.y + newHeight / 2;
+      }
+      if (currentValue.bottom - currentValue.top > 1) {
+        currentValue.bottom = 1;
+        currentValue.top = 0;
+        const newWidth = 1 / ratioValue;
+        currentValue.left = center.x - newWidth / 2;
+        currentValue.right = center.x + newWidth / 2;
+      }
+      if (currentValue.left < 0) {
+        currentValue.right -= currentValue.left;
+        currentValue.left = 0;
+      }
+      if (currentValue.right > 1) {
+        currentValue.left -= currentValue.right - 1;
+        currentValue.right = 1;
+      }
+      if (currentValue.top < 0) {
+        currentValue.bottom -= currentValue.top;
+        currentValue.top = 0;
+      }
+      if (currentValue.bottom > 1) {
+        currentValue.top -= currentValue.bottom - 1;
+        currentValue.bottom = 1;
       }
       state.setValue(CROP_PREVIEW_STATE.AREA, currentValue);
-    });
+    };
+    state.events.on(CROP_PREVIEW_STATE.RATIO, ratioUpdate);
+    state.events.on(CROP_PREVIEW_STATE.ORIENTATION, ratioUpdate);
 
     const moveCornersFromValue = () => {
       const currentValue = state.getValue(CROP_PREVIEW_STATE.AREA);
       const topLeft = imageController.zoomController.ratioToScreen(
         currentValue.left,
-        currentValue.top
+        currentValue.top,
       );
       const bottomRight = imageController.zoomController.ratioToScreen(
         currentValue.right,
-        currentValue.bottom
+        currentValue.bottom,
       );
       const parentSize = { width: container.width, height: container.height };
       const fromBottomAndRight = {

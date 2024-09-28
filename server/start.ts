@@ -22,6 +22,7 @@ import { history } from "./utils/stats";
 import { loadFaceAlbums } from "./rpc/rpcFunctions/faces";
 import { info } from "console";
 import { initUndo } from "./utils/undo";
+import { buildPersonsList } from "./rpc/albumTypes/persons";
 
 /** */
 
@@ -190,6 +191,8 @@ export async function startServices() {
   startLockMonitor();
   info("Starting album update notification...");
   startAlbumUpdateNotification();
+  info("Fetch persons list...");
+  buildPersonsList();
   info("Parsing LUTs...");
   await parseLUTs();
   info("Initializing projects...");

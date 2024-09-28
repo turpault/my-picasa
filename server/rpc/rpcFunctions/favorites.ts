@@ -22,7 +22,7 @@ import {
 } from "../../imageOperations/info";
 import { buildImage } from "../../imageOperations/sharp-processor";
 import { media } from "../../rpc/rpcFunctions/albumUtils";
-import { getPhotoFavorites } from "../../rpc/rpcFunctions/osascripts";
+import { getOsxPhotosDump, getPhotoFavorites } from "../../rpc/rpcFunctions/osascripts";
 import {
   readAlbumIni,
   updatePicasaEntry,
@@ -259,7 +259,7 @@ export async function syncFavoritesFromPhotoApp(
   }
 
   const MAX_DISTANCE = 1000 * 60 * 60 * 24;
-  await getPhotoFavorites(async (photo, index, total) => {
+  await getOsxPhotosDump(async (photo, index, total) => {
     await fullListPromise;
     console.info(
       `MacOS Photo scan: Scanning ${index} of ${total} (${photo.name})`,
@@ -295,12 +295,17 @@ export async function syncFavoritesFromPhotoApp(
         return;
       }
     }
+    if(photo.persons) {
+      promises.push(updatePicasaEntry(candidate, "persons", photo.persons));
+    }
+    if(photo.favorite) {
     if (alreadyStarred.includes(candidate)) {
       // do nothing
     } else {
       promises.push(updatePicasaEntry(candidate, "photostar", 1));
       newStarred.push(candidate);
     }
+  }
   });
   for (const photo of allPhotos) {
     if (newStarred.includes(photo.metadata)) {

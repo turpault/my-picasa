@@ -62,7 +62,7 @@ export async function makeBrowser(
             Button.Ok ===
             (await message(
               t(
-                `Are you sure you want to export $1 image(s) to $2 ?|${selectionManager.selected().length}|${target.name}`,
+                `Export $1 image(s) to $2 ?|${selectionManager.selected().length}|${target.name}`,
               ),
               [Button.Ok, Button.Cancel],
             ))

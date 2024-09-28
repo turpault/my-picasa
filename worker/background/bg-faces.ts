@@ -9,7 +9,7 @@ import { runClusterStrategy } from "./face/identify-cluster-strategy";
 import { runFaceMatcherStrategy } from "./face/identify-facematcher-strategy";
 import { startRedis, stopRedis } from "./redis-process";
 import { buildContactList } from "../../server/rpc/albumTypes/contacts";
-import { populateReferences } from "./face/references";
+import { populateAllReferences, setupFaceAPI } from "./face/references";
 const debug = Debug("app:faces");
 
 export async function buildFaceScan() {
@@ -19,12 +19,13 @@ export async function buildFaceScan() {
   debug("Building identified contact list");
   await buildContactList();
   debug("Build references");
-  await populateReferences();
+  await setupFaceAPI();
+  await populateAllReferences();
 
   debug("Running cluster strategy");
   await runClusterStrategy();
   debug("Running face matcher strategy");
-  await runFaceMatcherStrategy();
+  // await runFaceMatcherStrategy();
 
   debug("Exporting all faces");
   await exportAllFaces();
@@ -37,7 +38,7 @@ export async function buildFaceScan() {
  * Export all faces to a folder
  */
 async function exportAllFaces() {
-  const getFaceImageQueue = new Queue(4, { fifo: false });
+  const getFaceImageQueue = new Queue(10, { fifo: false });
 
   const albums = await getFaceAlbums();
   const interval = setInterval(() => {
@@ -50,7 +51,7 @@ async function exportAllFaces() {
       const entries = await media(album);
       await Promise.all(
         entries.entries.map(async (entry) =>
-          getFaceImageQueue.add(() => getFaceImage(entry, true)),
+          getFaceImageQueue.add(() => getFaceImage(entry.name, true)),
         ),
       );
     }),

@@ -478,6 +478,13 @@ export async function updatePicasaEntries(
   if (dirty) writePicasaIni(entry.album, picasa);
 }
 
+export async function readPersons(entry: AlbumEntry): Promise<string[]> {
+  const picasa = await getPicasaEntry(entry);
+  const persons = picasa.persons || "";
+  return persons.split(",").map((p) => p.trim());
+}
+
+
 export function readContacts(picasaIni: AlbumMetaData): ContactByHash {
   if (picasaIni[PicasaBaseKeys.Contacts2]) {
     // includes a map of faces/ids

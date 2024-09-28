@@ -26,11 +26,11 @@ import { getService } from "../rpc/connect";
 import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { AlbumListEventSource } from "../uiTypes";
 
-let lastDragged: _$ | undefined;
+let lastDraggedOver: _$ | undefined;
 let lastSources: _$[] = [];
 export async function onDragEnd() {
-  if (lastDragged) {
-    lastDragged.removeClass("thumbnail-dragged-over");
+  if (lastDraggedOver) {
+    lastDraggedOver.removeClass("thumbnail-dragged-over");
   }
   lastSources.map((e) => e.removeClass("thumbnail-dragged"));
   lastSources.map((e) => e.removeClass("thumbnail-dragged-later"));
@@ -39,19 +39,19 @@ export async function onDrop(
   ev: DragEvent,
   album: Album,
   selectionManager: AlbumEntrySelectionManager,
-  elementPrefix: string
+  elementPrefix: string,
 ) {
-  if (lastDragged) {
+  if (lastDraggedOver) {
     ev.preventDefault();
 
     let entry: AlbumEntry | undefined = albumEntryFromElement(
-      lastDragged,
-      elementPrefix
+      lastDraggedOver,
+      elementPrefix,
     )!;
     // Emulate the move by moving elements
     lastSources.reverse().forEach((e) => {
       e.remove();
-      lastDragged?.parent()?.insertBefore(e, lastDragged);
+      lastDraggedOver?.parent()?.insertBefore(e, lastDraggedOver);
     });
 
     const selection = selectionManager.selected();
@@ -83,14 +83,14 @@ export async function onDrop(
 function buildThumbnail(
   events: AlbumListEventSource,
   selectionManager: AlbumEntrySelectionManager,
-  elementPrefix: string
+  elementPrefix: string,
 ): HTMLElement {
   const e = $(
     `<div draggable="true" class="thumbnail thumbnail-size">
       <img class="th browser-thumbnail" loading="lazy"> 
       <div class="star"></div>
     </div>
-    `
+    `,
   );
   const img = $(".th", e);
   e.on("mouseenter", (_ev: any) => {
@@ -129,8 +129,8 @@ function buildThumbnail(
     //e.removeClass("padding-margin-right");
   });
   e.on("drop", (ev) => {
-    if (lastDragged) {
-      const entry = albumEntryFromElement(lastDragged, elementPrefix);
+    if (lastDraggedOver) {
+      const entry = albumEntryFromElement(lastDraggedOver, elementPrefix);
       if (entry) onDrop(ev, entry.album, selectionManager, elementPrefix);
     }
   });
@@ -148,10 +148,10 @@ function buildThumbnail(
       return;
     }
     // make sure this is the only element that drags on
-    if (lastDragged) {
-      lastDragged.removeClass("thumbnail-dragged-over");
+    if (lastDraggedOver) {
+      lastDraggedOver.removeClass("thumbnail-dragged-over");
     }
-    lastDragged = e;
+    lastDraggedOver = e;
 
     // See if this is a left or right-ight drag over
     const rect = e.clientRect();
@@ -250,7 +250,7 @@ function buildThumbnail(
 
 export async function makeThumbnailManager(
   elementPrefix: string,
-  selectionManager: AlbumEntrySelectionManager
+  selectionManager: AlbumEntrySelectionManager,
 ) {
   const s = await getService();
   s.on("albumEntryAspectChanged", async (e: { payload: AlbumEntryPicasa }) => {
@@ -262,7 +262,7 @@ export async function makeThumbnailManager(
         e.payload,
         e.payload.metadata,
         selectionManager,
-        elementPrefix
+        elementPrefix,
       );
     }
   });
@@ -298,7 +298,7 @@ export async function thumbnailData(
   entry: AlbumEntry,
   picasaData: AlbumEntryMetaData | undefined,
   selectionManager: AlbumEntrySelectionManager,
-  elementPrefix: string
+  elementPrefix: string,
 ) {
   const thumb = $("img", e);
   const imagePrefix = "img:" + elementPrefix;
@@ -350,7 +350,7 @@ export function selectThumbnailsInRect(
   p1: { x: number; y: number },
   p2: { x: number; y: number },
   selectionManager: AlbumEntrySelectionManager,
-  elementPrefix: string
+  elementPrefix: string,
 ) {
   var rect = container.clientRect();
   for (const e of container.all(".browser-thumbnail")) {
@@ -366,7 +366,7 @@ export function selectThumbnailsInRect(
         {
           p1: r,
           p2: { x: r.x + r.width, y: r.y + r.height },
-        }
+        },
       )
     ) {
       const entry = albumEntryFromElement(e, elementPrefix);
@@ -378,7 +378,7 @@ export function selectThumbnailsInRect(
 export function entryAboveBelow(
   entry: AlbumEntry,
   elementPrefix: string,
-  below: boolean
+  below: boolean,
 ): AlbumEntry | null {
   const sel = elementFromEntry(entry, elementPrefix);
   if (sel) {
@@ -387,7 +387,7 @@ export function entryAboveBelow(
     let pointedElement = document.elementFromPoint(pos.x, pos.y);
     const entry = albumEntryFromElementOrChild(
       $(pointedElement!),
-      elementPrefix
+      elementPrefix,
     );
     if (entry) {
       return entry;
@@ -402,7 +402,7 @@ export function entryAboveBelow(
 export function entryLeftRight(
   entry: AlbumEntry,
   elementPrefix: string,
-  right: boolean
+  right: boolean,
 ): AlbumEntry | null {
   const sel = elementFromEntry(entry, elementPrefix);
   const n = right ? sel.get().nextSibling : sel.get().previousSibling;
@@ -416,11 +416,11 @@ export function entryLeftRight(
 export function thumbnailsAround(
   container: _$,
   p: Point,
-  elementPrefix: string
+  elementPrefix: string,
 ): { entry: AlbumEntry; leftOf: boolean } {
   function distanceTo(
     p: Point,
-    r: Rectangle
+    r: Rectangle,
   ): { distance: number; leftOf: boolean } {
     // Over an existing one
     if (
@@ -434,7 +434,7 @@ export function thumbnailsAround(
 
     const midPoint = new Point(
       (r.bottomRight.x + r.topLeft.x) / 2,
-      (r.bottomRight.y + r.topLeft.y) / 2
+      (r.bottomRight.y + r.topLeft.y) / 2,
     );
     let xDelta = p.x - midPoint.x;
     let yDelta = (p.y - midPoint.y) * 10000;
@@ -465,8 +465,8 @@ export function thumbnailsAround(
         p,
         new Rectangle(
           new Point(r.x, r.y),
-          new Point(r.x + r.width, r.y + r.height)
-        )
+          new Point(r.x + r.width, r.y + r.height),
+        ),
       ),
     };
     if (dist.d.distance === 0) {
@@ -485,7 +485,7 @@ export function makeNThumbnails(
   count: number,
   events: AlbumListEventSource,
   selectionManager: AlbumEntrySelectionManager,
-  elementPrefix: string
+  elementPrefix: string,
 ): boolean {
   const countChanged = domElement.get().children.length !== count;
   while (domElement.get().children.length < count) {

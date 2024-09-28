@@ -2,13 +2,11 @@ import { mkdir, readFile } from "fs/promises";
 import { join } from "path";
 import {
   albumEntryFromId,
-  pathForEntryMetadata
+  pathForEntryMetadata,
 } from "../../../shared/lib/utils";
 import { AlbumEntry, Reference } from "../../../shared/types/types";
 import { facesFolder } from "../../utils/constants";
-import {
-  safeWriteFile
-} from "../../utils/serverUtils";
+import { safeWriteFile } from "../../utils/serverUtils";
 
 export function referencePath(entry: AlbumEntry) {
   const path = pathForEntryMetadata(entry);
@@ -18,13 +16,14 @@ export function referencePath(entry: AlbumEntry) {
   };
 }
 
-
-export async function readReferencesFromReferenceId(
+export async function readReferenceFromReferenceId(
   id: string,
 ): Promise<Reference | undefined> {
-  const { entry, index } = decodeReferenceId(id);
+  const { entry } = decodeReferenceId(id);
   const references = await readReferencesOfEntry(entry);
-  return references?.[parseInt(index)];
+  const reference = references?.find((r) => r.id === id);
+  if (!reference) debugger;
+  return reference;
 }
 
 export async function readReferencesOfEntry(
@@ -52,19 +51,20 @@ export async function readReferencesOfEntry(
   }
 }
 export function decodeReferenceId(id: string) {
-  const [mediaId, index] = id.split(":");
+  const idx = id.lastIndexOf(":");
+  if (idx === -1) throw new Error(`Invalid reference id ${id}`);
+  const mediaId = id.substring(0, idx);
+  const index = id.substring(idx + 1);
+
   const entry = albumEntryFromId(mediaId)!;
   if (!entry) throw new Error(`Invalid reference id ${id}`);
   return { entry, index };
 }
 
-export async function referencesFromId(id: string) {
-  const { entry, index } = decodeReferenceId(id);
-  const references = await readReferencesOfEntry(entry!);
-  return references?.[parseInt(index)];
-}
-
-export async function writeReferencesOfEntry(entry: AlbumEntry, data: Reference[]) {
+export async function writeReferencesOfEntry(
+  entry: AlbumEntry,
+  data: Reference[],
+) {
   const p = referencePath(entry);
   await mkdir(p.path, { recursive: true });
   await safeWriteFile(

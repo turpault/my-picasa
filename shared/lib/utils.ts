@@ -112,14 +112,20 @@ export function uuid(): string {
   );
 }
 
-export function hash(from: string): string {
-  return from
-    .split("")
-    .reduce((a, b) => {
-      a = (a << 5) - a + b.charCodeAt(0);
-      return a & a;
-    }, 0)
-    .toString(36);
+export function hash(from: string, seed = 0): string {
+  let h1 = 0xdeadbeef ^ seed,
+    h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0, ch; i < from.length; i++) {
+    ch = from.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
 }
 
 export function fixedEncodeURIComponent(str: string): string {
@@ -132,6 +138,15 @@ export function namify(s: string) {
   return s.replace(/[^\w]+/gi, "-");
 }
 
+export function ellipsis(s: string, length: number) {
+  if (s.length > length) {
+    return s.slice(0, length / 2) + "..." + s.slice(-length / 2);
+  }
+  return s;
+}
+export function filenameify(s: string) {
+  return ellipsis(namify(removeDiacritics(s)), 150) + "-" + hash(s);
+}
 export function cssSplitValue(v: string): { value: number; unit: string } {
   if (typeof v === "string" && v !== "") {
     var split = v.match(/^([-.\d]+(?:\.\d+)?)(.*)$/)!;
@@ -153,28 +168,40 @@ const debounceFcts = new Map<
 export async function debounce(
   f: Function,
   delay: number = 1000,
-  guid?: string,
+  guid?: any,
   atStart?: boolean,
+  idleOnly?: boolean,
 ) {
   delay = delay ? delay : 1000;
   const key = guid || f;
   if (debounceFcts.has(key)) {
     const fct = debounceFcts.get(key)!;
     fct.f = f;
+    if (idleOnly) {
+      debounceFcts.get(key).elapse = Date.now() + delay;
+    }
     return fct.res;
   } else {
     const p = new Promise(async (resolve) => {
       await sleep(0);
-      if (atStart) {
-        const r = debounceFcts.get(key)?.f();
-        if (r instanceof Promise) r.then(resolve);
+      if (debounceFcts.get(key)) {
+        if (atStart) {
+          const r = debounceFcts.get(key)?.f();
+          if (r instanceof Promise) r.then(resolve);
+        }
+        let remain = debounceFcts.get(key)!.elapse - Date.now();
+        while (remain > 0) {
+          await sleep(remain / 1000);
+          remain = debounceFcts.get(key)!.elapse - Date.now();
+        }
+        if (debounceFcts.get(key)) {
+          if (!atStart) {
+            const r = debounceFcts.get(key)?.f();
+            if (r instanceof Promise) r.then(resolve);
+          }
+          debounceFcts.delete(key);
+        }
       }
-      await sleep(delay! / 1000);
-      if (!atStart) {
-        const r = debounceFcts.get(key)?.f();
-        if (r instanceof Promise) r.then(resolve);
-      }
-      debounceFcts.delete(key);
     });
     debounceFcts.set(key, { elapse: Date.now() + delay!, f, res: p });
     return p;
@@ -192,9 +219,10 @@ export function debounced<T extends Function>(
   f: T,
   delay: number = 1000,
   atStart: boolean = false,
+  idleOnly: boolean = false,
 ): T {
   return ((...args: any[]) =>
-    debounce(() => f(...args), delay, undefined, atStart)) as unknown as T;
+    debounce(() => f(...args), delay, f, atStart, idleOnly)) as unknown as T;
 }
 
 export function isMediaUrl(url: string): boolean {
@@ -380,7 +408,7 @@ export function decodeFaces(faces: string): FaceList {
 }
 
 export function encodeFaces(faces: FaceList): string {
-  return faces.map(({ hash, rect }) => `${rect},${hash}`).join(";");
+  return faces.map(({ hash, rect }) => `rect64(${rect}),${hash}`).join(";");
 }
 
 export function decodeOperation(operation: string): PicasaFilter {

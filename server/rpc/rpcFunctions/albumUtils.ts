@@ -34,12 +34,17 @@ import {
 import { getPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasa-ini";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
-  const entries = (await media(entry.album)).entries.filter(
-    (e) => idFromAlbumEntry(e, "") !== idFromAlbumEntry(entry, ""),
+  const entries = (await media(entry.album)).entries;
+  const entryIndex = entries.findIndex(
+    (e) => idFromAlbumEntry(e, "") === idFromAlbumEntry(entry, ""),
   );
-  entries.splice(rank, 0, entry);
-  await assignRanks(entries);
-  notifyAlbumOrderUpdated(entry.album);
+  if (entryIndex !== -1) {
+    if (rank > entryIndex) rank--;
+    entries.splice(entryIndex, 1);
+    entries.splice(rank, 0, entry);
+    await assignRanks(entries);
+    notifyAlbumOrderUpdated(entry.album);
+  }
 }
 
 function notifyAlbumOrderUpdated(album: Album) {

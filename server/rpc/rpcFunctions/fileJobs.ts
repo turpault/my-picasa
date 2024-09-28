@@ -1,7 +1,7 @@
 import { copyFile, mkdir, rename, stat } from "fs/promises";
 import { basename, dirname, extname, join, relative, sep } from "path";
 import { lock } from "../../../shared/lib/mutex";
-import { debounce, debounced, sleep, uuid } from "../../../shared/lib/utils";
+import { debounced, sleep, uuid } from "../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
@@ -13,23 +13,23 @@ import {
   idFromKey,
   keyFromID,
 } from "../../../shared/types/types";
-import {
-  addOrRefreshOrDeleteAlbum,
-  onRenamedAlbums,
-  refreshAlbumKeys,
-} from "../../walker";
 import { exportToFolder } from "../../imageOperations/export";
 import { generateMosaicFile } from "../../imageOperations/image-edits/mosaic";
 import { exportsFolder, imagesRoot } from "../../utils/constants";
 import { entryFilePath, fileExists } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { addToUndo, registerUndoProvider } from "../../utils/undo";
-import { eraseFace } from "./faces";
+import {
+  addOrRefreshOrDeleteAlbum,
+  onRenamedAlbums,
+  refreshAlbumKeys,
+} from "../../walker";
 import { setRank } from "./albumUtils";
-import { getPhotoFavorites, openWithFinder } from "./osascripts";
+import { eraseFace } from "./faces";
+import { syncFavoritesFromPhotoApp } from "./favorites";
+import { openWithFinder } from "./osascripts";
 import { getPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasa-ini";
 import { copyThumbnails } from "./thumbnail-cache";
-import { syncFavoritesFromPhotoApp } from "./favorites";
 
 const jobs: Job[] = [];
 type MultiMoveJobArguments = {
@@ -551,7 +551,8 @@ async function exportJob(job: Job): Promise<Album[]> {
         exportsFolder,
         "exports-" + new Date().toLocaleString().replace(/\//g, "-"),
       );
-  job.name = "Exporting to " + (destination ? destination.name : targetFolder);
+  job.name =
+    "Exporting to $1|" + (destination ? destination.name : targetFolder);
   await mkdir(targetFolder, { recursive: true });
   for (const src of source) {
     try {

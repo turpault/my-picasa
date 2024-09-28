@@ -6,6 +6,7 @@ export type Settings = {
     star: number;
     video: boolean;
     people: boolean;
+    persons: string[];
     location: boolean;
     favoritePhoto: boolean;
     text: string;
@@ -26,6 +27,7 @@ const settings: Settings = {
     people: false,
     location: false,
     favoritePhoto: false,
+    persons: [],
     text: "",
   },
   sort: "date",
@@ -37,6 +39,9 @@ export async function makeSettings() {
   settings.filters.star = (await get("filterByStar")) || 0;
   settings.filters.video = (await get("filterByVideos")) || false;
   settings.filters.people = (await get("filterByPeople")) || false;
+  settings.filters.persons = ((await get("filterByPerson")) || "")
+    .split("|")
+    .filter((v: string) => v.trim());
   settings.filters.location = (await get("filterByLocation")) || false;
   settings.filters.favoritePhoto = (await get("favoritePhoto")) || false;
   settings.filters.text = (await get("filterByText")) || "";
@@ -55,6 +60,7 @@ async function changed(field: string) {
   await set("filterByStar", settings.filters.star);
   await set("filterByVideos", settings.filters.video);
   await set("filterByPeople", settings.filters.people);
+  await set("filterByPerson", settings.filters.persons.join("|"));
   await set("filterByLocation", settings.filters.location);
   await set("filterByFavoritePhoto", settings.filters.favoritePhoto);
   await set("sort", settings.sort);
@@ -85,6 +91,10 @@ export function updateFilterByFavoritePhoto(newValue: boolean) {
 export function updateFilterByPeople(newValue: boolean) {
   settings.filters.people = newValue;
   changed("filters.people");
+}
+export function updateFilterByPersons(values: string[]) {
+  settings.filters.persons = values;
+  changed("filters.person");
 }
 export function updateSort(newValue: "date" | "name") {
   settings.sort = newValue;

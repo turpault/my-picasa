@@ -12,6 +12,7 @@ import {
   AlbumEntry,
   AlbumKind,
   FaceData,
+  Reference,
   ThumbnailSize,
 } from "../../../shared/types/types";
 import {
@@ -27,7 +28,7 @@ import {
 } from "../../utils/serverUtils";
 import { dec, inc } from "../../utils/stats";
 import { createGif } from "../../videoOperations/gif";
-import { getFaceData } from "./faces";
+import { getFaceData, getFaceRect } from "./faces";
 import { makeProjectThumbnail } from "../albumTypes/projects";
 import { readAlbumIni } from "./picasa-ini";
 import {
@@ -37,6 +38,7 @@ import {
   updateCacheData,
   writeThumbnailToCache,
 } from "./thumbnail-cache";
+import { decodeReferenceId } from "../albumTypes/referenceFiles";
 
 export async function readOrMakeThumbnail(
   entry: AlbumEntry,
@@ -81,7 +83,7 @@ export async function makeThumbnailIfNeeded(
 }
 
 async function makeFaceThumbnail(entry: AlbumEntry) {
-  const data = await getFaceImage(entry);
+  const data = await getFaceImage(entry.name);
   const d = await dimensionsFromFileBuffer(data);
   return { data, ...d, mime: "image/jpeg" };
 }
@@ -227,52 +229,43 @@ async function readOrMakeVideoThumbnail(
   return { data, ...d, mime };
 }
 
-function faceImagePath(
-  entry: AlbumEntry,
-  faceData: FaceData,
-): { folder: string; path: string } {
-  const folder = join(
-    facesFolder,
-    "thumbnails",
-    faceData.originalEntry.album.name,
-  );
+function faceImagePath(referenceId: string): { folder: string; path: string } {
+  const { entry: originalEntry, index } = decodeReferenceId(referenceId);
+  const folder = join(facesFolder, "thumbnails", originalEntry.album.name);
 
   return {
     folder,
     path: join(
       folder,
-      `${entry.album.name}-${removeExtension(
-        faceData.originalEntry.name,
-      )}-${hash(`${faceData.hash}-${faceData.rect}`)}.jpg`,
+      `${namify(originalEntry.album.name + originalEntry.name)}-${index}.jpg`,
     ),
   };
 }
-export async function getFaceImage(entry: AlbumEntry): Promise<Buffer>;
+
+export async function getFaceImage(referenceId: string): Promise<Buffer>;
 export async function getFaceImage(
-  entry: AlbumEntry,
+  referenceId: string,
   onlyCheck: boolean,
 ): Promise<void>;
 export async function getFaceImage(
-  entry: AlbumEntry,
+  referenceId: string,
   onlyCheck: boolean = false,
 ): Promise<void | Buffer> {
-  const faceData = await getFaceData(entry);
-  const { folder, path } = faceImagePath(entry, faceData);
-  const unlock = await lock(
-    "getFaceImage: " + entry.album.key + " " + entry.name,
-  );
+  const { folder, path } = faceImagePath(referenceId);
+  const unlock = await lock("getFaceImage: " + referenceId);
   try {
     if (!(await fileExists(path))) {
       await mkdir(folder, { recursive: true });
 
-      const image = await buildFaceImage(entry, faceData);
+      const image = await buildFaceImage(referenceId);
       await safeWriteFile(path, image.data);
+      return image.data;
     }
-    if (!onlyCheck) return await readFile(path);
+    if (!onlyCheck) {
+      return await readFile(path);
+    }
   } catch (e) {
-    console.error(
-      `Error getting face image for ${entry.album.key}/${entry.name}: ${e}`,
-    );
+    console.error(`Error getting face image for ${referenceId}: ${e}`);
     return;
   } finally {
     unlock();
@@ -280,8 +273,7 @@ export async function getFaceImage(
 }
 
 export async function deleteFaceImage(entry: AlbumEntry) {
-  const faceData = await getFaceData(entry);
-  const { path } = faceImagePath(entry, faceData);
+  const { path } = faceImagePath(entry.name);
   if (await fileExists(path)) {
     await unlink(path);
   }

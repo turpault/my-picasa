@@ -125,6 +125,7 @@ export async function getFaceDataFromAlbumEntry(entry: AlbumEntry) {
 export async function addCandidateFaceRectToEntry(
   entry: AlbumEntry,
   rect: string,
+  hash: string,
   contact: Contact,
   referenceId: string,
   strategy: string,
@@ -133,19 +134,19 @@ export async function addCandidateFaceRectToEntry(
   const current = await readPicasaSection(entry.album, name);
   const iniFaces = current[entry.name] || "";
   const faces = decodeFaces(iniFaces);
-  if (faces.find((f) => f.hash === referenceId)) {
+  if (faces.find((f) => f.hash === hash)) {
     return;
   }
   const face: Face = {
-    hash: referenceId,
+    hash,
     rect,
   };
   faces.push(face);
   current[entry.name] = encodeFaces(faces);
+  writePicasaSection(entry.album, name, current);
   await Promise.all([
     addContact(entry.album, referenceId, contact),
     addReferenceToFaceAlbum(face, referenceId, contact),
-    writePicasaSection(entry.album, name, current),
   ]);
   return;
 }

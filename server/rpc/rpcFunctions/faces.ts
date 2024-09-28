@@ -1,39 +1,52 @@
 import {
-  Face,
   Album,
   AlbumEntry,
   AlbumKind,
   AlbumWithData,
   Contact,
+  Face,
   FaceData,
+  keyFromID,
 } from "../../../shared/types/types";
+import { rectOfReference } from "../../../worker/background/face/face-utils";
+import {
+  decodeReferenceId,
+  readReferenceFromReferenceId,
+} from "../albumTypes/referenceFiles";
 import {
   PicasaBaseKeys,
   albumFromNameAndKind,
   deletePicasaSection,
   listAlbumsOfKind,
   readAlbumEntries,
-  readAlbumIni,
   readPicasaSection,
   writePicasaSection,
 } from "./picasa-ini";
-import { decodeReferenceId } from "../albumTypes/referenceFiles";
 
 export async function eraseFace(entry: AlbumEntry) {
   throw "Not implemented";
 }
 
+export async function getFaceRect(referenceId: string): Promise<string> {
+  const reference = await readReferenceFromReferenceId(referenceId);
+  if (!reference) {
+    throw "Reference not found";
+  }
+  return rectOfReference(reference.data);
+}
+
 export async function getFaceData(entry: AlbumEntry): Promise<FaceData> {
-  const referenceData = decodeReferenceId(entry.name);
-  const contact = (await readPicasaSection(
-    entry.album,
-    PicasaBaseKeys.contact,
-  )) as Contact;
-  const face = (await readPicasaSection(entry.album, entry.name)) as Face;
+  const reference = await readReferenceFromReferenceId(entry.name);
+  const { entry: originalEntry } = decodeReferenceId(entry.name);
+  if (!reference) {
+    throw "Reference not found";
+  }
+  // FIXME - This is a hack to get the contact name
   return {
-    originalEntry: referenceData.entry,
-    ...face,
-    label: contact.originalName,
+    label: reference.id,
+    originalEntry,
+    hash: "cluster.id",
+    rect: rectOfReference(reference.data),
   };
 }
 

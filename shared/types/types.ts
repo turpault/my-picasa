@@ -8,6 +8,7 @@ export type extraFields =
   | `cached:filters:${ThumbnailSize}`
   | `cached:dimensions:${ThumbnailSize}`
   | `cached:rotate:${ThumbnailSize}`
+  | `cached:filters:stats`
   | `originalAlbumName`
   | `originalAlbumKey`
   | `originalName`;
@@ -29,6 +30,8 @@ export type AlbumEntryMetaData = {
   rotate?: string; // f.e. rotate(angle)
   faces?: string; // f.e. rect64(5a6b0000c28ab778),42d7ff00b9602bb9
   filters?: string; // crop64=1,5a491bc4dd659056;enhance=1;finetune2=1,0.000000,0.000000,0.190877,00000000,0.000000;autolight=1;tilt=1,-0.233232,0.000000;crop64=1,1ef60000fe77df8d;fill=1,0.448598;autolight=1;fill=1,0.177570;finetune2=1,0.000000,0.000000,0.235789,00000000,0.000000;
+  stats?: string;
+  persons?: string; // a comma-separated list of persons in the picture
 } & PartialRecord<extraFields, string>;
 
 export type GeoPOI = {
@@ -38,79 +41,79 @@ export type GeoPOI = {
 };
 
 export type ReferenceData = {
-  hash?:              string;
-  detection:          AlignedRect;
-  landmarks:          Landmarks;
+  hash?: string;
+  detection: AlignedRect;
+  landmarks: Landmarks;
   unshiftedLandmarks: Landmarks;
-  alignedRect:        AlignedRect;
-  angle:              Angle;
-  expressions:        Expressions;
-  gender:             string;
-  genderProbability:  number;
-  age:                number;
-  descriptor:         number[];
-}
+  alignedRect: AlignedRect;
+  angle: Angle;
+  expressions: Expressions;
+  gender: string;
+  genderProbability: number;
+  age: number;
+  descriptor: number[];
+};
 
 export type AlignedRect = {
-  score:       number;
-  classScore:  number;
-  className:   string;
-  box:         Box;
-  imageDims:   ImageDims;
-  imageWidth:  number;
+  score: number;
+  classScore: number;
+  className: string;
+  box: Box;
+  imageDims: ImageDims;
+  imageWidth: number;
   imageHeight: number;
   relativeBox: Box;
-}       
-  
+};
+
 export type Box = {
-  x:           number;
-  y:           number;
-  width:       number;
-  height:      number;
-  left:        number;
-  top:         number;
-  right:       number; 
-  bottom:      number; 
-  area:        number;
-  topLeft:     Shift;
-  topRight:    Shift;
-  bottomLeft:  Shift;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  area: number;
+  topLeft: Shift;
+  topRight: Shift;
+  bottomLeft: Shift;
   bottomRight: Shift;
-}
+};
 
 export type Shift = {
   x: number;
   y: number;
-}       
-  
+};
+
 export type ImageDims = {
-  width:  number;
+  width: number;
   height: number;
-}
+};
 
 export type Angle = {
-  roll:  number; 
+  roll: number;
   pitch: number;
-  yaw:   number;
-}
-  
+  yaw: number;
+};
+
 export type Expressions = {
-  neutral:   number;
-  happy:     number;
-  sad:       number;
-  angry:     number;
-  fearful:   number; 
+  neutral: number;
+  happy: number;
+  sad: number;
+  angry: number;
+  fearful: number;
   disgusted: number;
   surprised: number;
-}       
-  
+};
+
 export type Landmarks = {
-  shift:             Shift;
-  imageWidth:        number;
-  imageHeight:       number;
-  positions:         Shift[];
+  shift: Shift;
+  imageWidth: number;
+  imageHeight: number;
+  positions: Shift[];
   relativePositions: Shift[];
-}
+};
 
 export type Reference = {
   id: string;
