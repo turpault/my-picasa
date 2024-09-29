@@ -1,16 +1,16 @@
 import { spawn } from "child_process";
 import { info } from "console";
-import { appendFile, readFile, writeFile } from "fs/promises";
-import { basename, dirname, join } from "path";
-import { exportsFolder } from "../../utils/constants";
-import { tmpdir } from "os";
-import { createReadStream } from "fs";
+import csv from "csv-parser";
+import { writeFile } from "fs/promises";
+import { basename, dirname, join, relative } from "path";
+import { Readable } from "stream";
+import { exportsFolder, rootPath } from "../../utils/constants";
 
 async function runScript(
   script: string,
-  processor:"osascript" | "bash" = "osascript",
+  processor: "osascript" | "bash" = "osascript",
   stream: boolean = false,
-  cb?: (line: string) => Promise<boolean | undefined>,  
+  cb?: (line: string) => Promise<boolean | undefined>,
 ): Promise<string | Readable> {
   const scriptName = join(
     exportsFolder,
@@ -20,11 +20,11 @@ async function runScript(
   await writeFile(scriptName, script);
   return new Promise((resolve, reject) => {
     const stdoutData: string[] = [];
-    const proc = spawn(processor, [scriptName]);    
+    const proc = spawn(processor, [scriptName]);
     proc.on("close", () => resolve(stdoutData.join("")));
     proc.on("error", (e) => reject(e));
     const s = processor === "osascript" ? proc.stderr : proc.stdout;
-    if(stream) {
+    if (stream) {
       return resolve(s);
     }
     s.on("data", (data: Buffer) => {
@@ -42,7 +42,6 @@ async function runScript(
       }
       stdoutData.push(...str);
     });
-
   });
 }
 export async function importScript(files: string[]) {
@@ -159,35 +158,41 @@ end tell
   });
   return (result as string).split("\n");
 }
-import csv  from 'csv-parser';
-import { uuid } from "../../../shared/lib/utils";
-import { Readable } from "stream";
 export async function getOsxPhotosDump(
   progress: (photo: PhotoFromPhotoApp, index: number, total: number) => void,
 ) {
   let total = 0;
   let index = 0;
-  const stream = await runScript('osxphotos dump', "bash", true);
+
+  const stream = await runScript(
+    `"${join(rootPath, "public", "resources", "tools", "osxphotos")}" dump`,
+    "bash",
+    true,
+  );
   return new Promise<void>((resolve) => {
-  (stream as Readable)
-  .pipe(csv())
-  .on('data', (row) => {
-    total++;
-    index++;
-    progress({
-      caption: row.description,
-      title: row.title,
-      name: row.original_filename,
-      id: row.uuid,
-      favorite: row.favorite === 'True',
-      persons: row.persons.split(','),
-      keywords: row.keywords,
-      dateTaken: new Date(row.date),
-    }, index, total)
-  })
-  .on('end', () => {
-    console.log('CSV file successfully processed');
-    resolve();
+    (stream as Readable)
+      .pipe(csv())
+      .on("data", (row) => {
+        total++;
+        index++;
+        progress(
+          {
+            caption: row.description,
+            title: row.title,
+            name: row.original_filename,
+            id: row.uuid,
+            favorite: row.favorite === "True",
+            persons: row.persons.split(","),
+            keywords: row.keywords,
+            dateTaken: new Date(row.date),
+          },
+          index,
+          total,
+        );
+      })
+      .on("end", () => {
+        console.log("CSV file successfully processed");
+        resolve();
+      });
   });
-});
 }

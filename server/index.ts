@@ -1,4 +1,6 @@
+import { info } from "console";
 import { startServer, startServices } from "./start";
+import { imagesRoot, rootPath } from "./utils/constants";
 let port: any = process.argv.slice(-1)[0];
 
 try {
@@ -11,6 +13,9 @@ try {
 }
 
 async function start() {
+  info(
+    `Starting server on port ${port} in folder ${rootPath}. Photos root is ${imagesRoot}`,
+  );
   await startServer(port);
   await startServices();
 }

@@ -23,6 +23,7 @@ import { loadFaceAlbums } from "./rpc/rpcFunctions/faces";
 import { info } from "console";
 import { initUndo } from "./utils/undo";
 import { buildPersonsList } from "./rpc/albumTypes/persons";
+import { imagesRoot, rootPath } from "./utils/constants";
 
 /** */
 
@@ -152,6 +153,10 @@ export async function startServer(p?: number) {
     if (!p) {
       p = getPort();
     }
+    info(
+      `Starting server on port ${p} in folder ${rootPath}. Photos root is ${imagesRoot}`,
+    );
+
     startSentry();
     const server: FastifyInstance = Fastify({
       //logger: true,

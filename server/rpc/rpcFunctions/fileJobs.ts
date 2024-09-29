@@ -30,6 +30,7 @@ import { syncFavoritesFromPhotoApp } from "./favorites";
 import { openWithFinder } from "./osascripts";
 import { getPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasa-ini";
 import { copyThumbnails } from "./thumbnail-cache";
+import { buildPersonsList } from "../albumTypes/persons";
 
 const jobs: Job[] = [];
 type MultiMoveJobArguments = {
@@ -641,6 +642,7 @@ async function populateIPhotoFavorites(job: Job): Promise<Album[]> {
   );
 
   await syncFavoritesFromPhotoApp(d);
+  await buildPersonsList();
 
   job.status = "finished";
   job.changed();

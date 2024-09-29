@@ -10,6 +10,7 @@ export const favoritesFolder = join(imagesRoot, "favorites");
 export const exportsFolder = join(imagesRoot, "exports");
 export const projectFolder = join(imagesRoot, "projects");
 export const bugsFolder = join(adminRoot, ".bugs");
+export const rootPath = join(__dirname, "..", "..");
 
 export const specialFolders = [
   facesFolder,
