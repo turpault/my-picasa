@@ -2364,6 +2364,7 @@ body {
   top: 12px;
   margin-right: 5px;
   margin-left: initial;
+  position: fixed;
 }
 
 .filter-by-person-container {
@@ -2548,4 +2549,152 @@ body {
   right: 2px;
   bottom: 108px;
   z-index: 1000;
+}
+
+/** Draggable table styles **/
+
+.cd__main{
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  height: 100vh;
+  background: #cb38e9;
+  position: relative;
+  background: radial-gradient(circle, #cb38e9 0%, #842fa8 100%) !important;
+}
+
+.cd__main p {
+  font-size: 0.75em;
+  font-weight: bold;
+  position: absolute;
+  top: 15%;
+  width: 100%;
+  letter-spacing: 5px;
+  text-transform: uppercase;
+  text-align: center;
+  color: white;
+  user-select: none;
+}
+
+.draggable-table {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  border-collapse: collapse;
+  /* background: white; */
+  -webkit-box-shadow: 0px 0px 10px 8px rgba(0, 0, 0, 0.1);
+  /* box-shadow: 0px 0px 10px 8px rgba(0, 0, 0, 0.1); */
+}
+.draggable-table .draggable-table__drag {
+  font-size: 0.95em;
+  font-weight: lighter;
+  text-transform: capitalize;
+  position: absolute;
+  width: 100%;
+  text-indent: 50px;
+  border: 1px solid #f1f1f1;
+  z-index: 10;
+  cursor: grabbing;
+  -webkit-box-shadow: 2px 2px 3px 0px rgba(0, 0, 0, 0.05);
+  box-shadow: 2px 2px 3px 0px rgba(0, 0, 0, 0.05);
+  opacity: 1;
+}
+.draggable-table thead th {
+  height: 25px;
+  font-weight: bold;
+  text-transform: capitalize;
+  padding: 10px;
+  user-select: none;
+}
+.draggable-table tbody tr {
+  cursor: grabbing;
+}
+.draggable-table tbody tr td {
+  font-size: 0.95em;
+  font-weight: lighter;
+  /* text-transform: capitalize; */
+  /* text-indent: 50px; */
+  text-align: center;
+  padding: 10px;
+  user-select: none;
+  border-top: 1px solid whitesmoke;
+}
+.draggable-table tbody tr:nth-child(even) {
+  background-color: #f7f7f7;
+}
+.draggable-table tbody tr:nth-child(odd) {
+  background-color: #ffffff;
+}
+.draggable-table tbody tr.is-dragging {
+  background: #f1c40f;
+}
+.draggable-table tbody tr.is-dragging td {
+  color: #ffe683;
+}
+/** Draggable table styles **/
+
+
+.slideshow {
+  background-color: rgb(243, 243, 243);
+  /* display: flex; */
+  flex-direction: row;
+}
+
+.slideshow-sidebar {
+  overflow-y: scroll;
+  height: 100%;
+  width: 300px;
+  /* position: relative; */
+  padding-left: 5px;
+  background-color: rgb(243, 243, 243);
+}
+.slideshow-container-child {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  top: 0;
+  height: 100%;
+}
+.slideshow-parameter-block {
+  color: rgb(80, 80, 80);
+  /* font-family: sans-serif; */
+  font-weight: bold;
+  width: 100%;
+  overflow-x: hidden;
+  margin-bottom: 20px;
+}
+
+.slideshow-parameters {width: 200px;}
+
+.slideshow-container {
+  position: absolute;
+  /* inset: 0px 0px 0px 300px; */
+  /* height: 100%; */
+  /* flex-shrink: 4; */
+  left: 200px;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  overflow: scroll;
+  background-color: rgb(243, 243, 243);
+}
+
+.form-entry label {
+  height: 27px;
+  line-height: 27px;
+  display: block;
+  /* text-align: center; */
+  vertical-align: middle;
+  margin: 4px;
+}
+.form-button {
+  display: block;
+  text-align: center;
+  width: 161px;
+  margin: 10px auto 10px auto;
+  height: fit-content !important;
+  /* padding: 20px; */
 }

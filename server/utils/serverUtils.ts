@@ -1,9 +1,8 @@
 import { rename, stat, writeFile } from "fs/promises";
-import { join } from "path";
-import { AlbumEntry, idFromKey } from "../../shared/types/types";
-import { imagesRoot } from "./constants";
-import { extname } from "path";
+import { extname, join } from "path";
 import { lock } from "../../shared/lib/mutex";
+import { AlbumEntry, AlbumKind, idFromKey } from "../../shared/types/types";
+import { facesFolder, imagesRoot, projectFolder } from "./constants";
 
 export async function fileExists(path: string): Promise<boolean> {
   return stat(path)
@@ -12,7 +11,8 @@ export async function fileExists(path: string): Promise<boolean> {
 }
 
 export function entryFilePath(entry: AlbumEntry) {
-  return join(imagesRoot, idFromKey(entry.album.key).id, entry.name);
+  let root = imagesRoot;
+  return join(root, idFromKey(entry.album.key).id, entry.name);
 }
 
 export function mediaName(entry: AlbumEntry): string {

@@ -14,6 +14,7 @@ import {
   AlbumWithData,
   GeoPOI,
   idFromKey,
+  ProjectType,
 } from "../../../shared/types/types";
 import { getFolderAlbumData, getFolderAlbums } from "../../walker";
 import {
@@ -27,7 +28,7 @@ import {
   queueNotification,
 } from "../albumTypes/fileAndFolders";
 import {
-  getProjectAlbum,
+  getProjectAlbumFromKey,
   getProjectAlbums,
   getProjects,
 } from "../albumTypes/projects";
@@ -47,12 +48,13 @@ export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
   }
 }
 
-function notifyAlbumOrderUpdated(album: Album) {
+async function notifyAlbumOrderUpdated(album: Album) {
+  const albumData = await albumWithData(album);
   debounce(
     () => {
       queueNotification({
         type: "albumOrderUpdated",
-        album: albumWithData(album),
+        album: albumData,
       });
     },
     100,
@@ -208,7 +210,7 @@ export async function media(
     await assignRanks(entries);
     return { entries };
   } else if (album.kind === AlbumKind.PROJECT) {
-    const entries = await getProjects(album.key);
+    const entries = await getProjects(album.key as ProjectType);
     return { entries };
   } else throw new Error(`Unknown kind ${album.kind}`);
 }
@@ -224,15 +226,15 @@ async function sortAssetsByRank(entries: AlbumEntry[]) {
   sortByKey(entries as (AlbumEntry & { rank: any })[], ["rank"], ["numeric"]);
 }
 
-export function albumWithData(
+export async function albumWithData(
   album: Album | string,
-): AlbumWithData | undefined {
+): Promise<AlbumWithData | undefined> {
   const kind = typeof album === "string" ? idFromKey(album).kind : album.kind;
   const key = typeof album === "string" ? album : album.key;
   if (kind === AlbumKind.FOLDER) {
     return getFolderAlbumData(key);
   } else if (kind === AlbumKind.PROJECT) {
-    return getProjectAlbum(key);
+    return await getProjectAlbumFromKey(key);
   } else if (kind === AlbumKind.FACE) {
     return getFaceAlbum(key);
   } else throw new Error(`Unknown kind ${kind}`);
@@ -275,7 +277,7 @@ export async function getAlbumEntryMetadata(albumEntry: AlbumEntry) {
 export async function monitorAlbums(): Promise<{}> {
   const lastWalk = await getFolderAlbums();
   const f = getFaceAlbums();
-  const p = getProjectAlbums();
+  const p = await getProjectAlbums();
   queueNotification({ type: "albums", albums: [...lastWalk, ...f, ...p] });
   return {};
 }

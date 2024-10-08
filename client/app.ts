@@ -7,6 +7,7 @@ import { makeBrowser } from "./components/browser";
 import { makeBugWidget } from "./components/bug-widget";
 import { registerButton } from "./components/controls/button";
 import { registerCarousel } from "./components/controls/carousel";
+import { registerInput } from "./components/controls/input";
 import { registerMultiButton } from "./components/controls/multibutton";
 import { registerSelect } from "./components/controls/select";
 import { registerSlider } from "./components/controls/slider";
@@ -18,6 +19,7 @@ import { makeJobList } from "./components/joblist";
 import { makeMosaicPage, newMosaicProject } from "./components/mosaic";
 import { question } from "./components/question";
 import { initClientSentry } from "./components/sentry";
+import { makeSlideshowPage, newSlideshowProject } from "./components/slideshow";
 import { t } from "./components/strings";
 import { makeTab, makeTabs, selectTab } from "./components/tabs";
 import {
@@ -38,6 +40,7 @@ async function init(port: number) {
   registerMultiButton();
   registerSlider();
   registerSelect();
+  registerInput();
   registerCarousel();
 
   const emitter = buildEmitter<AppEvent>(false);
@@ -112,6 +115,24 @@ async function init(port: number) {
       );
       makeTab(win, tab, { kind: "Mosaic", selectionManager });
     }
+  }
+  async function newSlideshowPage(params: { initialList: AlbumEntry[] }) {
+    const images = await albumEntriesWithMetadata(params.initialList);
+    let name = await question(
+      t("Slideshow Name"),
+      t("Slideshow") + " " + new Date().toLocaleDateString(),
+    );
+    if (!name) {
+      // generate a name
+      name = t("Slideshow") + " " + new Date().toLocaleDateString();
+    }
+    const projectId = await newSlideshowProject(name, images);
+    const { win, tab, selectionManager } = await makeSlideshowPage(
+      emitter,
+      projectId,
+    );
+
+    makeTab(win, tab, { kind: "Slideshow", selectionManager });
   }
   async function newBrowserPage() {
     const { win, tab, selectionManager } = await makeBrowser(
@@ -190,6 +211,7 @@ async function init(port: number) {
   } else {
     emitter.on("show", newGalleryPage);
     emitter.on("mosaic", newMosaicPage);
+    emitter.on("slideshow", newSlideshowPage);
   }
 
   emitter.emit("ready", { state: true });

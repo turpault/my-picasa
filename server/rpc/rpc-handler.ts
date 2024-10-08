@@ -107,7 +107,11 @@ const validators: ValidatorMap = {
   },
 };
 
-function getConvertedArguments(service: Service, args: any): Array<any> {
+function getConvertedArguments(
+  name: string,
+  service: Service,
+  args: any,
+): Array<any> {
   const convertedArguments: any[] = [];
 
   service.arguments.forEach((argument) => {
@@ -117,13 +121,13 @@ function getConvertedArguments(service: Service, args: any): Array<any> {
     const validator = validators[argumentType];
     if (!validator) {
       throw new Error(
-        `Validator for type ${argumentType} does not exist, please validate the spec (Argument name is ${argumentName})`
+        `${name}: Validator for type ${argumentType} does not exist, please validate the spec (Argument name is ${argumentName})`,
       );
     }
     const newValue = validator(args[argumentName]);
     if (newValue instanceof Error) {
       throw new Error(
-        `Argument ${argumentName} fails the validation checks : ${newValue.message}`
+        `${name} Argument ${argumentName} fails the validation checks : ${newValue.message}`,
       );
     }
     convertedArguments.push(newValue);
@@ -135,7 +139,7 @@ function getConvertedArguments(service: Service, args: any): Array<any> {
 export function registerServices(
   socket: SocketAdaptorInterface,
   services: ServiceMap[],
-  dependencies: {}
+  dependencies: {},
 ): void {
   const context: SocketContext = Object.assign(socket, { id: uuid() });
   let idx = 0;
@@ -155,8 +159,9 @@ export function registerServices(
           lockIdleWorkers();
           try {
             const convertedArguments = getConvertedArguments(
+              name,
               serviceFunc,
-              commandArgs
+              commandArgs,
             );
             rate(name);
             rate("RPC");
@@ -167,11 +172,11 @@ export function registerServices(
               convertedArguments,
               false,
               2,
-              true
+              true,
             ).slice(0, 200)})`;
             //console.time(label);
             const response = await serviceFunc.handler.bind(socket)(
-              ...convertedArguments
+              ...convertedArguments,
             );
 
             callback(null, response);
@@ -192,7 +197,7 @@ export function registerServices(
             busy();
             //console.timeEnd(label);
           }
-        }
+        },
       );
     });
   }

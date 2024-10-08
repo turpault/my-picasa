@@ -255,7 +255,7 @@ export function makeButtons(
       icon: "resources/images/icons/actions/slideshow.svg",
       enabled: () => localState.getValue("selected").length > 0,
       execute: () => {
-        appEvents.emit("gallery", {
+        appEvents.emit("slideshow", {
           initialList: localState.getValue("selected"),
           initialIndex: 0,
         });

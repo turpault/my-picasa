@@ -22,7 +22,10 @@ import {
 } from "../../imageOperations/info";
 import { buildImage } from "../../imageOperations/sharp-processor";
 import { media } from "../../rpc/rpcFunctions/albumUtils";
-import { getOsxPhotosDump, getPhotoFavorites } from "../../rpc/rpcFunctions/osascripts";
+import {
+  getOsxPhotosDump,
+  getPhotoFavorites,
+} from "../../rpc/rpcFunctions/osascripts";
 import {
   readAlbumIni,
   updatePicasaEntry,
@@ -137,7 +140,7 @@ export async function exportFavorite(entry: AlbumEntry): Promise<void> {
       const transform = entryMeta.filters || "";
       const res = await buildImage(
         entry,
-        entry,
+        entryMeta,
         `compress=1,${RESIZE_ON_EXPORT_SIZE},;` +
           transform +
           `;label=1,${encodeURIComponent(
@@ -295,17 +298,17 @@ export async function syncFavoritesFromPhotoApp(
         return;
       }
     }
-    if(photo.persons) {
+    if (photo.persons) {
       promises.push(updatePicasaEntry(candidate, "persons", photo.persons));
     }
-    if(photo.favorite) {
-    if (alreadyStarred.includes(candidate)) {
-      // do nothing
-    } else {
-      promises.push(updatePicasaEntry(candidate, "photostar", 1));
-      newStarred.push(candidate);
+    if (photo.favorite) {
+      if (alreadyStarred.includes(candidate)) {
+        // do nothing
+      } else {
+        promises.push(updatePicasaEntry(candidate, "photostar", 1));
+        newStarred.push(candidate);
+      }
     }
-  }
   });
   for (const photo of allPhotos) {
     if (newStarred.includes(photo.metadata)) {

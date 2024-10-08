@@ -28,62 +28,44 @@ import { AlbumListEventSource } from "../uiTypes";
 
 let lastDraggedOver: _$ | undefined;
 let lastSources: _$[] = [];
-export async function onDragEnd() {
+async function onDragEnd() {
   if (lastDraggedOver) {
     lastDraggedOver.removeClass("thumbnail-dragged-over");
   }
   lastSources.map((e) => e.removeClass("thumbnail-dragged"));
   lastSources.map((e) => e.removeClass("thumbnail-dragged-later"));
 }
-export async function onDrop(
-  ev: DragEvent,
-  album: Album,
+async function onDrop(
+  lastDraggedOverElement: _$,
+  lastDraggedOverEntry: AlbumEntry,
   selectionManager: AlbumEntrySelectionManager,
-  elementPrefix: string,
+  element: _$,
 ) {
-  if (lastDraggedOver) {
-    ev.preventDefault();
+  // Emulate the move by moving elements
+  lastSources.reverse().forEach((e) => {
+    e.remove();
+    lastDraggedOverElement?.parent()?.insertBefore(e, lastDraggedOverElement);
+  });
 
-    let entry: AlbumEntry | undefined = albumEntryFromElement(
-      lastDraggedOver,
-      elementPrefix,
-    )!;
-    // Emulate the move by moving elements
-    lastSources.reverse().forEach((e) => {
-      e.remove();
-      lastDraggedOver?.parent()?.insertBefore(e, lastDraggedOver);
-    });
-
-    const selection = selectionManager.selected();
-    if (selection.length === 0) {
-      throw new Error("No selection");
-    }
-    if (entry) {
-      const s = await getService();
-
-      let rank = 0;
-      const p = (await s.getPicasaEntry(entry)) as AlbumEntryMetaData;
-      if (p) {
-        rank = parseInt(p.rank || "0");
-      }
-
-      s.createJob(JOBNAMES.MOVE, {
-        source: selection,
-        destination: {
-          album: album,
-          rank,
-        },
-      });
-      selectionManager.clear();
-    }
+  const selection = selectionManager.selected();
+  if (selection.length === 0) {
+    throw new Error("No selection");
   }
+
+  element
+    .get()
+    .dispatchEvent(
+      new CustomEvent("dropEntry", { detail: { entry: lastDraggedOverEntry } }),
+    );
+
   onDragEnd();
 }
 
-function buildThumbnail(
+export function buildThumbnail(
   events: AlbumListEventSource,
   selectionManager: AlbumEntrySelectionManager,
   elementPrefix: string,
+  extraControls?: _$,
 ): HTMLElement {
   const e = $(
     `<div draggable="true" class="thumbnail thumbnail-size">
@@ -92,6 +74,9 @@ function buildThumbnail(
     </div>
     `,
   );
+  if (extraControls) {
+    e.append(extraControls);
+  }
   const img = $(".th", e);
   e.on("mouseenter", (_ev: any) => {
     if (img.attr("src-hover")) {
@@ -128,17 +113,17 @@ function buildThumbnail(
     //e.removeClass("thumbnail-dragged-over");
     //e.removeClass("padding-margin-right");
   });
-  e.on("drop", (ev) => {
+  e.on("drop", (_ev) => {
     if (lastDraggedOver) {
       const entry = albumEntryFromElement(lastDraggedOver, elementPrefix);
-      if (entry) onDrop(ev, entry.album, selectionManager, elementPrefix);
+      if (entry) onDrop(lastDraggedOver, entry, selectionManager, e);
     }
   });
   e.on("dragend", async (ev: DragEvent) => {
     onDragEnd();
     ev.preventDefault();
   });
-  e.on("dragover", (event) => {
+  e.on("dragover", (_event) => {
     // prevent default to allow drop
     //event.preventDefault();
   });
@@ -153,44 +138,10 @@ function buildThumbnail(
     }
     lastDraggedOver = e;
 
-    // See if this is a left or right-ight drag over
-    const rect = e.clientRect();
-    const mouse = { x: ev.clientX, y: ev.clientY };
     e.addClass("thumbnail-dragged-over");
     return;
   });
 
-  /*for (const side of ["left", "right"]) {
-    $(`.thumbnail-drop-area-${side}`, e)
-      .on("dragenter", function (ev) {
-        $(this).addClass(`thumbnail-drop-area-drag-over-${side}`);
-        ev.preventDefault();
-      })
-      .on("dragover", function (ev) {
-        ev.preventDefault();
-      })
-      .on("dragleave", function () {
-        $(this).removeClass(`thumbnail-drop-area-drag-over-${side}`);
-      })
-      .on("drop", async function (ev) {
-        $(this).removeClass(`thumbnail-drop-area-drag-over-${side}`);
-        ev.stopPropagation();
-        const s = await getService();
-        const entry = albumEntryFromElement(e, elementPrefix);
-        if (!entry) {
-          return;
-        }
-        const p = (await s.getPicasaEntry(entry)) as PicasaFileMeta;
-        const rank = parseInt(p.rank || "0");
-        const selection = selectionManager.selected();
-        s.createJob(JOBNAMES.MOVE, {
-          source: selection,
-          destination: entry.album,
-          argument: rank + (side === "left" ? 0 : 1),
-        });
-        return false;
-      });
-  }*/
   e.on("click", (ev: any) => {
     const entry = albumEntryFromElement(e, elementPrefix);
     if (entry) {
@@ -489,6 +440,29 @@ export function makeNThumbnails(
 ): boolean {
   const countChanged = domElement.get().children.length !== count;
   while (domElement.get().children.length < count) {
+    const th = buildThumbnail(events, selectionManager, elementPrefix);
+    domElement.append(th);
+    th.addEventListener("dropEntry", async (ev) => {
+      const entry = (ev as CustomEvent).detail.entry;
+      if (entry) {
+        const s = await getService();
+
+        let rank = 0;
+        const p = (await s.getPicasaEntry(entry)) as AlbumEntryMetaData;
+        if (p) {
+          rank = parseInt(p.rank || "0");
+        }
+
+        s.createJob(JOBNAMES.MOVE, {
+          source: selectionManager,
+          destination: {
+            album: entry.album,
+            rank,
+          },
+        });
+        selectionManager.clear();
+      }
+    });
     domElement.append(buildThumbnail(events, selectionManager, elementPrefix));
   }
   /*for (const i of domElement.all(".img")) {

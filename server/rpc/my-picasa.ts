@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/camelcase */
 import { Exceptions } from "../../shared/types/exceptions";
-import { folders } from "../walker";
-import { generateMosaicFile } from "../imageOperations/image-edits/mosaic";
+import { getFaceDataFromAlbumEntry } from "../../worker/background/face/picasa-faces";
 import {
   getConvolutionKernelNames,
   getFilterGroups,
@@ -20,6 +19,8 @@ import {
   transform,
 } from "../imageOperations/sharp-processor";
 import { undo, undoList } from "../utils/undo";
+import { folders } from "../walker";
+import { getPersons } from "./albumTypes/persons";
 import {
   createProject,
   getProject,
@@ -37,6 +38,7 @@ import {
   setRank,
   sortAlbum,
 } from "./rpcFunctions/albumUtils";
+import { addBug, getBugs } from "./rpcFunctions/bugs";
 import { clientException, clientLog } from "./rpcFunctions/clientLog";
 import { exifData } from "./rpcFunctions/exif";
 import { createFSJob, getJob, waitJob } from "./rpcFunctions/fileJobs";
@@ -58,9 +60,6 @@ import {
 } from "./rpcFunctions/picasa-ini";
 import { clientReady } from "./rpcFunctions/ready";
 import { setAlbumShortcut } from "./rpcFunctions/shortcuts";
-import { addBug, getBugs } from "./rpcFunctions/bugs";
-import { getFaceDataFromAlbumEntry } from "../../worker/background/face/picasa-faces";
-import { getPersons } from "./albumTypes/persons";
 
 /**
  * ConcurrencyService IDL
@@ -269,10 +268,6 @@ export const PicisaClient: ServiceMap = {
       handler: createProject,
       arguments: ["type:string", "name:string"],
     },
-    buildMosaic: {
-      handler: generateMosaicFile,
-      arguments: ["entry:object", "width:number", "height:number"],
-    },
     histogram: {
       handler: histogram,
       arguments: ["context:string"],
@@ -288,6 +283,6 @@ export const PicisaClient: ServiceMap = {
     getPersons: {
       handler: getPersons,
       arguments: [],
-    },    
+    },
   },
 };

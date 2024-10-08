@@ -9,12 +9,10 @@ import {
   JOBNAMES,
   Job,
   JobData,
-  ProjectType,
   idFromKey,
   keyFromID,
 } from "../../../shared/types/types";
 import { exportToFolder } from "../../imageOperations/export";
-import { generateMosaicFile } from "../../imageOperations/image-edits/mosaic";
 import { exportsFolder, imagesRoot } from "../../utils/constants";
 import { entryFilePath, fileExists } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
@@ -24,13 +22,14 @@ import {
   onRenamedAlbums,
   refreshAlbumKeys,
 } from "../../walker";
+import { buildPersonsList } from "../albumTypes/persons";
+import { buildProject } from "../albumTypes/projects";
 import { setRank } from "./albumUtils";
 import { eraseFace } from "./faces";
 import { syncFavoritesFromPhotoApp } from "./favorites";
 import { openWithFinder } from "./osascripts";
 import { getPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasa-ini";
 import { copyThumbnails } from "./thumbnail-cache";
-import { buildPersonsList } from "../albumTypes/persons";
 
 const jobs: Job[] = [];
 type MultiMoveJobArguments = {
@@ -134,7 +133,7 @@ async function executeJob(job: Job): Promise<Album[]> {
     case JOBNAMES.RENAME_ALBUM:
       return renameAlbumJob(job);
     case JOBNAMES.BUILD_PROJECT:
-      return buildProject(job);
+      return buildProjectJob(job);
     case JOBNAMES.POPULATE_IPHOTO_FAVORITES:
       return populateIPhotoFavorites(job);
     default:
@@ -576,7 +575,7 @@ async function exportJob(job: Job): Promise<Album[]> {
   return [];
 }
 
-async function buildProject(job: Job): Promise<Album[]> {
+async function buildProjectJob(job: Job): Promise<Album[]> {
   // Deleting a set of images means renaming them
   job.status = "started";
   const updatedAlbums: Album[] = [];
@@ -587,17 +586,8 @@ async function buildProject(job: Job): Promise<Album[]> {
 
   for (const source of sources) {
     if (source.album.kind === AlbumKind.PROJECT) {
-      const projectType = source.album.name as ProjectType;
-      switch (projectType) {
-        case ProjectType.MOSAIC:
-          const newEntry = await generateMosaicFile(
-            source,
-            job.data.argument.width,
-          );
-          updatedAlbums.push(source.album);
-          job.out = job.out ? [...job.out, newEntry] : [newEntry];
-          break;
-      }
+      const newEntry = await buildProject(source, job.data.argument.width);
+      job.out = job.out ? [...job.out, newEntry] : [newEntry];
     }
     job.progress.remaining--;
     job.changed();

@@ -7,7 +7,7 @@ import { Album, AlbumEntry, AlbumKind } from "../types/types";
 import { State, StateDef } from "./state";
 
 export function NodeListToFirstElem(
-  e: HTMLElement | NodeListOf<HTMLElement> | undefined
+  e: HTMLElement | NodeListOf<HTMLElement> | undefined,
 ): HTMLElement | undefined {
   if (e instanceof NodeList) {
     return e.item(0);
@@ -16,7 +16,7 @@ export function NodeListToFirstElem(
 }
 
 export function NodeListToArray(
-  e: HTMLElement | NodeListOf<HTMLElement> | undefined
+  e: HTMLElement | NodeListOf<HTMLElement> | undefined,
 ): HTMLElement[] | undefined {
   if (e instanceof NodeList) {
     return Array.from(e.values());
@@ -26,7 +26,7 @@ export function NodeListToArray(
 
 export function setImageDataToCanvasElement(
   imagedata: ImageData,
-  canvas: HTMLCanvasElement
+  canvas: HTMLCanvasElement,
 ): void {
   var ctx = canvas.getContext("2d")!;
   canvas.width = imagedata.width;
@@ -56,20 +56,20 @@ export class _$<T extends HTMLElement = HTMLElement> {
   on<K extends keyof HTMLElementEventMap>(
     type: K,
     listener: (this: _$, ev: HTMLElementEventMap[K]) => any,
-    options?: boolean | AddEventListenerOptions
+    options?: boolean | AddEventListenerOptions,
   ): _$ {
     this.get().addEventListener(
       type,
       (...args) => {
         listener.call(this, ...args);
       },
-      options
+      options,
     );
     return this;
   }
   off<K extends keyof HTMLElementEventMap>(
     type: K,
-    listener: (this: _$, ev: HTMLElementEventMap[K]) => any
+    listener: (this: _$, ev: HTMLElementEventMap[K]) => any,
   ): _$ {
     this.get().removeEventListener(type, (...args) => {
       listener.call(this, ...args);
@@ -98,7 +98,7 @@ export class _$<T extends HTMLElement = HTMLElement> {
         get: () => {
           return () => this;
         },
-      }
+      },
     ) as _$;
   }
   attachData(data: { [key: string]: any }): _$ {
@@ -211,6 +211,11 @@ export class _$<T extends HTMLElement = HTMLElement> {
     this.get().appendChild(new _$(e).get());
     return this;
   }
+  appendAnd(e: HTMLElement | _$ | string): _$ {
+    const _e = new _$(e);
+    this.get().appendChild(_e.get());
+    return _e;
+  }
   appendAll(e: (HTMLElement | _$ | string)[]): _$ {
     for (const el of e) this.get().appendChild(new _$(el).get());
     return this;
@@ -242,13 +247,16 @@ export class _$<T extends HTMLElement = HTMLElement> {
   }
   all(selector: string): _$[] {
     return Array.from(this.get().querySelectorAll(selector)).map((e) =>
-      $(e as HTMLElement)
+      $(e as HTMLElement),
     );
   }
   children(): _$[] {
     return Array.from(this.get().children).map((e) => $(e as HTMLElement));
   }
-  attr(key: string | object, value?: any): any {
+  attr(key: string): string;
+  attr(key: object): _$<T>;
+  attr(key: string, value: any): _$<T>;
+  attr(key: string | object, value?: any): string | _$<T> {
     var args = arguments;
 
     if (typeof key === "string" && args.length === 1) {
@@ -287,7 +295,7 @@ export class _$<T extends HTMLElement = HTMLElement> {
     return this.get().parentElement ? this.get().parentElement! : undefined;
   }
 
-  removeClass(className: string): _$ {
+  removeClass(className: string): _$<T> {
     var j = 0,
       classes = className ? className.trim().split(/\s+/) : [];
 
@@ -308,7 +316,7 @@ export class _$<T extends HTMLElement = HTMLElement> {
     this.get().focus();
   }
 
-  empty(): _$ {
+  empty(): _$<T> {
     this.get().innerHTML = "";
     return this;
   }
@@ -325,7 +333,7 @@ export class _$<T extends HTMLElement = HTMLElement> {
     return this.get().clientHeight;
   }
 
-  centerOnLoad(): _$ {
+  centerOnLoad(): _$<T> {
     this.on("load", (e) => {
       const target = e.target as HTMLImageElement;
       const parentSize = {
@@ -359,7 +367,7 @@ export class _$<T extends HTMLElement = HTMLElement> {
 
   private resolve(
     e: Element | T | string | _$,
-    from: HTMLElement | null | _$
+    from: HTMLElement | null | _$,
   ): T | null {
     if (e instanceof HTMLElement) {
       return e as T;
@@ -370,10 +378,19 @@ export class _$<T extends HTMLElement = HTMLElement> {
     if (e instanceof _$) {
       return (e as _$<T>).get();
     }
+    if (typeof e === "string" && !from) {
+      try {
+        return document.createElement(e) as T;
+      } catch (_e) {}
+    }
     if (typeof e === "string" && e.trim().startsWith("<")) {
+      const html = e.trim();
       const n = document.createElement("div");
-      n.innerHTML = e;
+      n.innerHTML = html;
       if (n.children.length === 1) {
+        if (from instanceof _$) {
+          from.get().appendChild(n.children[0]);
+        }
         return n.children[0] as T;
       } else if (n.children.length > 1) {
         throw new Error("Too many children");
@@ -412,7 +429,7 @@ export class _$<T extends HTMLElement = HTMLElement> {
 
 export function $<T extends HTMLElement = HTMLElement>(
   e: Element | T | string | _$,
-  from: HTMLElement | null | _$ = null
+  from: HTMLElement | null | _$ = null,
 ): _$<T> {
   return new _$<T>(e, from);
 }
@@ -440,7 +457,7 @@ export function preLoadImage(url: string): Promise<HTMLImageElement> {
 
 export function albumEntryIndexInList(
   a: AlbumEntry,
-  lst: AlbumEntry[]
+  lst: AlbumEntry[],
 ): number {
   return lst.findIndex((i) => i.album.key === a.album.key && i.name === a.name);
 }
@@ -473,13 +490,13 @@ export function elementFromEntry(entry: AlbumEntry, qualifier: string) {
 }
 export function albumEntryFromElement(
   e: _$,
-  qualifier: string
+  qualifier: string,
 ): AlbumEntry | null {
   return albumEntryFromId(e.id().slice(qualifier.length));
 }
 export function albumEntryFromElementOrChild(
   e: _$,
-  qualifier: string
+  qualifier: string,
 ): AlbumEntry | null {
   if (!e || !e.exists()) {
     return null;
@@ -502,7 +519,7 @@ export function setIdForEntry(e: _$, entry: AlbumEntry, qualifier: string) {
 export function bindStateToControl<T extends StateDef>(
   state: State<T>,
   control: _$,
-  name: keyof T
+  name: keyof T,
 ) {
   state.events.on(name, (value) => {
     control.val(value);

@@ -331,6 +331,10 @@ export type MosaicProject = AlbumEntry & {
   payload: Mosaic;
 };
 
+export type SlideshowProject = AlbumEntry & {
+  payload: Slideshow;
+};
+
 export type Mosaic = {
   pool: AlbumEntryWithMetadata[];
   images: AlbumEntryWithMetadata[];
@@ -342,6 +346,28 @@ export type Mosaic = {
   size: number;
   seed: number;
 };
+export const SlideShowTransitionsValues = [
+  "slider",
+  "fade",
+  "smooth",
+  "none",
+] as const;
+export type SlideShowTransitions = (typeof SlideShowTransitionsValues)[number];
+export const SlideShowDelayValues = [1, 2, 5, 10] as const;
+export type SlideShowDelays = (typeof SlideShowDelayValues)[number];
+export type SlideShowPageType = "image" | "text";
+export type Slideshow = {
+  pages: {
+    id: string;
+    type: SlideShowPageType;
+    entry?: AlbumEntryWithMetadata;
+    text?: string;
+    textColor?: string;
+    bgTextColor?: string;
+    delay: SlideShowDelays;
+    transition: SlideShowTransitions;
+  }[];
+};
 
 export enum Layout {
   MOSAIC,
@@ -350,6 +376,7 @@ export enum Layout {
 
 export enum ProjectType {
   MOSAIC = "Mosaic",
+  SLIDESHOW = "Slideshow",
 }
 
 export type Contact = {

@@ -26,11 +26,19 @@ import {
   readShortcut,
 } from "./rpc/rpcFunctions/picasa-ini";
 import { imagesRoot, specialFolders } from "./utils/constants";
+import { buildEmitter } from "../shared/lib/event";
 
 const readyLabelKey = "fileWalker";
 const ready = buildReadySemaphore(readyLabelKey);
 let lastWalk: AlbumWithData[] = [];
 const walkQueue = new Queue(10);
+export type AlbumChangeEvent = {
+  added: AlbumWithData;
+  deleted: AlbumWithData;
+  updated: AlbumWithData;
+};
+
+export const albumEventEmitter = buildEmitter<AlbumChangeEvent>();
 
 export async function updateLastWalkLoop() {
   let iteration = 0;
@@ -149,6 +157,7 @@ export async function addOrRefreshOrDeleteAlbum(
       if (idx >= 0) {
         const data = lastWalk.splice(idx, 1)[0];
         queueNotification({ type: "albumDeleted", album: data });
+        albumEventEmitter.emit("deleted", data);
       }
     } else {
       if (idx === -1) {
@@ -165,6 +174,7 @@ export async function addOrRefreshOrDeleteAlbum(
           type: "albumAdded",
           album: updated,
         });
+        albumEventEmitter.emit("added", updated);
         lastWalk.push(updated);
       } else {
         if (options !== "SkipCheckInfo") {
@@ -183,6 +193,7 @@ export async function addOrRefreshOrDeleteAlbum(
               type: "albumInfoUpdated",
               album: updated,
             });
+            albumEventEmitter.emit("updated", updated);
             lastWalk[idx] = updated;
           }
         }
@@ -215,7 +226,6 @@ async function walk(
   }
 
   if (m.entries.length > 0) {
-    // Complete with count and 'global' picasa data
     cb(album);
   }
 }

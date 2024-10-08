@@ -5,9 +5,7 @@ export type StateDef = { [key: string]: any };
  * A simple state class that can be used to store state and emit events when the state changes.
  */
 export class State<T extends StateDef> {
-  constructor() {
-    this.state = {} as T;
-  }
+  constructor(private state: T = {} as T) {}
   getValue<K extends keyof T>(key: K): T[K] {
     return this.state[key];
   }
@@ -17,7 +15,7 @@ export class State<T extends StateDef> {
     return true;
   }
   clearValue(key: keyof T) {
-    if(key in this.state) {
+    if (key in this.state) {
       delete this.state[key];
       this.events.emit(key, undefined);
     }
@@ -48,5 +46,4 @@ export class State<T extends StateDef> {
   }
   public events = buildEmitter<T>();
   public preevents = buildEmitter<T>();
-  private state: T;
 }

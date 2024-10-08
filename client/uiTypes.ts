@@ -63,6 +63,7 @@ export type AppEvent = {
   edit: { active: boolean };
   show: { initialList: AlbumEntry[]; initialIndex: number };
   mosaic: { initialList: AlbumEntry[]; initialIndex: number };
+  slideshow: { initialList: AlbumEntry[]; initialIndex: number };
   gallery: { initialList: AlbumEntry[]; initialIndex: number };
 };
 

@@ -15,7 +15,6 @@ export const rootPath = join(__dirname, "..", "..");
 export const specialFolders = [
   facesFolder,
   favoritesFolder,
-  exportsFolder,
   projectFolder,
   bugsFolder,
 ];
@@ -27,10 +26,13 @@ export const THUMBS = ".thumbnails.ini";
 // TODO Figure out the actual path of the photo library
 export const PhotoLibraryPath =
   "/Volumes/1TB USB/Phototheque MacOS/Photothèque.photoslibrary";
-export const ProjectOutputFolder = join(
+
+export const ProjectOutAlbumName = join(
   defaultNewFolder,
-  new Date().getFullYear().toString() + " Mosaic Projects",
+  new Date().getFullYear().toString() + " Projects",
 );
+
+export const ProjectOutputFolder = join(imagesRoot, ProjectOutAlbumName);
 export const ThumbnailSizes = {
   "th-small": 100,
   "th-medium": 250,

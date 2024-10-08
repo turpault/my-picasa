@@ -1,33 +1,31 @@
 import Debug from "debug";
 
-import {
-  buildReadySemaphore,
-  setReady
-} from "../../../shared/lib/utils";
-import { getFolderAlbums } from "../../walker";
-import { media } from "../rpcFunctions/albumUtils";
-import {
-  readPersons
-} from "../rpcFunctions/picasa-ini";
-const persons:string[] = [];
+import { Album, AlbumKind } from "../../../shared/types/types";
+import { albumEventEmitter, waitUntilWalk } from "../../walker";
+import { readAlbumEntries, readPersons } from "../rpcFunctions/picasa-ini";
+const persons = new Set<string>();
 
 const debug = Debug("app:persons");
-const readyLabelKey = "person-list-ready";
-const ready = buildReadySemaphore(readyLabelKey);
 
 export async function buildPersonsList() {
-  const albums = await getFolderAlbums();
-  const allPersons = await Promise.all(albums.map(async (album) => {
-    return (await Promise.all((await media(album)).entries.map((entry) => readPersons(entry)))).flat();
-  }
-  ));
-  // deduplicate
-  persons.push(...allPersons.flat().reduce((acc, val) => acc.includes(val) ? acc : [...acc, val], [] as string[]));
-  setReady(readyLabelKey);
-  debug(`Person list built : ${persons.length} persons`);
+  const updatePersons = async (album: Album) => {
+    if (album.kind === AlbumKind.FOLDER) {
+      const entries = await readAlbumEntries(album);
+      for (const entry of entries) {
+        const newPersons = await readPersons(entry);
+        for (const person of newPersons) {
+          persons.add(person);
+        }
+      }
+    }
+  };
+  albumEventEmitter.on("added", updatePersons);
+  albumEventEmitter.on("updated", updatePersons);
+
+  debug(`Person list built : ${persons.size} persons`);
 }
 
 export async function getPersons() {
-  await ready;
-  return persons;
+  await waitUntilWalk();
+  return Array.from(persons);
 }

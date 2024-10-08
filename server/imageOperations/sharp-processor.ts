@@ -51,7 +51,7 @@ import {
 import { rectOfReference } from "../../worker/background/face/face-utils";
 
 const contexts = new Map<string, Sharp>();
-const options = new Map<string, AlbumEntryMetaData>();
+const contextOptions = new Map<string, AlbumEntryMetaData>();
 const debug = true;
 const debugInfo = debug ? console.info : noop;
 
@@ -103,6 +103,7 @@ function colorFromArg(arg: string) {
 export async function buildNewContext(
   width: number,
   height: number,
+  background = "#ffffff",
 ): Promise<string> {
   const contextId = uuid();
   const j = sharp({
@@ -113,7 +114,7 @@ export async function buildNewContext(
       /** Number of bands e.g. 3 for RGB, 4 for RGBA */
       channels: 3,
       /** Parsed by the [color](https://www.npmjs.org/package/color) module to extract values for red, green, blue and alpha. */
-      background: "#ffffff",
+      background,
     },
   });
 
@@ -270,7 +271,7 @@ export function exifToSharpMeta(obj: { [key: string]: any }): any {
 #| blur        |                                     | blur                           | 1                             |  New
 #| sharpen     | sigma (0<sigma<=10)                 | sharpen                        | 1, 10                         |  New
 #| resize      | max Dimension                       | resize image (nearest)         | 1, 1500                       | Personal
-#| label       | text, font size, position (n,s,e,w) | Adds a label to the image      | 1, "hello", 12, s             | Personal
+#| label       | text, fontsize, position (n,s,e,w),color, bgcolor | Adds a label to the image      | 1, "hello", 12, "s", "#000000", "#ffffff"    | Personal
 #| filter:name |                                     | Apply a filter to the image    | filter:All                    | Personal
 #| solarize    | threshold                           | solarize filter                | solarize=1,0.500000;          | Personal
 #| heatmap     |                                     | heatmap filter                 | heatmap=1;                    | Personal
@@ -841,6 +842,9 @@ export async function transform(
         const w = metadata.width!;
         const text = decodeURIComponent(args[1]);
         const size = parseInt(args[2]);
+        const pos = args[3] || "s";
+        const color = colorFromArg(args[4] || "#000000");
+        const bgcolor = colorFromArg(args[5] || "#ffffff");
         /*const { data, info } = await j
           .raw()
           .toBuffer({ resolveWithObject: true });
@@ -862,12 +866,14 @@ export async function transform(
         const fontSize = Math.floor((size * w) / 1000);
         const svgHeight = fontSize * 1.6;
         const txtSvg = `<svg width="${w}" height="${svgHeight}"> 
-        <rect x="0" cy="0" width="${w}" height="${fontSize}" fill="#FFFFFF" style="fill-opacity: .35;" />
-        <text  x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}" fill="#000000">${safeHtml(
+        <rect x="0" cy="0" width="${w}" height="${fontSize}" fill="${bgcolor}" style="fill-opacity: .35;" />
+        <text  x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}" fill="${color}">${safeHtml(
           text,
         )}</text> 
         </svg>`;
-        layers.push({ input: Buffer.from(txtSvg), gravity: "south" });
+        const gravity =
+          { n: "north", s: "south", e: "east", w: "west" }[pos] || "south";
+        layers.push({ input: Buffer.from(txtSvg), gravity });
 
         /*const newImage = sharp({
           create: {
@@ -967,9 +973,9 @@ export async function histogram(
 }
 export async function setOptions(
   context: string,
-  _options: AlbumEntryMetaData,
+  options: AlbumEntryMetaData,
 ): Promise<void> {
-  options.set(context, _options);
+  contextOptions.set(context, options);
   return;
 }
 
@@ -1085,7 +1091,7 @@ async function branchContext(j: sharp.Sharp): Promise<sharp.Sharp> {
 const buildImageQueue = new Queue(4, { fifo: false });
 export async function buildImage(
   entry: AlbumEntry,
-  options: any | undefined,
+  options: AlbumEntryMetaData | undefined,
   transformations: string | undefined,
   extraOperations: any[] | undefined,
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {

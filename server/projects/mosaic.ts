@@ -1,13 +1,7 @@
 import { mkdir } from "fs/promises";
 import { basename, join } from "path";
-import {
-  blitMultiple,
-  buildContext,
-  buildNewContext,
-  destroyContext,
-  encode,
-  transform,
-} from "../sharp-processor";
+import { calculateImagePositions } from "../../shared/lib/mosaic-positions";
+import { namify } from "../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
@@ -17,13 +11,18 @@ import {
   MosaicProject,
   Orientation,
   keyFromID,
-} from "../../../shared/types/types";
-import { getProject } from "../../rpc/albumTypes/projects";
-import { calculateImagePositions } from "../../../shared/lib/mosaic-positions";
-import { ProjectOutputFolder, imagesRoot } from "../../utils/constants";
-import { namify } from "../../../shared/lib/utils";
-import { safeWriteFile } from "../../utils/serverUtils";
-import { addOrRefreshOrDeleteAlbum } from "../../walker";
+} from "../../shared/types/types";
+import {
+  blitMultiple,
+  buildContext,
+  buildNewContext,
+  destroyContext,
+  encode,
+  transform,
+} from "../imageOperations/sharp-processor";
+import { getProject } from "../rpc/albumTypes/projects";
+import { ProjectOutputFolder, imagesRoot } from "../utils/constants";
+import { safeWriteFile } from "../utils/serverUtils";
 
 export async function makeMosaic(
   entry: AlbumEntry,
@@ -95,8 +94,6 @@ export async function generateMosaicFile(
     key: keyFromID(ProjectOutputFolder, AlbumKind.FOLDER),
     kind: AlbumKind.FOLDER,
   };
-
-  await addOrRefreshOrDeleteAlbum(album, undefined, true);
 
   return {
     name: targetFile,

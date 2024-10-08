@@ -19,12 +19,12 @@ export class PicasaMultiButton extends HTMLElement {
       if (item.startsWith("url:")) {
         return $(
           `<img class="picasa-multi-button picasa-button" src="${item.slice(
-            4
-          )}">`
+            4,
+          )}">`,
         );
       }
       return $(
-        `<span class="picasa-multi-button picasa-button">${item}</span>`
+        `<span class="picasa-multi-button picasa-button">${item}</span>`,
       );
     });
     $(this).appendAll(elements);
@@ -32,7 +32,7 @@ export class PicasaMultiButton extends HTMLElement {
     this.elements.forEach((e, index) =>
       e.on("click", () => {
         this.select(index);
-      })
+      }),
     );
     this.highlight();
   }
@@ -78,7 +78,7 @@ export class PicasaMultiButton extends HTMLElement {
   selected(): number[] {
     const c = this.getAttribute("selected") || "";
     return Array.from(new Set(c.length ? c.split(",") : [])).map((v) =>
-      parseInt(v)
+      parseInt(v),
     );
   }
   toggle(index: number) {
@@ -100,7 +100,7 @@ export class PicasaMultiButton extends HTMLElement {
     this.elements.forEach((e, index) => {
       e.addRemoveClass(
         "picasa-multi-button-shaded",
-        sels.includes(index) ? !inverse : inverse
+        sels.includes(index) ? !inverse : inverse,
       );
     });
   }
@@ -112,6 +112,8 @@ export class PicasaMultiButton extends HTMLElement {
     state.events.on(key, (ev) => {
       this.select(list.indexOf(ev));
     });
+    if(state.getValue(key) !== undefined)
+      this.select(list.indexOf(state.getValue(key)) as any);
   }
 }
 export function registerMultiButton() {

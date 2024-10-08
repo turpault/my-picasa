@@ -1,5 +1,3 @@
-import { $, _$ } from "../../lib/dom";
-
 class PicasaSlider extends HTMLInputElement {
   // connect component
   connectedCallback() {
@@ -31,7 +29,7 @@ class PicasaSlider extends HTMLInputElement {
       .join(", ");
     this.setAttribute(
       "style",
-      `background: linear-gradient(to right, ${intervals}), linear-gradient(to bottom, #bec9d1, #ccd5e1)`
+      `background: linear-gradient(to right, ${intervals}), linear-gradient(to bottom, #bec9d1, #ccd5e1)`,
     );
     this.addEventListener("input", () => this.changed());
   }

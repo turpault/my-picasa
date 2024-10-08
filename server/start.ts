@@ -85,7 +85,7 @@ function setupRoutes(server: FastifyInstance) {
 
   server.get("/thumbnail/:albumkey/:resolution", async (request, reply) => {
     const { albumkey, resolution } = request.params as any;
-    const album = albumWithData(albumkey);
+    const album = await albumWithData(albumkey);
 
     if (!album) {
       reply.code(404);
@@ -105,7 +105,7 @@ function setupRoutes(server: FastifyInstance) {
     "/thumbnail/:albumkey/:name/:resolution",
     async (request, reply) => {
       const { albumkey, name, resolution } = request.params as any;
-      const album = albumWithData(albumkey);
+      const album = await albumWithData(albumkey);
       if (!album) {
         reply.code(404);
         reply.send();
@@ -126,7 +126,7 @@ function setupRoutes(server: FastifyInstance) {
 
   server.get("/asset/:albumkey/:name", async (request, reply) => {
     const { albumkey, name } = request.params as any;
-    const album = albumWithData(albumkey);
+    const album = await albumWithData(albumkey);
     if (!album) {
       reply.code(404);
       reply.send();

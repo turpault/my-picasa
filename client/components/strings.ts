@@ -176,6 +176,19 @@ const stringTable: { [key: string]: any } = {
   "Export $1 image(s) to $2 ?": { fr: "Exporter $1 image(s) vers $2 ?" },
   Export: { fr: "Exporter" },
   "Exporting to $1": { fr: "Export vers $1" },
+  Thumbnail: { fr: "Icone" },
+  Text: { fr: "Texte" },
+  "Text Color": { fr: "Couleur du texte" },
+  "Background Color": { fr: "Couleur de fond" },
+  Duration: { fr: "Durée" },
+  Transition: { fr: "Transition" },
+  Remove: { fr: "Supprimer" },
+  "Add Title": { fr: "Ajouter un titre" },
+  "Add Selection": { fr: "Ajouter la sélection" },
+  "Generate Slideshow": { fr: "Générer l'animation" },
+  "Build Project": { fr: "Construire le projet" },
+  "Slideshow complete": { fr: "Animation terminée" },
+  "Slideshow Name": { fr: "Nom de l'animation" },
 };
 const lang = window.navigator.language.split("-")[0];
 let str = new Set<string>();

@@ -1,12 +1,9 @@
 import { buildEmitter, Emitter } from "../../../shared/lib/event";
-import { $, _$ } from "../../lib/dom";
 import { idFromAlbumEntry, uuid } from "../../../shared/lib/utils";
-import { AlbumEntry, ThumbnailSize } from "../../types/types";
-import {
-  AlbumEntrySelectionManager,
-  SelectionManager,
-} from "../../selection/selection-manager";
 import { thumbnailUrl } from "../../imageProcess/client";
+import { $, _$ } from "../../lib/dom";
+import { AlbumEntrySelectionManager } from "../../selection/selection-manager";
+import { AlbumEntry, ThumbnailSize } from "../../types/types";
 
 const singleLineSelectHTML = `
 <div class="w3-bar multiselect-control">
@@ -39,7 +36,7 @@ export function makeChoiceList<T extends SelectionList>(
   label: string,
   items: { label: string; key: any }[],
   currentKey: any,
-  mode: "buttons" | "radio" | "dropdown" = "buttons"
+  mode: "buttons" | "radio" | "dropdown" = "buttons",
 ): { element: _$; emitter: Emitter<SelectEvents<T>> } {
   const emitter = buildEmitter<SelectEvents<T>>(false);
 
@@ -55,15 +52,15 @@ export function makeChoiceList<T extends SelectionList>(
         return $(`
     <span class="wrapper-space-evenly-element radio-toggle">
       <input type="radio" class="radio-button" name="${name}" id="${id}" ${
-          item.key === currentKey ? "checked" : ""
-        }></input>
+        item.key === currentKey ? "checked" : ""
+      }></input>
       <label for="${id}" class="radio-button-label">${item.label}</label>
     </span>`);
       } else if (mode === "dropdown") {
         return $(
           `<option value="${id}" name="${name}" ${
             item.key === currentKey ? "selected" : ""
-          }>${item.label}</option>`
+          }>${item.label}</option>`,
         );
       } else {
         throw new Error("Invalid mode");
@@ -75,7 +72,7 @@ export function makeChoiceList<T extends SelectionList>(
     const index = parseInt(
       ((e.target as HTMLSelectElement).value || (e.target as HTMLElement).id)
         .split("|")
-        .pop()!
+        .pop()!,
     );
     emitter.emit("select", {
       index,
@@ -98,7 +95,7 @@ export function makeMultiselectImageList(
   pool: AlbumEntry[],
   selectionManager: AlbumEntrySelectionManager,
   imageThumbnailSize: ThumbnailSize,
-  imageClass: string = ""
+  imageClass: string = "",
 ): _$ {
   const e = $(multiSelectImageHTML);
   const name = uuid();
@@ -114,11 +111,11 @@ export function makeMultiselectImageList(
         selectionManager.isSelected(item) ? "multiselect-image-selected" : ""
       } " loading="lazy" src="${thumbnailUrl(
         item,
-        imageThumbnailSize
+        imageThumbnailSize,
       )}" style="display: inline-block" 
         class="radio-button-label">`).on("click", () => {
         selectionManager.toggle(item);
-      })
+      }),
     );
   });
 

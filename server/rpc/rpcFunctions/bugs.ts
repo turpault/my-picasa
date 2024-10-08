@@ -3,6 +3,8 @@ import { uuid } from "../../../shared/lib/utils";
 import { bugsFolder } from "../../utils/constants";
 import { join } from "path";
 import { Bug } from "../../../shared/types/types";
+import { sendSlackMessage } from "../../utils/slack";
+import { error } from "console";
 
 export async function addBug(description: string) {
   await mkdir(bugsFolder, { recursive: true });
@@ -14,6 +16,7 @@ export async function addBug(description: string) {
   };
   const bugId = uuid();
   await writeFile(join(bugsFolder, bugId + ".json"), JSON.stringify(bug));
+  sendSlackMessage(description, "bugs").catch(error);
 }
 
 export async function getBugs(): Promise<Bug[]> {
