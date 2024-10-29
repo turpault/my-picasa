@@ -21,7 +21,7 @@ import {
   transform,
 } from "../imageOperations/sharp-processor";
 import { getProject } from "../rpc/albumTypes/projects";
-import { ProjectOutputFolder, imagesRoot } from "../utils/constants";
+import { ProjectOutAlbumName, imagesRoot } from "../utils/constants";
 import { safeWriteFile } from "../utils/serverUtils";
 
 export async function makeMosaic(
@@ -79,7 +79,8 @@ export async function generateMosaicFile(
   width: number,
 ): Promise<AlbumEntry> {
   const res = await makeMosaic(entry, width);
-  const targetFolder = join(imagesRoot, ProjectOutputFolder);
+  const albumName = ProjectOutAlbumName();
+  const targetFolder = join(imagesRoot, albumName);
   await mkdir(targetFolder, { recursive: true });
   const targetFile =
     namify(
@@ -90,8 +91,8 @@ export async function generateMosaicFile(
   await safeWriteFile(join(targetFolder, targetFile), res.data);
 
   const album: Album = {
-    name: basename(ProjectOutputFolder),
-    key: keyFromID(ProjectOutputFolder, AlbumKind.FOLDER),
+    name: basename(albumName),
+    key: keyFromID(albumName, AlbumKind.FOLDER),
     kind: AlbumKind.FOLDER,
   };
 

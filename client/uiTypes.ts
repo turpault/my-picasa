@@ -1,8 +1,16 @@
+import { META_PAGES } from "./components/metadata-viewer";
 import { _$ } from "./lib/dom";
 import { Emitter } from "./lib/event";
+import { State } from "./lib/state";
 import { PicasaFilter } from "./lib/utils";
 import { AlbumEntrySelectionManager } from "./selection/selection-manager";
-import { Album, AlbumEntry, AlbumWithData, Node } from "./types/types";
+import {
+  Album,
+  AlbumEntry,
+  AlbumWithData,
+  Node,
+  UndoStep,
+} from "./types/types";
 
 export type PanZoomEvent = {
   pan: { x: number; y: number };
@@ -60,10 +68,26 @@ export type AppEvent = {
     selection: AlbumEntry[];
   };
   // Well-known events sourced from tabs
-  edit: { active: boolean };
-  show: { initialList: AlbumEntry[]; initialIndex: number };
+  /**
+   * Edit a single existing albumEntry
+   */
+  edit: { entry: AlbumEntry | null };
+  /**
+   * Close the current tab and return to the browser
+   */
+  returnToBrowser: {};
+
+  /**
+   * Create a new mosaic, and display it
+   */
   mosaic: { initialList: AlbumEntry[]; initialIndex: number };
+  /**
+   * Create a new slideshow, and display it
+   */
   slideshow: { initialList: AlbumEntry[]; initialIndex: number };
+  /**
+   * Create a new gallery, and display it
+   */
   gallery: { initialList: AlbumEntry[]; initialIndex: number };
 };
 
@@ -97,6 +121,9 @@ export type AlbumListEvent = {
   nodeChanged: {
     node: Node;
   };
+  nodeCollapsed: {
+    node: Node;
+  };
   reset: {};
 };
 
@@ -112,3 +139,12 @@ export type TabContext = {
   selectionManager: AlbumEntrySelectionManager;
   kind: "Browser" | "Editor" | "Mosaic" | "Gallery" | "Error" | "Slideshow";
 };
+
+export type ApplicationSharedStateDef = {
+  activeMetaPage: META_PAGES;
+  browserSelectionManager: AlbumEntrySelectionManager;
+  activeSelectionManager: AlbumEntrySelectionManager;
+  undo: UndoStep[];
+  activeTab: { tab: _$; win: _$; context: TabContext };
+};
+export type ApplicationState = State<ApplicationSharedStateDef>;

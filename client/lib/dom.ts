@@ -3,6 +3,7 @@ import {
   cssSplitValue,
   idFromAlbumEntry,
 } from "../../shared/lib/utils";
+import { t } from "../components/strings";
 import { Album, AlbumEntry, AlbumKind } from "../types/types";
 import { State, StateDef } from "./state";
 
@@ -53,24 +54,41 @@ export class _$<T extends HTMLElement = HTMLElement> {
       return this.get().id;
     }
   }
+  onWithOff<K extends keyof HTMLElementEventMap>(
+    type: K,
+    listener: (this: _$, ev: HTMLElementEventMap[K]) => any,
+    options?: boolean | AddEventListenerOptions,
+  ): Function {
+    this.on(type, listener, options);
+    return () => {
+      this.off(type, listener);
+    };
+  }
   on<K extends keyof HTMLElementEventMap>(
     type: K,
     listener: (this: _$, ev: HTMLElementEventMap[K]) => any,
     options?: boolean | AddEventListenerOptions,
-  ): _$ {
-    this.get().addEventListener(
-      type,
-      (...args) => {
-        listener.call(this, ...args);
-      },
-      options,
-    );
+  ): _$<T>;
+  on(
+    type: string,
+    listener: (this: _$, ev: Event) => any,
+    options?: boolean | AddEventListenerOptions,
+  ): _$<T>;
+  on<K extends keyof HTMLElementEventMap>(
+    type: K | string,
+    listener: (this: _$, ev: HTMLElementEventMap[K]) => any,
+    options?: boolean | AddEventListenerOptions,
+  ): _$<T> {
+    const fct = (event: Event) => {
+      return (listener as EventListener).call(this, event);
+    };
+    this.get().addEventListener(type, fct, options);
     return this;
   }
   off<K extends keyof HTMLElementEventMap>(
     type: K,
     listener: (this: _$, ev: HTMLElementEventMap[K]) => any,
-  ): _$ {
+  ): _$<T> {
     this.get().removeEventListener(type, (...args) => {
       listener.call(this, ...args);
     });
@@ -331,6 +349,10 @@ export class _$<T extends HTMLElement = HTMLElement> {
   }
   get height(): number {
     return this.get().clientHeight;
+  }
+  is(to: _$ | HTMLElement) {
+    if (to instanceof _$) return this.get() === to.get();
+    return this.get() === to;
   }
 
   centerOnLoad(): _$<T> {

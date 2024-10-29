@@ -15,6 +15,13 @@ Napi::Array histogram(const Napi::CallbackInfo &info)
     vals[pixels[pix+1]][1]++;
     vals[pixels[pix+2]][2]++;
   }
+  // Convert to log scale
+  for (int i = 0; i < 256; i++)
+  {
+    vals[i][0] = log10(vals[i][0] + 1);
+    vals[i][1] = log10(vals[i][1] + 1);
+    vals[i][2] = log10(vals[i][2] + 1);
+  }
   Napi::Array resultR = Napi::Array::New(info.Env(), 256);
   Napi::Array resultG = Napi::Array::New(info.Env(), 256);
   Napi::Array resultB = Napi::Array::New(info.Env(), 256);

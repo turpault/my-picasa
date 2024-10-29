@@ -1,9 +1,4 @@
-import {
-  PicasaFilter,
-  RectArea,
-  decodeRect,
-  encodeRect,
-} from "../../shared/lib/utils";
+import { RectArea, decodeRect, encodeRect } from "../../shared/lib/utils";
 import { ImageController } from "../components/image-controller";
 import { t } from "../components/strings";
 import { ToolEditor } from "../components/tool-editor";
@@ -21,7 +16,7 @@ class CropTool extends ActivableTool {
   constructor(
     private container: _$,
     controller: ImageController,
-    private toolEditor: ToolEditor
+    private toolEditor: ToolEditor,
   ) {
     super(t("Crop"), "crop64", controller);
   }
@@ -49,7 +44,7 @@ class CropTool extends ActivableTool {
       this.container,
       this.toolEditor,
       this.controller,
-      state
+      state,
     );
     await this.controller.enableZoom(true);
 
@@ -58,7 +53,7 @@ class CropTool extends ActivableTool {
       this.controller.addOperation(operation);
       return true;
     } else if (ok === null) {
-      // Trash, do nothing 
+      // Trash, do nothing
     } else if (ok === false) {
       // undo
       if (!isNew) {
@@ -82,10 +77,10 @@ export function setupCrop(
   container: _$,
   imageController: ImageController,
   toolRegistrar: ToolRegistrar,
-  toolEditor: ToolEditor
+  toolEditor: ToolEditor,
 ) {
   toolRegistrar.registerTool(
     PAGES.WRENCH,
-    new CropTool(container, imageController, toolEditor)
+    new CropTool(container, imageController, toolEditor),
   );
 }

@@ -1,6 +1,10 @@
 import { State } from "../../lib/state";
 
 export class PicasaInput extends HTMLInputElement {
+  constructor() {
+    super();
+    debugger;
+  }
   // connect component
   connectedCallback() {
     this.classList.add("picasa-input");
@@ -9,7 +13,7 @@ export class PicasaInput extends HTMLInputElement {
 
   bind<K>(state: State<K>, key: keyof K) {
     this.addEventListener("input", (ev) => {
-      state.setValue(key, this.value);
+      state.setValue(key, this.value as any); // FIXME any
     });
     state.events.on(key, (ev) => {
       this.value = ev as any;

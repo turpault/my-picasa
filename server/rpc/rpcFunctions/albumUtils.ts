@@ -210,7 +210,7 @@ export async function media(
     await assignRanks(entries);
     return { entries };
   } else if (album.kind === AlbumKind.PROJECT) {
-    const entries = await getProjects(album.key as ProjectType);
+    const entries = await getProjects(idFromKey(album.key).id as ProjectType);
     return { entries };
   } else throw new Error(`Unknown kind ${album.kind}`);
 }

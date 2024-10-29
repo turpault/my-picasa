@@ -5,7 +5,7 @@ import { getService } from "../rpc/connect";
 import { AlbumEntrySelectionManager } from "./selection-manager";
 
 export function makeDropDownContextMenu(
-  selectionManager: AlbumEntrySelectionManager
+  selectionManager: AlbumEntrySelectionManager,
 ) {
   document.addEventListener("contextmenu", (e) => {
     e.preventDefault();
@@ -16,19 +16,20 @@ export function makeDropDownContextMenu(
         $(
           `<div>Move ${
             selectionManager.selected().length
-          } photos in a new Album...`
-        ).on("click", () => moveSelectionInNewAlbum(selectionManager))
+          } photos in a new Album...`,
+        ).on("click", () => moveSelectionInNewAlbum(selectionManager)),
       );
       menu.append(
-        $(
-          `<div>Duplicate ${selectionManager.selected().length} photos`
-        ).on("click", () => duplicateSelection(selectionManager))
+        $(`<div>Duplicate ${selectionManager.selected().length} photos`).on(
+          "click",
+          () => duplicateSelection(selectionManager),
+        ),
       );
       menu.append(
         $(`<div>Delete ${selectionManager.selected().length} photos`).on(
           "click",
-          deleteSelection
-        )
+          deleteSelection,
+        ),
       );
     }
     menu.append($(`<div>Select album`).on("click", selectAlbum));
@@ -42,11 +43,11 @@ export function makeDropDownContextMenu(
 }
 
 async function moveSelectionInNewAlbum(
-  selectionManager: AlbumEntrySelectionManager
+  selectionManager: AlbumEntrySelectionManager,
 ) {
   const newAlbum = await question(
     "New album name",
-    "Please type the new album name"
+    "Please type the new album name",
   );
   if (newAlbum) {
     const s = await getService();
@@ -64,7 +65,7 @@ async function moveSelectionInNewAlbum(
 }
 
 async function duplicateSelection(
-  selectionManager: AlbumEntrySelectionManager
+  selectionManager: AlbumEntrySelectionManager,
 ) {
   const s = await getService();
   s.createJob(JOBNAMES.DUPLICATE, {

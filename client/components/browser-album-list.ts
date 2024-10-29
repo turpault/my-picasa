@@ -39,7 +39,17 @@ export async function makeAlbumList(
     return $(`#${node.name}|${id}`);
   }
 
+  function renderNodeCollapsed(node: Node) {
+    if (!node) debugger;
+    const element = getElementFromNode(node);
+    element.addRemoveClass("folder-collapsed", node.collapsed);
+    node.childs.forEach((child) => {
+      renderNodeCollapsed(child);
+    });
+  }
+
   function renderNode(node: Node, indent: number = 0) {
+    if (!node) debugger;
     const e = $(
       `
       <div class="folder-row ${node.collapsed ? "folder-collapsed" : ""}">
@@ -122,6 +132,10 @@ export async function makeAlbumList(
         if (!e.exists()) return;
         const n = renderAlbum(album);
         e.replaceWith(n);
+      }),
+      events.on("nodeCollapsed", (event) => {
+        const node = event.node;
+        renderNodeCollapsed(node);
       }),
       events.on("nodeChanged", (event) => {
         const node = event.node;

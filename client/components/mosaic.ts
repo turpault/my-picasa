@@ -29,7 +29,7 @@ import {
   AlbumEntrySelectionManager,
   SelectionManager,
 } from "../selection/selection-manager";
-import { AppEventSource } from "../uiTypes";
+import { AppEventSource, ApplicationState } from "../uiTypes";
 import {
   makeChoiceList,
   makeMultiselectImageList,
@@ -229,15 +229,15 @@ const FormatLabels: { [key in Format]: string } = {
   [Format.F6x4]: "6 / 4",
 };
 const LayoutLabels: { [key in Layout]: string } = {
-  [Layout.MOSAIC]: t("Mosaic"),
-  [Layout.SQUARE]: t("Square"),
+  [Layout.MOSAIC]: "Mosaic",
+  [Layout.SQUARE]: "Square",
 };
 
 const GutterLabels: { [key in GutterSizes]: string } = {
-  [GutterSizes.None]: t("None"),
-  [GutterSizes.Small]: t("Small"),
-  [GutterSizes.Medium]: t("Medium"),
-  [GutterSizes.Large]: t("Large"),
+  [GutterSizes.None]: "None",
+  [GutterSizes.Small]: "Small",
+  [GutterSizes.Medium]: "Medium",
+  [GutterSizes.Large]: "Large",
 };
 
 async function installHandlers(
@@ -297,6 +297,7 @@ async function installHandlers(
   });
   return eventHandlers;
 }
+
 export async function newMosaicProject(
   name: string,
   images: AlbumEntryWithMetadata[],
@@ -320,9 +321,7 @@ export async function newMosaicProject(
   return project;
 }
 
-export async function loadMosaicProject(
-  entry: AlbumEntry,
-): Promise<MosaicProject> {
+async function loadMosaicProject(entry: AlbumEntry): Promise<MosaicProject> {
   const s = await getService();
   const project = (await s.getProject(entry)) as MosaicProject;
   if (project.album.name !== ProjectType.MOSAIC) {
@@ -336,10 +335,7 @@ export async function loadMosaicProject(
   return project;
 }
 
-export async function savemosaicProject(
-  project: MosaicProject,
-  changeType: string,
-) {
+async function savemosaicProject(project: MosaicProject, changeType: string) {
   const s = await getService();
   await s.writeProject(project, changeType);
 }
@@ -366,6 +362,7 @@ function sanitizeTree(root: Cell) {
 export async function makeMosaicPage(
   appEvents: AppEventSource,
   entry: AlbumEntry,
+  state: ApplicationState,
 ) {
   const e = $(editHTML);
   const mosaic = $(".mosaic-grid", e);
@@ -374,12 +371,6 @@ export async function makeMosaicPage(
   let browserSelection: AlbumEntry[] = [];
 
   const project = await loadMosaicProject(entry);
-
-  const s = await getService();
-  s.on(
-    "projectChanged",
-    async (e: { payload: { project: Mosaic; changeType: string } }) => {},
-  );
 
   const selectionManager = new SelectionManager<AlbumEntry>(
     project.payload.images,
@@ -432,11 +423,6 @@ export async function makeMosaicPage(
     project.payload.orientation,
     "dropdown",
   );
-  orientationDropdown.emitter.on("select", ({ key }) => {
-    project.payload.orientation = key;
-    savemosaicProject(project, "updateOrientation");
-    redraw(true);
-  });
   parameters.append(orientationDropdown.element);
 
   const sizeDropdown = makeChoiceList(
@@ -463,11 +449,6 @@ export async function makeMosaicPage(
     project.payload.gutter,
     "dropdown",
   );
-  gutterDropdown.emitter.on("select", ({ key }) => {
-    project.payload.gutter = key;
-    redraw(false);
-    savemosaicProject(project, "updateGutter");
-  });
   parameters.append(gutterDropdown.element);
 
   const layoutDropdown = makeChoiceList(
@@ -479,11 +460,6 @@ export async function makeMosaicPage(
     project.payload.layout,
     "dropdown",
   );
-  layoutDropdown.emitter.on("select", ({ key }) => {
-    project.payload.layout = key;
-    savemosaicProject(project, "updateLayout");
-    redraw(true);
-  });
   parameters.append(layoutDropdown.element);
 
   const formatDropdown = makeChoiceList(
@@ -495,11 +471,6 @@ export async function makeMosaicPage(
     project.payload.format,
     "dropdown",
   );
-  formatDropdown.emitter.on("select", ({ key }) => {
-    project.payload.format = key;
-    savemosaicProject(project, "updateFormat");
-    redraw(true);
-  });
   parameters.append(formatDropdown.element);
 
   const imageControl = makeMultiselectImageList(
@@ -511,43 +482,64 @@ export async function makeMosaicPage(
   );
 
   $(".mosaic-images", e).empty().append(imageControl);
-  $(".mosaic-make", e).on("click", async () => {
-    const s = await getService();
-    const jobId = await s.createJob(JOBNAMES.BUILD_PROJECT, {
-      source: [project],
-      argument: {},
-    });
-    const results = await s.waitJob(jobId);
-
-    if (results.status === "finished") {
-      const q = await message(t("Mosaic complete"), [t("Show"), t("Later")]);
-      if (q === t("Show")) {
-        selectionManager.setSelection([results.out[0]]);
-        appEvents.emit("edit", { active: true });
-      }
-    }
-  });
-  $(".mosaic-shuffle", e).on("click", async () => {
-    project.payload.seed = Math.random();
-    savemosaicProject(project, "updateSeed");
-    redraw(true);
-  });
-  $(".mosaic-import-selection", e).on("click", async () => {
-    const newImages = await albumEntriesWithMetadata(browserSelection);
-    project.payload.pool.push(...newImages);
-    const imageControl = makeMultiselectImageList(
-      t("Images"),
-      project.payload.pool,
-      selectionManager,
-      "th-small",
-      "mosaic-image-control",
-    );
-
-    $(".mosaic-images", e).empty().append(imageControl);
-    savemosaicProject(project, "updatePool");
-  });
 
   const off = [
+    orientationDropdown.emitter.on("select", ({ key }) => {
+      project.payload.orientation = key;
+      savemosaicProject(project, "updateOrientation");
+      redraw(true);
+    }),
+    gutterDropdown.emitter.on("select", ({ key }) => {
+      project.payload.gutter = key;
+      redraw(false);
+      savemosaicProject(project, "updateGutter");
+    }),
+    formatDropdown.emitter.on("select", ({ key }) => {
+      project.payload.format = key;
+      savemosaicProject(project, "updateFormat");
+      redraw(true);
+    }),
+    layoutDropdown.emitter.on("select", ({ key }) => {
+      project.payload.layout = key;
+      savemosaicProject(project, "updateLayout");
+      redraw(true);
+    }),
+
+    $(".mosaic-make", e).onWithOff("click", async () => {
+      const s = await getService();
+      const jobId = await s.createJob(JOBNAMES.BUILD_PROJECT, {
+        source: [project],
+        argument: {},
+      });
+      const results = await s.waitJob(jobId);
+
+      if (results.status === "finished") {
+        const q = await message(t("Mosaic complete"), ["Show", "Later"]);
+        if (q === "Show") {
+          selectionManager.setSelection([results.out[0]]);
+          appEvents.emit("edit", { entry: results.out[0] });
+        }
+      }
+    }),
+    $(".mosaic-shuffle", e).onWithOff("click", async () => {
+      project.payload.seed = Math.random();
+      savemosaicProject(project, "updateSeed");
+      redraw(true);
+    }),
+    $(".mosaic-import-selection", e).onWithOff("click", async () => {
+      const newImages = await albumEntriesWithMetadata(browserSelection);
+      project.payload.pool.push(...newImages);
+      const imageControl = makeMultiselectImageList(
+        t("Images"),
+        project.payload.pool,
+        selectionManager,
+        "th-small",
+        "mosaic-image-control",
+      );
+
+      $(".mosaic-images", e).empty().append(imageControl);
+      savemosaicProject(project, "updatePool");
+    }),
     ...(await installHandlers(e, project.payload, projectUpdated)),
     appEvents.on("tabDeleted", ({ win }) => {
       if (win.get() === e.get()) {

@@ -96,6 +96,7 @@ export class PicisaClient {
     });
   }
   async media(album: object, filter: string):Promise<any> {
+    if(!album) debugger;
     return this.emit('PicisaClient:media', {
       'args': { album, filter } 
     });
@@ -268,11 +269,6 @@ export class PicisaClient {
   async createProject(type: string, name: string):Promise<any> {
     return this.emit('PicisaClient:createProject', {
       'args': { type, name } 
-    });
-  }
-  async buildMosaic(entry: object, width: number, height: number):Promise<any> {
-    return this.emit('PicisaClient:buildMosaic', {
-      'args': { entry, width, height } 
     });
   }
   async histogram(context: string):Promise<any> {

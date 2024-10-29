@@ -5,12 +5,11 @@ import { $ } from "../lib/dom";
 import { State } from "../lib/state";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
-import { AppEventSource } from "../uiTypes";
+import { AppEventSource, ApplicationSharedStateDef, ApplicationState } from "../uiTypes";
 import { makeBrowserNavigator } from "./browser-navigator";
-import { makeButtons } from "./browser-photo-list-buttons";
-import { makeEditorPage } from "./editor-page";
+import { makeButtons } from "./bottom-selection-buttons";
 import { Button, message } from "./question";
-import { SelectionStateDef, makeMetadata } from "./selection-meta";
+import { makeMetadataViewer } from "./metadata-viewer";
 import { t } from "./strings";
 
 const html = `<div class="browser fill" >
@@ -24,6 +23,7 @@ const tabHtml = `<div class="tab-button browser-tab">
 export async function makeBrowser(
   emitter: AppEventSource,
   albumDataSource: AlbumIndexedDataSource,
+  state: ApplicationState
 ) {
   const win = $(html);
   const selectionManager = new SelectionManager<AlbumEntry>(
@@ -37,7 +37,6 @@ export async function makeBrowser(
     });
   });
 
-  const state = new State<SelectionStateDef>();
   win.append(
     await makeBrowserNavigator(
       emitter,
@@ -46,10 +45,6 @@ export async function makeBrowser(
       state,
     ),
   );
-  win.append(await makeEditorPage(emitter, selectionManager, state));
-  win.append(await makeButtons(emitter, selectionManager, state));
-  const metadata = makeMetadata(selectionManager, state);
-  win.append(metadata);
 
   const tab = $(tabHtml);
 

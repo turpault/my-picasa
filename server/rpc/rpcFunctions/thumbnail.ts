@@ -166,39 +166,26 @@ async function makeVideoThumbnail(
   size: ThumbnailSize = "th-medium",
   animated: boolean,
 ): Promise<undefined | Buffer> {
-  const unlock = await lock(
-    "makeVideoThumbnail: " +
-      entry.album.key +
-      " " +
-      entry.name +
-      " " +
-      size +
-      (animated ? " animated" : ""),
-  );
-  try {
-    const picasa = await readAlbumIni(entry.album);
-    const transform = picasa[entry.name].filters || "";
-    const rotate = picasa[entry.name].rotate || "";
-    const data = await createGif(entry, ThumbnailSizes[size], animated, {
-      rotate: decodeRotate(rotate),
-      transform,
-    });
-    const imgSize = dimensionsFromFileBuffer(data);
-    await writeThumbnailToCache(entry, size, data, animated);
+  const picasa = await readAlbumIni(entry.album);
+  const transform = picasa[entry.name].filters || "";
+  const rotate = picasa[entry.name].rotate || "";
+  const data = await createGif(entry, ThumbnailSizes[size], animated, {
+    rotate: decodeRotate(rotate),
+    transform,
+  });
+  const imgSize = dimensionsFromFileBuffer(data);
+  await writeThumbnailToCache(entry, size, data, animated);
 
-    await Promise.all([
-      updateCacheData(
-        entry,
-        transform,
-        size,
-        `${imgSize.width!}x${imgSize.height!}`,
-        rotate,
-      ),
-    ]);
-    return data;
-  } finally {
-    unlock();
-  }
+  await Promise.all([
+    updateCacheData(
+      entry,
+      transform,
+      size,
+      `${imgSize.width!}x${imgSize.height!}`,
+      rotate,
+    ),
+  ]);
+  return data;
 }
 
 async function makeVideoThumbnailIfNeeded(
@@ -207,12 +194,22 @@ async function makeVideoThumbnailIfNeeded(
   animated: boolean,
 ) {
   inc("thumbnail");
+  const unlock = await lock(
+    "makeVideoThumbnailIfNeeded: " +
+      entry.album.key +
+      " " +
+      entry.name +
+      " " +
+      size +
+      (animated ? " animated" : ""),
+  );
   try {
     if (await shouldMakeThumbnail(entry, size, animated)) {
       await makeVideoThumbnail(entry, size, animated);
     }
   } finally {
     dec("thumbnail");
+    unlock();
   }
 }
 

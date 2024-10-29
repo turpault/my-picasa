@@ -3,32 +3,32 @@ import { dateOfAlbumFromName, debounced, range } from "../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
+  AlbumEntryMetaData,
+  AlbumEntryPicasa,
   AlbumWithData,
   JOBNAMES,
 } from "../../shared/types/types";
 import { AlbumIndexedDataSource } from "../album-data-source";
-import { getAlbumInfo } from "../folder-utils";
+import { getAlbumContents } from "../folder-utils";
 import {
   $,
   _$,
   albumFromElement,
   elementFromAlbum,
+  elementFromEntry,
   setIdForAlbum,
 } from "../lib/dom";
 import { toggleStar } from "../lib/handles";
-import { update } from "../lib/idb-keyval";
-import { getSettingsEmitter } from "../lib/settings";
+import { getSettings, getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
 import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { AlbumListEventSource, AppEventSource } from "../uiTypes";
 import { Button, message, notImplemented } from "./question";
 import { t } from "./strings";
 import {
+  buildThumbnail,
   entryAboveBelow,
   entryLeftRight,
-  makeNThumbnails,
-  makeThumbnailManager,
-  onDrop,
   selectThumbnailsInRect,
   thumbnailData,
 } from "./thumbnail";
@@ -41,7 +41,7 @@ const html = `<div class="w3-theme images-area">
     </div>
     <div class="working-animation">
       <img src="resources/images/spinning-gear.gif" />
-    <div>
+    </div>
   </div>
 <div style="display: none" class="dragregion"></div>
 </div>
@@ -78,21 +78,14 @@ export async function makePhotoList(
 
   let running = false;
   const events = dataSource.emitter;
-  let editing = false;
   // UI State events
   const off = [
     appEvents.on("tabChanged", ({ win }) => {
       tabIsActive = $(container).isParent(win);
     }),
-    appEvents.on("edit", (event) => {
-      if (event.active) {
-        editing = true;
-      } else {
-        editing = false;
-      }
-    }),
+    appEvents.on("edit", (event) => {}),
     appEvents.on("keyDown", async ({ code, win, meta, shift }) => {
-      if (!tabIsActive || editing) return;
+      if (!tabIsActive) return;
       switch (code) {
         case "Space":
           if (selectionManager.selected().length > 0) {
@@ -147,7 +140,7 @@ export async function makePhotoList(
     }),
     events.on("thumbnailDblClicked", async (event) => {
       selectionManager.select(event.entry);
-      appEvents.emit("edit", { active: true });
+      appEvents.emit("edit", { entry: event.entry });
     }),
     events.on("thumbnailClicked", (e) => {
       let from = selectionManager.last();
@@ -172,8 +165,8 @@ export async function makePhotoList(
 
           for (const idx of range(fromAlbumIndex, toAlbumIndex)) {
             const album = dataSource.albumAtIndex(idx);
-            getAlbumInfo(album, true).then((data) => {
-              const sels = data.assets;
+            getAlbumContents(album, true).then((data) => {
+              const sels = data.entries;
               if (idx === fromAlbumIndex) {
                 sels.splice(
                   0,
@@ -194,8 +187,8 @@ export async function makePhotoList(
             });
           }
         } else {
-          getAlbumInfo(from.album, true).then((data) => {
-            const sels = data.assets;
+          getAlbumContents(from.album, true).then((data) => {
+            const sels = data.entries;
             const start = sels.findIndex((e) => e.name === from!.name);
             const end = sels.findIndex((e) => e.name === to.name);
             sels.splice(Math.max(start, end) + 1, sels.length);
@@ -680,10 +673,10 @@ export async function makePhotoList(
     e: _$ | undefined,
     events: AlbumListEventSource,
   ): Promise<{ element: _$ | undefined; hasChanged: boolean }> {
-    const info = await getAlbumInfo(album, true /* use settings */);
+    const info = await getAlbumContents(album, true /* use settings */);
     // If the album is filtered and has no assets, we don't display it
     // unless we are in the process of editing it
-    if (!e && info.filtered && info.assets.length === 0) {
+    if (!e && info.filtered && info.entries.length === 0) {
       return { element: undefined, hasChanged: false };
     }
     if (!e) {
@@ -707,13 +700,13 @@ export async function makePhotoList(
 
     const countChanged = makeNThumbnails(
       photosElement,
-      info.assets.length,
+      info.entries.length,
       events,
       selectionManager,
       thumbElementPrefix,
     );
 
-    const keys = info.assets.map((p) => p.name).reverse();
+    const keys = info.entries.map((p) => p.name).reverse();
     let idx = keys.length;
     const p: Promise<void>[] = [];
     const children = photosElement.children();
@@ -865,9 +858,10 @@ export async function makePhotoList(
       photosContainer.on("dragover", (ev) => {
         ev.preventDefault();
       });
+      // Handle the case the drop is on the album itself
       photosContainer.on("drop", (ev) => {
         const album = albumFromElement(e, elementPrefix)!;
-        onDrop(ev, album, selectionManager, thumbElementPrefix);
+        handleDropOnEntry(undefined, album, selectionManager);
       });
 
       photosContainer.on("dragenter", (ev) => {
@@ -887,10 +881,10 @@ export async function makePhotoList(
         const album = albumFromElement(e, elementPrefix)!;
         if (album) {
           ev.preventDefault();
-          const info = await getAlbumInfo(album, true /* use settings */);
+          const info = await getAlbumContents(album, true /* use settings */);
           const multi = ev.metaKey;
           if (!multi) selectionManager.clear();
-          for (const e of info.assets) selectionManager.select(e);
+          selectionManager.selectMultiple(info.entries);
         }
       });
       title.on("dblclick", async (ev: any) => {
@@ -1019,7 +1013,126 @@ export async function makePhotoList(
       initialList = assets;
     }
 
-    appEvents.emit("show", { initialIndex, initialList });
+    appEvents.emit("gallery", { initialIndex, initialList });
   }
   return photoList;
+}
+
+function makeNThumbnails(
+  domElement: _$,
+  count: number,
+  events: AlbumListEventSource,
+  selectionManager: AlbumEntrySelectionManager,
+  elementPrefix: string,
+): boolean {
+  const countChanged = domElement.get().children.length !== count;
+  while (domElement.get().children.length < count) {
+    const th = buildThumbnail(selectionManager, elementPrefix);
+    domElement.append(th);
+    th.on("entryClicked", (ev) => {
+      const { entry, modifiers } = (ev as CustomEvent).detail;
+      events.emit("thumbnailClicked", {
+        modifiers,
+        entry,
+      });
+    });
+    th.on("entryDblClicked", (ev) => {
+      const { entry } = (ev as CustomEvent).detail;
+      events.emit("thumbnailDblClicked", {
+        entry,
+      });
+    });
+
+    th.on("dropEntry", async (ev) => {
+      const entry = (ev as CustomEvent).detail.entry;
+      handleDropOnEntry(entry, entry.album, selectionManager);
+    });
+  }
+  /*for (const i of domElement.all(".img")) {
+    i.attr("src", "");
+    i.id("");
+  }
+  for (const i of domElement.all(".star")) {
+    i.css("display", "none");
+  }*/
+  let i = 0;
+  for (const e of domElement.children()) {
+    if (i++ < count) {
+      e.css("display", "");
+    } else {
+      e.id("");
+      e.css("display", "none");
+    }
+  }
+  return countChanged;
+}
+
+async function handleDropOnEntry(
+  entry: AlbumEntry | undefined,
+  album: Album,
+  selectionManager: AlbumEntrySelectionManager,
+) {
+  let rank = 0;
+  const s = await getService();
+  if (entry) {
+    const p = (await s.getPicasaEntry(entry)) as AlbumEntryMetaData;
+    if (p) {
+      rank = parseInt(p.rank || "0");
+    }
+  }
+
+  s.createJob(JOBNAMES.MOVE, {
+    source: selectionManager,
+    destination: {
+      album,
+      rank,
+    },
+  });
+  selectionManager.clear();
+}
+
+export async function makeThumbnailManager(
+  elementPrefix: string,
+  selectionManager: AlbumEntrySelectionManager,
+) {
+  const s = await getService();
+  s.on("albumEntryAspectChanged", async (e: { payload: AlbumEntryPicasa }) => {
+    // Is there a thumbnail with that data ?
+    const elem = elementFromEntry(e.payload, elementPrefix);
+    if (elem.exists()) {
+      thumbnailData(
+        elem,
+        e.payload,
+        e.payload.metadata,
+        selectionManager,
+        elementPrefix,
+      );
+    }
+  });
+
+  const root = document.documentElement;
+
+  getSettingsEmitter().on("changed", (event) => {
+    if (event.field === "iconSize") {
+      root.style.setProperty("--thumbnail-size", `${event.iconSize}px`);
+    }
+  });
+  const settings = getSettings();
+  root.style.setProperty("--thumbnail-size", `${settings.iconSize}px`);
+
+  selectionManager.events.on("changed", ({ added, removed }) => {
+    // Element might be not displayed
+    added.forEach((key) => {
+      try {
+        const e = elementFromEntry(key, elementPrefix);
+        if (e.exists()) e.addClass("selected");
+      } catch (e) {}
+    });
+    removed.forEach((key) => {
+      try {
+        const e = elementFromEntry(key, elementPrefix);
+        if (e.exists()) e.removeClass("selected");
+      } catch (e) {}
+    });
+  });
 }

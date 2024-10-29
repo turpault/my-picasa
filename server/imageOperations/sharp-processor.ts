@@ -265,6 +265,7 @@ export function exifToSharpMeta(obj: { [key: string]: any }): any {
 #|             |                                     |                                | 0.333333,0.309942;            |
 #| dir_tint    |!MOUSE_X,!MOUSE_Y,!GRADIENT,!SHADOW  | directed gradient              | dir_tint=1,0.306743,0.401515, |
 #|             |                                     |                                | 0.250000,0.250000,ff5bfff3;   |
+#| Polaroid    |angle,color,text                     | polaroid effect                | Polaroid=1,ff0000,Jello;      |
 #| rotate      | angle (increments of 90)            | rotation (clockwise)           | 1,3                           |  New
 #| mirror      |                                     | mirror                         | 1                             |  New
 #| flip        |                                     | flip                           | 1                             |  New
@@ -276,6 +277,10 @@ export function exifToSharpMeta(obj: { [key: string]: any }): any {
 #| solarize    | threshold                           | solarize filter                | solarize=1,0.500000;          | Personal
 #| heatmap     |                                     | heatmap filter                 | heatmap=1;                    | Personal
 #| convolute   | kernel                              | convolute filter               | convolute=1,name;             | Personal
+#| border      | percentage of image, color          | border                         | border=1,3,FFFFFF             | Personal
+#| rotateAngle | angle, color                        | rotate Image                   | rotateAngle=1,PI/3,FFFFFF     | Personal
+#| scale       | scaleFactor                         | rescale image                  | scale=1,0.5                   | Personal
+#| into        | width, height, color                | resize into specified dims     | into=1,1920, 1080,FFFFFF      | Personal
 
 # LEGEND:
 # ! = float between 0 and 1, precision:6
@@ -300,15 +305,30 @@ export async function transform(
           [0.2392, 0.4696, 0.0912],
         ]);
         break;
+      case "alpha":
+        {
+          j = j.ensureAlpha();
+        }
+        break;
       case "rotate":
         {
           let r: number;
           if (args[1] && (r = parseInt(args[1])) != 0) {
             if (r % 4 !== 0) {
-              await commit(context);
-              j = getContext(context);
+              j = await commit(context);
               j = j.rotate(-r * 90);
             }
+          }
+        }
+        break;
+      case "rotateAngle":
+        {
+          let r: number;
+          const angle = parseFloat(args[1]);
+          const color = args[2];
+          if (angle) {
+            j = await commit(context);
+            j = j.rotate(angle, { background: color });
           }
         }
         break;
@@ -347,12 +367,21 @@ export async function transform(
       case "bw":
         j = j.greyscale();
         break;
+      case "into":
+        {
+          const width = parseInt(args[1]);
+          const height = parseInt(args[2]);
+          const color = colorFromArg(args[3]);
+          if (width && height) {
+            j = j.resize(width, height, { fit: "contain", background: color });
+          }
+        }
+        break;
       case "fill":
         {
           const amount = parseFloat(args[1]);
           if (amount !== 0) {
-            await commit(context);
-            j = getContext(context);
+            j = await commit(context);
             //j = j.gamma(2.2, 1 + amount);
             j = j.modulate({ brightness: 1 + amount });
           }
@@ -374,6 +403,12 @@ export async function transform(
           : 2;
         j = j.sharpen({ sigma: amount });
         break;
+      case "scale": {
+        const amount = parseFloat(args[1]);
+        const meta = await j.metadata();
+        j = j.resize(Math.floor(meta.width! * amount), null);
+        break;
+      }
       case "solarize":
         {
           const threshold = parseFloat(args[1]);
@@ -390,6 +425,7 @@ export async function transform(
               },
             },
           ]);
+          j = await commit(context);
         }
 
         break;
@@ -408,9 +444,24 @@ export async function transform(
               },
             },
           ]);
+          j = await commit(context);
         }
 
         break;
+      case "border": {
+        j = await commit(context);
+        const r = await j.metadata();
+        const amount = Math.floor((r.width! * parseFloat(args[1])) / 100),
+          color = args[2] || "#000000";
+        j = j.extend({
+          top: amount,
+          bottom: amount,
+          left: amount,
+          right: amount,
+          background: color,
+        });
+        break;
+      }
       case "convolute":
         {
           const name = args[1];
@@ -750,8 +801,45 @@ export async function transform(
         break;
 
       case "Polaroid": {
-        await commit(context);
-        j = getContext(context);
+        j = await commit(context);
+
+        const angle = parseFloat(args[1]);
+        const col = colorFromArg(args[2]);
+        const text = decodeURIComponent(args[3] ?? "");
+        const metadata = await j.metadata();
+        const w = metadata.width!;
+        const h = metadata.height!;
+        const maxDim = Math.floor(Math.min(w, h) * 0.9);
+        j = j.resize(maxDim, maxDim, { fit: "cover" });
+        // border top is 1/10th of the height
+        const border = Math.floor(maxDim / 10);
+        j = j.extend({
+          top: border,
+          bottom: border * 4,
+          left: border,
+          right: border,
+          background: "#ffffff",
+        });
+        if (text) {
+          const fontSize = Math.max(
+            2,
+            Math.floor(maxDim / 20) -
+              (text.length > 30 ? ((text.length - 30) * maxDim) / 2500 : 0),
+          );
+          const txtSvg = `<svg height="${Math.floor(
+            maxDim / 3,
+          )}" width="${maxDim}"> <text x="50%" y="50%" text-anchor="middle" font-size="${fontSize}" fill="#000000">${safeHtml(
+            text,
+          )}</text> </svg>`;
+          j = await commit(context);
+          j = j.composite([{ input: Buffer.from(txtSvg), gravity: "south" }]);
+          j = await commit(context);
+        }
+        if (angle !== 0) j = j.rotate(angle, { background: col });
+        break;
+      }
+      case "Polaroid-old": {
+        j = await commit(context);
 
         const angle = parseFloat(args[1]);
         let c = j.clone();
@@ -836,8 +924,7 @@ export async function transform(
         break;
       }
       case "label": {
-        await commit(context);
-        j = getContext(context);
+        j = await commit(context);
         const metadata = await j.metadata();
         const w = metadata.width!;
         const text = decodeURIComponent(args[1]);
@@ -864,7 +951,7 @@ export async function transform(
         ];*/
 
         const fontSize = Math.floor((size * w) / 1000);
-        const svgHeight = fontSize * 1.6;
+        const svgHeight = Math.floor(fontSize * 1.6);
         const txtSvg = `<svg width="${w}" height="${svgHeight}"> 
         <rect x="0" cy="0" width="${w}" height="${fontSize}" fill="${bgcolor}" style="fill-opacity: .35;" />
         <text  x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}" fill="${color}">${safeHtml(
@@ -886,6 +973,7 @@ export async function transform(
           failOnError: false,
         });*/
         j = j.composite(layers);
+        j = await commit(context);
         break;
       }
 
@@ -946,6 +1034,7 @@ export async function blit(
     .raw()
     .toBuffer({ resolveWithObject: true });
   const pixelSize = pixels.info.channels as 3 | 4;
+  const targetSize = await targetContext.metadata();
   targetContext = targetContext.composite([
     {
       input: pixels.data,
@@ -1068,10 +1157,11 @@ export async function execute(
   }
 }
 
-export async function commit(context: string): Promise<void> {
+export async function commit(context: string): Promise<Sharp> {
   let j = getContext(context);
   j = await branchContext(j);
   setContext(context, j);
+  return j;
 }
 
 async function branchContext(j: sharp.Sharp): Promise<sharp.Sharp> {

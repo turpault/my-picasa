@@ -189,6 +189,14 @@ const stringTable: { [key: string]: any } = {
   "Build Project": { fr: "Construire le projet" },
   "Slideshow complete": { fr: "Animation terminée" },
   "Slideshow Name": { fr: "Nom de l'animation" },
+  Angle: { fr: "Angle" },
+  "Background Colour": { fr: "Couleur de fond" },
+  Border: { fr: "Bordure" },
+  "Through the Years": { fr: "A travers les années" },
+  Pile: { fr: "Pile" },
+  " through the years": { fr: " à travers les années" },
+  Show: { fr: "Voir" },
+  Later: { fr: "Plus tard" },
 };
 const lang = window.navigator.language.split("-")[0];
 let str = new Set<string>();

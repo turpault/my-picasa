@@ -5,7 +5,7 @@ import { PicasaInput } from "./input";
 import { PicasaMultiButton } from "./multibutton";
 
 export type FormEntry = {
-  type: "choice" | "button" | "text" | "separator";
+  type: "choice" | "button" | "text" | "separator" | "color";
   label: string;
   values: string[] | string | number[];
   id: string;
@@ -22,8 +22,7 @@ export function MakeForm<T extends StateDef>(form: Form, state: State<T>): _$ {
     const entryDiv = $(`<div class="form-entry"></div>`);
     if (entry.type === "text") {
       entryDiv.append(`<label>${entry.label}</label>`);
-      const input = $<PicasaInput>("input").attr({
-        is: "picasa-input",
+      const input = $<PicasaInput>(`<input is="picasa-input">`).attr({
         type: "text",
         name: entry.id,
       });
@@ -46,12 +45,23 @@ export function MakeForm<T extends StateDef>(form: Form, state: State<T>): _$ {
         })
         .text(t(entry.label));
       button.on("click", () => {
-        state.setValue(entry.id, true);
-        state.setValue(entry.id, false);
+        state.setValue(entry.id, true as any);
+        state.setValue(entry.id, false as any);
       });
       entryDiv.append(button);
     } else if (entry.type === "separator") {
-      entryDiv.appendAnd("div").addClass("form-separator");
+      entryDiv
+        .appendAnd("div")
+        .addClass("form-separator")
+        .text(entry.label || "");
+    } else if (entry.type === "color") {
+      entryDiv.append(`<label>${entry.label}</label>`);
+      const input = $<PicasaInput>(`<input is="picasa-input">`).attr({
+        type: "color",
+        name: entry.id,
+      });
+      input.get().bind(state, entry.id);
+      entryDiv.append(input);
     }
 
     e.append(entryDiv);

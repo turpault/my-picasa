@@ -1,30 +1,27 @@
-import { Rectangle, Point } from "ts-2d-geometry";
+import { Point, Rectangle } from "ts-2d-geometry";
 import {
   fromBase64,
   isVideo,
   rectanglesIntersect,
 } from "../../shared/lib/utils";
 import {
-  Album,
   AlbumEntry,
+  AlbumEntryMetaData,
   AlbumEntryPicasa,
   AlbumKind,
-  JOBNAMES,
-  AlbumEntryMetaData,
 } from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
 import {
   $,
+  _$,
   albumEntryFromElement,
   albumEntryFromElementOrChild,
   elementFromEntry,
   setIdForEntry,
-  _$,
 } from "../lib/dom";
 import { getSettings, getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
 import { AlbumEntrySelectionManager } from "../selection/selection-manager";
-import { AlbumListEventSource } from "../uiTypes";
 
 let lastDraggedOver: _$ | undefined;
 let lastSources: _$[] = [];
@@ -62,11 +59,10 @@ async function onDrop(
 }
 
 export function buildThumbnail(
-  events: AlbumListEventSource,
   selectionManager: AlbumEntrySelectionManager,
   elementPrefix: string,
   extraControls?: _$,
-): HTMLElement {
+): _$ {
   const e = $(
     `<div draggable="true" class="thumbnail thumbnail-size">
       <img class="th browser-thumbnail" loading="lazy"> 
@@ -148,13 +144,17 @@ export function buildThumbnail(
       ev.stopPropagation();
 
       if (!entry.album.key) return;
-      events.emit("thumbnailClicked", {
-        modifiers: {
-          range: ev.shiftKey,
-          multi: ev.metaKey,
-        },
-        entry,
-      });
+      e.get().dispatchEvent(
+        new CustomEvent("entryClicked", {
+          detail: {
+            entry,
+            modifiers: {
+              range: ev.shiftKey,
+              multi: ev.metaKey,
+            },
+          },
+        }),
+      );
     }
   });
   e.on("dblclick", async (ev: any) => {
@@ -169,9 +169,9 @@ export function buildThumbnail(
         return;
       }
     }
-    events.emit("thumbnailDblClicked", {
-      entry,
-    });
+    e.get().dispatchEvent(
+      new CustomEvent("entryDblClicked", { detail: { entry } }),
+    );
   });
   $(".th", e).on("load", (ev) => {
     const thumb = ev.target as HTMLImageElement;
@@ -196,54 +196,9 @@ export function buildThumbnail(
       bottom: `${ratio < 1 ? 0 : (parentSize.height * (1 - 1 / ratio)) / 2}px`,
     });
   });
-  return e.get();
+  return e;
 }
 
-export async function makeThumbnailManager(
-  elementPrefix: string,
-  selectionManager: AlbumEntrySelectionManager,
-) {
-  const s = await getService();
-  s.on("albumEntryAspectChanged", async (e: { payload: AlbumEntryPicasa }) => {
-    // Is there a thumbnail with that data ?
-    const elem = elementFromEntry(e.payload, elementPrefix);
-    if (elem.exists()) {
-      thumbnailData(
-        elem,
-        e.payload,
-        e.payload.metadata,
-        selectionManager,
-        elementPrefix,
-      );
-    }
-  });
-
-  const root = document.documentElement;
-
-  getSettingsEmitter().on("changed", (event) => {
-    if (event.field === "iconSize") {
-      root.style.setProperty("--thumbnail-size", `${event.iconSize}px`);
-    }
-  });
-  const settings = getSettings();
-  root.style.setProperty("--thumbnail-size", `${settings.iconSize}px`);
-
-  selectionManager.events.on("changed", ({ added, removed }) => {
-    // Element might be not displayed
-    added.forEach((key) => {
-      try {
-        const e = elementFromEntry(key, elementPrefix);
-        if (e.exists()) e.addClass("selected");
-      } catch (e) {}
-    });
-    removed.forEach((key) => {
-      try {
-        const e = elementFromEntry(key, elementPrefix);
-        if (e.exists()) e.removeClass("selected");
-      } catch (e) {}
-    });
-  });
-}
 export async function thumbnailData(
   e: _$,
   entry: AlbumEntry,
@@ -362,124 +317,4 @@ export function entryLeftRight(
     return albumEntryFromElement($(n as HTMLElement), elementPrefix);
   }
   return null;
-}
-
-export function thumbnailsAround(
-  container: _$,
-  p: Point,
-  elementPrefix: string,
-): { entry: AlbumEntry; leftOf: boolean } {
-  function distanceTo(
-    p: Point,
-    r: Rectangle,
-  ): { distance: number; leftOf: boolean } {
-    // Over an existing one
-    if (
-      p.y > r.topLeft.y &&
-      p.y < r.bottomRight.y &&
-      p.x > r.topLeft.x &&
-      p.x < r.bottomRight.x
-    ) {
-      return { distance: 0, leftOf: true };
-    }
-
-    const midPoint = new Point(
-      (r.bottomRight.x + r.topLeft.x) / 2,
-      (r.bottomRight.y + r.topLeft.y) / 2,
-    );
-    let xDelta = p.x - midPoint.x;
-    let yDelta = (p.y - midPoint.y) * 10000;
-    const d = Math.pow(xDelta, 2) + Math.pow(yDelta, 2);
-    return { distance: d, leftOf: p.x < r.bottomRight.x };
-  }
-  //var rect = container.clientRect();
-  //let candidate:AlbumEntry | undefined;
-  let d: number = Number.MAX_SAFE_INTEGER;
-  const distances: {
-    entry: AlbumEntry;
-    d: { distance: number; leftOf: boolean };
-  }[] = [];
-  for (const e of container.children()) {
-    if (e.get()!.offsetParent === null) {
-      continue; // Element is not displayed
-    }
-    if (!e.id()) {
-      continue; // in the pool
-    }
-    const r = e.clientRect();
-    //r.x -= rect.x;
-    //r.y -= rect.y;
-    const entry = albumEntryFromElement(e, elementPrefix)!;
-    const dist = {
-      entry,
-      d: distanceTo(
-        p,
-        new Rectangle(
-          new Point(r.x, r.y),
-          new Point(r.x + r.width, r.y + r.height),
-        ),
-      ),
-    };
-    if (dist.d.distance === 0) {
-      // Overlapping, shortcut
-      return { entry: dist.entry, leftOf: dist.d.leftOf };
-    }
-    distances.push(dist);
-  }
-  distances.sort((a, b) => a.d.distance - b.d.distance);
-
-  return { entry: distances[0].entry, leftOf: distances[0].d.leftOf };
-}
-
-export function makeNThumbnails(
-  domElement: _$,
-  count: number,
-  events: AlbumListEventSource,
-  selectionManager: AlbumEntrySelectionManager,
-  elementPrefix: string,
-): boolean {
-  const countChanged = domElement.get().children.length !== count;
-  while (domElement.get().children.length < count) {
-    const th = buildThumbnail(events, selectionManager, elementPrefix);
-    domElement.append(th);
-    th.addEventListener("dropEntry", async (ev) => {
-      const entry = (ev as CustomEvent).detail.entry;
-      if (entry) {
-        const s = await getService();
-
-        let rank = 0;
-        const p = (await s.getPicasaEntry(entry)) as AlbumEntryMetaData;
-        if (p) {
-          rank = parseInt(p.rank || "0");
-        }
-
-        s.createJob(JOBNAMES.MOVE, {
-          source: selectionManager,
-          destination: {
-            album: entry.album,
-            rank,
-          },
-        });
-        selectionManager.clear();
-      }
-    });
-    domElement.append(buildThumbnail(events, selectionManager, elementPrefix));
-  }
-  /*for (const i of domElement.all(".img")) {
-    i.attr("src", "");
-    i.id("");
-  }
-  for (const i of domElement.all(".star")) {
-    i.css("display", "none");
-  }*/
-  let i = 0;
-  for (const e of domElement.children()) {
-    if (i++ < count) {
-      e.css("display", "");
-    } else {
-      e.id("");
-      e.css("display", "none");
-    }
-  }
-  return countChanged;
 }

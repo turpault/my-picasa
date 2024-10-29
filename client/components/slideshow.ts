@@ -2,10 +2,13 @@ import { buildEmitter } from "../../shared/lib/event";
 import { idFromAlbumEntry, uuid } from "../../shared/lib/utils";
 import {
   AlbumEntry,
+  AlbumEntryMetaData,
   AlbumEntryWithMetadata,
   JOBNAMES,
   ProjectType,
   Slideshow,
+  SlideShowBorderType,
+  SlideShowBorderValues,
   SlideShowDelays,
   SlideShowDelayValues,
   SlideshowProject,
@@ -17,7 +20,7 @@ import { $, _$ } from "../lib/dom";
 import { State } from "../lib/state";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
-import { AppEventSource } from "../uiTypes";
+import { AppEventSource, ApplicationState } from "../uiTypes";
 import { makeDraggableTable } from "./controls/draggable-table";
 import { MakeForm } from "./controls/form";
 import { PicasaMultiButton } from "./controls/multibutton";
@@ -63,6 +66,7 @@ export async function newSlideshowProject(
         text: name,
         delay: 5,
         transition: "fade",
+        border: "none",
       },
       ...images.map((img) => ({
         id: uuid(),
@@ -70,6 +74,7 @@ export async function newSlideshowProject(
         entry: img,
         delay: 5 as SlideShowDelays,
         transition: "fade" as const,
+        border: "none" as const,
       })),
     ],
   };
@@ -79,6 +84,7 @@ export async function newSlideshowProject(
 }
 
 function displayProject(project: SlideshowProject, parent: _$) {
+  $(".slideshow-parameters-title", parent).text(project.name);
   const container = $(".slideshow-container-child", parent);
   container.empty();
   const table = $("table").attr({ id: "table", class: "draggable-table" });
@@ -88,6 +94,7 @@ function displayProject(project: SlideshowProject, parent: _$) {
     .append($("th").text(t("Text")))
     .append($("th").text(t("Text Color")))
     .append($("th").text(t("Background Color")))
+    .append($("th").text(t("Border")))
     .append($("th").text(t("Duration")))
     .append($("th").text(t("Transition")))
     .append($("th").text(t("Remove")));
@@ -129,6 +136,16 @@ function displayProject(project: SlideshowProject, parent: _$) {
       saveSlideshowProject(project, "updateBackgroundColor");
     });
     row.appendAnd("td").appendAnd(backgroundColor);
+
+    const border = $<PicasaMultiButton>(`picasa-multi-button`).attr({
+      items: SlideShowBorderValues.join("|"),
+      selected: SlideShowBorderValues.indexOf(entry.border),
+    });
+    border.on("select", (evt: any) => {
+      entry.border = SlideShowBorderValues[evt.index];
+      saveSlideshowProject(project, "updateBorder");
+    });
+    row.appendAnd("td").appendAnd(border);
 
     const duration = $<PicasaMultiButton>(`picasa-multi-button`).attr({
       items: SlideShowDelayValues.join("|"),
@@ -197,6 +214,7 @@ export async function saveSlideshowProject(
 export async function makeSlideshowPage(
   appEvents: AppEventSource,
   entry: AlbumEntry,
+  state: ApplicationState,
 ) {
   const e = $(editHTML);
 
@@ -215,19 +233,29 @@ export async function makeSlideshowPage(
   const parameters = $(".slideshow-parameters", e);
   type SlideshowStateDef = {
     transition: SlideShowTransitions;
+    border: SlideShowBorderType;
     delay: SlideShowDelays;
     resolution: keyof typeof videoResolutions;
     generateSlideshow: boolean;
     addTitle: boolean;
     addSelection: boolean;
+    textColor: string;
+    bgTextColor: string;
+    throughTheYears: boolean;
+    pile: boolean;
   };
   const formState = new State<SlideshowStateDef>({
     transition: "fade",
+    border: "none",
     delay: 5,
     resolution: "720p",
     generateSlideshow: false,
     addTitle: false,
     addSelection: false,
+    textColor: "#FFFFFF",
+    bgTextColor: "#000000",
+    throughTheYears: false,
+    pile: false,
   });
   parameters.append(
     MakeForm(
@@ -243,13 +271,31 @@ export async function makeSlideshowPage(
             type: "choice",
             label: "Delay",
             id: "delay",
-            values: [...SlideShowDelayValues].map((e) => e.toString()),
+            values: [...SlideShowDelayValues],
           },
           {
             type: "choice",
-            label: "Output Resolution",
-            id: "resolution",
-            values: Object.keys(videoResolutions),
+            label: "Border",
+            id: "border",
+            values: [...SlideShowBorderValues],
+          },
+          {
+            type: "color",
+            label: "Text Color",
+            id: "textColor",
+            values: ["#FFFFFF"],
+          },
+          {
+            type: "color",
+            label: "Background Color",
+            id: "bgTextColor",
+            values: ["#000000"],
+          },
+          {
+            type: "separator",
+            label: "Add",
+            values: "",
+            id: "",
           },
           {
             type: "button",
@@ -267,9 +313,35 @@ export async function makeSlideshowPage(
           },
           {
             type: "separator",
+            label: "Styles",
+            values: "",
+            id: "",
+          },
+          {
+            type: "button",
+            label: "Through the Years",
+            id: "throughTheYears",
+            values: ["throughTheYears"],
+            icon: "resources/images/years.svg",
+          },
+          {
+            type: "button",
+            label: "Pile",
+            id: "pile",
+            values: ["pile"],
+            icon: "resources/images/pile.svg",
+          },
+          {
+            type: "separator",
             label: "",
             values: "",
             id: "",
+          },
+          {
+            type: "choice",
+            label: "Output Resolution",
+            id: "resolution",
+            values: Object.keys(videoResolutions),
           },
           {
             type: "button",
@@ -299,6 +371,29 @@ export async function makeSlideshowPage(
       displayProject(project, e);
       saveSlideshowProject(project, "updateDelay");
     }),
+    formState.events.on("textColor", (value) => {
+      project.payload.pages.forEach((entry) => {
+        entry.textColor = value;
+      });
+      displayProject(project, e);
+      saveSlideshowProject(project, "updateTextColor");
+    }),
+
+    formState.events.on("border", (value) => {
+      project.payload.pages.forEach((entry) => {
+        entry.border = value as SlideShowBorderType;
+      });
+      displayProject(project, e);
+      saveSlideshowProject(project, "updateBorder");
+    }),
+
+    formState.events.on("bgTextColor", (value) => {
+      project.payload.pages.forEach((entry) => {
+        entry.bgTextColor = value;
+      });
+      displayProject(project, e);
+      saveSlideshowProject(project, "updateTextColor");
+    }),
     formState.events.on("addTitle", (value) => {
       if (value) return; // only react on button up
       project.payload.pages.unshift({
@@ -307,9 +402,51 @@ export async function makeSlideshowPage(
         text: "",
         delay: 5,
         transition: "fade",
+        border: "none",
       });
       displayProject(project, e);
       saveSlideshowProject(project, "addTitle");
+    }),
+    formState.events.on("throughTheYears", async (value) => {
+      if (value) return; // only react on button up
+      // clear "text pages"
+      let pages = project.payload.pages.filter((p) => p.type === "image");
+      const meta = (await Promise.all(
+        pages.map(async (p) => s.getAlbumEntryMetadata(p.entry)),
+      )) as AlbumEntryMetaData[];
+      const pagesWithData = pages.map((page, i) => ({ page, meta: meta[i] }));
+      pagesWithData.sort(
+        (a, b) =>
+          new Date(a.meta.dateTaken).getTime() -
+          new Date(b.meta.dateTaken).getTime(),
+      );
+      pages = pagesWithData.map((p) => ({
+        ...p.page,
+        text: new Date(p.meta.dateTaken).toLocaleDateString(),
+      }));
+
+      pages.unshift({
+        id: uuid(),
+        type: "text",
+        text: project.name + t(" through the years"),
+        delay: 5,
+        transition: "fade",
+        border: "none",
+      });
+      project.payload.pages = pages;
+
+      displayProject(project, e);
+      saveSlideshowProject(project, "through the years");
+    }),
+    formState.events.on("pile", async (value) => {
+      if (value) return; // only react on button up
+      let pages = project.payload.pages;
+      pages.forEach((p) => {
+        p.delay = 5;
+        p.transition = "pile";
+      });
+      displayProject(project, e);
+      saveSlideshowProject(project, "pile");
     }),
     formState.events.on("generateSlideshow", async (value) => {
       if (value) return; // only react on button up
@@ -326,12 +463,9 @@ export async function makeSlideshowPage(
       const results = await s.waitJob(jobId);
 
       if (results.status === "finished") {
-        const q = await message(t("Slideshow complete"), [
-          t("Show"),
-          t("Later"),
-        ]);
-        if (q === t("Show")) {
-          appEvents.emit("edit", { active: true });
+        const q = await message(t("Slideshow complete"), ["Show", "Later"]);
+        if (q === "Show") {
+          appEvents.emit("edit", { entry: results.out[0] });
         }
       }
     }),

@@ -9,6 +9,7 @@ import {
   AlbumWithData,
   MosaicProject,
   ProjectType,
+  SlideshowProject,
   ThumbnailSize,
   ThumbnailSizeVals,
   idFromKey,
@@ -17,12 +18,19 @@ import {
 import { generateMosaicFile, makeMosaic } from "../../projects/mosaic";
 import { generateSlideshowFile } from "../../projects/slideshow";
 import { ThumbnailSizes, projectFolder } from "../../utils/constants";
-import { fileExists, safeWriteFile } from "../../utils/serverUtils";
+import {
+  entryFilePath,
+  fileExists,
+  safeWriteFile,
+} from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { addOrRefreshOrDeleteAlbum } from "../../walker";
 import { queueNotification } from "./fileAndFolders";
-
-type ProjectFile = Album & { projects: { [id: string]: AlbumEntry } };
+import { thumbnailPathFromEntryAndSize } from "../rpcFunctions/thumbnail-cache";
+import {
+  makeThumbnailIfNeeded,
+  readOrMakeThumbnail,
+} from "../rpcFunctions/thumbnail";
 
 export async function initProjects() {
   // Create project types
@@ -90,8 +98,8 @@ export async function getProject(
 ): Promise<AlbumEntry | undefined> {
   const file = projectIdToFileName(entry.name, entry.album.name as ProjectType);
   const data = await readFile(join(projectFolder, file), { encoding: "utf-8" });
-  const asJSON = JSON.parse(data) as ProjectFile;
-  return { ...asJSON, ...entry };
+  const entryWithProjectData = JSON.parse(data) as AlbumEntry;
+  return entryWithProjectData;
 }
 
 export async function createProject(type: ProjectType, name: string) {
@@ -201,6 +209,14 @@ export async function makeProjectThumbnail(
       );
       await safeWriteFile(p, res.data);
       return res.data as Buffer;
+    } else if (projectData.album.name === ProjectType.SLIDESHOW) {
+      // get first image from slideshow
+      const proj = projectData as SlideshowProject;
+      const first = proj.payload.pages.find((p) => p.type === "image");
+      if (!first) throw new Error("No images in slideshow");
+      const entry = first.entry!;
+      const thumb = await readOrMakeThumbnail(entry, size);
+      return thumb.data;
     }
   } finally {
     unlock();

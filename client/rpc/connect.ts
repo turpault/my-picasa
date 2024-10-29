@@ -62,7 +62,7 @@ export function getServicePort() {
 
 export async function getService(): Promise<PicisaClient> {
   if (!ev) {
-    ev = connect(getServicePort(), "localhost", false);
+    ev = connect(getServicePort(), location.hostname || "localhost", false);
     ev.on("connected", ({ service }) => {
       _service = service;
       _connected = true;

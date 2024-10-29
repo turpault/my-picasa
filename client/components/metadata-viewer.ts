@@ -1,19 +1,15 @@
 import L from "leaflet";
-import { debounced, decodeFaces } from "../../shared/lib/utils";
-import { getFilesExifData, getMetadata } from "../folder-utils";
-import { albumThumbnailUrl } from "../imageProcess/client";
-import { $, _$ } from "../lib/dom";
-import { State } from "../lib/state";
-import { getService } from "../rpc/connect";
-import { AlbumEntrySelectionManager } from "../selection/selection-manager";
+import {getFilesExifData, getMetadata} from "../folder-utils";
+import {albumThumbnailUrl} from "../imageProcess/client";
+import {$, _$} from "../lib/dom";
+import {debounced} from "../../shared/lib/utils";
+import {getService} from "../rpc/connect";
 import {
   AlbumEntry,
-  AlbumEntryMetaData,
-  AlbumWithData,
-  FaceList,
-  UndoStep,
+  AlbumEntryMetaData
 } from "../types/types";
-import { t } from "./strings";
+import {ApplicationState} from "../uiTypes";
+import {t} from "./strings";
 type MetaTransform = {
   label: string;
   available: string[];
@@ -100,18 +96,9 @@ export enum META_PAGES {
   LOCATION = "location",
   PERSONS = "persons",
 }
-export type SelectionStateDef = {
-  META_PAGE: META_PAGES;
-  META_SINGLE_SELECTION_MODE: boolean;
-  active: AlbumEntry | null;
-  selected: AlbumEntry[];
-  undo: UndoStep[];
-  stars: number;
-};
-export type ApplicationState = State<SelectionStateDef>;
 
-export function makeMetadata(
-  selection: AlbumEntrySelectionManager,
+
+export function makeMetadataViewer(
   state: ApplicationState,
 ): _$ {
   const e = $(html);
@@ -124,13 +111,22 @@ export function makeMetadata(
       update: updateLocation,
     },
   };
+  $(".workarea").append(e);
   const debouncedUpdate = debounced(update, 1000, false);
-  state.events.on("META_PAGE", update);
-  state.events.on("META_SINGLE_SELECTION_MODE", update);
+  state.events.on("activeMetaPage", update);
+  let offListen: Function | undefined;
+  function updateSelectionManager() {
+      if(offListen) offListen();
+      offListen = undefined;
+      const m = state.getValue("activeSelectionManager");
+      if(m)
+        offListen = m.events.on("*", () => {
+          debouncedUpdate();
+        });  
+  }
+  state.events.on("activeSelectionManager", updateSelectionManager);
+  updateSelectionManager();
 
-  selection.events.on("*", () => {
-    debouncedUpdate();
-  });
   update();
 
   let imageData: {
@@ -140,12 +136,11 @@ export function makeMetadata(
   }[] = [];
 
   async function update() {
-    const visible = state.getValue("META_PAGE") !== undefined;
+    const visible = state.getValue("activeMetaPage") !== undefined;
     e.show(visible);
-    const activeOnly = !!state.getValue("META_SINGLE_SELECTION_MODE");
 
     if (!visible) return;
-    const page = state.getValue("META_PAGE");
+    const page = state.getValue("activeMetaPage");
     title.text(t(page as string));
     for (const [key, p] of Object.entries(pages)) {
       if (page !== key) {
@@ -155,11 +150,11 @@ export function makeMetadata(
         // Populate the page
         imageData = [];
         p.update();
+        const selManager = state.getValue("activeSelectionManager");
+        if(!selManager) return;
 
         const selections =
-          activeOnly && selection.active()
-            ? [selection.active()]
-            : selection.selected();
+        selManager.selected();
         if (selections.some((s) => !s)) debugger;
 
         const [metadata, exifData] = await Promise.all([
@@ -184,9 +179,6 @@ export function makeMetadata(
         .append(
           `<div class="metadata-section-filename">${data.entry.name}</div>`,
         )
-        .on("click", () => {
-          selection.setActive(data.entry);
-        });
       const keys = Object.keys(data.exifData);
       for (const section of metaSections) {
         if (section.available.find((s) => !keys.includes(s)) === undefined) {
@@ -261,7 +253,10 @@ export function makeMetadata(
       for (const latLong of latLongs) {
         const marker = L.marker([latLong[0], latLong[1]]);
         marker.on("click", () => {
-          selection.setActive(latLong[2]);
+          const selManager = state.getValue("activeSelectionManager");
+          if(!selManager) return;
+  
+          selManager.setActive(latLong[2]);
         });
 
         markers.push(marker);

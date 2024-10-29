@@ -202,15 +202,38 @@ export class AlbumIndexedDataSource {
 
   toggleCollapse(node: Node) {
     if (node.childs.length !== 0) {
-      node.childs.forEach((n) => this.toggleCollapse(n));
+      const invalidateBounds = {
+        index: Number.MAX_SAFE_INTEGER,
+        to: 0,
+      };
+
+      node.childs.forEach((n) => {
+        n.collapsed = !n.collapsed;
+        const first = firstAlbum(n);
+        const last = lastAlbum(n);
+        if (first) {
+          invalidateBounds.index = Math.min(
+            invalidateBounds.index,
+            this.albumIndex(first),
+          );
+        }
+        if (last) {
+          invalidateBounds.to = Math.max(
+            invalidateBounds.to,
+            this.albumIndex(last),
+          );
+        }
+        this.emitter.emit("nodeCollapsed", { node: n });
+      });
+      //this.emitter.emit("invalidateFrom", invalidateBounds);
       return;
     }
     node.collapsed = !node.collapsed;
-    this.emitter.emit("invalidateFrom", {
+    /*this.emitter.emit("invalidateFrom", {
       index: this.albumIndex(firstAlbum(node)!),
       to: this.albumIndex(lastAlbum(node)!),
-    });
-    this.emitter.emit("nodeChanged", { node });
+    });*/
+    this.emitter.emit("nodeCollapsed", { node });
   }
 
   isCollapsed(
@@ -280,6 +303,7 @@ export class AlbumIndexedDataSource {
     sortByKey(shortcuts, ["name"], ["alpha"]);
 
     const faces = groups.get(AlbumKind.FACE) || [];
+    const projects = groups.get(AlbumKind.PROJECT) || [];
     sortByKey(faces, ["name"], ["alpha"]);
 
     const foldersByYear = groupBy(folders, "name", (n: string) =>
@@ -311,6 +335,12 @@ export class AlbumIndexedDataSource {
           name: t("faces"),
           collapsed: false,
           albums: faces,
+          childs: [] as Node[],
+        },
+        {
+          name: t("projects"),
+          collapsed: false,
+          albums: projects,
           childs: [] as Node[],
         },
       ],

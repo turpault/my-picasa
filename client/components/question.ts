@@ -1,6 +1,25 @@
-import { $ } from "../lib/dom";
+import { $, _$ } from "../lib/dom";
 import { hookKeyboardEvents } from "./hotkey";
 
+export async function modalForm(
+  title: string,
+  form: _$,
+): Promise<string | undefined> {
+  const q = $(`<div class="modalform w3-modal">
+  <div class="w3-modal-content">
+    <div class="w3-container">
+      <p class="title">${title}</p>
+      <div class="form"></div>
+      <div class="okcancel">
+      <a class="confirm w3-button w3-green">${t("Ok")}</a>
+      <a class="cancel w3-button w3-red">${t("Cancel")}</a>
+      </div>
+    </div>
+  </div>`);
+  $(".form", q).append(form);
+  $(document.body).append(q);
+  return show(q);
+}
 export async function question(
   message: string,
   placeHolder: string,
@@ -19,10 +38,13 @@ export async function question(
 </div>
 `);
   $(document.body).append(q);
+  $(".question", q).focus();
+  return show(q);
+}
+async function show(q: _$) {
   q.css({
     display: "block",
   });
-  $(".question", q).focus();
   let off: Function;
   return new Promise<string | undefined>((resolve) => {
     $(".confirm", q).on("click", () => {
@@ -51,10 +73,10 @@ export enum Button {
   Cancel = "Cancel",
 }
 
-export async function message(
+export async function message<T extends Button | string>(
   message: string,
-  buttons: (Button | string)[] = [Button.Ok],
-): Promise<Button | string> {
+  buttons: T[] = [Button.Ok] as T[],
+): Promise<T> {
   const q = $(`<div class="messagebox w3-modal">
   <div class="w3-modal-content">
     <div class="w3-container">
@@ -70,12 +92,12 @@ export async function message(
   $(document.body).append(q);
   let off: Function;
 
-  return new Promise<Button | string>((resolve) => {
+  return new Promise<T>((resolve) => {
     off = hookKeyboardEvents.on("keyDown", (e) => {
       if (e.code === "Enter") {
-        resolve(Button.Ok);
+        resolve(Button.Ok as T);
       } else if (e.code === "Escape") {
-        resolve(Button.Cancel);
+        resolve(Button.Cancel as T);
       }
     });
 

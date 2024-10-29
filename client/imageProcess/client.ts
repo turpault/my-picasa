@@ -90,7 +90,7 @@ export async function encode(
 }
 
 export function encodeToURL(context: string, mime: string): string {
-  return `http://localhost:${getServicePort()}/encode/${context}/${fixedEncodeURIComponent(
+  return `/encode/${context}/${fixedEncodeURIComponent(
     mime
   )}`;
 }
@@ -118,7 +118,7 @@ export function thumbnailUrl(
     return "";
   }
   return (
-    `http://localhost:${getServicePort()}/thumbnail/${fixedEncodeURIComponent(
+    `/thumbnail/${fixedEncodeURIComponent(
       entry.album.key
     )}/${fixedEncodeURIComponent(entry.name)}/${fixedEncodeURIComponent(
       size
@@ -135,7 +135,7 @@ export function albumThumbnailUrl(
     return "";
   }
   return (
-    `http://localhost:${getServicePort()}/thumbnail/${fixedEncodeURIComponent(
+    `/thumbnail/${fixedEncodeURIComponent(
       album.key
     )}/${fixedEncodeURIComponent(size)}` + `${animated ? "&animated" : ""}`
   );

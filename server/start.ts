@@ -177,7 +177,7 @@ export async function startServer(p?: number) {
     });
 
     setupRoutes(server);
-    await server.ready().then(() => server.listen({ port: p }));
+    await server.ready().then(() => server.listen({ host: "0.0.0.0", port: p }));
     console.info(`Ready to accept connections on port ${p}.`);
   } catch (err) {
     console.error(err);

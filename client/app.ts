@@ -3,6 +3,7 @@ import { buildEmitter } from "../shared/lib/event";
 import { fromBase64, idFromAlbumEntry, toBase64 } from "../shared/lib/utils";
 import { AlbumEntry, AlbumKind, ProjectType } from "../shared/types/types";
 import { AlbumIndexedDataSource } from "./album-data-source";
+import { makeButtons } from "./components/bottom-selection-buttons";
 import { makeBrowser } from "./components/browser";
 import { makeBugWidget } from "./components/bug-widget";
 import { registerButton } from "./components/controls/button";
@@ -11,11 +12,14 @@ import { registerInput } from "./components/controls/input";
 import { registerMultiButton } from "./components/controls/multibutton";
 import { registerSelect } from "./components/controls/select";
 import { registerSlider } from "./components/controls/slider";
+import { makeEditorHeader } from "./components/editor-header";
+import { makeEditorPage } from "./components/editor-page";
 import { makeErrorPage } from "./components/error";
 import { consoleOverload } from "./components/error-utils";
 import { makeGallery } from "./components/gallery";
 import { makeHotkeys } from "./components/hotkey";
 import { makeJobList } from "./components/joblist";
+import { makeMetadataViewer } from "./components/metadata-viewer";
 import { makeMosaicPage, newMosaicProject } from "./components/mosaic";
 import { question } from "./components/question";
 import { initClientSentry } from "./components/sentry";
@@ -27,9 +31,10 @@ import {
   initCacheBuster,
 } from "./imageProcess/client";
 import { makeSettings } from "./lib/settings";
+import { State } from "./lib/state";
 import { getService, setServicePort } from "./rpc/connect";
 import { SelectionManager } from "./selection/selection-manager";
-import { AppEvent } from "./uiTypes";
+import { AppEvent, ApplicationSharedStateDef } from "./uiTypes";
 async function init(port: number) {
   initClientSentry();
   setServicePort(port);
@@ -49,6 +54,7 @@ async function init(port: number) {
   const dataSource = new AlbumIndexedDataSource();
 
   let ready = 0;
+  const state = new State<ApplicationSharedStateDef>();
 
   emitter.on("ready", (event) => {
     if (event.state) {
@@ -68,13 +74,15 @@ async function init(port: number) {
   await makeSettings();
   await makeJobList($(".jobs").get());
 
-  $(".tabs-container").append(makeTabs(emitter));
+  $(".tabs-container").append(makeTabs(emitter, state));
 
   await makeBugWidget($("#action-new-bug"));
+  const metaViewer = makeMetadataViewer(state);
+  const buttons = makeButtons(emitter, state);
+  $(document.body).append(metaViewer).append(buttons);
 
   makeHotkeys(emitter);
 
-  //makeContextMenu();
   async function newGalleryPage(params: {
     initialList: AlbumEntry[];
     initialIndex: number;
@@ -83,35 +91,23 @@ async function init(port: number) {
       params.initialIndex,
       params.initialList,
       emitter,
+      state,
     );
     makeTab(win, tab, { kind: "Gallery", selectionManager });
   }
-  async function newEditorPage(params: {
-    initialList: AlbumEntry[];
-    initialIndex: number;
-  }) {
-    const entry = params.initialList[params.initialIndex];
-    if (entry.album.kind === AlbumKind.PROJECT) {
-      if (entry.album.name == ProjectType.MOSAIC) {
-        const { win, tab, selectionManager } = await makeMosaicPage(
-          emitter,
-          entry,
-        );
-        makeTab(win, tab, { kind: "Mosaic", selectionManager });
-      }
-    }
-  }
+
   async function newMosaicPage(params: { initialList: AlbumEntry[] }) {
     const images = await albumEntriesWithMetadata(params.initialList);
     const name = await question(
       t("Mosaic Name"),
-      t("New mosaic " + new Date()),
+      t("New mosaic") + " " + new Date(),
     );
     if (name) {
       const projectId = await newMosaicProject(name, images);
       const { win, tab, selectionManager } = await makeMosaicPage(
         emitter,
         projectId,
+        state,
       );
       makeTab(win, tab, { kind: "Mosaic", selectionManager });
     }
@@ -130,6 +126,7 @@ async function init(port: number) {
     const { win, tab, selectionManager } = await makeSlideshowPage(
       emitter,
       projectId,
+      state,
     );
 
     makeTab(win, tab, { kind: "Slideshow", selectionManager });
@@ -138,81 +135,49 @@ async function init(port: number) {
     const { win, tab, selectionManager } = await makeBrowser(
       emitter,
       dataSource,
+      state,
     );
     makeTab(win, tab, { kind: "Browser", selectionManager });
 
     selectTab(win);
     await dataSource.init();
   }
+  newBrowserPage();
 
-  const searchParams = new URLSearchParams(location.search || "");
-
-  let showInNewWindow = false;
-
-  if (searchParams.has("window")) {
-    showInNewWindow = true;
-  }
-
-  async function openFromUrl(fct: Function) {
-    const params = searchParams.get("params");
-    if (!params) {
-      newBrowserPage();
-      return;
+  async function edit(params: { entry: AlbumEntry }) {
+    const entry = params.entry;
+    if (entry.album.kind === AlbumKind.PROJECT) {
+      const project = (await s.getProject(entry)) as AlbumEntry;
+      const type = project.album.name as ProjectType;
+      if (type === ProjectType.MOSAIC) {
+        const { win, tab, selectionManager } = await makeMosaicPage(
+          emitter,
+          entry,
+          state,
+        );
+        makeTab(win, tab, { kind: "Mosaic", selectionManager });
+      } else if (type === ProjectType.SLIDESHOW) {
+        const { win, tab, selectionManager } = await makeSlideshowPage(
+          emitter,
+          entry,
+          state,
+        );
+        makeTab(win, tab, { kind: "Slideshow", selectionManager });
+      }
+    } else if (entry.album.kind === AlbumKind.FOLDER) {
+      const { win, tab, selectionManager } = await makeEditorPage(
+        emitter,
+        entry,
+        state,
+      );
+      makeTab(win, tab, { kind: "Editor", selectionManager });
     }
-    const initialListStr = fromBase64(params);
-    try {
-      fct(...JSON.parse(initialListStr));
-    } catch (e: any) {
-      console.error(e);
-      const { win, tab } = await makeErrorPage(e);
-      makeTab(win, tab, {
-        kind: "Browser",
-        selectionManager: new SelectionManager<AlbumEntry>(
-          [],
-          idFromAlbumEntry,
-        ),
-      });
-    }
-  }
-  const page = searchParams.get("page");
-  if (page === "editor") {
-    //openFromUrl(newEditorPage);
-  } else if (page === "mosaic") {
-    openFromUrl(newMosaicPage);
-  } else if (page === "gallery") {
-    openFromUrl(newGalleryPage);
-  } else {
-    // Default is browser
-    newBrowserPage();
   }
 
-  if (showInNewWindow) {
-    const newWindow =
-      (page: string) =>
-      (...args: any[]) => {
-        const arg = toBase64(JSON.stringify(args));
-        const url = new URL(location.href);
-        const searchParams = new URLSearchParams(location.search);
-        searchParams.delete("page");
-        searchParams.delete("params");
-        searchParams.append("page", page);
-        searchParams.append("params", arg);
-        url.search = searchParams.toString();
-        window.open(url.toString());
-      };
-    const actions = {
-      show: newWindow("gallery"),
-      edit: newWindow("editor"),
-      mosaic: newWindow("mosaic"),
-    };
-    for (const [key, action] of Object.entries(actions)) {
-      emitter.on(key as any, action);
-    }
-  } else {
-    emitter.on("show", newGalleryPage);
-    emitter.on("mosaic", newMosaicPage);
-    emitter.on("slideshow", newSlideshowPage);
-  }
+  emitter.on("edit", edit);
+  emitter.on("gallery", newGalleryPage);
+  emitter.on("mosaic", newMosaicPage);
+  emitter.on("slideshow", newSlideshowPage);
 
   emitter.emit("ready", { state: true });
 }

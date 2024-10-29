@@ -1,3 +1,4 @@
+
 export type PartialRecord<K extends keyof any, T> = {
   [P in K]?: T;
 };
@@ -257,9 +258,9 @@ export type AlbumEntryPicasa = AlbumEntry & {
   metadata: AlbumEntryMetaData;
 };
 
-export type AlbumInfo = {
+export type AlbumContents = {
   metadata: AlbumMetaData;
-  assets: AlbumEntry[];
+  entries: AlbumEntry[];
 };
 
 export type FolderEvent = {
@@ -350,23 +351,33 @@ export const SlideShowTransitionsValues = [
   "slider",
   "fade",
   "smooth",
+  "pile",
+  "none",
+] as const;
+export const SlideShowBorderValues = [
+  "simple",
+  "wide",
+  "polaroid",
   "none",
 ] as const;
 export type SlideShowTransitions = (typeof SlideShowTransitionsValues)[number];
 export const SlideShowDelayValues = [1, 2, 5, 10] as const;
 export type SlideShowDelays = (typeof SlideShowDelayValues)[number];
 export type SlideShowPageType = "image" | "text";
+export type SlideShowBorderType = (typeof SlideShowBorderValues)[number];
+export type SlideshowPage = {
+  id: string;
+  type: SlideShowPageType;
+  entry?: AlbumEntryWithMetadata;
+  text?: string;
+  textColor?: string;
+  bgTextColor?: string;
+  delay: SlideShowDelays;
+  transition: SlideShowTransitions;
+  border: SlideShowBorderType;
+};
 export type Slideshow = {
-  pages: {
-    id: string;
-    type: SlideShowPageType;
-    entry?: AlbumEntryWithMetadata;
-    text?: string;
-    textColor?: string;
-    bgTextColor?: string;
-    delay: SlideShowDelays;
-    transition: SlideShowTransitions;
-  }[];
+  pages: SlideshowPage[];
 };
 
 export enum Layout {
@@ -396,3 +407,4 @@ export type Bug = {
   status: string;
   created: Date;
 };
+

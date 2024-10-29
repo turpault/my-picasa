@@ -7,13 +7,14 @@ import {
   AlbumEntrySelectionManager,
   SelectionManager,
 } from "../selection/selection-manager";
-import { AppEventSource } from "../uiTypes";
+import { AppEventSource, ApplicationState } from "../uiTypes";
 import { TabEvent, deleteTabWin, makeGenericTab } from "./tabs";
 
 export async function makeGallery(
   initialIndex: number,
   initialList: AlbumEntry[],
-  appEvents: AppEventSource
+  appEvents: AppEventSource,
+  state: ApplicationState
 ): Promise<{ win: _$; tab: _$; selectionManager: AlbumEntrySelectionManager }> {
   const thumbs = initialList.map((asset) => thumbnailUrl(asset));
   const urls = initialList.map((asset) => assetUrl(asset));
@@ -69,6 +70,7 @@ export async function makeGallery(
   showSlides(slideIndex);
   const off = [
     appEvents.on("keyDown", ({ code, win, preventDefault }) => {
+      if(state.getValue("activeTab").win !== e) return false;
       switch (code) {
         case "Escape":
           deleteTabWin(win);
@@ -83,6 +85,7 @@ export async function makeGallery(
           preventDefault();
           break;
       }
+      return false;
     }),
     appEvents.on("tabDeleted", ({ win }) => {
       if (win.get() === e.get()) {

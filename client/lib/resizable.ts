@@ -17,7 +17,7 @@ export function resizable(
   width: number,
   height: number,
   gutter: number,
-  onResized: () => void
+  onResized: () => void,
 ) {
   let pos = calculateImagePositions(
     root,
@@ -25,7 +25,7 @@ export function resizable(
     gutter / 2,
     gutter / 2,
     width - gutter,
-    height - gutter
+    height - gutter,
   );
   // create gutters
   parent.all(".gutter").forEach((e) => e.remove());
@@ -48,7 +48,7 @@ export function resizable(
           movingGutter = gutterElement;
           document.body.addEventListener("touchmove", resize);
           document.body.addEventListener("touchend", cancelResize);
-        })
+        }),
     );
   }
 
@@ -112,7 +112,7 @@ export function resizable(
       gutter / 2,
       gutter / 2,
       width - gutter,
-      height - gutter
+      height - gutter,
     );
     reposition();
     onResized();

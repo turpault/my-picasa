@@ -21,9 +21,7 @@ export function makeEditorHeader(
   const container = $(html);
   $(".play-slideshow", container).on("click", notImplemented);
   $(".back-to-photo-lib", container).on("click", () => {
-    appEvents.emit("edit", {
-      active: false,
-    });
+    appEvents.emit("returnToBrowser", {});
     return true;
   });
   $(".a-b", container).on("select", notImplemented);

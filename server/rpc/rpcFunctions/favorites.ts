@@ -270,12 +270,12 @@ export async function syncFavoritesFromPhotoApp(
     progress(index, total);
     const c1 = removeExtension(photo.name).toLowerCase();
     const candidates = candidatesOf(c1);
-    let candidate: AlbumEntryWithMetadata | undefined;
+    let filteredCandidates: AlbumEntryWithMetadata[] = [];
     if (candidates.length === 0) {
       console.warn(`Photo ${photo.name} not found in the server`);
       return;
     } else if (candidates.length === 1) {
-      candidate = candidates[0].metadata;
+      filteredCandidates = [candidates[0].metadata];
     } else {
       // More than one candidate, check the date
       const refTime = new Date(photo.dateTaken).getTime();
@@ -288,26 +288,33 @@ export async function syncFavoritesFromPhotoApp(
         .sort((a, b) => {
           return a.distance - b.distance;
         });
+      // The photo might be in the list several times - add a favorite to all of them
       if (
         sortedCandidates.length > 0 &&
         sortedCandidates[0].distance < MAX_DISTANCE
       ) {
-        candidate = sortedCandidates[0].c.metadata;
+        filteredCandidates = sortedCandidates
+          .filter((s) => s.distance === sortedCandidates[0].distance)
+          .map((s) => s.c.metadata);
       } else {
         console.warn(`Photo ${photo.name} not found in the server`);
         return;
       }
     }
     if (photo.persons) {
-      promises.push(updatePicasaEntry(candidate, "persons", photo.persons));
+      filteredCandidates.forEach((candidate) => {
+        promises.push(updatePicasaEntry(candidate, "persons", photo.persons));
+      });
     }
     if (photo.favorite) {
-      if (alreadyStarred.includes(candidate)) {
-        // do nothing
-      } else {
-        promises.push(updatePicasaEntry(candidate, "photostar", 1));
-        newStarred.push(candidate);
-      }
+      filteredCandidates.forEach((candidate) => {
+        if (alreadyStarred.includes(candidate)) {
+          // do nothing
+        } else {
+          promises.push(updatePicasaEntry(candidate, "photostar", 1));
+          newStarred.push(candidate);
+        }
+      });
     }
   });
   for (const photo of allPhotos) {

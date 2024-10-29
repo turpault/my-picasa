@@ -2,11 +2,10 @@ import { AlbumIndexedDataSource } from "../album-data-source";
 import { $ } from "../lib/dom";
 import { State } from "../lib/state";
 import { AlbumEntrySelectionManager } from "../selection/selection-manager";
-import { AppEventSource } from "../uiTypes";
+import { AppEventSource, ApplicationState } from "../uiTypes";
 import { makeAlbumList } from "./browser-album-list";
 import { makeBrowserHeader } from "./browser-header";
 import { makePhotoList } from "./browser-photo-list";
-import { ApplicationState } from "./selection-meta";
 
 export async function makeBrowserNavigator(
   appEvents: AppEventSource,
@@ -31,21 +30,13 @@ export async function makeBrowserNavigator(
   e.append(albumList);
   e.append(photoList);
   function updatePhotoListSize() {
-    const metaVisible = state.getValue("META_PAGE") !== undefined;
+    const metaVisible = state.getValue("activeMetaPage") !== undefined;
     photoList.css({
       right: metaVisible ? "300px" : 0,
     });
   }
-  state.events.on("META_PAGE", updatePhotoListSize);
+  state.events.on("activeMetaPage", updatePhotoListSize);
   updatePhotoListSize();
-
-  appEvents.on("edit", (event) => {
-    if (event.active) {
-      e.hide();
-    } else {
-      e.show();
-    }
-  });
 
   return e;
 }

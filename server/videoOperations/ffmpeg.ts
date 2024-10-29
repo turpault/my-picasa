@@ -6,6 +6,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { uuid } from "../../shared/lib/utils";
 import { writeFile } from "fs/promises";
+import chalk from "chalk";
 
 export async function ffmpeg(args: string[], outFile: string): Promise<void> {
   rate("ffmpeg");
@@ -23,10 +24,15 @@ export async function ffmpeg(args: string[], outFile: string): Promise<void> {
       );
       const p = spawn("/bin/bash", [scriptFile]);
       p.stderr.on("data", (data) => {
+        console.info(chalk.red(data.toString()));
+      });
+      p.stdout.on("data", (data) => {
         console.info(data.toString());
       });
+
       p.on("exit", (code) => {
         if (code === 0) {
+          console.info(`ffmpeg exited with code ${code}`);
           delayEnd(i);
           resolve();
         } else {

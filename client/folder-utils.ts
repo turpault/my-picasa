@@ -3,11 +3,18 @@ import {
   Album,
   AlbumEntry,
   AlbumEntryPicasa,
-  AlbumInfo,
+  AlbumContents,
+  AlbumEntryMetaData,
 } from "../shared/types/types";
 import { getAlbumMetadata } from "./lib/handles";
 import { Settings, getSettings } from "./lib/settings";
 import { getService } from "./rpc/connect";
+
+export async function getEntryMetadata(entry: AlbumEntry) {
+  const s = await getService();
+  if(!entry) debugger;
+  return s.getAlbumEntryMetadata(entry) as AlbumEntryMetaData;
+}
 
 export async function getMetadata(
   entries: AlbumEntry[],
@@ -51,10 +58,10 @@ async function albumContents(
   return { entries };
 }
 
-export async function getAlbumInfo(
+export async function getAlbumContents(
   album: Album,
   useSettings: boolean = false,
-): Promise<AlbumInfo & { filtered: boolean }> {
+): Promise<AlbumContents & { filtered: boolean }> {
   let filtered = false;
   let settings: Settings = {
     sort: "date",
@@ -133,7 +140,7 @@ export async function getAlbumInfo(
   */
   return {
     metadata: picasa,
-    assets: entries,
+    entries: entries,
     filtered,
   };
 }

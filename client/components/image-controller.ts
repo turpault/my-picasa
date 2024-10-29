@@ -68,6 +68,7 @@ export class ImageController {
     this.selectionManager.events.on("activeChanged", async (event) => {
       if (
         !this.entry ||
+        !this.selectionManager.active() ||
         compareAlbumEntry(this.entry, this.selectionManager.active()) !== 0
       ) {
         this.entry = this.selectionManager.active();
@@ -445,6 +446,9 @@ export class ImageController {
 
   zoom(ratio: number) {
     this.zoomController.zoom(ratio);
+  }
+  activeEntry() {
+    return this.entry;
   }
 
   private entry: AlbumEntry | undefined;

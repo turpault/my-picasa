@@ -1,5 +1,6 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
 import { AlbumEntry } from "../../shared/types/types";
+import { t } from "../components/strings";
 
 export type SelectionEvent<T> = {
   changed: { added: T[]; removed: T[]; current: T[]; pinned: T[] };
@@ -13,7 +14,7 @@ export type AlbumEntrySelectionEventSource = Emitter<
 export class SelectionManager<T> {
   constructor(
     selection: T[] = [],
-    idFct: (e: T) => string = (e) => JSON.stringify(e)
+    idFct: (e: T) => string = (e) => JSON.stringify(e),
   ) {
     this._selection = [...selection];
     this._idFct = idFct;
@@ -29,7 +30,7 @@ export class SelectionManager<T> {
   }
   setActiveIndex(newIndex: number): number {
     const newActive = this._selection[newIndex];
-    if (newActive && newActive !== this._active) {
+    if (newActive !== this._active) {
       this.update(this._selection, newActive);
     }
     return this.activeIndex();
@@ -38,8 +39,12 @@ export class SelectionManager<T> {
     return list.findIndex((e) => this._idFct(e) === this._idFct(key));
   }
   setActive(key: T) {
-    const idx = this.indexOf(this._selection, key);
-    this.setActiveIndex(idx);
+    if (key) {
+      const idx = this.indexOf(this._selection, key);
+      this.setActiveIndex(idx);
+    } else {
+      this.setActiveIndex(-1);
+    }
   }
 
   activeIndex(): number {
@@ -60,6 +65,16 @@ export class SelectionManager<T> {
     if (!this.isSelected(key)) {
       this.update([...this._selection, key], this._active);
     }
+  }
+  selectMultiple(keys: T[]) {
+    // Concatenate the current selection with the new keys and ensure uniqueness
+    const multiple = [...this._selection, ...keys].reduce((acc, cur) => {
+      if (!acc.find((e) => this._idFct(e) === this._idFct(cur))) {
+        acc.push(cur);
+      }
+      return acc;
+    }, [] as T[]);
+    this.update(multiple, this._active);
   }
 
   setActiveNext() {
@@ -94,10 +109,21 @@ export class SelectionManager<T> {
   }
   deselect(key: T) {
     if (this.isSelected(key)) {
+      let active = this._active;
+      if (active && this._idFct(active) === this._idFct(key)) {
+        if (this.selected().length > 1) {
+          this.setActiveNext();
+          active = this._active;
+        } else {
+          active = null;
+        }
+      }
       const idx = this._selection.findIndex(
-        (e) => this._idFct(e) === this._idFct(key)
+        (e) => this._idFct(e) === this._idFct(key),
       );
-      this.update([...this._selection].splice(idx, 1), this._active);
+      const newSelection = [...this._selection];
+      newSelection.splice(idx, 1);
+      this.update(newSelection, active);
     }
   }
 
@@ -111,7 +137,7 @@ export class SelectionManager<T> {
     return this._selection[this._selection.length - 1];
   }
 
-  private update(selection: T[], active?: T, pinningChange = false) {
+  protected update(selection: T[], active?: T, pinningChange = false) {
     const lastActive = this.active();
     const added = selection.filter((v) => !this.isSelected(v));
     const removed: T[] = [];
@@ -126,8 +152,9 @@ export class SelectionManager<T> {
       ...added,
     ];
 
-    if (selection.length === 0) active = undefined;
-    else if (active) {
+    if (selection.length === 0 || active === null) {
+      active = undefined;
+    } else if (active !== undefined) {
       active = selection.find((e) => this._idFct(e) === this._idFct(active));
     } else {
       active = this._selection[0];
@@ -157,4 +184,73 @@ export class SelectionManager<T> {
   private _idFct: (e: T) => string;
   private _selection: (T & { pinned?: boolean })[];
   private _active?: T;
+}
+
+export class SelectionManagerProxy<T> extends SelectionManager<T> {
+  private off: Function | undefined;
+  private target: SelectionManager<T>;
+  constructor(idFct: (e: T) => string = (e) => JSON.stringify(e)) {
+    super([], idFct);
+  }
+
+  updateManager(manager: SelectionManager<T>) {
+    if (this.off) this.off();
+    this.off = undefined;
+    this.update(manager.selected(), manager.active());
+    const pinned = manager.getPinned();
+    this.selected().forEach((s) =>
+      pinned.includes(s) ? this.setPin(s, true) : this.setPin(s, false),
+    );
+    const offFcts = [
+      manager.events.on("changed", (e) => {
+        this.update(manager.selected(), manager.active());
+        this.selected().forEach((s) =>
+          e.pinned.includes(s) ? this.setPin(s, true) : this.setPin(s, false),
+        );
+      }),
+      manager.events.on("activeChanged", (e) => {
+        this.setActive(e.key);
+      }),
+    ];
+    this.off = () => offFcts.forEach((f) => f());
+    this.target = manager;
+  }
+  setActiveIndex(newIndex: number): number {
+    return this.target.setActiveIndex(newIndex);
+  }
+  setActive(key: T) {
+    return this.target.setActive(key);
+  }
+
+  select(key: T) {
+    return this.target.select(key);
+  }
+  selectMultiple(keys: T[]) {
+    return this.target.selectMultiple(keys);
+  }
+
+  setActiveNext() {
+    return this.target.setActiveNext();
+  }
+
+  setActivePrevious() {
+    return this.target.setActivePrevious();
+  }
+
+  setPin(key: T, pinned: boolean) {
+    return this.target.setPin(key, pinned);
+  }
+
+  toggle(key: T) {
+    return this.target.toggle(key);
+  }
+  deselect(key: T) {
+    return this.target.deselect(key);
+  }
+  setSelection(keys: T[], active?: T) {
+    return this.target.setSelection(keys, active);
+  }
+  clear() {
+    return this.target.clear();
+  }
 }

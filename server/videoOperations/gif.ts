@@ -36,6 +36,7 @@ export async function createGif(
 
     const ffmpegArg = animated
       ? [
+          "-y",
           "-t",
           "20",
           "-i",
@@ -48,6 +49,7 @@ export async function createGif(
           "gif",
         ]
       : [
+          "-y",
           "-t",
           "1",
           "-i",
@@ -66,11 +68,8 @@ export async function createGif(
     console.error(
       `Could not create a animated gif from video: ${entry.name}: ${e}`,
     );
+    throw new Error(`Conversion to gif failed for file "${source}"`);
   } finally {
     unlock();
-    if (converted) {
-      return Buffer.concat(result);
-    }
-    throw new Error(`Conversion to gif failed for file "${source}"`);
   }
 }

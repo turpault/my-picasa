@@ -1,11 +1,10 @@
-import { UndoStep } from "../../shared/types/types";
+import { AlbumEntry } from "../../shared/types/types";
 import { $, _$ } from "../lib/dom";
 import { Emitter } from "../lib/event";
-import { getService } from "../rpc/connect";
-import { AppEventSource, TabContext } from "../uiTypes";
+import { SelectionManagerProxy } from "../selection/selection-manager";
+import { AppEventSource, ApplicationState, TabContext } from "../uiTypes";
 
-const genericTab = `<a class="w3-button tab-button"><span class="label"></span><span class="remove-tab">&times;</span></a>`;
-const genericTools = `<a class="w3-button tab-button">Close</a>`;
+const genericTab = `<a class="tab-button"><span class="label"></span><span class="remove-tab">&times;</span></a>`;
 
 export type TabEvent = {
   rename: { name: string };
@@ -29,8 +28,10 @@ export function makeGenericTab(tabEvent: TabEventEmitter): _$ {
 let tabs: _$;
 let tabElements: { tab: _$; win: _$; context: TabContext }[] = [];
 let emitter: AppEventSource;
-export function makeTabs(_emitter: AppEventSource) {
+let state: ApplicationState;
+export function makeTabs(_emitter: AppEventSource, _state: ApplicationState) {
   emitter = _emitter;
+  state = _state;
   const html = $(`
   <div class="fill">
     <div class="w3-bar main-tab-bar">
@@ -43,12 +44,21 @@ export function makeTabs(_emitter: AppEventSource) {
   </div>
 `);
   tabs = $(".tabs", html);
+
+  const activeSelectionManager = new SelectionManagerProxy<AlbumEntry>();
+  state.setValueByRef("activeSelectionManager", activeSelectionManager);
+  state.events.on("activeTab", (tab) => {
+    // get new selection manager
+    const selManager = tab?.context?.selectionManager;
+    activeSelectionManager.updateManager(selManager);
+  });
+
   return html;
 }
 
 export function selectTab(_tab: _$) {
   for (const e of tabElements) {
-    if (e.tab.get() === _tab.get()) {
+    if (e.tab.is(_tab)) {
       tabElements.splice(tabElements.indexOf(e), 1);
       tabElements.push(e);
       break;
@@ -64,6 +74,7 @@ export function selectTab(_tab: _$) {
   last.win.css("z-index", 1);
   _tab.get().scrollIntoView();
   emitter.emit("tabChanged", last);
+  state.setValueByRef("activeTab", last);
 }
 
 export function deleteTab(_tab: _$) {
