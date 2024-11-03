@@ -2,21 +2,24 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import { Stats } from "sharp";
 import { lock } from "../../../shared/lib/mutex";
-import { pathForEntryMetadata } from "../../../shared/lib/utils";
 import {
   buildContextFromBuffer,
   destroyContext,
   statsOfContext,
 } from "../../imageOperations/sharp-processor";
 import { facesFolder } from "../../utils/constants";
-import { fileExists, safeWriteFile } from "../../utils/serverUtils";
+import {
+  fileExists,
+  pathAndFileForAlbumEntry,
+  safeWriteFile,
+} from "../../utils/serverUtils";
 import { dec, inc } from "../../utils/stats";
 import { decodeReferenceId } from "../albumTypes/referenceFiles";
 import { getFaceImage } from "./thumbnail";
 
 export function referenceStatsPath(referenceId: string) {
   const { entry: originalEntry, index } = decodeReferenceId(referenceId);
-  const path = pathForEntryMetadata(originalEntry);
+  const path = pathAndFileForAlbumEntry(originalEntry);
   return {
     path: join(facesFolder, "references", ...path.path),
     file: `${path.filename}-${index}.json`,

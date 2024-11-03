@@ -96,7 +96,6 @@ export class PicisaClient {
     });
   }
   async media(album: object, filter: string):Promise<any> {
-    if(!album) debugger;
     return this.emit('PicisaClient:media', {
       'args': { album, filter } 
     });
