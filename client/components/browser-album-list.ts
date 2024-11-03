@@ -211,7 +211,6 @@ export async function makeAlbumList(
         }
       })
       .on("drop", async (ev: any) => {
-        debugger;
         ev.stopPropagation();
         if (dropTarget) {
           $(dropTarget).removeClass("drop-area");

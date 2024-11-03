@@ -158,6 +158,7 @@ export async function writeProject(
 }
 export async function buildProject(
   project: AlbumEntry,
+  outAlbum: Album,
   outResolutionX: number,
   outResolutionY?: number,
 ): Promise<AlbumEntry> {
@@ -167,11 +168,12 @@ export async function buildProject(
   let newEntry: AlbumEntry;
   switch (projectType) {
     case ProjectType.MOSAIC:
-      newEntry = await generateMosaicFile(source, outResolutionX);
+      newEntry = await generateMosaicFile(source, outAlbum, outResolutionX);
       break;
     case ProjectType.SLIDESHOW:
       newEntry = await generateSlideshowFile(
         source,
+        outAlbum,
         outResolutionX,
         outResolutionY,
       );

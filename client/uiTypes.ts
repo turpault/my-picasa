@@ -64,9 +64,6 @@ export type AppEvent = {
     win: _$;
     preventDefault: () => void;
   };
-  browserSelectionChanged: {
-    selection: AlbumEntry[];
-  };
   // Well-known events sourced from tabs
   /**
    * Edit a single existing albumEntry

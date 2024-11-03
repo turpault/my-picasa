@@ -30,7 +30,7 @@ export async function question(
       <p class="message">${message}</p>
       <input class="question" placeholder="${placeHolder}"></input>
       <div class="okcancel">
-      <a class="confirm w3-button w3-green">${t("Ok")}</a>
+      <a class="confirm w3-button w3-green disabled">${t("Ok")}</a>
       <a class="cancel w3-button w3-red">${t("Cancel")}</a>
       </div>
     </div>
@@ -47,15 +47,19 @@ async function show(q: _$) {
   });
   let off: Function;
   return new Promise<string | undefined>((resolve) => {
+    const question = $(".question", q);
     $(".confirm", q).on("click", () => {
-      resolve($(".question", q).val());
+      resolve(question.val());
     });
     $(".cancel", q).on("click", () => {
       resolve(undefined);
     });
+    question.on("input", (ev) => {
+      $(".confirm", q).addRemoveClass("disabled", question.val() === "");
+    });
     off = hookKeyboardEvents.on("keyDown", (e) => {
       if (e.code === "Enter") {
-        resolve($(".question", q).val());
+        resolve(question.val());
       } else if (e.code === "Escape") {
         resolve(undefined);
       }

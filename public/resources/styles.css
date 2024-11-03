@@ -26,8 +26,8 @@
 }
 
 .images .thumbnail {
-  transition: padding 0.3s ease-in-out;
-  transition: margin 0.3s ease-in-out;
+  /* transition: padding 0.3s ease-in-out; */
+  transition: padding, width 0.3s ease-in-out;
   position: relative;
   display: inline-flex;
   justify-content: center;
@@ -35,8 +35,11 @@
 }
 
 .thumbnail-dragged-over {
-  margin-left: var(--thumbnail-size, 300px);
+  padding-left: var(--thumbnail-size, 300px);
+  width: calc(var(--thumbnail-size, 150px) * 2););
+  /* background-color: red; */
   /*  margin-right: var(--thumbnail-size, 300px);*/
+  /* color: blue; */
 }
 
 .thumbnail-dragged {
@@ -48,7 +51,7 @@
 }
 
 .images .thumbnail:hover {
-  border: 1px solid black;
+  /*border: 1px solid black;*/
 }
 
 .thumbnail-drop-area-left {
@@ -111,10 +114,11 @@
 
 .images .thumbnail img {
   position: absolute;
-  max-width: 100%;
+  max-width: var(--thumbnail-size, 300px);
   max-height: 100%;
   transition: opacity 0.1s ease 0s;
   pointer-events: none;
+  /* width: var(--thumbnail-size, 300px); */
 }
 
 .star {
@@ -577,6 +581,7 @@ body {
   width: 300px;
   padding-left: 4px;
   /* border: 1px; */
+  background-color: #e7e7e7;
 }
 .selection-metadata-content {
   position: absolute;
@@ -905,7 +910,7 @@ body {
 .browser-navigator {
   bottom: 0;
   top: 0px;
-  background-color: #e8e8e8;
+  /* background-color: #e8e8e8; */
 }
 
 .browser-tab-text {
@@ -1248,7 +1253,6 @@ body {
 }
 .browser-list-albums {
   transition: max-height 1s ease-in;
-  max-height: 10000px;
 }
 
 .browser-list-head-0 {
@@ -1740,6 +1744,8 @@ body {
 [data-tooltip-below-image]:hover::after {
   opacity: 0.7;
   z-index: 10000;
+  background-color: white;
+  width: var(--thumbnail-size, 300px);
 }
 
 [data-tooltip-above-image]::before {
@@ -1761,6 +1767,8 @@ body {
 [data-tooltip-above-image]:hover::before {
   opacity: 0.7;
   z-index: 10000;
+  background-color: white;
+  width: var(--thumbnail-size, 300px);
 }
 
 .gallery-container {
@@ -2685,9 +2693,9 @@ body {
   margin-bottom: 20px;
 }
 
-.slideshow-parameters {width: 200px;}
+.slideshow-parameters {width: 300px;}
 .slideshow-parameters picasa-multi-button {
-  font-size: 10px;
+  /* font-size: 18px; */
 }
 .slideshow-parameters input {
   text-align: center;
@@ -2699,7 +2707,7 @@ body {
   /* inset: 0px 0px 0px 300px; */
   /* height: 100%; */
   /* flex-shrink: 4; */
-  left: 200px;
+  left: 300px;
   right: 0;
   bottom: 0;
   top: 0;

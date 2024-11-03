@@ -5,7 +5,11 @@ import { $ } from "../lib/dom";
 import { State } from "../lib/state";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
-import { AppEventSource, ApplicationSharedStateDef, ApplicationState } from "../uiTypes";
+import {
+  AppEventSource,
+  ApplicationSharedStateDef,
+  ApplicationState,
+} from "../uiTypes";
 import { makeBrowserNavigator } from "./browser-navigator";
 import { makeButtons } from "./bottom-selection-buttons";
 import { Button, message } from "./question";
@@ -23,19 +27,14 @@ const tabHtml = `<div class="tab-button browser-tab">
 export async function makeBrowser(
   emitter: AppEventSource,
   albumDataSource: AlbumIndexedDataSource,
-  state: ApplicationState
+  state: ApplicationState,
 ) {
   const win = $(html);
   const selectionManager = new SelectionManager<AlbumEntry>(
     [],
     idFromAlbumEntry,
   );
-
-  selectionManager.events.on("changed", () => {
-    emitter.emit("browserSelectionChanged", {
-      selection: selectionManager.selected(),
-    });
-  });
+  state.setValueByRef("browserSelectionManager", selectionManager);
 
   win.append(
     await makeBrowserNavigator(

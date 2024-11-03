@@ -148,7 +148,7 @@ export class AlbumIndexedDataSource {
             case "albumAdded":
               const albumIndex = this.addAlbum(event.album!);
               if (albumIndex !== -1) {
-                invalidations.push(this.addAlbum(event.album!));
+                invalidations.push(albumIndex);
                 invalidations.push(this.albums.length - 1);
               }
           }
@@ -259,6 +259,7 @@ export class AlbumIndexedDataSource {
       debugger;
       throw new Error("out of bounds");
     }
+    if (!this.albums[index]) debugger;
     return this.albums[index];
   }
 
@@ -321,6 +322,12 @@ export class AlbumIndexedDataSource {
           childs: [] as Node[],
         },
         {
+          name: t("projects"),
+          collapsed: false,
+          albums: projects,
+          childs: [] as Node[],
+        },
+        {
           name: t("folders"),
           albums: [] as AlbumWithData[],
           collapsed: false,
@@ -335,12 +342,6 @@ export class AlbumIndexedDataSource {
           name: t("faces"),
           collapsed: false,
           albums: faces,
-          childs: [] as Node[],
-        },
-        {
-          name: t("projects"),
-          collapsed: false,
-          albums: projects,
           childs: [] as Node[],
         },
       ],

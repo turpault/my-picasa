@@ -102,15 +102,15 @@ export function buildThumbnail(
       lastSources.forEach((e) => e.addClass("thumbnail-dragged-later"));
     });
     ev.stopPropagation();
-    //ev.preventDefault();
   });
   e.on("dragleave", async (ev: DragEvent) => {
     ev.preventDefault();
     //e.removeClass("thumbnail-dragged-over");
     //e.removeClass("padding-margin-right");
   });
-  e.on("drop", (_ev) => {
+  e.on("drop", (ev) => {
     if (lastDraggedOver) {
+      ev.stopPropagation();
       const entry = albumEntryFromElement(lastDraggedOver, elementPrefix);
       if (entry) onDrop(lastDraggedOver, entry, selectionManager, e);
     }
@@ -119,12 +119,14 @@ export function buildThumbnail(
     onDragEnd();
     ev.preventDefault();
   });
-  e.on("dragover", (_event) => {
+  e.on("dragover", (event) => {
     // prevent default to allow drop
-    //event.preventDefault();
+    event.preventDefault();
+    event.stopPropagation();
   });
-  e.on("dragenter", async (ev: DragEvent) => {
+  e.on("dragenter", (ev: DragEvent) => {
     ev.preventDefault();
+    ev.stopPropagation();
     if (lastSources.find((elem) => elem.get() === e.get())) {
       return;
     }

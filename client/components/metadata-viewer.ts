@@ -1,15 +1,15 @@
 import L from "leaflet";
-import {getFilesExifData, getMetadata} from "../folder-utils";
-import {albumThumbnailUrl} from "../imageProcess/client";
-import {$, _$} from "../lib/dom";
-import {debounced} from "../../shared/lib/utils";
-import {getService} from "../rpc/connect";
+import { debounced } from "../../shared/lib/utils";
+import { getFilesExifData } from "../folder-utils";
 import {
-  AlbumEntry,
-  AlbumEntryMetaData
-} from "../types/types";
-import {ApplicationState} from "../uiTypes";
-import {t} from "./strings";
+  albumEntriesWithMetadata,
+  albumThumbnailUrl,
+} from "../imageProcess/client";
+import { $, _$ } from "../lib/dom";
+import { getService } from "../rpc/connect";
+import { AlbumEntry, AlbumEntryMetaData } from "../types/types";
+import { ApplicationState } from "../uiTypes";
+import { t } from "./strings";
 type MetaTransform = {
   label: string;
   available: string[];
@@ -97,10 +97,7 @@ export enum META_PAGES {
   PERSONS = "persons",
 }
 
-
-export function makeMetadataViewer(
-  state: ApplicationState,
-): _$ {
+export function makeMetadataViewer(state: ApplicationState): _$ {
   const e = $(html);
   const title = $(".selection-metadata-header-title", e);
   const pages = {
@@ -116,13 +113,13 @@ export function makeMetadataViewer(
   state.events.on("activeMetaPage", update);
   let offListen: Function | undefined;
   function updateSelectionManager() {
-      if(offListen) offListen();
-      offListen = undefined;
-      const m = state.getValue("activeSelectionManager");
-      if(m)
-        offListen = m.events.on("*", () => {
-          debouncedUpdate();
-        });  
+    if (offListen) offListen();
+    offListen = undefined;
+    const m = state.getValue("activeSelectionManager");
+    if (m)
+      offListen = m.events.on("*", () => {
+        debouncedUpdate();
+      });
   }
   state.events.on("activeSelectionManager", updateSelectionManager);
   updateSelectionManager();
@@ -151,19 +148,18 @@ export function makeMetadataViewer(
         imageData = [];
         p.update();
         const selManager = state.getValue("activeSelectionManager");
-        if(!selManager) return;
+        if (!selManager) return;
 
-        const selections =
-        selManager.selected();
+        const selections = selManager.selected();
         if (selections.some((s) => !s)) debugger;
 
         const [metadata, exifData] = await Promise.all([
-          getMetadata(selections),
+          albumEntriesWithMetadata(selections),
           getFilesExifData(selections),
         ]);
         imageData = selections.map((selection, index) => ({
           entry: selection,
-          metadata: metadata[index].metadata,
+          metadata: metadata[index].raw,
           exifData: exifData[index],
         }));
         p.update();
@@ -175,10 +171,9 @@ export function makeMetadataViewer(
     pages.metadata.e.empty();
     for (const data of imageData) {
       if (!data.exifData) return;
-      pages.metadata.e
-        .append(
-          `<div class="metadata-section-filename">${data.entry.name}</div>`,
-        )
+      pages.metadata.e.append(
+        `<div class="metadata-section-filename">${data.entry.name}</div>`,
+      );
       const keys = Object.keys(data.exifData);
       for (const section of metaSections) {
         if (section.available.find((s) => !keys.includes(s)) === undefined) {
@@ -254,8 +249,8 @@ export function makeMetadataViewer(
         const marker = L.marker([latLong[0], latLong[1]]);
         marker.on("click", () => {
           const selManager = state.getValue("activeSelectionManager");
-          if(!selManager) return;
-  
+          if (!selManager) return;
+
           selManager.setActive(latLong[2]);
         });
 

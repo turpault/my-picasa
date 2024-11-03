@@ -1,5 +1,4 @@
-import { getEntryMetadata } from "../folder-utils";
-import { thumbnailUrl } from "../imageProcess/client";
+import { albumEntryMetadata, thumbnailUrl } from "../imageProcess/client";
 import { $, _$, elementFromEntry, setIdForEntry } from "../lib/dom";
 import { Emitter } from "../lib/event";
 import { toggleStar } from "../lib/handles";
@@ -266,12 +265,12 @@ export function makeButtons(
       hotKey: "Ctrl+Z",
       tooltip: () => {
         return state.getValue("undo")?.length > 0
-          ? `${t("Undo")} ${t(state.getValue("undo")[0].description)}`
+          ? `${t("Undo")} ${t(state.getValue("undo")[state.getValue("undo")?.length-1].description)}`
           : t("Nothing to undo");
       },
       execute: async () => {
         const s = await getService();
-        const undo = state.getValue("undo")[0];
+        const undo = state.getValue("undo")[state.getValue("undo")?.length-1];
         return s.undo(undo.uuid);
       },
     },
@@ -400,12 +399,22 @@ export function makeButtons(
       );
     }
   }
+
   state.getValue("activeSelectionManager").events.on("*", () => {
     for (const action of actions) {
       if (
         action.type !== "sep" &&
         action.stateKeys.includes("activeSelectionManager")
       ) {
+        refreshAction(action);
+      }
+    }
+  });
+  actions.map(refreshAction);
+
+  state.events.on("undo", () => {
+    for (const action of actions) {
+      if (action.type !== "sep" && action.stateKeys.includes("undo")) {
         refreshAction(action);
       }
     }
@@ -479,7 +488,7 @@ export function makeButtons(
     );
     $(".selection-info", container).text("");
     if (active) {
-      const meta = await getEntryMetadata(active);
+      const meta = await albumEntryMetadata(active);
       const stars = parseInt(meta.starCount || "0");
       $(".quick-actions-star", container).text(
         stars ? "🌟".repeat(stars) : "☆",

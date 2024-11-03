@@ -49,6 +49,11 @@ const editHTML = `
   </div>
 </div>`;
 
+const ProjectOutAlbumName = () => {
+  const now = new Date();
+  return `${now.getFullYear().toString()}-${(now.getMonth() + 1).toString().padStart(2, "0")}-${now.getDate().toString().padStart(2, "0")} ${t("Slideshows")}`;
+};
+
 export async function newSlideshowProject(
   name: string,
   images: AlbumEntryWithMetadata[],
@@ -458,11 +463,23 @@ export async function makeSlideshowPage(
         videoResolutions[resolution as keyof typeof videoResolutions].y;
       const jobId = await s.createJob(JOBNAMES.BUILD_PROJECT, {
         source: [project],
+        destination: ProjectOutAlbumName(),
         argument: { width, height },
       });
       const results = await s.waitJob(jobId);
 
       if (results.status === "finished") {
+        if (results.errors.length > 0) {
+          console.error("Error building slideshow", results.errors);
+          await message(
+            t("Error building slideshow") +
+              ":<br>" +
+              results.errors.join("<br>"),
+            ["Ok"],
+          );
+          return;
+        }
+
         const q = await message(t("Slideshow complete"), ["Show", "Later"]);
         if (q === "Show") {
           appEvents.emit("edit", { entry: results.out[0] });

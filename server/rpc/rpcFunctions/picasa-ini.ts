@@ -11,19 +11,19 @@ import {
   sleep,
 } from "../../../shared/lib/utils";
 import {
-  FaceList,
   Album,
   AlbumEntry,
   AlbumEntryMetaData,
   AlbumKind,
   AlbumMetaData,
+  Contact,
   ContactByHash,
+  FaceList,
   PicasaSection,
   ThumbnailSize,
   extraFields,
   idFromKey,
   keyFromID,
-  Contact,
 } from "../../../shared/types/types";
 import { events } from "../../events/server-events";
 import {
@@ -32,7 +32,11 @@ import {
   imagesRoot,
   projectFolder,
 } from "../../utils/constants";
-import { fileExists, safeWriteFile } from "../../utils/serverUtils";
+import {
+  fileExists,
+  pathForAlbum,
+  safeWriteFile,
+} from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { rate } from "../../utils/stats";
 import { media } from "./albumUtils";
@@ -65,7 +69,7 @@ function albumPath(album: Album): string {
   const { id } = idFromKey(album.key);
   switch (album.kind) {
     case AlbumKind.FOLDER:
-      return join(imagesRoot, idFromKey(album.key).id, PICASA);
+      return join(imagesRoot, pathForAlbum(album), PICASA);
     case AlbumKind.FACE:
       return join(facesFolder, id + ".ini");
     case AlbumKind.PROJECT:
@@ -74,9 +78,13 @@ function albumPath(album: Album): string {
 }
 
 export function albumFromNameAndKind(name: string, kind: AlbumKind): Album {
+  const path =
+    kind === AlbumKind.FOLDER
+      ? join(new Date().getFullYear().toString(), name)
+      : name;
   return {
     kind,
-    key: keyFromID(name, kind),
+    key: keyFromID(path, kind),
     name,
   };
 }
@@ -483,7 +491,6 @@ export async function readPersons(entry: AlbumEntry): Promise<string[]> {
   const persons = picasa.persons || "";
   return persons.split(",").map((p) => p.trim());
 }
-
 
 export function readContacts(picasaIni: AlbumMetaData): ContactByHash {
   if (picasaIni[PicasaBaseKeys.Contacts2]) {

@@ -27,14 +27,6 @@ export const THUMBS = ".thumbnails.ini";
 export const PhotoLibraryPath =
   "/Volumes/1TB USB/Phototheque MacOS/Photothèque.photoslibrary";
 
-export const ProjectOutAlbumName = () => {
-  const now = new Date();
-  return join(
-    defaultNewFolder,
-    `${now.getFullYear().toString()}-${now.getMonth()}-${now.getDate()}  Projects`,
-  );
-};
-
 export const ThumbnailSizes = {
   "th-small": 100,
   "th-medium": 250,

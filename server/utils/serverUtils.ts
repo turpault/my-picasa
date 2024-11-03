@@ -1,8 +1,13 @@
 import { rename, stat, writeFile } from "fs/promises";
 import { extname, join } from "path";
 import { lock } from "../../shared/lib/mutex";
-import { AlbumEntry, AlbumKind, idFromKey } from "../../shared/types/types";
-import { facesFolder, imagesRoot, projectFolder } from "./constants";
+import {
+  Album,
+  AlbumEntry,
+  AlbumKind,
+  idFromKey,
+} from "../../shared/types/types";
+import { imagesRoot } from "./constants";
 
 export async function fileExists(path: string): Promise<boolean> {
   return stat(path)
@@ -34,4 +39,22 @@ export async function safeWriteFile(fileName: string, data: any) {
   } finally {
     unlock();
   }
+}
+
+export function pathAndFileForAlbumEntry(entry: AlbumEntry) {
+  return {
+    path: [pathForAlbum(entry.album)],
+    filename: entry.name,
+  };
+}
+
+export function pathForAlbumEntry(entry: AlbumEntry) {
+  return join(pathForAlbum(entry.album), entry.name);
+}
+
+export function pathForAlbum(album: Album) {
+  const { id, kind } = idFromKey(album.key);
+  if (kind === AlbumKind.FOLDER) {
+    return id;
+  } else throw new Error("Not a folder");
 }

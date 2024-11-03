@@ -10,43 +10,6 @@ import { getAlbumMetadata } from "./lib/handles";
 import { Settings, getSettings } from "./lib/settings";
 import { getService } from "./rpc/connect";
 
-export async function getEntryMetadata(entry: AlbumEntry) {
-  const s = await getService();
-  if(!entry) debugger;
-  return s.getAlbumEntryMetadata(entry) as AlbumEntryMetaData;
-}
-
-export async function getMetadata(
-  entries: AlbumEntry[],
-): Promise<AlbumEntryPicasa[]> {
-  const uniqueAlbums = entries.reduce((prev, val) => {
-    if (!prev.find((a) => a.key === val.album.key)) {
-      prev.push(val.album);
-    }
-    return prev;
-  }, [] as Album[]);
-  const s = await getService();
-  const picasa = await Promise.all(
-    uniqueAlbums.map(async (a) => {
-      const metadata = await s.getAlbumMetadata(a);
-      return { album: a, picasa: metadata };
-    }),
-  );
-  return entries.map((entry) => {
-    const p = picasa.find((e) => e.album.key === entry.album.key);
-    if (!p) {
-      return {
-        ...entry,
-        metadata: {},
-      };
-    }
-    return {
-      ...entry,
-      metadata: p!.picasa[entry.name] || {},
-    };
-  });
-}
-
 async function albumContents(
   fh: Album,
   filter: string = "",

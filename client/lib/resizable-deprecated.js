@@ -398,7 +398,6 @@ function attachResizerEvents(){
         window.addEventListener('mouseup', Resizable.currentResizer.cancelResize);
       });
       el.addEventListener('touchstart', function(e) {
-        console.log("touchstart");
         Resizable.currentResizer = getResizerFromDiv(el.id);
         window.addEventListener('touchmove', Resizable.currentResizer.resize);
         window.addEventListener('touchend', Resizable.currentResizer.cancelResize);

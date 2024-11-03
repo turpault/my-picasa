@@ -197,6 +197,28 @@ const stringTable: { [key: string]: any } = {
   " through the years": { fr: " à travers les années" },
   Show: { fr: "Voir" },
   Later: { fr: "Plus tard" },
+  projects: { fr: "Projets", en: "Projects" },
+  "Mosaic Name": { fr: "Nom la mosaique" },
+  "New mosaic": { fr: "Nouvelle mosaique" },
+  Pictures: { fr: "Images" },
+  "Mosaic needs at least 2 images": {
+    fr: "La mosaique a besoin d'au moins 2 images",
+  },
+  Mosaics: { fr: "Mosaiques" },
+  Slideshows: { fr: "Slideshows" },
+  "Slideshow needs at least one image": {
+    fr: "Le slideshow a besoin d'au moins une image",
+  },
+  "Please enter a name": { fr: "Veuillez entrer un nom" },
+  "Mosaic complete": { fr: "Mosaique terminée" },
+  "Synchronize favorites from Photos App": {
+    fr: "Synchroniser les favoris de l'application Photos",
+  },
+  "Multi move": { fr: "Déplacer plusieurs" },
+  "Do you want to delete the file $1": {
+    fr: "Voulez-vous supprimer le fichier $1",
+  },
+  Restore: { fr: "Restaurer" },
 };
 const lang = window.navigator.language.split("-")[0];
 let str = new Set<string>();

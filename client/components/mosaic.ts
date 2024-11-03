@@ -13,6 +13,7 @@ import {
   Cell,
   Format,
   GutterSizes,
+  Job,
   JOBNAMES,
   Layout,
   Mosaic,
@@ -41,7 +42,7 @@ import {
 } from "./mosaic-tree-builder";
 import { message } from "./question";
 import { t } from "./strings";
-import { TabEvent, makeGenericTab } from "./tabs";
+import { makeGenericTab, TabEvent } from "./tabs";
 
 const editHTML = `
 <div class="fill mosaic">
@@ -75,6 +76,11 @@ const editHTML = `
     </div>
   </div>
 </div>`;
+
+const ProjectOutAlbumName = () => {
+  const now = new Date();
+  return `${now.getFullYear().toString()}-${(now.getMonth() + 1).toString().padStart(2, "0")}-${now.getDate().toString().padStart(2, "0")} ${t("Mosaics")}`;
+};
 
 function buildHTMLForNode(node: Cell): string {
   let res = "";
@@ -132,8 +138,9 @@ function rebuildMosaic(
   height: number,
   projectData: Mosaic,
   rebuild: boolean,
+  pictures: AlbumEntryWithMetadata[],
   selectionManager: AlbumEntrySelectionManager,
-  updated: (redraw: boolean, rebuild: boolean) => void,
+  updated: (reason: string, redraw?: boolean, rebuild?: boolean) => void,
 ): { reflow: Function } {
   container.empty();
 
@@ -148,18 +155,14 @@ function rebuildMosaic(
   if (rebuild || !projectData.root) {
     switch (projectData.layout) {
       case Layout.MOSAIC:
-        root = buildMosaicCells(projectData.images, projectData.seed);
+        root = buildMosaicCells(pictures, projectData.seed);
         break;
       case Layout.SQUARE:
-        root = buildSquareCells(
-          projectData.images,
-          projectData.seed,
-          width / height,
-        );
+        root = buildSquareCells(pictures, projectData.seed, width / height);
         break;
     }
     projectData.root = root;
-    updated(false, false);
+    updated("reflown", false, false);
   } else {
     root = projectData.root;
   }
@@ -211,7 +214,11 @@ function rebuildMosaic(
         deleteResizable = undefined;
       }
 
-      const debouncedUpdated = debounced(updated, 200, false) as () => void;
+      const debouncedUpdated = debounced(
+        () => updated("resized"),
+        200,
+        false,
+      ) as () => void;
       if (root)
         resizable(container, root, width, height, gutterInPx, debouncedUpdated);
     },
@@ -243,7 +250,11 @@ const GutterLabels: { [key in GutterSizes]: string } = {
 async function installHandlers(
   container: _$,
   projectData: Mosaic,
-  projectUpdated: (redraw: boolean, rebuildTree: boolean) => void,
+  projectUpdated: (
+    reason: string,
+    redraw: boolean,
+    rebuildTree: boolean,
+  ) => void,
 ) {
   function cellImageUpdated(cell: Cell) {
     container.all(`#${cell.id}`)[0]?.css({
@@ -268,7 +279,6 @@ async function installHandlers(
     console.info("click");
   });
   container.on("dragstart", (ev) => {
-    console.log("dragstart-container");
     const dataTransfer = ev.dataTransfer;
     if (dataTransfer) {
       dataTransfer.setData("text/plain", (ev.target as any)?.id || "");
@@ -291,7 +301,7 @@ async function installHandlers(
       const tmp = source.image;
       source.image = target.image;
       target.image = tmp;
-      projectUpdated(true, false);
+      projectUpdated("dropped", true, false);
     }
     ev.stopPropagation();
   });
@@ -335,11 +345,6 @@ async function loadMosaicProject(entry: AlbumEntry): Promise<MosaicProject> {
   return project;
 }
 
-async function savemosaicProject(project: MosaicProject, changeType: string) {
-  const s = await getService();
-  await s.writeProject(project, changeType);
-}
-
 function sanitizeTree(root: Cell) {
   if (root.childs) {
     if (!root.childs.left || !root.childs.right) {
@@ -368,7 +373,6 @@ export async function makeMosaicPage(
   const mosaic = $(".mosaic-grid", e);
   const mosaicContainer = $(".mosaic-container", e);
   let reflow: Function;
-  let browserSelection: AlbumEntry[] = [];
 
   const project = await loadMosaicProject(entry);
 
@@ -378,14 +382,23 @@ export async function makeMosaicPage(
   );
   const parameters = $(".mosaic-parameters", e);
 
-  async function projectUpdated(redrawNow: boolean, rebuildTree: boolean) {
-    await savemosaicProject(project, "updateSize");
+  async function projectUpdated(
+    reason: string,
+    redrawNow: boolean = false,
+    rebuildTree: boolean = false,
+  ) {
+    const s = await getService();
+    await s.writeProject(
+      { ...project, images: selectionManager.selected() },
+      reason,
+    );
+
     if (redrawNow) {
       redraw(rebuildTree);
     }
   }
 
-  function redraw(rebuildTree = true) {
+  async function redraw(rebuildTree = true) {
     const width = mosaicContainer.width;
     const height = mosaicContainer.height;
     let ratio = project.payload.format;
@@ -401,12 +414,16 @@ export async function makeMosaicPage(
       updatedH = width / ratio;
     }
 
+    const pictures = await albumEntriesWithMetadata(
+      selectionManager.selected(),
+    );
     const r = rebuildMosaic(
       mosaic,
       updatedW,
       updatedH,
       project.payload,
       rebuildTree,
+      pictures,
       selectionManager,
       projectUpdated,
     );
@@ -436,7 +453,7 @@ export async function makeMosaicPage(
   );
   sizeDropdown.emitter.on("select", ({ key }) => {
     project.payload.size = key;
-    savemosaicProject(project, "updateSize");
+    projectUpdated("updateSize");
   });
   parameters.append(sizeDropdown.element);
 
@@ -474,7 +491,7 @@ export async function makeMosaicPage(
   parameters.append(formatDropdown.element);
 
   const imageControl = makeMultiselectImageList(
-    t("Images"),
+    t("Pictures"),
     project.payload.pool,
     selectionManager,
     "th-small",
@@ -486,49 +503,65 @@ export async function makeMosaicPage(
   const off = [
     orientationDropdown.emitter.on("select", ({ key }) => {
       project.payload.orientation = key;
-      savemosaicProject(project, "updateOrientation");
-      redraw(true);
+      projectUpdated("updateOrientation", true);
     }),
     gutterDropdown.emitter.on("select", ({ key }) => {
       project.payload.gutter = key;
-      redraw(false);
-      savemosaicProject(project, "updateGutter");
+      projectUpdated("updateGutter", true, false);
     }),
     formatDropdown.emitter.on("select", ({ key }) => {
       project.payload.format = key;
-      savemosaicProject(project, "updateFormat");
-      redraw(true);
+      projectUpdated("updateFormat", true, true);
     }),
     layoutDropdown.emitter.on("select", ({ key }) => {
       project.payload.layout = key;
-      savemosaicProject(project, "updateLayout");
-      redraw(true);
+      projectUpdated("updateLayout", true, true);
     }),
 
     $(".mosaic-make", e).onWithOff("click", async () => {
       const s = await getService();
       const jobId = await s.createJob(JOBNAMES.BUILD_PROJECT, {
         source: [project],
+        destination: ProjectOutAlbumName(),
         argument: {},
       });
-      const results = await s.waitJob(jobId);
+      const results = (await s.waitJob(jobId)) as Job;
 
       if (results.status === "finished") {
+        if (results?.errors.length > 0) {
+          console.error("Error building mosaic", results.errors);
+          await message(
+            t("Error building mosaic") + ":<br>" + results.errors.join("<br>"),
+            ["Ok"],
+          );
+          return;
+        }
         const q = await message(t("Mosaic complete"), ["Show", "Later"]);
         if (q === "Show") {
-          selectionManager.setSelection([results.out[0]]);
           appEvents.emit("edit", { entry: results.out[0] });
         }
       }
     }),
     $(".mosaic-shuffle", e).onWithOff("click", async () => {
       project.payload.seed = Math.random();
-      savemosaicProject(project, "updateSeed");
-      redraw(true);
+      projectUpdated("updateSeed", true, true);
     }),
     $(".mosaic-import-selection", e).onWithOff("click", async () => {
-      const newImages = await albumEntriesWithMetadata(browserSelection);
+      const browserSelection = state
+        .getValue("browserSelectionManager")!
+        .selected();
+      const newPics = browserSelection.filter(
+        (img) =>
+          !project.payload.pool
+            .map((i) => idFromAlbumEntry(i))
+            .includes(idFromAlbumEntry(img)) &&
+          img.album.kind === AlbumKind.FOLDER,
+      );
+      if (newPics.length === 0) return;
+
+      const newImages = await albumEntriesWithMetadata(newPics);
       project.payload.pool.push(...newImages);
+
       const imageControl = makeMultiselectImageList(
         t("Images"),
         project.payload.pool,
@@ -538,7 +571,7 @@ export async function makeMosaicPage(
       );
 
       $(".mosaic-images", e).empty().append(imageControl);
-      savemosaicProject(project, "updatePool");
+      projectUpdated("updatePool");
     }),
     ...(await installHandlers(e, project.payload, projectUpdated)),
     appEvents.on("tabDeleted", ({ win }) => {
@@ -553,8 +586,13 @@ export async function makeMosaicPage(
         }
       }
     }),
-    appEvents.on("browserSelectionChanged", ({ selection }) => {
-      browserSelection = selection.filter(
+    selectionManager.events.on("changed", () => {
+      projectUpdated("updateSelection", true, true);
+    }),
+    state.getValue("browserSelectionManager").events.on("changed", async () => {
+      const selection = state.getValue("browserSelectionManager")!.selected();
+
+      const newPics = selection.filter(
         (img) =>
           !project.payload.pool
             .map((i) => idFromAlbumEntry(i))
@@ -563,16 +601,10 @@ export async function makeMosaicPage(
       );
 
       const ctrl = $(".mosaic-import-selection", e);
-      ctrl.addRemoveClass("disabled", browserSelection.length === 0);
+      ctrl.addRemoveClass("disabled", newPics.length === 0);
       ctrl.text(
-        `${t("Import Selection")} (${browserSelection.length || t("None")})`,
+        `${t("Import Selection")} (${newPics.length ? newPics.length.toString() + " " + t("pictures") : t("None")})`,
       );
-      ctrl.on("click", () => {
-        project.payload.images.push(
-          ...(selectionManager.selected() as AlbumEntryWithMetadata[]),
-        );
-        projectUpdated(true, true);
-      });
     }),
     (() => {
       const observer = new ResizeObserver(() => {

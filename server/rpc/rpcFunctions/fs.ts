@@ -15,6 +15,7 @@ import {
 import { safeWriteFile } from "../../utils/serverUtils";
 import { openWithFinder } from "./osascripts";
 import { addOrRefreshOrDeleteAlbum } from "../../walker";
+import { pathForAlbum, pathForAlbumEntry } from "../../utils/serverUtils";
 
 export async function getFileContents(file: string): Promise<string> {
   const p = join(imagesRoot, file);
@@ -62,12 +63,12 @@ export async function makeAlbum(name: string): Promise<Album> {
 }
 
 export async function openAlbumInFinder(album: Album) {
-  const p = join(imagesRoot, idFromKey(album.key).id);
+  const p = join(imagesRoot, pathForAlbum(album));
   openWithFinder(p);
 }
 
 export async function openAlbumEntryInFinder(entry: AlbumEntry) {
-  const p = join(imagesRoot, idFromKey(entry.album.key).id, entry.name);
+  const p = join(imagesRoot, pathForAlbumEntry(entry));
   openWithFinder(p);
 }
 

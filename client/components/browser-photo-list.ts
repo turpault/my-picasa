@@ -221,14 +221,24 @@ export async function makePhotoList(
     updateHighlighted();
     doRepopulate = true;
   });
-  container.on("click", (e: MouseEvent) => {
+
+  container.on("mousedown", (e: MouseEvent) => {
+    // save start position
+    var rect = container.clientRect();
+    dragStartPos.x = e.clientX - rect.x;
+    dragStartPos.y = e.clientY - rect.y;
+    return false;
+  });
+  container.on("mouseup", (e: MouseEvent) => {
     if (!dragging) {
       // I'm not dragging. let's unselect things
       const multi = e.metaKey;
       if (!multi) {
         selectionManager.clear();
       }
-      return;
+      dragStartPos.x = 0;
+      dragStartPos.y = 0;
+      return false;
     }
     var rect = container.get().getBoundingClientRect();
     e.stopPropagation();
@@ -246,18 +256,19 @@ export async function makePhotoList(
       thumbElementPrefix,
     );
     // Find all the elements intersecting with the area.
-  });
-  container.on("mousedown", (e: MouseEvent) => {
-    // save start position
-    var rect = container.clientRect();
-    dragStartPos.x = e.clientX - rect.x;
-    dragStartPos.y = e.clientY - rect.y;
+
     return false;
   });
   container.on("mousemove", (e: MouseEvent) => {
     if (!(e.buttons & 1)) {
       return;
     }
+    if (dragStartPos.x === 0 && dragStartPos.y === 0) {
+      var rect = container.clientRect();
+      dragStartPos.x = e.clientX - rect.x;
+      dragStartPos.y = e.clientY - rect.y;
+    }
+
     var rect = container.clientRect();
     const newPos = { x: e.clientX - rect.x, y: e.clientY - rect.y };
     if (
@@ -1043,7 +1054,7 @@ function makeNThumbnails(
       });
     });
 
-    th.on("dropEntry", async (ev) => {
+    th.on("dropEntry", (ev) => {
       const entry = (ev as CustomEvent).detail.entry;
       handleDropOnEntry(entry, entry.album, selectionManager);
     });
@@ -1072,17 +1083,17 @@ async function handleDropOnEntry(
   album: Album,
   selectionManager: AlbumEntrySelectionManager,
 ) {
-  let rank = 0;
+  let rank = 100000;
   const s = await getService();
   if (entry) {
     const p = (await s.getPicasaEntry(entry)) as AlbumEntryMetaData;
     if (p) {
-      rank = parseInt(p.rank || "0");
+      rank = parseInt(p.rank || rank.toString());
     }
   }
 
   s.createJob(JOBNAMES.MOVE, {
-    source: selectionManager,
+    source: selectionManager.selected(),
     destination: {
       album,
       rank,

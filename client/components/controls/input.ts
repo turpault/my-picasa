@@ -3,7 +3,6 @@ import { State } from "../../lib/state";
 export class PicasaInput extends HTMLInputElement {
   constructor() {
     super();
-    debugger;
   }
   // connect component
   connectedCallback() {

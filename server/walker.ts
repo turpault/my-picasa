@@ -1,6 +1,7 @@
 import { Stats } from "fs";
 import { stat } from "fs/promises";
 import { join, relative } from "path";
+import { buildEmitter } from "../shared/lib/event";
 import { Queue } from "../shared/lib/queue";
 import {
   alphaSorter,
@@ -13,7 +14,6 @@ import {
   Album,
   AlbumKind,
   AlbumWithData,
-  idFromKey,
   keyFromID,
 } from "../shared/types/types";
 import {
@@ -26,7 +26,7 @@ import {
   readShortcut,
 } from "./rpc/rpcFunctions/picasa-ini";
 import { imagesRoot, specialFolders } from "./utils/constants";
-import { buildEmitter } from "../shared/lib/event";
+import { pathForAlbum } from "./utils/serverUtils";
 
 const readyLabelKey = "fileWalker";
 const ready = buildReadySemaphore(readyLabelKey);
@@ -124,7 +124,7 @@ async function folderAlbumExists(album: Album): Promise<boolean> {
   if (album.kind !== AlbumKind.FOLDER) {
     throw new Error("Not a folder album");
   }
-  const p = join(imagesRoot, idFromKey(album.key).id);
+  const p = join(imagesRoot, pathForAlbum(album));
   const s = await stat(p).catch(() => false);
   if (s === false) {
     return false;

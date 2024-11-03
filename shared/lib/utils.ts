@@ -5,9 +5,11 @@ import {
   AlbumKind,
   FaceList,
   animatedPictureExtensions,
+  idFromKey,
   pictureExtensions,
   videoExtensions,
 } from "../types/types";
+import { join } from "path";
 
 export async function sleep(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));
@@ -520,13 +522,6 @@ export function hashString(b: string) {
   a += a << 3;
   a ^= a >> 11;
   return (((a + (a << 15)) & 4294967295) >>> 0).toString(16);
-}
-
-export function pathForEntryMetadata(entry: AlbumEntry) {
-  return {
-    path: [entry.album.name],
-    filename: entry.name,
-  };
 }
 
 export function prng(a: number) {

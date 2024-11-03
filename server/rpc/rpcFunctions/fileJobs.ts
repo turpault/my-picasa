@@ -2,6 +2,8 @@ import { copyFile, mkdir, rename, stat } from "fs/promises";
 import { basename, dirname, extname, join, relative, sep } from "path";
 import { lock } from "../../../shared/lib/mutex";
 import { debounced, sleep, uuid } from "../../../shared/lib/utils";
+import { pathForAlbum, pathForAlbumEntry } from "../../utils/serverUtils";
+
 import {
   Album,
   AlbumEntry,
@@ -28,7 +30,12 @@ import { setRank } from "./albumUtils";
 import { eraseFace } from "./faces";
 import { syncFavoritesFromPhotoApp } from "./favorites";
 import { openWithFinder } from "./osascripts";
-import { getPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasa-ini";
+import {
+  albumFromNameAndKind,
+  getPicasaEntry,
+  readAlbumIni,
+  updatePicasaEntry,
+} from "./picasa-ini";
 import { copyThumbnails } from "./thumbnail-cache";
 
 const jobs: Job[] = [];
@@ -168,6 +175,7 @@ async function moveJob(job: Job): Promise<Album[]> {
     album: Album;
     rank: number | undefined;
   };
+  console.info("Moving ", source.length, "files to", album.name, "rank", rank);
   const mmArgs: MultiMoveJobArguments = source.map((entry, index) => ({
     source: entry,
     destination: album,
@@ -201,7 +209,7 @@ async function copyJob(job: Job): Promise<Album[]> {
         }
         targetName = targetName.replace(numberedOutRegexReplacer, ".");
         while (!found) {
-          let destPath = join(imagesRoot, idFromKey(dest.key).id, targetName);
+          let destPath = join(imagesRoot, pathForAlbum(dest), targetName);
           found = true;
           if (await fileExists(destPath)) {
             // target already exists
@@ -210,14 +218,14 @@ async function copyJob(job: Job): Promise<Album[]> {
             const ext = extname(targetName);
             const base = basename(targetName, ext);
             targetName = base + ` (${idx++})` + ext;
-            destPath = join(imagesRoot, idFromKey(dest.key).id);
+            destPath = join(imagesRoot, pathForAlbum(dest));
           }
         }
 
         const newEntry = { album: dest, name: targetName };
         await copyFile(
           entryFilePath(s),
-          join(imagesRoot, idFromKey(dest.key).id, targetName),
+          join(imagesRoot, pathForAlbumEntry(newEntry)),
         );
         await copyMetadata(s, newEntry, false);
         job.out.push(newEntry);
@@ -255,7 +263,7 @@ async function deleteAlbumJob(job: Job): Promise<Album[]> {
   job.progress.remaining = 1;
   job.changed();
 
-  const from = join(imagesRoot, idFromKey(source.key).id);
+  const from = join(imagesRoot, pathForAlbum(source));
   const to = join(dirname(from), "." + basename(from));
   const altKey = relative(imagesRoot, to);
   try {
@@ -309,8 +317,8 @@ async function renameAlbumJob(job: Job): Promise<Album[]> {
 
   try {
     await rename(
-      join(imagesRoot, idFromKey(source.key).id),
-      join(imagesRoot, idFromKey(targetAlbum.key).id),
+      join(imagesRoot, pathForAlbum(source)),
+      join(imagesRoot, pathForAlbum(targetAlbum)),
     );
     undoDeleteAlbumPayload.source = targetAlbum;
     onRenamedAlbums(source, targetAlbum);
@@ -348,7 +356,7 @@ async function restoreJob(job: Job): Promise<Album[]> {
           throw new Error(`${s.name} is not a deleted file`);
         }
         const from = entryFilePath(s);
-        const to = join(imagesRoot, idFromKey(s.album.key).id, s.name.slice(1));
+        const to = join(imagesRoot, pathForAlbum(s.album), s.name.slice(1));
         await rename(from, to);
         albumChanged(s.album, updatedAlbums);
       } catch (e: any) {
@@ -374,7 +382,7 @@ async function restoreAlbumJob(job: Job): Promise<Album[]> {
   job.progress.remaining = steps;
   job.changed();
   try {
-    const from = join(imagesRoot, idFromKey(source.key).id);
+    const from = join(imagesRoot, pathForAlbum(source));
     if (!basename(source.key).startsWith(".")) {
       throw new Error(`${source.name} is not a deleted file`);
     }
@@ -422,7 +430,7 @@ async function deleteJob(job: Job): Promise<Album[]> {
       try {
         if (s.album.kind === AlbumKind.FOLDER) {
           const from = entryFilePath(s);
-          const to = join(imagesRoot, idFromKey(s.album.key).id, "." + s.name);
+          const to = join(imagesRoot, pathForAlbum(s.album), "." + s.name);
           await rename(from, to);
           undoDeletePayload.source.push({ album: s.album, name: "." + s.name });
           albumChanged(s.album, updatedAlbums);
@@ -500,7 +508,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
         );
         await rename(
           entryFilePath(s.source),
-          join(imagesRoot, idFromKey(s.destination.key).id, targetName),
+          join(imagesRoot, pathForAlbum(s.destination), targetName),
         );
         undoMultiMovePayload.source.push({
           source: {
@@ -546,7 +554,7 @@ async function exportJob(job: Job): Promise<Album[]> {
   job.progress.remaining = steps;
   job.changed();
   const targetFolder = destination
-    ? join(imagesRoot, idFromKey(destination.key).id)
+    ? join(imagesRoot, pathForAlbum(destination))
     : join(
         exportsFolder,
         "exports-" + new Date().toLocaleString().replace(/\//g, "-"),
@@ -580,13 +588,18 @@ async function buildProjectJob(job: Job): Promise<Album[]> {
   job.status = "started";
   const updatedAlbums: Album[] = [];
   const sources = job.data.source as AlbumEntry[];
+  const destination = job.data.destination as string;
   job.progress.total = 1;
   job.progress.remaining = sources.length;
   job.changed();
 
   for (const source of sources) {
     if (source.album.kind === AlbumKind.PROJECT) {
-      const newEntry = await buildProject(source, job.data.argument.width);
+      const newEntry = await buildProject(
+        source,
+        albumFromNameAndKind(destination, AlbumKind.FOLDER),
+        job.data.argument.width,
+      );
       job.out = job.out ? [...job.out, newEntry] : [newEntry];
     }
     job.progress.remaining--;

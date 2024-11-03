@@ -1,15 +1,15 @@
 import { mkdir, readFile } from "fs/promises";
 import { join } from "path";
-import {
-  albumEntryFromId,
-  pathForEntryMetadata,
-} from "../../../shared/lib/utils";
+import { albumEntryFromId } from "../../../shared/lib/utils";
 import { AlbumEntry, Reference } from "../../../shared/types/types";
 import { facesFolder } from "../../utils/constants";
-import { safeWriteFile } from "../../utils/serverUtils";
+import {
+  pathAndFileForAlbumEntry,
+  safeWriteFile,
+} from "../../utils/serverUtils";
 
 export function referencePath(entry: AlbumEntry) {
-  const path = pathForEntryMetadata(entry);
+  const path = pathAndFileForAlbumEntry(entry);
   return {
     path: join(facesFolder, "references", ...path.path),
     file: `${path.filename}.json`,

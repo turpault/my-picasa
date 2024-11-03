@@ -296,7 +296,8 @@ export class _$<T extends HTMLElement = HTMLElement> {
   }
 
   remove() {
-    this.get().parentElement!.removeChild(this.get());
+    if(this.get().parentElement)
+      this.get().parentElement!.removeChild(this.get());
   }
 
   isParent(e: HTMLElement | _$) {

@@ -1,16 +1,14 @@
 import { mkdir } from "fs/promises";
-import { basename, join } from "path";
+import { join } from "path";
 import { calculateImagePositions } from "../../shared/lib/mosaic-positions";
 import { namify } from "../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
-  AlbumKind,
   ImageEncoding,
   ImageMimeType,
   MosaicProject,
   Orientation,
-  keyFromID,
 } from "../../shared/types/types";
 import {
   blitMultiple,
@@ -21,8 +19,8 @@ import {
   transform,
 } from "../imageOperations/sharp-processor";
 import { getProject } from "../rpc/albumTypes/projects";
-import { ProjectOutAlbumName, imagesRoot } from "../utils/constants";
-import { safeWriteFile } from "../utils/serverUtils";
+import { imagesRoot } from "../utils/constants";
+import { pathForAlbum, safeWriteFile } from "../utils/serverUtils";
 
 export async function makeMosaic(
   entry: AlbumEntry,
@@ -76,11 +74,12 @@ export async function makeMosaic(
 
 export async function generateMosaicFile(
   entry: AlbumEntry,
+  outAlbum: Album,
   width: number,
 ): Promise<AlbumEntry> {
   const res = await makeMosaic(entry, width);
-  const albumName = ProjectOutAlbumName();
-  const targetFolder = join(imagesRoot, albumName);
+
+  const targetFolder = join(imagesRoot, pathForAlbum(outAlbum));
   await mkdir(targetFolder, { recursive: true });
   const targetFile =
     namify(
@@ -90,14 +89,8 @@ export async function generateMosaicFile(
     ) + ".jpeg";
   await safeWriteFile(join(targetFolder, targetFile), res.data);
 
-  const album: Album = {
-    name: basename(albumName),
-    key: keyFromID(albumName, AlbumKind.FOLDER),
-    kind: AlbumKind.FOLDER,
-  };
-
   return {
     name: targetFile,
-    album,
+    album: outAlbum,
   };
 }

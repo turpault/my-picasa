@@ -2,13 +2,7 @@ import { copyFile, mkdir } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { isPicture, uuid } from "../../shared/lib/utils";
-import {
-  Album,
-  AlbumEntry,
-  AlbumKind,
-  keyFromID,
-  SlideshowProject,
-} from "../../shared/types/types";
+import { Album, AlbumEntry, SlideshowProject } from "../../shared/types/types";
 import {
   blit,
   buildContextFromBuffer,
@@ -20,12 +14,17 @@ import {
 } from "../imageOperations/sharp-processor";
 import { getProject } from "../rpc/albumTypes/projects";
 import { readAlbumIni } from "../rpc/rpcFunctions/picasa-ini";
-import { imagesRoot, ProjectOutAlbumName } from "../utils/constants";
-import { entryFilePath, safeWriteFile } from "../utils/serverUtils";
+import { imagesRoot } from "../utils/constants";
+import {
+  entryFilePath,
+  pathForAlbum,
+  safeWriteFile,
+} from "../utils/serverUtils";
 import { ffmpeg } from "../videoOperations/ffmpeg";
 
 export async function generateSlideshowFile(
   projectEntry: AlbumEntry,
+  outAlbum: Album,
   outResolutionX: number,
   outResolutionY: number | undefined,
 ): Promise<AlbumEntry> {
@@ -213,20 +212,13 @@ export async function generateSlideshowFile(
   ];
 
   const name = `${project.name}.mp4`;
-  const albumName = ProjectOutAlbumName();
-  const p = join(imagesRoot, albumName);
+  const p = join(imagesRoot, pathForAlbum(outAlbum));
   await mkdir(p, { recursive: true });
   const out = join(p, name);
   await ffmpeg(command, out);
 
-  const album: Album = {
-    name: albumName,
-    key: keyFromID(albumName, AlbumKind.FOLDER),
-    kind: AlbumKind.FOLDER,
-  };
-
   return {
     name,
-    album,
+    album: outAlbum,
   };
 }

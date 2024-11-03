@@ -7,6 +7,7 @@ import {
 import {
   Album,
   AlbumEntry,
+  AlbumEntryMetaData,
   AlbumEntryPicasa,
   AlbumEntryWithMetadata,
   ThumbnailSize,
@@ -21,7 +22,7 @@ export async function buildContext(entry: AlbumEntry): Promise<string> {
 
 export async function execute(
   context: string,
-  operations: any[][]
+  operations: any[][],
 ): Promise<string> {
   const c = await getService();
   await c.execute(context, operations as any[][]);
@@ -50,7 +51,7 @@ export async function commit(context: string): Promise<string> {
 
 export async function setOptions(
   context: string,
-  options: any
+  options: any,
 ): Promise<string> {
   const c = await getService();
   await c.setOptions(context, options);
@@ -59,7 +60,7 @@ export async function setOptions(
 
 export async function transform(
   context: string,
-  transformation: PicasaFilter[]
+  transformation: PicasaFilter[],
 ): Promise<string> {
   const c = await getService();
   await c.transform(context, encodeOperations(transformation));
@@ -68,7 +69,7 @@ export async function transform(
 
 export async function cloneContext(
   context: string,
-  hint: string
+  hint: string,
 ): Promise<string> {
   const c = await getService();
   const newContext = await c.cloneContext(context, hint);
@@ -83,16 +84,14 @@ export async function destroyContext(context: string): Promise<void> {
 export async function encode(
   context: string,
   mime: string,
-  format: string
+  format: string,
 ): Promise<{ width: number; height: number; data: string | Buffer }> {
   const c = await getService();
   return await c.encode(context, mime, format);
 }
 
 export function encodeToURL(context: string, mime: string): string {
-  return `/encode/${context}/${fixedEncodeURIComponent(
-    mime
-  )}`;
+  return `/encode/${context}/${fixedEncodeURIComponent(mime)}`;
 }
 
 const busts: { [key: string]: number } = {};
@@ -112,16 +111,16 @@ function cacheBustId(e: AlbumEntry) {
 export function thumbnailUrl(
   entry: AlbumEntry,
   size: ThumbnailSize = "th-medium",
-  animated: boolean = true
+  animated: boolean = true,
 ): string {
   if (!entry) {
     return "";
   }
   return (
     `/thumbnail/${fixedEncodeURIComponent(
-      entry.album.key
+      entry.album.key,
     )}/${fixedEncodeURIComponent(entry.name)}/${fixedEncodeURIComponent(
-      size
+      size,
     )}` + `?cacheBust=${cacheBustId(entry)}${animated ? "&animated" : ""}`
   );
 }
@@ -129,14 +128,14 @@ export function thumbnailUrl(
 export function albumThumbnailUrl(
   album: Album,
   size: ThumbnailSize = "th-medium",
-  animated: boolean = true
+  animated: boolean = true,
 ): string {
   if (!album) {
     return "";
   }
   return (
     `/thumbnail/${fixedEncodeURIComponent(
-      album.key
+      album.key,
     )}/${fixedEncodeURIComponent(size)}` + `${animated ? "&animated" : ""}`
   );
 }
@@ -146,15 +145,21 @@ export function assetUrl(entry: AlbumEntry): string {
     return "";
   }
   return `http://127.0.0.1:${getServicePort()}/asset/${fixedEncodeURIComponent(
-    entry.album.key
+    entry.album.key,
   )}/${fixedEncodeURIComponent(entry.name)}`;
 }
 
 export async function albumEntriesWithMetadata(
-  a: AlbumEntry[]
+  a: AlbumEntry[],
 ): Promise<AlbumEntryWithMetadata[]> {
   const s = await getService();
   return Promise.all(
-    a.map((entry) => s.imageInfo(entry) as Promise<AlbumEntryWithMetadata>)
+    a.map((entry) => s.imageInfo(entry) as Promise<AlbumEntryWithMetadata>),
   );
+}
+
+export async function albumEntryMetadata(entry: AlbumEntry) {
+  const s = await getService();
+  if (!entry) debugger;
+  return s.getAlbumEntryMetadata(entry) as AlbumEntryMetaData;
 }
