@@ -91,7 +91,7 @@ export async function encode(
 }
 
 export function encodeToURL(context: string, mime: string): string {
-  return `/encode/${context}/${fixedEncodeURIComponent(mime)}`;
+  return `http://localhost:${getServicePort()}/encode/${context}/${fixedEncodeURIComponent(mime)}`;
 }
 
 const busts: { [key: string]: number } = {};
@@ -117,7 +117,7 @@ export function thumbnailUrl(
     return "";
   }
   return (
-    `/thumbnail/${fixedEncodeURIComponent(
+    `http://localhost:${getServicePort()}/thumbnail/${fixedEncodeURIComponent(
       entry.album.key,
     )}/${fixedEncodeURIComponent(entry.name)}/${fixedEncodeURIComponent(
       size,
@@ -134,7 +134,7 @@ export function albumThumbnailUrl(
     return "";
   }
   return (
-    `/thumbnail/${fixedEncodeURIComponent(
+    `http://localhost:${getServicePort()}/thumbnail/${fixedEncodeURIComponent(
       album.key,
     )}/${fixedEncodeURIComponent(size)}` + `${animated ? "&animated" : ""}`
   );
@@ -144,7 +144,7 @@ export function assetUrl(entry: AlbumEntry): string {
   if (!entry) {
     return "";
   }
-  return `http://127.0.0.1:${getServicePort()}/asset/${fixedEncodeURIComponent(
+  return `http://localhost:${getServicePort()}/asset/${fixedEncodeURIComponent(
     entry.album.key,
   )}/${fixedEncodeURIComponent(entry.name)}`;
 }

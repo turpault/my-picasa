@@ -55,9 +55,7 @@ export async function makePhotoList(
   dataSource: AlbumIndexedDataSource,
   selectionManager: AlbumEntrySelectionManager,
 ): Promise<_$> {
-  appEvents.emit("ready", { state: false });
   let tabIsActive = false;
-  let ready = false;
   let topIndex: number = -1;
   let bottomIndex: number = -1;
   const pool: _$[] = [];
@@ -591,11 +589,6 @@ export async function makePhotoList(
         // Nothing happened, we will repopulate when scrolling only
         doRepopulate = false;
       }
-    }
-    if (!ready) {
-      ready = true;
-      console.info("Ready");
-      appEvents.emit("ready", { state: true });
     }
   }
 
