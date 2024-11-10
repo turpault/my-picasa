@@ -114,9 +114,14 @@ export async function createProject(type: ProjectType, name: string) {
   return project;
 }
 
-export async function deleteProject(entry: AlbumEntry): Promise<void> {
+export async function eraseProject(entry: AlbumEntry): Promise<void> {
   const p = projectIdToFileName(entry.name, entry.album.name as ProjectType);
-  return unlink(join(projectFolder, p));
+  await unlink(join(projectFolder, p));
+  const album = await getProjectAlbumFromKey(entry.album.key);
+  queueNotification({
+    type: "albumInfoUpdated",
+    album,
+  });
 }
 
 export async function writeProject(
@@ -220,6 +225,8 @@ export async function makeProjectThumbnail(
       const thumb = await readOrMakeThumbnail(entry, size);
       return thumb.data;
     }
+  } catch (e) {
+    console.error(`Error making project thumbnail for ${entry.name}: ${e}`);
   } finally {
     unlock();
   }

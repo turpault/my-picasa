@@ -231,7 +231,7 @@ export async function syncFavoritesFromPhotoApp(
   function candidatesOf(name: string) {
     // Dichotomy search in the sorted list of all the photos
     let left = 0;
-    let right = allPhotos.length;
+    let right = allPhotos.length - 1;
     while (left < right) {
       const mid = Math.floor((left + right) / 2);
       const midName = allPhotos[mid].name;
@@ -308,11 +308,11 @@ export async function syncFavoritesFromPhotoApp(
     }
     if (photo.favorite) {
       filteredCandidates.forEach((candidate) => {
+        newStarred.push(candidate);
         if (alreadyStarred.includes(candidate)) {
           // do nothing
         } else {
           promises.push(updatePicasaEntry(candidate, "photostar", 1));
-          newStarred.push(candidate);
         }
       });
     }

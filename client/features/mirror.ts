@@ -7,10 +7,10 @@ import { FilterTool } from "./baseTool";
 export function setupMirror(
   controller: ImageController,
   toolRegistrar: ToolRegistrar,
-  editor: ToolEditor
+  editor: ToolEditor,
 ) {
   toolRegistrar.registerTool(
-    PAGES.BRUSH,
-    new FilterTool("Mirror", "mirror", controller, editor)
+    PAGES.WRENCH,
+    new FilterTool("Mirror", "mirror", controller, editor),
   );
 }

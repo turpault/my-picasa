@@ -13,7 +13,7 @@ import {
   updatePicasaEntries,
   updatePicasaEntry,
 } from "../rpc/rpcFunctions/picasa-ini";
-import { safeWriteFile } from "../utils/serverUtils";
+import { pathForAlbumEntry, safeWriteFile } from "../utils/serverUtils";
 import { TagValues, dump, insert, load } from "./piexif/index";
 import {
   buildContext,
@@ -77,7 +77,11 @@ export async function imageInfo(
           dimensionsFromFilter: options.filters,
         });
       } catch (e) {
-        console.error("Error getting image info", e);
+        console.error(
+          "Error getting image info for file",
+          pathForAlbumEntry(entry),
+          e,
+        );
       } finally {
         await destroyContext(context);
       }

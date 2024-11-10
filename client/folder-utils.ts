@@ -76,7 +76,7 @@ export async function getAlbumContents(
   }
 
   if (settings.filters.favoritePhoto) {
-    entries = entries.filter((v) => picasa[v.name].photostar);
+    entries = entries.filter((v) => picasa[v.name] && picasa[v.name].photostar);
     filtered = true;
   }
 

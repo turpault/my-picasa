@@ -1,4 +1,3 @@
-
 export type PartialRecord<K extends keyof any, T> = {
   [P in K]?: T;
 };
@@ -337,8 +336,8 @@ export type SlideshowProject = AlbumEntry & {
 };
 
 export type Mosaic = {
-  pool: AlbumEntryWithMetadata[];
-  images: AlbumEntryWithMetadata[];
+  pool: AlbumEntry[];
+  images: AlbumEntry[];
   format: Format;
   layout: Layout;
   orientation: Orientation;
@@ -368,7 +367,7 @@ export type SlideShowBorderType = (typeof SlideShowBorderValues)[number];
 export type SlideshowPage = {
   id: string;
   type: SlideShowPageType;
-  entry?: AlbumEntryWithMetadata;
+  entry?: AlbumEntry;
   text?: string;
   textColor?: string;
   bgTextColor?: string;
@@ -407,4 +406,3 @@ export type Bug = {
   status: string;
   created: Date;
 };
-

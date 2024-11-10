@@ -1,6 +1,7 @@
 import { AlbumEntry } from "../../shared/types/types";
 import { $, _$ } from "../lib/dom";
 import { Emitter } from "../lib/event";
+import { idFromAlbumEntry } from "../../shared/lib/utils";
 import { SelectionManagerProxy } from "../selection/selection-manager";
 import { AppEventSource, ApplicationState, TabContext } from "../uiTypes";
 
@@ -56,7 +57,11 @@ export function makeTabs(_emitter: AppEventSource, _state: ApplicationState) {
   return html;
 }
 
-export function selectTab(_tab: _$) {
+export function selectTab(_tab: _$, closeActive: boolean = false) {
+  const active = tabElements[tabElements.length - 1];
+  if (closeActive && !active.tab.is(_tab)) {
+    deleteTab(active.tab);
+  }
   for (const e of tabElements) {
     if (e.tab.is(_tab)) {
       tabElements.splice(tabElements.indexOf(e), 1);
@@ -67,11 +72,13 @@ export function selectTab(_tab: _$) {
   for (const e of tabElements) {
     e.tab.removeClass("tab-button-highlight");
     e.win.css("z-index", 0);
+    e.win.hide();
   }
   const last = tabElements[tabElements.length - 1];
 
   last.tab.addClass("tab-button-highlight");
   last.win.css("z-index", 1);
+  last.win.show();
   _tab.get().scrollIntoView();
   emitter.emit("tabChanged", last);
   state.setValueByRef("activeTab", last);

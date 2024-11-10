@@ -98,11 +98,11 @@ export function makeButtons(
 
   $(".quick-actions-rotate-left", container).on("click", async () => {
     const s = await getService();
-    s.rotate(state.getValue("activeSelectionManager").active(), "left");
+    s.rotate(state.getValue("activeSelectionManager").selected(), "left");
   });
   $(".quick-actions-rotate-right", container).on("click", async () => {
     const s = await getService();
-    s.rotate(state.getValue("activeSelectionManager").active(), "right");
+    s.rotate(state.getValue("activeSelectionManager").selected(), "right");
   });
   $(".quick-actions-star", container).on("click", async () => {
     toggleStar(state.getValue("activeSelectionManager").selected());
@@ -141,9 +141,21 @@ export function makeButtons(
         type?: "button" | "dropdown";
         execute?: () => any;
         hotKey?: string;
-        tooltip?: () => string;
-        visible?: () => boolean;
-        enabled?: () => boolean;
+        tooltip?: (
+          selected: AlbumEntry[],
+          active: AlbumEntry,
+          activeIndex: number,
+        ) => string;
+        visible?: (
+          selected: AlbumEntry[],
+          active: AlbumEntry,
+          activeIndex: number,
+        ) => boolean;
+        enabled?: (
+          selected: AlbumEntry[],
+          active: AlbumEntry,
+          activeIndex: number,
+        ) => boolean;
         dropdownReady?: (emitter: Emitter<DropListEvents>) => any;
       }
     | { element?: _$; execute?: () => any; type: "sep"; hotKey?: string };
@@ -153,17 +165,23 @@ export function makeButtons(
       label: t("Export..."),
       stateKeys: ["activeSelectionManager"],
       icon: "resources/images/icons/actions/export-50.png",
-      enabled: () =>
-        state.getValue("activeSelectionManager").selected().length > 0,
-      tooltip: () =>
-        state.getValue("activeSelectionManager").selected()?.length
-          ? `${t("Export $1 item(s)", state.getValue("activeSelectionManager").selected()?.length)}`
-          : "",
+      enabled: (
+        selected: AlbumEntry[],
+        active: AlbumEntry,
+        activeIndex: number,
+      ) => selected.length > 0,
+      tooltip: (
+        selected: AlbumEntry[],
+        active: AlbumEntry,
+        activeIndex: number,
+      ) =>
+        selected?.length ? `${t("Export $1 item(s)", selected?.length)}` : "",
       execute: async () => {
-        if (state.getValue("activeSelectionManager").selected().length > 0) {
+        const selected = state.getValue("activeSelectionManager").selected();
+        if (selected.length > 0) {
           const s = await getService();
           return s.createJob(JOBNAMES.EXPORT, {
-            source: state.getValue("activeSelectionManager").selected(),
+            source: selected,
           });
         }
       },
@@ -174,17 +192,23 @@ export function makeButtons(
       label: t("Duplicate"),
       stateKeys: ["activeSelectionManager"],
       icon: "resources/images/icons/actions/duplicate-50.png",
-      enabled: () =>
-        state.getValue("activeSelectionManager").selected().length > 0,
+      enabled: (
+        selected: AlbumEntry[],
+        active: AlbumEntry,
+        activeIndex: number,
+      ) => selected.length > 0,
       hotKey: "Ctrl+D",
-      tooltip: () =>
-        state.getValue("activeSelectionManager").selected().length
-          ? `${t("Duplicate $1 item(s)", state.getValue("activeSelectionManager").selected().length)}`
-          : "",
+      tooltip: (
+        selected: AlbumEntry[],
+        active: AlbumEntry,
+        activeIndex: number,
+      ) =>
+        selected.length ? `${t("Duplicate $1 item(s)", selected.length)}` : "",
       execute: async () => {
+        const selected = state.getValue("activeSelectionManager").selected();
         const s = await getService();
         const jobId = await s.createJob(JOBNAMES.DUPLICATE, {
-          source: state.getValue("activeSelectionManager").selected(),
+          source: selected,
         });
         s.waitJob(jobId).then((results: Job) => {
           selectionManager.setSelection(results.out as AlbumEntry[]);
@@ -196,29 +220,31 @@ export function makeButtons(
       label: t("Move"),
       stateKeys: ["activeSelectionManager"],
       icon: "resources/images/icons/actions/move-to-new-album-50.png",
-      enabled: () =>
-        state.getValue("activeSelectionManager").selected().length > 0,
-      tooltip: () =>
-        state.getValue("activeSelectionManager").selected()?.length
-          ? `${t(
-              "Move $1 item(s) to a new album",
-              state.getValue("activeSelectionManager").selected().length,
-            )}`
+      enabled: (
+        selected: AlbumEntry[],
+        active: AlbumEntry,
+        activeIndex: number,
+      ) => selected.length > 0,
+      tooltip: (
+        selected: AlbumEntry[],
+        active: AlbumEntry,
+        activeIndex: number,
+      ) =>
+        selected?.length
+          ? `${t("Move $1 item(s) to a new album", selected.length)}`
           : "",
       execute: () => {
+        const selected = state.getValue("activeSelectionManager").selected();
         question("New album name", "Please type the new album name").then(
           async (newAlbum) => {
             if (newAlbum) {
               const s = await getService();
               s.makeAlbum(newAlbum).then((album: Album) => {
-                if (
-                  state.getValue("activeSelectionManager").selected().length ===
-                  0
-                ) {
+                if (selected.length === 0) {
                   throw new Error("No selection");
                 }
                 return s.createJob(JOBNAMES.MOVE, {
-                  source: state.getValue("activeSelectionManager").selected(),
+                  source: selected,
                   destination: { album },
                 });
               });
@@ -232,11 +258,15 @@ export function makeButtons(
       label: t("Mosaic"),
       stateKeys: ["activeSelectionManager"],
       icon: "resources/images/icons/actions/composition-50.png",
-      enabled: () =>
-        state.getValue("activeSelectionManager").selected().length > 0,
+      enabled: (
+        selected: AlbumEntry[],
+        active: AlbumEntry,
+        activeIndex: number,
+      ) => selected.length > 0,
       execute: () => {
+        const selected = state.getValue("activeSelectionManager").selected();
         appEvents.emit("mosaic", {
-          initialList: state.getValue("activeSelectionManager").selected(),
+          initialList: selected,
           initialIndex: 0,
         });
       },
@@ -246,11 +276,15 @@ export function makeButtons(
       label: t("Slideshow"),
       stateKeys: ["activeSelectionManager"],
       icon: "resources/images/icons/actions/slideshow.svg",
-      enabled: () =>
-        state.getValue("activeSelectionManager").selected().length > 0,
+      enabled: (
+        selected: AlbumEntry[],
+        active: AlbumEntry,
+        activeIndex: number,
+      ) => selected.length > 0,
       execute: () => {
+        const selected = state.getValue("activeSelectionManager").selected();
         appEvents.emit("slideshow", {
-          initialList: state.getValue("activeSelectionManager").selected(),
+          initialList: selected,
           initialIndex: 0,
         });
       },
@@ -265,12 +299,12 @@ export function makeButtons(
       hotKey: "Ctrl+Z",
       tooltip: () => {
         return state.getValue("undo")?.length > 0
-          ? `${t("Undo")} ${t(state.getValue("undo")[state.getValue("undo")?.length-1].description)}`
+          ? `${t("Undo")} ${t(state.getValue("undo")[state.getValue("undo")?.length - 1].description)}`
           : t("Nothing to undo");
       },
       execute: async () => {
         const s = await getService();
-        const undo = state.getValue("undo")[state.getValue("undo")?.length-1];
+        const undo = state.getValue("undo")[state.getValue("undo")?.length - 1];
         return s.undo(undo.uuid);
       },
     },
@@ -280,12 +314,16 @@ export function makeButtons(
       label: t("Finder"),
       icon: "resources/images/icons/actions/finder-50.png",
       stateKeys: ["activeSelectionManager"],
-      enabled: () => !!state.getValue("activeSelectionManager")?.active(),
+      enabled: (
+        selected: AlbumEntry[],
+        active: AlbumEntry,
+        activeIndex: number,
+      ) => !!active,
       execute: async () => {
         const s = await getService();
         const firstSelection = state
           .getValue("activeSelectionManager")
-          ?.active();
+          ?.selected()[0];
         if (firstSelection) s.openEntryInFinder(firstSelection);
       },
     },
@@ -306,33 +344,23 @@ export function makeButtons(
       label: t("Delete"),
       icon: "resources/images/icons/actions/trash-50.png",
       stateKeys: ["activeSelectionManager"],
-      hotKey: "Delete",
-      enabled: () =>
-        state.getValue("activeSelectionManager").selected().length > 0,
-      tooltip: () =>
-        state.getValue("activeSelectionManager").selected()?.length
-          ? `${t("Delete $1 item(s)", state.getValue("activeSelectionManager").selected().length)}`
-          : "",
+      hotKey: "Delete|Backspace",
+      enabled: (selected: AlbumEntry[]) => selected.length > 0,
+      tooltip: (selected: AlbumEntry[]) =>
+        selected?.length ? `${t("Delete $1 item(s)", selected.length)}` : "",
       execute: async () => {
+        const selected = state.getValue("activeSelectionManager").selected();
         let label =
-          state.getValue("activeSelectionManager").selected().length === 1
-            ? t(
-                `Do you want to delete the file $1|${
-                  state.getValue("activeSelectionManager").selected()[0].name
-                }`,
-              )
-            : t(
-                `Do you want to delete $1 files|${
-                  state.getValue("activeSelectionManager").selected().length
-                }`,
-              );
+          selected.length === 1
+            ? t(`Do you want to delete the file $1|${selected[0].name}`)
+            : t(`Do you want to delete $1 files|${selected.length}`);
 
         const b = await message(label, [Button.Ok, Button.Cancel]);
 
         if (b === Button.Ok) {
           const s = await getService();
           s.createJob(JOBNAMES.DELETE, {
-            source: state.getValue("activeSelectionManager").selected(),
+            source: selected,
           });
         }
         return true;
@@ -380,64 +408,54 @@ export function makeButtons(
     buttons.append(action.element);
   }
 
-  function refreshAction(action: Action) {
+  function isActionEnabled(action: Action) {
+    return !action.element!.hasClass("disabled");
+  }
+  function refreshAction(
+    action: Action,
+    selected: AlbumEntry[],
+    active: AlbumEntry,
+    activeIndex: number,
+  ) {
     if (action.type !== "sep") {
       action.element!.addRemoveClass(
         "disabled",
-        !!action.enabled && !action.enabled(),
+        !!action.enabled && !action.enabled(selected, active, activeIndex),
       );
       action.element!.addRemoveClass(
         "hidden",
-        !!action.visible && !action.visible(),
+        !!action.visible && !action.visible(selected, active, activeIndex),
       );
       action.element!.attr(
         "data-tooltip-above",
         `${
-          ((action.tooltip && action.tooltip()) || action.name) +
-          (action.hotKey ? " (" + action.hotKey + ")" : "")
+          ((action.tooltip && action.tooltip(selected, active, activeIndex)) ||
+            action.name) + (action.hotKey ? " (" + action.hotKey + ")" : "")
         }`,
       );
     }
   }
-
-  state.getValue("activeSelectionManager").events.on("*", () => {
-    for (const action of actions) {
-      if (
-        action.type !== "sep" &&
-        action.stateKeys.includes("activeSelectionManager")
-      ) {
-        refreshAction(action);
-      }
-    }
-  });
-  actions.map(refreshAction);
-
-  state.events.on("undo", () => {
-    for (const action of actions) {
-      if (action.type !== "sep" && action.stateKeys.includes("undo")) {
-        refreshAction(action);
-      }
-    }
-  });
 
   appEvents.on("keyDown", (ev) => {
     console.info("keyDown", ev.key, ev.code, ev);
     for (const action of actions) {
       if (action.type !== "sep") {
         if (action.hotKey) {
-          const codeMod = hotKeyToCode(action.hotKey);
-          if (
-            (!action.visible || action.visible()) &&
-            !!ev.alt === !!codeMod.modifiers.alt &&
-            !!ev.shift === !!codeMod.modifiers.shift &&
-            !!ev.ctrl === !!codeMod.modifiers.ctrl &&
-            !!ev.meta === !!codeMod.modifiers.meta &&
-            ev.key === codeMod.key
-          ) {
-            console.info("executing", action.name, action.hotKey, ev.key);
-            action.execute!();
-            ev.preventDefault();
-            break;
+          for (const hotKey of action.hotKey.split("|")) {
+            const codeMod = hotKeyToCode(hotKey);
+            if (
+              isActionEnabled(action) &&
+              !!ev.alt === !!codeMod.modifiers.alt &&
+              !!ev.shift === !!codeMod.modifiers.shift &&
+              !!ev.ctrl === !!codeMod.modifiers.ctrl &&
+              !!ev.meta === !!codeMod.modifiers.meta &&
+              ev.key === codeMod.key
+            ) {
+              console.info("executing", action.name, action.hotKey, ev.key);
+              action.execute!();
+              ev.preventDefault();
+              break;
+            }
           }
         }
       }
@@ -451,6 +469,14 @@ export function makeButtons(
       selManager.active(),
       selManager.activeIndex(),
     ];
+    for (const action of actions) {
+      if (
+        action.type !== "sep" &&
+        action.stateKeys.includes("activeSelectionManager")
+      ) {
+        refreshAction(action, selected, active, activeIndex);
+      }
+    }
     $(".quick-actions-rotate-left", container).addRemoveClass(
       "disabled",
       !selected.length,
@@ -465,7 +491,7 @@ export function makeButtons(
     );
     const lst = $(".selection-thumbs-icons", container);
     lst.empty();
-    selected.forEach((entry: AlbumEntry, index) => {
+    selected.slice(0, 100).forEach((entry: AlbumEntry, index) => {
       const icon = $(
         `<div class="selection-thumb ${
           selectionManager.isPinned(entry) ? "selection-thumb-pinned" : ""
@@ -515,6 +541,7 @@ export function makeButtons(
   }, 100);
 
   selManager.events.on("*", debouncedRefresh);
+  state.events.on("undo", debouncedRefresh);
   getSettingsEmitter().on("changed", debouncedRefresh);
   getService().then((s) => {
     s.on(

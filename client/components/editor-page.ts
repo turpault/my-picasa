@@ -269,6 +269,7 @@ export async function makeEditorPage(
     stripSelectionManager.events.on("activeChanged", (e) => {
       editorSelectionManager.clear();
       editorSelectionManager.select(e.key);
+      editorSelectionManager.setActive(e.key);
     }),
     appEvents.on("keyDown", ({ code, win, ctrl, key, preventDefault }) => {
       if (state.getValue("activeTab").win !== editor) return false;

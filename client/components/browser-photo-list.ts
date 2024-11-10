@@ -1,5 +1,11 @@
 import { lock } from "../../shared/lib/mutex";
-import { dateOfAlbumFromName, debounced, range } from "../../shared/lib/utils";
+import {
+  dateOfAlbumFromName,
+  debounced,
+  isPicture,
+  isVideo,
+  range,
+} from "../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
@@ -149,17 +155,13 @@ export async function makePhotoList(
         if (from.album.key !== to.album.key) {
           // Multi album range selection
           // Which one is the first ?
-          if (
-            dataSource.albumIndexFromKey(from.album.key) >
-            dataSource.albumIndexFromKey(to.album.key)
-          ) {
-            // swap
-            const _a = from;
-            from = to;
-            to = _a;
+          let fromAlbumIndex = dataSource.albumIndexFromKey(from.album.key);
+          let toAlbumIndex = dataSource.albumIndexFromKey(to.album.key);
+
+          if (fromAlbumIndex > toAlbumIndex) {
+            [fromAlbumIndex, toAlbumIndex] = [toAlbumIndex, fromAlbumIndex];
+            [from, to] = [to, from];
           }
-          const fromAlbumIndex = dataSource.albumIndexFromKey(from.album.key);
-          const toAlbumIndex = dataSource.albumIndexFromKey(to.album.key);
 
           for (const idx of range(fromAlbumIndex, toAlbumIndex)) {
             const album = dataSource.albumAtIndex(idx);
@@ -177,11 +179,7 @@ export async function makePhotoList(
                   sels.length,
                 );
               }
-              for (const sel of fromAlbumIndex < toAlbumIndex
-                ? sels
-                : sels.reverse()) {
-                selectionManager.select(sel);
-              }
+              selectionManager.selectMultiple(sels);
             });
           }
         } else {
@@ -230,16 +228,13 @@ export async function makePhotoList(
   container.on("mouseup", (e: MouseEvent) => {
     if (!dragging) {
       // I'm not dragging. let's unselect things
-      const multi = e.metaKey;
-      if (!multi) {
-        selectionManager.clear();
-      }
       dragStartPos.x = 0;
       dragStartPos.y = 0;
       return false;
     }
     var rect = container.get().getBoundingClientRect();
     e.stopPropagation();
+    e.preventDefault();
     dragging = false;
     dragElement.css({ display: "none" });
     const newPos = { x: e.clientX - rect.x, y: e.clientY - rect.y };
@@ -1086,7 +1081,9 @@ async function handleDropOnEntry(
   }
 
   s.createJob(JOBNAMES.MOVE, {
-    source: selectionManager.selected(),
+    source: selectionManager
+      .selected()
+      .filter((e) => isVideo(e) || isPicture(e)),
     destination: {
       album,
       rank,

@@ -25,7 +25,7 @@ import {
   refreshAlbumKeys,
 } from "../../walker";
 import { buildPersonsList } from "../albumTypes/persons";
-import { buildProject } from "../albumTypes/projects";
+import { buildProject, eraseProject } from "../albumTypes/projects";
 import { setRank } from "./albumUtils";
 import { eraseFace } from "./faces";
 import { syncFavoritesFromPhotoApp } from "./favorites";
@@ -436,6 +436,8 @@ async function deleteJob(job: Job): Promise<Album[]> {
           albumChanged(s.album, updatedAlbums);
         } else if (s.album.kind === AlbumKind.FACE) {
           eraseFace(s);
+        } else if (s.album.kind === AlbumKind.PROJECT) {
+          eraseProject(s);
         }
       } catch (e: any) {
         job.errors.push(e.message as string);

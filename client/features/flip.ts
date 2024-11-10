@@ -1,5 +1,4 @@
 import { ImageController } from "../components/image-controller";
-import { t } from "../components/strings";
 import { ToolEditor } from "../components/tool-editor";
 import { PAGES, ToolRegistrar } from "../components/tools";
 import { FilterTool } from "./baseTool";
@@ -7,10 +6,10 @@ import { FilterTool } from "./baseTool";
 export function setupFlip(
   controller: ImageController,
   toolRegistrar: ToolRegistrar,
-  editor: ToolEditor
+  editor: ToolEditor,
 ) {
   toolRegistrar.registerTool(
-    PAGES.BRUSH,
-    new FilterTool("Flip", "flip", controller, editor)
+    PAGES.WRENCH,
+    new FilterTool("Flip", "flip", controller, editor),
   );
 }

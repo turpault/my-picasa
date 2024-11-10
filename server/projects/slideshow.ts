@@ -1,7 +1,7 @@
 import { copyFile, mkdir } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-import { isPicture, uuid } from "../../shared/lib/utils";
+import { isPicture, namify, uuid } from "../../shared/lib/utils";
 import { Album, AlbumEntry, SlideshowProject } from "../../shared/types/types";
 import {
   blit,
@@ -211,14 +211,20 @@ export async function generateSlideshowFile(
     "faststart",
   ];
 
-  const name = `${project.name}.mp4`;
+  const targetFile =
+    namify(
+      `${
+        project.name
+      } ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
+    ) + ".mp4";
+
   const p = join(imagesRoot, pathForAlbum(outAlbum));
   await mkdir(p, { recursive: true });
-  const out = join(p, name);
+  const out = join(p, targetFile);
   await ffmpeg(command, out);
 
   return {
-    name,
+    name: targetFile,
     album: outAlbum,
   };
 }

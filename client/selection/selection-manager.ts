@@ -3,25 +3,54 @@ import { AlbumEntry } from "../../shared/types/types";
 import { t } from "../components/strings";
 
 export type SelectionEvent<T> = {
-  changed: { added: T[]; removed: T[]; current: T[]; pinned: T[] };
-  activeChanged: { index: number; key: T; selection: T[] };
+  changed: { added: T[]; removed: T[]; changedPinned: T[] };
+  activeChanged: { index: number; key: T };
 };
 
-export type AlbumEntrySelectionManager = SelectionManager<AlbumEntry>;
+export type AlbumEntrySelectionManager = ISelectionManager<AlbumEntry>;
 export type AlbumEntrySelectionEventSource = Emitter<
   SelectionEvent<AlbumEntry>
 >;
-export class SelectionManager<T> {
+type SelectionItem<T> = T & { pinned?: boolean; sortIndex: number };
+export interface ISelectionManager<T> {
+  setActiveIndex(newIndex: number): number;
+  setActive(key: T): void;
+  select(key: T): void;
+  selectMultiple(keys: T[]): void;
+  setActiveNext(): void;
+  setActivePrevious(): void;
+  setPin(key: T, pinned: boolean): void;
+  toggle(key: T): void;
+  deselect(key: T): void;
+  setSelection(keys: T[], active?: T): void;
+  clear(): void;
+  clone(): SelectionManager<T>;
+  active(): T;
+  activeIndex(): number;
+  isSelected(key: T): boolean;
+  isPinned(key: T): boolean;
+  selected(): T[];
+  getPinned(): T[];
+  last(): T | undefined;
+  events: Emitter<SelectionEvent<T>>;
+}
+
+export class SelectionManager<T> implements ISelectionManager<T> {
   constructor(
     selection: T[] = [],
     idFct: (e: T) => string = (e) => JSON.stringify(e),
   ) {
-    this._selection = [...selection];
+    this._selection = new Map<string, SelectionItem<T>>(
+      selection.map((e, index) => [idFct(e), { ...e, sortIndex: index }]),
+    );
     this._idFct = idFct;
     this.events = buildEmitter<SelectionEvent<T>>(false);
   }
   clone(): SelectionManager<T> {
-    const c = new SelectionManager<T>(this._selection, this._idFct);
+    const c = new SelectionManager<T>(
+      Array.from(this._selection.values()),
+      this._idFct,
+    );
     c.setActive(this._active);
     return c;
   }
@@ -29,75 +58,109 @@ export class SelectionManager<T> {
     return this._active;
   }
   setActiveIndex(newIndex: number): number {
-    const newActive = this._selection[newIndex];
-    if (newActive !== this._active) {
-      this.update(this._selection, newActive);
-    }
-    return this.activeIndex();
+    const active = this.activeIndex();
+    if (newIndex === active) return active;
+    const newActive = Array.from(this._selection.values()).find(
+      (e) => e.sortIndex === newIndex,
+    );
+    this.setActive(newActive);
+    return newIndex;
   }
-  private indexOf(list: T[], key: T): number {
-    return list.findIndex((e) => this._idFct(e) === this._idFct(key));
+
+  realValueOf(key: T): SelectionItem<T> | undefined {
+    const k = this._idFct(key);
+    return this._selection.get(k);
   }
   setActive(key: T) {
     if (key) {
-      const idx = this.indexOf(this._selection, key);
-      this.setActiveIndex(idx);
-    } else {
-      this.setActiveIndex(-1);
+      const k = this.realValueOf(key);
+      this._active = k;
+      this.events.emit("activeChanged", {
+        index: this.activeIndex(),
+        key: this._active,
+      });
     }
   }
 
   activeIndex(): number {
     if (!this._active) return -1;
-    return this.indexOf(this._selection, this._active);
+    return this._active.sortIndex;
   }
   isSelected(key: T): boolean {
-    return this.indexOf(this._selection, key) !== -1;
+    return this._selection.has(this._idFct(key));
   }
   isPinned(key: T): boolean {
-    const t = this._selection[this.indexOf(this._selection, key)];
+    const t = this.realValueOf(key);
     return t && !!t.pinned;
   }
   selected(): T[] {
-    return Array.from(this._selection);
+    return Array.from(this._selection.values());
   }
   select(key: T) {
     if (!this.isSelected(key)) {
-      this.update([...this._selection, key], this._active);
+      this._selection.set(this._idFct(key), {
+        ...key,
+        sortIndex: this.sortIndex++,
+      });
+      this.events.emit("changed", {
+        added: [key],
+        removed: [],
+        changedPinned: [],
+      });
     }
   }
   selectMultiple(keys: T[]) {
     // Concatenate the current selection with the new keys and ensure uniqueness
-    const multiple = [...this._selection, ...keys].reduce((acc, cur) => {
-      if (!acc.find((e) => this._idFct(e) === this._idFct(cur))) {
-        acc.push(cur);
+    const added: T[] = [];
+    for (const k of keys)
+      if (!this.isSelected(k)) {
+        this._selection.set(this._idFct(k), {
+          ...k,
+          sortIndex: this.sortIndex++,
+        });
+        added.push(k);
       }
-      return acc;
-    }, [] as T[]);
-    this.update(multiple, this._active);
+    this.events.emit("changed", {
+      added,
+      removed: [],
+      changedPinned: [],
+    });
   }
 
   setActiveNext() {
-    const index = this.activeIndex() + 1;
-    if (index >= this._selection.length) return;
-    this.update(this._selection, this._selection[index]);
+    const index = this.activeIndex();
+    const next = Array.from(this._selection.values()).find(
+      (e) => e.sortIndex > index,
+    );
+    if (next) {
+      this.setActive(next);
+    }
   }
 
   setActivePrevious() {
-    const index = this.activeIndex() - 1;
-    if (index < 0) return;
-    this.update(this._selection, this._selection[index]);
+    const index = this.activeIndex();
+    const previous = Array.from(this._selection.values())
+      .reverse()
+      .find((e) => e.sortIndex < index);
+    if (previous) {
+      this.setActive(previous);
+    }
   }
 
   setPin(key: T, pinned: boolean) {
-    const t = this._selection.find((e) => this._idFct(e) === this._idFct(key));
-    if (t && !!t.pinned != pinned) {
-      t.pinned = pinned;
-      this.update(this._selection, this._active, true);
+    const k = this.realValueOf(key);
+
+    if (k && !!k.pinned != pinned) {
+      k.pinned = pinned;
+      this.events.emit("changed", {
+        added: [],
+        removed: [],
+        changedPinned: [k],
+      });
     }
   }
   getPinned() {
-    return this._selection.filter((e) => e.pinned);
+    return Array.from(this._selection.values()).filter((e) => e.pinned);
   }
 
   toggle(key: T) {
@@ -107,112 +170,94 @@ export class SelectionManager<T> {
       this.deselect(key);
     }
   }
+
   deselect(key: T) {
-    if (this.isSelected(key)) {
-      let active = this._active;
-      if (active && this._idFct(active) === this._idFct(key)) {
-        if (this.selected().length > 1) {
-          this.setActiveNext();
-          active = this._active;
-        } else {
-          active = null;
-        }
+    if (this.isSelected(key) && !this.isPinned(key)) {
+      const k = this.realValueOf(key);
+      if (this._active === k) {
+        this.setActiveNext();
       }
-      const idx = this._selection.findIndex(
-        (e) => this._idFct(e) === this._idFct(key),
-      );
-      const newSelection = [...this._selection];
-      newSelection.splice(idx, 1);
-      this.update(newSelection, active);
+      if (this._active === k) {
+        this.setActive(null);
+      }
+      this._selection.delete(this._idFct(key));
+      this.events.emit("changed", {
+        added: [],
+        removed: [key],
+        changedPinned: [],
+      });
     }
   }
 
   clear() {
-    this.update([], undefined);
+    const removed: T[] = [];
+    this._selection.forEach((v, k) => {
+      if (v.pinned) return;
+      removed.push(v);
+      this._selection.delete(k);
+      if (this._active === v) this._active = undefined;
+    });
+    this._active = undefined;
+    this.events.emit("changed", {
+      added: [],
+      removed,
+      changedPinned: [],
+    });
   }
   setSelection(keys: T[], active?: T) {
-    this.update([...keys], active);
+    this.clear();
+    const added: T[] = [];
+    for (const k of keys) {
+      if (this.isSelected(k)) continue;
+      this._selection.set(this._idFct(k), {
+        ...k,
+        sortIndex: this.sortIndex++,
+      });
+      added.push(k);
+    }
+    this._active = this.realValueOf(active);
+    this.events.emit("changed", {
+      added,
+      removed: [],
+      changedPinned: [],
+    });
+    this.events.emit("activeChanged", {
+      index: this.activeIndex(),
+      key: this._active,
+    });
   }
   last(): T | undefined {
-    return this._selection[this._selection.length - 1];
-  }
-
-  protected update(selection: T[], active?: T, pinningChange = false) {
-    const lastActive = this.active();
-    const added = selection.filter((v) => !this.isSelected(v));
-    const removed: T[] = [];
-    this._selection = [
-      ...this._selection.filter((v) => {
-        if (v.pinned) return true;
-        if (selection.find((e) => this._idFct(e) === this._idFct(v)))
-          return true;
-        removed.push(v);
-        return false;
-      }),
-      ...added,
-    ];
-
-    if (selection.length === 0 || active === null) {
-      active = undefined;
-    } else if (active !== undefined) {
-      active = selection.find((e) => this._idFct(e) === this._idFct(active));
-    } else {
-      active = this._selection[0];
-    }
-
-    this._active = active;
-    const newActive = this.active();
-    const activeChanged = lastActive !== newActive;
-    if (added.length !== 0 || removed.length !== 0 || pinningChange) {
-      this.events.emit("changed", {
-        added,
-        removed,
-        current: this._selection,
-        pinned: this.getPinned(),
-      });
-    }
-    if (activeChanged) {
-      this.events.emit("activeChanged", {
-        index: this.activeIndex(),
-        key: this._active,
-        selection: this._selection,
-      });
-    }
+    return Array.from(this._selection.values()).reduce(
+      (acc, e) => (acc && acc.sortIndex > e.sortIndex ? acc : e),
+      undefined,
+    );
   }
 
   events: Emitter<SelectionEvent<T>>;
   private _idFct: (e: T) => string;
-  private _selection: (T & { pinned?: boolean })[];
-  private _active?: T;
+  private _selection: Map<string, SelectionItem<T>>;
+  private _active?: SelectionItem<T>;
+  private sortIndex = 0;
 }
 
-export class SelectionManagerProxy<T> extends SelectionManager<T> {
+export class SelectionManagerProxy<T> implements ISelectionManager<T> {
   private off: Function | undefined;
-  private target: SelectionManager<T>;
-  constructor(idFct: (e: T) => string = (e) => JSON.stringify(e)) {
-    super([], idFct);
+  private target: ISelectionManager<T>;
+  constructor() {
+    this.events = buildEmitter<SelectionEvent<T>>(false);
+    this.updateManager(new SelectionManager<T>());
   }
-
-  updateManager(manager: SelectionManager<T>) {
+  updateManager(manager: ISelectionManager<T>) {
     if (this.off) this.off();
     this.off = undefined;
-    this.update(manager.selected(), manager.active());
-    const pinned = manager.getPinned();
-    this.selected().forEach((s) =>
-      pinned.includes(s) ? this.setPin(s, true) : this.setPin(s, false),
-    );
-    const offFcts = [
-      manager.events.on("changed", (e) => {
-        this.update(manager.selected(), manager.active());
-        this.selected().forEach((s) =>
-          e.pinned.includes(s) ? this.setPin(s, true) : this.setPin(s, false),
-        );
-      }),
-      manager.events.on("activeChanged", (e) => {
-        this.setActive(e.key);
-      }),
-    ];
-    this.off = () => offFcts.forEach((f) => f());
+    this.events.emit("changed", {
+      added: manager.selected(),
+      removed: this.target ? this.target.selected() : [],
+      changedPinned: manager.getPinned(),
+    });
+    this.off = manager.events.on("*", (type, data) => {
+      this.events.emit(type as keyof SelectionEvent<T>, data as any);
+    });
     this.target = manager;
   }
   setActiveIndex(newIndex: number): number {
@@ -253,4 +298,29 @@ export class SelectionManagerProxy<T> extends SelectionManager<T> {
   clear() {
     return this.target.clear();
   }
+  clone(): SelectionManager<T> {
+    return this.target.clone();
+  }
+  active(): T {
+    return this.target.active();
+  }
+  activeIndex(): number {
+    return this.target.activeIndex();
+  }
+  isSelected(key: T): boolean {
+    return this.target.isSelected(key);
+  }
+  isPinned(key: T): boolean {
+    return this.target.isPinned(key);
+  }
+  selected(): T[] {
+    return this.target.selected();
+  }
+  getPinned() {
+    return this.target.getPinned();
+  }
+  last(): T | undefined {
+    return this.target.last();
+  }
+  events: Emitter<SelectionEvent<T>>;
 }

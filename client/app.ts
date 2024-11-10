@@ -1,5 +1,6 @@
 import { $ } from "../client/lib/dom";
 import { buildEmitter } from "../shared/lib/event";
+import { isPicture } from "../shared/lib/utils";
 import { AlbumEntry, AlbumKind, ProjectType } from "../shared/types/types";
 import { AlbumIndexedDataSource } from "./album-data-source";
 import { makeButtons } from "./components/bottom-selection-buttons";
@@ -23,10 +24,7 @@ import { initClientSentry } from "./components/sentry";
 import { makeSlideshowPage, newSlideshowProject } from "./components/slideshow";
 import { t } from "./components/strings";
 import { makeTab, makeTabs, selectTab } from "./components/tabs";
-import {
-  albumEntriesWithMetadata,
-  initCacheBuster,
-} from "./imageProcess/client";
+import { initCacheBuster } from "./imageProcess/client";
 import { makeSettings } from "./lib/settings";
 import { State } from "./lib/state";
 import { getService, setServicePort } from "./rpc/connect";
@@ -96,15 +94,20 @@ async function init(port: number) {
   }
 
   async function newMosaicPage(params: { initialList: AlbumEntry[] }) {
-    if (params.initialList.length < 2) {
+    const list = params.initialList.filter((e) => isPicture(e));
+    if (list.length < 2) {
       await message(t("Mosaic needs at least 2 images"));
       return;
     }
+    const MAX_MOSAIC_IMAGES = 1000;
+    if (list.length > MAX_MOSAIC_IMAGES) {
+      await message(t("Mosaic can have at $1 images", MAX_MOSAIC_IMAGES));
+      return;
+    }
     const placeholder = t("Please enter a name");
-    const images = await albumEntriesWithMetadata(params.initialList);
     let name = await question(t("Mosaic Name"), placeholder);
     if (!name) return;
-    const projectId = await newMosaicProject(name, images);
+    const projectId = await newMosaicProject(name, list);
     const { win, tab, selectionManager } = await makeMosaicPage(
       emitter,
       projectId,
@@ -113,16 +116,16 @@ async function init(port: number) {
     makeTab(win, tab, { kind: "Mosaic", selectionManager });
   }
   async function newSlideshowPage(params: { initialList: AlbumEntry[] }) {
-    if (params.initialList.length < 1) {
+    const list = params.initialList.filter((e) => isPicture(e));
+    if (list.length < 1) {
       await message(t("Slideshow needs at least one image"));
       return;
     }
 
-    const images = await albumEntriesWithMetadata(params.initialList);
     const placeholder = t("Please enter a name");
     let name = await question(t("Slideshow Name"), placeholder);
     if (!placeholder) return;
-    const projectId = await newSlideshowProject(name, images);
+    const projectId = await newSlideshowProject(name, list);
     const { win, tab, selectionManager } = await makeSlideshowPage(
       emitter,
       projectId,
@@ -179,7 +182,7 @@ async function init(port: number) {
   emitter.on("gallery", newGalleryPage);
   emitter.on("mosaic", newMosaicPage);
   emitter.on("slideshow", newSlideshowPage);
-  emitter.on("returnToBrowser", () => selectTab(browserTab));
+  emitter.on("returnToBrowser", () => selectTab(browserTab, true));
 
   emitter.emit("ready", { state: true });
 }

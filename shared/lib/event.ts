@@ -5,6 +5,7 @@ export type EventType = string | symbol;
 // An event handler can take an optional event argument
 // and should not return a value
 export type Handler<T = unknown> = (event: T) => void;
+export type HandlerWithType<T = unknown> = (type: string, event: T) => void;
 export type OffFunction = () => void;
 
 export type FilterFct<T = Record<string, unknown>> = (
@@ -13,9 +14,13 @@ export type FilterFct<T = Record<string, unknown>> = (
 ) => boolean;
 
 export interface Emitter<Events extends Record<EventType, unknown>> {
-  on<Key extends "*" | keyof Events>(
+  on<Key extends keyof Events>(
     type: Key,
     handler: Handler<Events[Key]>,
+  ): OffFunction;
+  on<Key extends "*">(
+    type: Key,
+    handler: HandlerWithType<Events[Key]>,
   ): OffFunction;
   has<Key extends "*" | keyof Events>(type: Key): number;
   once<Key extends keyof Events>(
@@ -104,7 +109,12 @@ export function buildEmitter<Events extends Record<EventType, unknown>>(
             off(id);
           }
           try {
-            const consumed = val.handler(evt!);
+            let consumed = false;
+            if (id === "*") {
+              consumed = val.handler(type, evt!);
+            } else {
+              consumed = val.handler(evt!);
+            }
             if (consumed === true) {
               return true;
             }

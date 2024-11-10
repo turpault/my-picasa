@@ -41,31 +41,33 @@ export async function makeMosaic(
     (project.payload.gutter / 100) * (Orientation.PAYSAGE ? width : height);
 
   const targetContext = await buildNewContext(width, height);
-  const positions = calculateImagePositions(
-    project.payload.root!,
-    gutter,
-    gutter / 2,
-    gutter / 2,
-    width - gutter,
-    height - gutter,
-  ).images;
-  const blits: {
-    context: string;
-    position: {
-      left: number;
-      top: number;
-    };
-  }[] = [];
-  for (const position of positions) {
-    const sourceContext = await buildContext(position.entry);
-    await transform(
-      sourceContext,
-      `cover=1,${Math.ceil(position.width)},${Math.ceil(position.height)}`,
-    );
-    blits.push({ context: sourceContext, position });
+  if (project.payload.root) {
+    const positions = calculateImagePositions(
+      project.payload.root,
+      gutter,
+      gutter / 2,
+      gutter / 2,
+      width - gutter,
+      height - gutter,
+    ).images;
+    const blits: {
+      context: string;
+      position: {
+        left: number;
+        top: number;
+      };
+    }[] = [];
+    for (const position of positions) {
+      const sourceContext = await buildContext(position.entry);
+      await transform(
+        sourceContext,
+        `cover=1,${Math.ceil(position.width)},${Math.ceil(position.height)}`,
+      );
+      blits.push({ context: sourceContext, position });
+    }
+    await blitMultiple(targetContext, blits);
+    blits.forEach((blit) => destroyContext(blit.context));
   }
-  await blitMultiple(targetContext, blits);
-  blits.forEach((blit) => destroyContext(blit.context));
 
   const res = await encode(targetContext, mime, format);
   destroyContext(targetContext);

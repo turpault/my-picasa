@@ -219,6 +219,10 @@ const stringTable: { [key: string]: any } = {
     fr: "Voulez-vous supprimer le fichier $1",
   },
   Restore: { fr: "Restaurer" },
+  pictures: { fr: "images" },
+  "Mosaic can have at $1 images": {
+    fr: "La mosaique peut avoir au maximum $1 images",
+  },
 };
 const lang = window.navigator.language.split("-")[0];
 let str = new Set<string>();

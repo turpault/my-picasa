@@ -2250,6 +2250,10 @@ body {
   display: inline-block;
   margin: 1px;
 }
+.selection-thumb img {
+  max-width: 40px;
+  max-height: 40px;
+}
 
 .selection-thumb-count {
   white-space: nowrap;

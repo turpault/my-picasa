@@ -3,7 +3,6 @@ import { idFromAlbumEntry, uuid } from "../../shared/lib/utils";
 import {
   AlbumEntry,
   AlbumEntryMetaData,
-  AlbumEntryWithMetadata,
   JOBNAMES,
   ProjectType,
   Slideshow,
@@ -56,7 +55,7 @@ const ProjectOutAlbumName = () => {
 
 export async function newSlideshowProject(
   name: string,
-  images: AlbumEntryWithMetadata[],
+  images: AlbumEntry[],
 ): Promise<AlbumEntry> {
   const s = await getService();
   const project = (await s.createProject(
@@ -484,6 +483,19 @@ export async function makeSlideshowPage(
         if (q === "Show") {
           appEvents.emit("edit", { entry: results.out[0] });
         }
+      }
+    }),
+    appEvents.on("keyDown", ({ code, preventDefault }) => {
+      if (!state.getValue("activeTab").win.is(e)) return;
+      switch (code) {
+        case "Escape":
+          preventDefault();
+          appEvents.emit("returnToBrowser");
+      }
+    }),
+    appEvents.on("tabDeleted", ({ win }) => {
+      if (win.get() === e.get()) {
+        off.forEach((o) => o());
       }
     }),
   ];

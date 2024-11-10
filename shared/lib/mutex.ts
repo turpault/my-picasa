@@ -56,8 +56,8 @@ export function checkForVeryLongLocks() {
     }))
     .filter((l) => l.duration > 1000);
   if (table.length > 0) {
-    console.warn("These locks are taking longer than expected");
-    console.table(table);
+    console.warn(`${table.length} locks are taking longer than expected`);
+    console.table(table.sort((a, b) => b.duration - a.duration).slice(0, 100));
   }
 }
 export function pruneLocks() {

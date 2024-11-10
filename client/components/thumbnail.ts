@@ -1,6 +1,7 @@
 import { Point, Rectangle } from "ts-2d-geometry";
 import {
   fromBase64,
+  isPicture,
   isVideo,
   rectanglesIntersect,
 } from "../../shared/lib/utils";
@@ -87,6 +88,10 @@ export function buildThumbnail(
   e.on("dragstart", (ev: any) => {
     const entry = albumEntryFromElement(e, elementPrefix);
     if (entry) {
+      if (!isVideo(entry) && !isPicture(entry)) {
+        ev.preventDefault();
+        return;
+      }
       selectionManager.select(entry);
       ev.dataTransfer.effectAllowed = "move";
       ev.dataTransfer.setData("text/html", "");
@@ -96,6 +101,7 @@ export function buildThumbnail(
     }
     lastSources = selectionManager
       .selected()
+      .filter((e) => isVideo(e) || isPicture(e))
       .map((entry) => elementFromEntry(entry, elementPrefix));
     lastSources.forEach((e) => e.addClass("thumbnail-dragged"));
     requestAnimationFrame(() => {

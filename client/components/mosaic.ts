@@ -310,7 +310,7 @@ async function installHandlers(
 
 export async function newMosaicProject(
   name: string,
-  images: AlbumEntryWithMetadata[],
+  images: AlbumEntry[],
 ): Promise<AlbumEntry> {
   const s = await getService();
   const project = (await s.createProject(
@@ -337,10 +337,10 @@ async function loadMosaicProject(entry: AlbumEntry): Promise<MosaicProject> {
   if (project.album.name !== ProjectType.MOSAIC) {
     throw new Error("Invalid project type");
   }
-  project.payload.images = project.payload.pool.filter((img) =>
-    project.payload.images.find(
-      (i) => idFromAlbumEntry(i, "") === idFromAlbumEntry(img, ""),
-    ),
+  const m = new Map<string, AlbumEntry>();
+  project.payload.pool.forEach((img) => m.set(idFromAlbumEntry(img), img));
+  project.payload.images = project.payload.images.map(
+    (img) => m.get(idFromAlbumEntry(img))!,
   );
   return project;
 }
@@ -584,6 +584,14 @@ export async function makeMosaicPage(
         if (reflow) {
           reflow();
         }
+      }
+    }),
+    appEvents.on("keyDown", ({ code, preventDefault }) => {
+      if (!state.getValue("activeTab").win.is(e)) return;
+      switch (code) {
+        case "Escape":
+          preventDefault();
+          appEvents.emit("returnToBrowser");
       }
     }),
     selectionManager.events.on("changed", () => {
