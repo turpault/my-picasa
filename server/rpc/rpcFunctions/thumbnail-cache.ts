@@ -156,7 +156,7 @@ export async function shouldMakeThumbnail(
   const picasa = await readAlbumIni(entry.album);
   const sourceStat = await stat(
     join(imagesRoot, entryRelativePath(entry)),
-  ).catch(() => undefined);
+  ).catch((): undefined => undefined);
 
   if (!sourceStat) {
     // Source file is gone

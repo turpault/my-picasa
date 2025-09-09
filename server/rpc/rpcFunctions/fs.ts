@@ -91,5 +91,5 @@ export async function walk(
       }
     }
   }
-  return Promise.all(promises).then(() => void 0);
+  return Promise.all(promises).then((): void => void 0);
 }

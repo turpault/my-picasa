@@ -160,6 +160,7 @@ export enum JOBNAMES {
   RENAME_ALBUM = "Rename Album",
   BUILD_PROJECT = "Build Project",
   POPULATE_IPHOTO_FAVORITES = "Import Favorites from Photo app",
+  TOPAZ_PHOTO_AI = "Topaz Photo AI",
 }
 
 export const ThumbnailSizeVals = ["th-small", "th-medium", "th-large"] as const;

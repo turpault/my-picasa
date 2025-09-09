@@ -308,6 +308,34 @@ export function makeButtons(
         return s.undo(undo.uuid);
       },
     },
+    {
+      name: JOBNAMES.TOPAZ_PHOTO_AI,
+      label: t("Topaz Photo AI"),
+      stateKeys: ["activeSelectionManager"],
+      icon: "resources/images/icons/actions/topaz-photo-ai-50.png",
+      enabled: (
+        selected: AlbumEntry[],
+        active: AlbumEntry,
+        activeIndex: number,
+      ) => selected.length > 0,
+      tooltip: (
+        selected: AlbumEntry[],
+        active: AlbumEntry,
+        activeIndex: number,
+      ) =>
+        selected?.length
+          ? `${t("Enhance $1 image(s) with Topaz Photo AI", selected.length)}`
+          : "",
+      execute: async () => {
+        const selected = state.getValue("activeSelectionManager").selected();
+        if (selected.length > 0) {
+          const s = await getService();
+          return s.createJob(JOBNAMES.TOPAZ_PHOTO_AI, {
+            source: selected,
+          });
+        }
+      },
+    },
     { type: "sep" },
     {
       name: t("Open in Finder"),

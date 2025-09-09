@@ -1,5 +1,7 @@
 import { copyFile, mkdir, rename, stat } from "fs/promises";
 import { basename, dirname, extname, join, relative, sep } from "path";
+import { spawn } from "child_process";
+import { tmpdir } from "os";
 import { lock } from "../../../shared/lib/mutex";
 import { debounced, sleep, uuid } from "../../../shared/lib/utils";
 import { pathForAlbum, pathForAlbumEntry } from "../../utils/serverUtils";
@@ -143,6 +145,8 @@ async function executeJob(job: Job): Promise<Album[]> {
       return buildProjectJob(job);
     case JOBNAMES.POPULATE_IPHOTO_FAVORITES:
       return populateIPhotoFavorites(job);
+    case JOBNAMES.TOPAZ_PHOTO_AI:
+      return topazPhotoAIJob(job);
     default:
       job.status = "finished";
       job.errors.push(`Unknown job name ${job.name}`);
@@ -610,6 +614,128 @@ async function buildProjectJob(job: Job): Promise<Album[]> {
   job.status = "finished";
   job.changed();
   return updatedAlbums;
+}
+
+async function topazPhotoAIJob(job: Job): Promise<Album[]> {
+  job.status = "started";
+  const source = job.data.source as AlbumEntry[];
+  const steps = source.length + 1; // +1 for the Topaz CLI execution
+  job.progress.total = steps;
+  job.progress.remaining = steps;
+  job.changed();
+
+  // Create temporary directory for input processing
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const tempDir = join(tmpdir(), `topaz-${timestamp}-${uuid().slice(0, 8)}`);
+  const inputDir = join(tempDir, "input");
+  
+  await mkdir(inputDir, { recursive: true });
+
+  try {
+    // Process each image with active filters and save to temp input directory
+    for (const entry of source) {
+      try {
+        await exportToFolder(entry, inputDir);
+        job.progress.remaining--;
+        job.changed();
+      } catch (e: any) {
+        job.errors.push(`Failed to process ${entry.name}: ${e.message}`);
+        job.progress.remaining--;
+        job.changed();
+      }
+    }
+
+    // Run Topaz Photo AI CLI for each album separately to maintain directory structure
+    const topazPath = "/Applications/Topaz Photo AI.app/Contents/MacOS/Topaz Photo AI";
+    const inputFiles = await import("fs/promises").then(fs => fs.readdir(inputDir));
+    const imageFiles = inputFiles.filter(file => 
+      /\.(jpg|jpeg|png|tiff|tif)$/i.test(file)
+    );
+
+    if (imageFiles.length === 0) {
+      job.errors.push("No valid image files found to process");
+      job.status = "finished";
+      job.changed();
+      return [];
+    }
+
+    // Group images by album to process them in their respective directories
+    const albumGroups = new Map<string, { album: Album; files: string[] }>();
+    
+    for (const entry of source) {
+      const albumKey = entry.album.key;
+      if (!albumGroups.has(albumKey)) {
+        albumGroups.set(albumKey, { album: entry.album, files: [] });
+      }
+      
+      // Find the corresponding processed file
+      const processedFile = imageFiles.find(file => 
+        file.includes(entry.name.replace(/\.[^/.]+$/, ""))
+      );
+      if (processedFile) {
+        albumGroups.get(albumKey)!.files.push(processedFile);
+      }
+    }
+
+    job.name = `Enhancing ${imageFiles.length} image(s) with Topaz Photo AI`;
+    job.changed();
+
+    // Process each album's images in their respective directory
+    for (const [albumKey, { album, files }] of albumGroups) {
+      if (files.length === 0) continue;
+      
+      const albumDir = join(imagesRoot, pathForAlbum(album));
+      const args = [
+        "--cli",
+        ...files.map(file => join(inputDir, file)),
+        "-o", albumDir
+      ];
+
+      await new Promise<void>((resolve, reject) => {
+        const proc = spawn(topazPath, args);
+        
+        proc.stdout.on("data", (data) => {
+          console.info(`Topaz Photo AI: ${data.toString()}`);
+        });
+        
+        proc.stderr.on("data", (data) => {
+          console.error(`Topaz Photo AI Error: ${data.toString()}`);
+        });
+
+        proc.on("close", (code) => {
+          if (code === 0) {
+            console.info(`Topaz Photo AI completed successfully for album: ${album.name}`);
+            resolve();
+          } else {
+            reject(new Error(`Topaz Photo AI exited with code ${code} for album: ${album.name}`));
+          }
+        });
+
+        proc.on("error", (err) => {
+          reject(new Error(`Failed to start Topaz Photo AI for album ${album.name}: ${err.message}`));
+        });
+      });
+    }
+
+    job.progress.remaining--;
+    job.changed();
+
+    // Refresh the albums to show the new enhanced images
+    const updatedAlbums = Array.from(albumGroups.values()).map(({ album }) => album);
+    for (const album of updatedAlbums) {
+      addOrRefreshOrDeleteAlbum(album, undefined, true);
+    }
+
+    job.status = "finished";
+    job.changed();
+
+  } catch (e: any) {
+    job.errors.push(`Topaz Photo AI failed: ${e.message}`);
+    job.status = "finished";
+    job.changed();
+  }
+
+  return [];
 }
 
 async function copyMetadata(
