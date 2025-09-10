@@ -16,7 +16,7 @@ import {
   idFromKey,
   keyFromID,
 } from "../../../shared/types/types";
-import { exportToFolder } from "../../imageOperations/export";
+import { exportToFolder, exportToSpecificFile } from "../../imageOperations/export";
 import { exportsFolder, imagesRoot } from "../../utils/constants";
 import { entryFilePath, fileExists } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
@@ -624,71 +624,66 @@ async function topazPhotoAIJob(job: Job): Promise<Album[]> {
   job.progress.remaining = steps;
   job.changed();
 
-  // Create temporary directory for input processing
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const tempDir = join(tmpdir(), `topaz-${timestamp}-${uuid().slice(0, 8)}`);
-  const inputDir = join(tempDir, "input");
-
-  await mkdir(inputDir, { recursive: true });
-
   try {
-    // Process each image with active filters and save to temp input directory
+    // Group images by album to process them in their respective directories
+    const albumGroups = new Map<string, { album: Album; entries: AlbumEntry[]; exportedFiles: string[] }>();
+
     for (const entry of source) {
-      try {
-        await exportToFolder(entry, inputDir);
-        job.progress.remaining--;
-        job.changed();
-      } catch (e: any) {
-        job.errors.push(`Failed to process ${entry.name}: ${e.message}`);
-        job.progress.remaining--;
-        job.changed();
+      const albumKey = entry.album.key;
+      if (!albumGroups.has(albumKey)) {
+        albumGroups.set(albumKey, { album: entry.album, entries: [], exportedFiles: [] });
+      }
+      albumGroups.get(albumKey)!.entries.push(entry);
+    }
+
+    // Process each image with active filters and save directly to album directory
+    for (const [albumKey, { album, entries }] of albumGroups) {
+      const albumDir = join(imagesRoot, pathForAlbum(album));
+      
+      for (const entry of entries) {
+        try {
+          // Export to the album directory with a temporary name for Topaz processing
+          const tempFilename = `topaz_temp_${entry.name.replace(/\.[^/.]+$/, "")}.jpg`;
+          const tempFilePath = join(albumDir, tempFilename);
+          
+          // Create a temporary export function that exports to a specific file
+          await exportToSpecificFile(entry, tempFilePath);
+          albumGroups.get(albumKey)!.exportedFiles.push(tempFilename);
+          
+          job.progress.remaining--;
+          job.changed();
+        } catch (e: any) {
+          job.errors.push(`Failed to process ${entry.name}: ${e.message}`);
+          job.progress.remaining--;
+          job.changed();
+        }
       }
     }
 
-    // Run Topaz Photo AI CLI for each album separately to maintain directory structure
+    // Run Topaz Photo AI CLI for each album in-place
     const topazPath = "/Applications/Topaz Photo AI.app/Contents/MacOS/Topaz Photo AI";
-    const inputFiles = await readdir(inputDir);
-    const imageFiles = inputFiles.filter(file =>
-      /\.(jpg|jpeg|png|tiff|tif)$/i.test(file)
-    );
+    const totalFiles = Array.from(albumGroups.values()).reduce((sum, { exportedFiles }) => sum + exportedFiles.length, 0);
 
-    if (imageFiles.length === 0) {
+    if (totalFiles === 0) {
       job.errors.push("No valid image files found to process");
       job.status = "finished";
       job.changed();
       return [];
     }
 
-    // Group images by album to process them in their respective directories
-    const albumGroups = new Map<string, { album: Album; files: string[] }>();
-
-    for (const entry of source) {
-      const albumKey = entry.album.key;
-      if (!albumGroups.has(albumKey)) {
-        albumGroups.set(albumKey, { album: entry.album, files: [] });
-      }
-
-      // Find the corresponding processed file
-      const processedFile = imageFiles.find(file =>
-        file.includes(entry.name.replace(/\.[^/.]+$/, ""))
-      );
-      if (processedFile) {
-        albumGroups.get(albumKey)!.files.push(processedFile);
-      }
-    }
-
-    job.name = `Enhancing ${imageFiles.length} image(s) with Topaz Photo AI`;
+    job.name = `Enhancing ${totalFiles} image(s) with Topaz Photo AI`;
     job.changed();
 
     // Process each album's images in their respective directory
-    for (const [albumKey, { album, files }] of albumGroups) {
-      if (files.length === 0) continue;
+    for (const [albumKey, { album, exportedFiles }] of albumGroups) {
+      if (exportedFiles.length === 0) continue;
 
       const albumDir = join(imagesRoot, pathForAlbum(album));
       const args = [
         "--cli",
-        ...files.map(file => join(inputDir, file)),
-        "-o", albumDir
+        ...exportedFiles.map(file => join(albumDir, file)),
+        "-o", albumDir,
+        "--overwrite" // This flag should make Topaz overwrite the input files
       ];
 
       await new Promise<void>((resolve, reject) => {
