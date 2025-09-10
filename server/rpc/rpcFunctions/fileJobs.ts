@@ -16,7 +16,7 @@ import {
   idFromKey,
   keyFromID,
 } from "../../../shared/types/types";
-import { exportToFolder, exportToSpecificFile } from "../../imageOperations/export";
+import { exportToFolder } from "../../imageOperations/export";
 import { exportsFolder, imagesRoot } from "../../utils/constants";
 import { entryFilePath, fileExists } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
@@ -642,13 +642,10 @@ async function topazPhotoAIJob(job: Job): Promise<Album[]> {
       
       for (const entry of entries) {
         try {
-          // Export to the album directory with a temporary name for Topaz processing
-          const tempFilename = `topaz_temp_${entry.name.replace(/\.[^/.]+$/, "")}.jpg`;
-          const tempFilePath = join(albumDir, tempFilename);
-          
-          // Create a temporary export function that exports to a specific file
-          await exportToSpecificFile(entry, tempFilePath);
-          albumGroups.get(albumKey)!.exportedFiles.push(tempFilename);
+          // Export to the album directory using exportToFolder
+          const exportedFilePath = await exportToFolder(entry, albumDir);
+          const exportedFilename = basename(exportedFilePath);
+          albumGroups.get(albumKey)!.exportedFiles.push(exportedFilename);
           
           job.progress.remaining--;
           job.changed();
@@ -723,14 +720,14 @@ async function topazPhotoAIJob(job: Job): Promise<Album[]> {
 
     job.status = "finished";
     job.changed();
+    return updatedAlbums;
 
   } catch (e: any) {
     job.errors.push(`Topaz Photo AI failed: ${e.message}`);
     job.status = "finished";
     job.changed();
+    return [];
   }
-
-  return [];
 }
 
 async function copyMetadata(
