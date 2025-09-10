@@ -9,8 +9,9 @@ import { getFolderAlbums, waitUntilWalk } from "../../server/walker";
 import { getLocations } from "./poi/get-poi";
 import { initPOIDB } from "./poi/ingest";
 import { startRedis, stopRedis } from "./redis-process";
+import debug from "debug";
 
-const debug = require("debug")("app:bg-geolocate");
+const debugLogger = debug("app:bg-geolocate");
 
 export async function buildGeolocation() {
   await startRedis();
@@ -18,7 +19,7 @@ export async function buildGeolocation() {
 
   const albums = await getFolderAlbums();
   for (const album of albums.reverse()) {
-    debug("buildGeolocation: Processing album", album.name);
+    debugLogger("buildGeolocation: Processing album", album.name);
     let m: { entries: AlbumEntry[] };
     try {
       m = await media(album);

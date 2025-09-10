@@ -4,8 +4,9 @@ import { AlbumEntry } from "../../shared/types/types";
 import { media } from "../../server/rpc/rpcFunctions/albumUtils";
 import { exifData } from "../../server/rpc/rpcFunctions/exif";
 import { getFolderAlbums, waitUntilWalk } from "../../server/walker";
+import debug from "debug";
 
-const debug = require("debug")("app:bg-exif");
+const debugLogger = debug("app:bg-exif");
 
 export async function populateExifData() {
   const q = new Queue(10);
@@ -25,7 +26,7 @@ export async function populateExifData() {
   );
   const t = setInterval(() => {
     if (q.total() > 0)
-      debug(
+      debugLogger(
         `buildExifData: Queue progress: ${Math.floor((q.done() * 100) / q.total())}% (${q.done()} done)`,
       );
   }, 2000);

@@ -1,4 +1,4 @@
-import { copyFile, mkdir, rename, stat } from "fs/promises";
+import { copyFile, mkdir, readdir, rename, stat } from "fs/promises";
 import { basename, dirname, extname, join, relative, sep } from "path";
 import { spawn } from "child_process";
 import { tmpdir } from "os";
@@ -505,7 +505,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
                 targetName,
               );
             })
-            .catch((e) => {});
+            .catch((e) => { });
         }
         await copyMetadata(
           s.source,
@@ -562,9 +562,9 @@ async function exportJob(job: Job): Promise<Album[]> {
   const targetFolder = destination
     ? join(imagesRoot, pathForAlbum(destination))
     : join(
-        exportsFolder,
-        "exports-" + new Date().toLocaleString().replace(/\//g, "-"),
-      );
+      exportsFolder,
+      "exports-" + new Date().toLocaleString().replace(/\//g, "-"),
+    );
   job.name =
     "Exporting to $1|" + (destination ? destination.name : targetFolder);
   await mkdir(targetFolder, { recursive: true });
@@ -628,7 +628,7 @@ async function topazPhotoAIJob(job: Job): Promise<Album[]> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const tempDir = join(tmpdir(), `topaz-${timestamp}-${uuid().slice(0, 8)}`);
   const inputDir = join(tempDir, "input");
-  
+
   await mkdir(inputDir, { recursive: true });
 
   try {
@@ -647,8 +647,8 @@ async function topazPhotoAIJob(job: Job): Promise<Album[]> {
 
     // Run Topaz Photo AI CLI for each album separately to maintain directory structure
     const topazPath = "/Applications/Topaz Photo AI.app/Contents/MacOS/Topaz Photo AI";
-    const inputFiles = await import("fs/promises").then(fs => fs.readdir(inputDir));
-    const imageFiles = inputFiles.filter(file => 
+    const inputFiles = await readdir(inputDir);
+    const imageFiles = inputFiles.filter(file =>
       /\.(jpg|jpeg|png|tiff|tif)$/i.test(file)
     );
 
@@ -661,15 +661,15 @@ async function topazPhotoAIJob(job: Job): Promise<Album[]> {
 
     // Group images by album to process them in their respective directories
     const albumGroups = new Map<string, { album: Album; files: string[] }>();
-    
+
     for (const entry of source) {
       const albumKey = entry.album.key;
       if (!albumGroups.has(albumKey)) {
         albumGroups.set(albumKey, { album: entry.album, files: [] });
       }
-      
+
       // Find the corresponding processed file
-      const processedFile = imageFiles.find(file => 
+      const processedFile = imageFiles.find(file =>
         file.includes(entry.name.replace(/\.[^/.]+$/, ""))
       );
       if (processedFile) {
@@ -683,7 +683,7 @@ async function topazPhotoAIJob(job: Job): Promise<Album[]> {
     // Process each album's images in their respective directory
     for (const [albumKey, { album, files }] of albumGroups) {
       if (files.length === 0) continue;
-      
+
       const albumDir = join(imagesRoot, pathForAlbum(album));
       const args = [
         "--cli",
@@ -693,11 +693,11 @@ async function topazPhotoAIJob(job: Job): Promise<Album[]> {
 
       await new Promise<void>((resolve, reject) => {
         const proc = spawn(topazPath, args);
-        
+
         proc.stdout.on("data", (data) => {
           console.info(`Topaz Photo AI: ${data.toString()}`);
         });
-        
+
         proc.stderr.on("data", (data) => {
           console.error(`Topaz Photo AI Error: ${data.toString()}`);
         });
