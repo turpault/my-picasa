@@ -619,7 +619,7 @@ async function buildProjectJob(job: Job): Promise<Album[]> {
 async function topazPhotoAIJob(job: Job): Promise<Album[]> {
   job.status = "started";
   const source = job.data.source as AlbumEntry[];
-  const steps = source.length + 1; // +1 for the Topaz CLI execution
+  const steps = source.length * 2; // Export + Topaz processing for each image
   job.progress.total = steps;
   job.progress.remaining = steps;
   job.changed();
@@ -637,20 +637,26 @@ async function topazPhotoAIJob(job: Job): Promise<Album[]> {
     }
 
     // Process each image with active filters and save directly to album directory
+    let processedCount = 0;
     for (const [albumKey, { album, entries }] of albumGroups) {
       const albumDir = join(imagesRoot, pathForAlbum(album));
       
       for (const entry of entries) {
         try {
+          job.name = `Exporting ${entry.name} (${processedCount + 1}/${source.length})`;
+          job.changed();
+          
           // Export to the album directory using exportToFolder
           const exportedFilePath = await exportToFolder(entry, albumDir);
           const exportedFilename = basename(exportedFilePath);
           albumGroups.get(albumKey)!.exportedFiles.push(exportedFilename);
           
+          processedCount++;
           job.progress.remaining--;
           job.changed();
         } catch (e: any) {
           job.errors.push(`Failed to process ${entry.name}: ${e.message}`);
+          processedCount++;
           job.progress.remaining--;
           job.changed();
         }
@@ -668,49 +674,62 @@ async function topazPhotoAIJob(job: Job): Promise<Album[]> {
       return [];
     }
 
-    job.name = `Enhancing ${totalFiles} image(s) with Topaz Photo AI`;
-    job.changed();
-
     // Process each album's images in their respective directory
+    let enhancedCount = 0;
     for (const [albumKey, { album, exportedFiles }] of albumGroups) {
       if (exportedFiles.length === 0) continue;
 
       const albumDir = join(imagesRoot, pathForAlbum(album));
-      const args = [
-        "--cli",
-        ...exportedFiles.map(file => join(albumDir, file)),
-        "-o", albumDir,
-        "--overwrite" // This flag should make Topaz overwrite the input files
-      ];
+      
+      // Process each file individually for better progress tracking
+      for (const file of exportedFiles) {
+        try {
+          job.name = `Enhancing ${file} with Topaz Photo AI (${enhancedCount + 1}/${totalFiles})`;
+          job.changed();
+          
+          const args = [
+            "--cli",
+            join(albumDir, file),
+            "-o", albumDir,
+            "--overwrite" // This flag should make Topaz overwrite the input files
+          ];
 
-      await new Promise<void>((resolve, reject) => {
-        const proc = spawn(topazPath, args);
+          await new Promise<void>((resolve, reject) => {
+            const proc = spawn(topazPath, args);
 
-        proc.stdout.on("data", (data) => {
-          console.info(`Topaz Photo AI: ${data.toString()}`);
-        });
+            proc.stdout.on("data", (data) => {
+              console.info(`Topaz Photo AI: ${data.toString()}`);
+            });
 
-        proc.stderr.on("data", (data) => {
-          console.error(`Topaz Photo AI Error: ${data.toString()}`);
-        });
+            proc.stderr.on("data", (data) => {
+              console.error(`Topaz Photo AI Error: ${data.toString()}`);
+            });
 
-        proc.on("close", (code) => {
-          if (code === 0) {
-            console.info(`Topaz Photo AI completed successfully for album: ${album.name}`);
-            resolve();
-          } else {
-            reject(new Error(`Topaz Photo AI exited with code ${code} for album: ${album.name}`));
-          }
-        });
+            proc.on("close", (code) => {
+              if (code === 0) {
+                console.info(`Topaz Photo AI completed successfully for: ${file}`);
+                resolve();
+              } else {
+                reject(new Error(`Topaz Photo AI exited with code ${code} for: ${file}`));
+              }
+            });
 
-        proc.on("error", (err) => {
-          reject(new Error(`Failed to start Topaz Photo AI for album ${album.name}: ${err.message}`));
-        });
-      });
+            proc.on("error", (err) => {
+              reject(new Error(`Failed to start Topaz Photo AI for ${file}: ${err.message}`));
+            });
+          });
+          
+          enhancedCount++;
+          job.progress.remaining--;
+          job.changed();
+        } catch (e: any) {
+          job.errors.push(`Failed to enhance ${file}: ${e.message}`);
+          enhancedCount++;
+          job.progress.remaining--;
+          job.changed();
+        }
+      }
     }
-
-    job.progress.remaining--;
-    job.changed();
 
     // Refresh the albums to show the new enhanced images
     const updatedAlbums = Array.from(albumGroups.values()).map(({ album }) => album);
