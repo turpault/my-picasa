@@ -13,17 +13,17 @@ import { readAlbumIni } from "../rpc/rpcFunctions/picasa-ini";
 import { isPicture, isVideo, namify } from "../../shared/lib/utils";
 import { entryFilePath, safeWriteFile } from "../utils/serverUtils";
 
-export async function exportToFolder(entry: AlbumEntry, targetFolder: string) {
+export async function exportToFolder(entry: AlbumEntry, targetFolder: string): Promise<string> {
   const picasa = await readAlbumIni(entry.album);
   const options = picasa[entry.name] || {};
   const targetFilename = namify(entry.album.name + "_" + entry.name);
+  
   if (isVideo(entry)) {
     // Straight copy
     const ext = extname(entry.name);
-    await copyFile(
-      entryFilePath(entry),
-      join(targetFolder, targetFilename + ext)
-    );
+    const targetFile = join(targetFolder, targetFilename + ext);
+    await copyFile(entryFilePath(entry), targetFile);
+    return targetFile;
   } else if (isPicture(entry)) {
     const context = await buildContext(entry);
 
@@ -51,13 +51,17 @@ export async function exportToFolder(entry: AlbumEntry, targetFolder: string) {
         })
     ) { }
     await safeWriteFile(targetFile, res);
+    return targetFile;
   }
+  
+  // This should never be reached, but TypeScript requires a return statement
+  throw new Error(`Unsupported file type for entry: ${entry.name}`);
 }
 
 export async function exportToSpecificFile(entry: AlbumEntry, targetFilePath: string) {
   const picasa = await readAlbumIni(entry.album);
   const options = picasa[entry.name] || {};
-  
+
   if (isVideo(entry)) {
     // Straight copy
     await copyFile(entryFilePath(entry), targetFilePath);
@@ -72,7 +76,7 @@ export async function exportToSpecificFile(entry: AlbumEntry, targetFilePath: st
     await commit(context);
     const res = (await encode(context)).data as Buffer;
     await destroyContext(context);
-    
+
     await safeWriteFile(targetFilePath, res);
   }
 }
