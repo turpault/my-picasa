@@ -199,6 +199,8 @@ export async function startServices() {
   startAlbumUpdateNotification();
   info("Fetch persons list...");
   buildPersonsList();
+  info("Starting background tasks...");
+  startBackgroundTasksOnStart();
   info("Parsing LUTs...");
   await parseLUTs();
   info("Initializing projects...");
@@ -208,6 +210,4 @@ export async function startServices() {
   info("Waiting until walk...");
   await waitUntilWalk();
   info("Ready...");
-  await startBackgroundTasksOnStart();
-  info("Background tasks started...");
 }
