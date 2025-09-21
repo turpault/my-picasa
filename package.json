@@ -85,6 +85,8 @@
     "@fastify/websocket": "^11.0.1",
     "@sentry/browser": "^8.32.0",
     "@sentry/node": "^8.32.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.2.0",
     "chalk": "^4.0.0",
     "csv-parser": "^3.0.0",
     "debug": "^4.3.7",

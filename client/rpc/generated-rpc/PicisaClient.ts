@@ -290,4 +290,34 @@ export class PicisaClient {
       'args': {  } 
     });
   }
+  async queryFolders(matchingStrings: array):Promise<any> {
+    return this.emit('PicisaClient:queryFolders', {
+      'args': { matchingStrings } 
+    });
+  }
+  async getAllIndexedFolders():Promise<any> {
+    return this.emit('PicisaClient:getAllIndexedFolders', {
+      'args': {  } 
+    });
+  }
+  async getFolderPictures(folderPath: string):Promise<any> {
+    return this.emit('PicisaClient:getFolderPictures', {
+      'args': { folderPath } 
+    });
+  }
+  async searchIndexedPictures(searchTerm: string, limit: number):Promise<any> {
+    return this.emit('PicisaClient:searchIndexedPictures', {
+      'args': { searchTerm, limit } 
+    });
+  }
+  async getIndexingStatistics():Promise<any> {
+    return this.emit('PicisaClient:getIndexingStatistics', {
+      'args': {  } 
+    });
+  }
+  async indexPictureEntry(entry: object):Promise<any> {
+    return this.emit('PicisaClient:indexPictureEntry', {
+      'args': { entry } 
+    });
+  }
 }

@@ -42,6 +42,14 @@ import { addBug, getBugs } from "./rpcFunctions/bugs";
 import { clientException, clientLog } from "./rpcFunctions/clientLog";
 import { exifData } from "./rpcFunctions/exif";
 import { createFSJob, getJob, waitJob } from "./rpcFunctions/fileJobs";
+import { 
+  queryFolders, 
+  getAllIndexedFolders, 
+  getFolderPictures, 
+  searchIndexedPictures, 
+  getIndexingStatistics,
+  indexPictureEntry
+} from "./rpcFunctions/indexing";
 import {
   folder,
   getFileContents,
@@ -283,6 +291,30 @@ export const PicisaClient: ServiceMap = {
     getPersons: {
       handler: getPersons,
       arguments: [],
+    },
+    queryFolders: {
+      handler: queryFolders,
+      arguments: ["matchingStrings:array"],
+    },
+    getAllIndexedFolders: {
+      handler: getAllIndexedFolders,
+      arguments: [],
+    },
+    getFolderPictures: {
+      handler: getFolderPictures,
+      arguments: ["folderPath:string"],
+    },
+    searchIndexedPictures: {
+      handler: searchIndexedPictures,
+      arguments: ["searchTerm:string", "limit:integer"],
+    },
+    getIndexingStatistics: {
+      handler: getIndexingStatistics,
+      arguments: [],
+    },
+    indexPictureEntry: {
+      handler: indexPictureEntry,
+      arguments: ["entry:object"],
     },
   },
 };
