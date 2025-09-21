@@ -640,17 +640,17 @@ async function topazPhotoAIJob(job: Job): Promise<Album[]> {
     let processedCount = 0;
     for (const [albumKey, { album, entries }] of albumGroups) {
       const albumDir = join(imagesRoot, pathForAlbum(album));
-      
+
       for (const entry of entries) {
         try {
           job.name = `Exporting ${entry.name} (${processedCount + 1}/${source.length})`;
           job.changed();
-          
+
           // Export to the album directory using exportToFolder
           const exportedFilePath = await exportToFolder(entry, albumDir);
           const exportedFilename = basename(exportedFilePath);
           albumGroups.get(albumKey)!.exportedFiles.push(exportedFilename);
-          
+
           processedCount++;
           job.progress.remaining--;
           job.changed();
@@ -680,13 +680,13 @@ async function topazPhotoAIJob(job: Job): Promise<Album[]> {
       if (exportedFiles.length === 0) continue;
 
       const albumDir = join(imagesRoot, pathForAlbum(album));
-      
+
       // Process each file individually for better progress tracking
       for (const file of exportedFiles) {
         try {
           job.name = `Enhancing ${file} with Topaz Photo AI (${enhancedCount + 1}/${totalFiles})`;
           job.changed();
-          
+
           const args = [
             "--cli",
             join(albumDir, file),
@@ -718,7 +718,7 @@ async function topazPhotoAIJob(job: Job): Promise<Album[]> {
               reject(new Error(`Failed to start Topaz Photo AI for ${file}: ${err.message}`));
             });
           });
-          
+
           enhancedCount++;
           job.progress.remaining--;
           job.changed();

@@ -17,7 +17,7 @@ export async function exportToFolder(entry: AlbumEntry, targetFolder: string): P
   const picasa = await readAlbumIni(entry.album);
   const options = picasa[entry.name] || {};
   const targetFilename = namify(entry.album.name + "_" + entry.name);
-  
+
   if (isVideo(entry)) {
     // Straight copy
     const ext = extname(entry.name);
@@ -53,7 +53,7 @@ export async function exportToFolder(entry: AlbumEntry, targetFolder: string): P
     await safeWriteFile(targetFile, res);
     return targetFile;
   }
-  
+
   // This should never be reached, but TypeScript requires a return statement
   throw new Error(`Unsupported file type for entry: ${entry.name}`);
 }

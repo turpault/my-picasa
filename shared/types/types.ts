@@ -172,7 +172,25 @@ export type ImageMimeType =
   | "image/png"
   | "image/gif"
   | "image/webp"
-  | "image/tiff";
+  | "image/tiff"
+  | "image/heic"
+  | "image/heif"
+  | "image/heif-sequence"
+  | "image/heic-sequence";
+
+export const extensionToMime = {
+  "heic": "image/heic",
+  "heif": "image/heif",
+  "heif-sequence": "image/heif-sequence",
+  "heic-sequence": "image/heic-sequence",
+  "tiff": "image/tiff",
+  "gif": "image/gif",
+  "webp": "image/webp",
+  "jpeg": "image/jpeg",
+  "jpg": "image/jpeg",
+  "png": "image/png",
+  "raw": "raw",
+};
 export type ImageFileMeta = {
   type: Filetype;
   width: number;
@@ -182,11 +200,11 @@ export type ImageFileMeta = {
 
 export type AlbumMetaData =
   | {
-      [name: string]: AlbumEntryMetaData;
-    }
+    [name: string]: AlbumEntryMetaData;
+  }
   | {
-      [name: string]: PicasaSection;
-    };
+    [name: string]: PicasaSection;
+  };
 
 export type ActiveImageEvent = {
   changed: AlbumEntryPicasa;

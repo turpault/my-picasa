@@ -84,7 +84,7 @@ export async function makeBrowserHeader(
           value: p,
           text: p,
           selected: initialList.includes(p),
-          html: null,
+          html: null as null | string,
         })),
       placeholder: t("Filter by person"),
       search: true,

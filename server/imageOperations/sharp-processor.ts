@@ -1,8 +1,8 @@
 import { readFile } from "fs/promises";
 import imageSize from "image-size";
-import { join } from "path";
-import sharp, { Metadata, OverlayOptions, Sharp, Stats } from "sharp";
-import { promisify } from "util";
+import { extname, join, sep } from "path";
+import sharp, { CreateRaw, Metadata, OverlayOptions, Sharp, Stats } from "sharp";
+import decode from "heic-decode";
 import {
   applyAllFilters,
   applyFilter,
@@ -15,6 +15,7 @@ import { entryRelativePath } from "./info";
 import {
   AlbumEntry,
   AlbumEntryMetaData,
+  extensionToMime,
   FaceData,
   ImageEncoding,
   ImageMimeType,
@@ -49,6 +50,8 @@ import {
   readReferenceFromReferenceId,
 } from "../rpc/albumTypes/referenceFiles";
 import { rectOfReference } from "../../worker/background/face/face-utils";
+import { ChildProcess, spawn } from "child_process";
+import { fileExists } from "../utils/serverUtils";
 
 const contexts = new Map<string, Sharp>();
 const contextOptions = new Map<string, AlbumEntryMetaData>();
@@ -122,18 +125,50 @@ export async function buildNewContext(
   return contextId;
 }
 
+// These file types are not supported by sharp, so we need to convert then to png first using vips copy command
+const heicFileTypes = new Set<string>([
+  "image/heic",
+  "image/heif",
+  "image/heif-sequence",
+  "image/heic-sequence",
+  "image/heif-sequence",
+]);
+
+function isHEICFileType(mime: string) {
+  return heicFileTypes.has(mime);
+}
+
+
+function getMimeFromExtension(extension: string) {
+  return extensionToMime[extension.toLowerCase().replace(".", "") as keyof typeof extensionToMime];
+}
+
 export async function buildRawContext(entry: AlbumEntry) {
   const relPath = entryRelativePath(entry);
-  const [picasaData, fileData] = await Promise.all([
+
+  let [picasaData, fileData] = await Promise.all([
     getPicasaEntry(entry),
     readFile(join(imagesRoot, relPath)),
   ]);
+
   const contextId = namify(relPath) + "-" + uuid();
+  let extraMetadata: CreateRaw | undefined = undefined;
+  if (isHEICFileType(getMimeFromExtension(extname(entry.name)))) {
+
+    const decoded = await decode({ buffer: fileData });
+    extraMetadata = {
+      width: decoded.width,
+      height: decoded.height,
+      channels: 4,
+    }
+    fileData = Buffer.from(decoded.data);
+  }
 
   try {
     let s = sharp(fileData, {
       limitInputPixels: false,
       failOnError: false,
+      raw: extraMetadata,
     })
       .withMetadata()
       .rotate();
@@ -745,9 +780,8 @@ export async function transform(
           let txtSvg = `<svg x="0" y="0" height="${h}" width="${w}">`;
           for (const id of args.slice(1)) {
             const [name, rect, color] = JSON.parse(fromBase64(id));
-            const style = `fill:none;stroke-width:${stroke};stroke:${
-              color || "rgb(0,255,0)"
-            }`;
+            const style = `fill:none;stroke-width:${stroke};stroke:${color || "rgb(0,255,0)"
+              }`;
             const pos = decodeRect(rect);
             const scaledPos = {
               x: Math.floor(pos.left * w),
@@ -824,7 +858,7 @@ export async function transform(
           const fontSize = Math.max(
             2,
             Math.floor(maxDim / 20) -
-              (text.length > 30 ? ((text.length - 30) * maxDim) / 2500 : 0),
+            (text.length > 30 ? ((text.length - 30) * maxDim) / 2500 : 0),
           );
           const txtSvg = `<svg height="${Math.floor(
             maxDim / 3,
@@ -1186,11 +1220,9 @@ export async function buildImage(
   extraOperations: any[] | undefined,
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
   return buildImageQueue.add(async () => {
-    const label = `BuildImage for image ${entry.album.name} / ${
-      entry.name
-    } / ${transformations} / ${
-      extraOperations ? JSON.stringify(extraOperations) : "no op"
-    }`;
+    const label = `BuildImage for image ${entry.album.name} / ${entry.name
+      } / ${transformations} / ${extraOperations ? JSON.stringify(extraOperations) : "no op"
+      }`;
     console.time(label);
     debugInfo(label);
     try {
@@ -1213,6 +1245,7 @@ export async function buildImage(
       console.timeEnd(label);
       return { ...res, mime: "image/jpeg" };
     } catch (e) {
+      console.error(`An error occured while building image ${label}`, e);
       console.timeEnd(label);
       throw e;
     }

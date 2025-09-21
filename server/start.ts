@@ -24,6 +24,7 @@ import { info } from "console";
 import { initUndo } from "./utils/undo";
 import { buildPersonsList } from "./rpc/albumTypes/persons";
 import { imagesRoot, rootPath } from "./utils/constants";
+import { startBackgroundTasksOnStart } from "../worker/background/bg-services-on-start";
 
 /** */
 
@@ -207,4 +208,6 @@ export async function startServices() {
   info("Waiting until walk...");
   await waitUntilWalk();
   info("Ready...");
+  await startBackgroundTasksOnStart();
+  info("Background tasks started...");
 }

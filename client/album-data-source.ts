@@ -105,7 +105,7 @@ export class AlbumIndexedDataSource {
                   ...a,
                   indent: 0,
                   collapsed: false,
-                  head: [],
+                  head: [] as AlbumWithData[],
                 }));
                 this.sortFolders();
                 invalidations.push(0);

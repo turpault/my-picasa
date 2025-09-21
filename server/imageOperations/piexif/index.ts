@@ -98,12 +98,12 @@ export const load = (binary: string): IExif => {
     exifReader.endianMark = ">";
   }
 
-  let zerothIfd: IExifElement = null;
-  let firstIfd: IExifElement = null;
-  let exifIfd: IExifElement = null;
-  let interopIfd: IExifElement = null;
-  let gpsIfd: IExifElement = null;
-  let thumbnail: string = null;
+  let zerothIfd: IExifElement | null = null;
+  let firstIfd: IExifElement | null = null;
+  let exifIfd: IExifElement | null = null;
+  let interopIfd: IExifElement | null = null;
+  let gpsIfd: IExifElement | null = null;
+  let thumbnail: string | null = null;
   const pointer = _utils.unpack(
     exifReader.endianMark + "L",
     exifReader.tiftag.slice(4, 8)
@@ -123,7 +123,7 @@ export const load = (binary: string): IExif => {
     const pointer = exifIfd[40965];
     interopIfd = exifReader.getIfd(pointer, "Interop");
   }
-  if (firstIfdPointer != "\x00\x00\x00\x00") {
+  if (firstIfdPointer != "\x00\x00\x00\x00" && firstIfdPointer !== null) {
     const pointer = _utils.unpack(
       exifReader.endianMark + "L",
       firstIfdPointer
@@ -167,29 +167,32 @@ export const dump = (originalExifObj: IExif): string => {
   let existFirstIfd = false;
 
   let zerothIfd: IExifElement,
-    exifIfd: IExifElement,
-    interopIfd: IExifElement,
-    gpsIfd: IExifElement,
-    firstIfd: IExifElement;
+    exifIfd: IExifElement | undefined,
+    interopIfd: IExifElement | undefined,
+    gpsIfd: IExifElement | undefined,
+    firstIfd: IExifElement | undefined;
 
-  if ("0th" in exifObj) {
+  if ("0th" in exifObj && exifObj["0th"]) {
     zerothIfd = exifObj["0th"];
   } else {
     zerothIfd = {};
   }
 
   if (
-    ("Exif" in exifObj && Object.keys(exifObj["Exif"]).length) ||
-    ("Interop" in exifObj && Object.keys(exifObj["Interop"]).length)
+    ("Exif" in exifObj && exifObj["Exif"] && Object.keys(exifObj["Exif"]).length) ||
+    ("Interop" in exifObj && exifObj["Interop"] && Object.keys(exifObj["Interop"]).length)
   ) {
     zerothIfd[34665] = 1;
     existExifIfd = true;
     exifIfd = exifObj["Exif"];
-    if ("Interop" in exifObj && Object.keys(exifObj["Interop"]).length) {
-      exifIfd[40965] = 1;
+    if ("Interop" in exifObj && exifObj["Interop"] && Object.keys(exifObj["Interop"]).length) {
+      if (exifIfd) {
+        exifIfd[40965] = 1;
+      }
       existInteropIfd = true;
       interopIfd = exifObj["Interop"];
     } else if (
+      exifIfd &&
       Object.keys(exifIfd).indexOf(
         TagValues.ExifIFD.InteroperabilityTag.toString()
       ) > -1
@@ -202,7 +205,7 @@ export const dump = (originalExifObj: IExif): string => {
     delete zerothIfd[34665];
   }
 
-  if ("GPS" in exifObj && Object.keys(exifObj["GPS"]).length) {
+  if ("GPS" in exifObj && exifObj["GPS"] && Object.keys(exifObj["GPS"]).length) {
     zerothIfd[TagValues.ImageIFD.GPSTag] = 1;
     existGpsIfd = true;
     gpsIfd = exifObj["GPS"];
@@ -214,6 +217,7 @@ export const dump = (originalExifObj: IExif): string => {
 
   if (
     "1st" in exifObj &&
+    exifObj["1st"] &&
     "thumbnail" in exifObj &&
     exifObj["thumbnail"] != null
   ) {
@@ -243,14 +247,14 @@ export const dump = (originalExifObj: IExif): string => {
     firstIfdSet,
     firstIfdBytes = "",
     thumbnail;
-  if (existExifIfd) {
+  if (existExifIfd && exifIfd) {
     exifIfdSet = _utils.dictToBytes(exifIfd, "Exif", zerothIfdLength);
     exifIfdLength =
       exifIfdSet[0].length +
       Number(existInteropIfd) * 12 +
       exifIfdSet[1].length;
   }
-  if (existGpsIfd) {
+  if (existGpsIfd && gpsIfd) {
     gpsIfdSet = _utils.dictToBytes(
       gpsIfd,
       "GPS",
@@ -259,17 +263,17 @@ export const dump = (originalExifObj: IExif): string => {
     gpsIfdBytes = gpsIfdSet.join("");
     gpsIfdLength = gpsIfdBytes.length;
   }
-  if (existInteropIfd) {
+  if (existInteropIfd && interopIfd) {
     const offset = zerothIfdLength + exifIfdLength + gpsIfdLength;
     interopIfdSet = _utils.dictToBytes(interopIfd, "Interop", offset);
     interopIfdBytes = interopIfdSet.join("");
     interopIfdLength = interopIfdBytes.length;
   }
-  if (existFirstIfd) {
+  if (existFirstIfd && firstIfd) {
     const offset =
       zerothIfdLength + exifIfdLength + gpsIfdLength + interopIfdLength;
     firstIfdSet = _utils.dictToBytes(firstIfd, "1st", offset);
-    thumbnail = _utils.getThumbnail(exifObj["thumbnail"]);
+    thumbnail = _utils.getThumbnail(exifObj["thumbnail"] || "");
     if (thumbnail.length > 64 * 1024) {
       throw new Error("Given thumbnail is too large. max 64kB");
     }

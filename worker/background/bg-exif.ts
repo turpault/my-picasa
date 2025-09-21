@@ -5,11 +5,12 @@ import { media } from "../../server/rpc/rpcFunctions/albumUtils";
 import { exifData } from "../../server/rpc/rpcFunctions/exif";
 import { getFolderAlbums, waitUntilWalk } from "../../server/walker";
 import debug from "debug";
+import { waitUntilIdle } from "../../server/utils/busy";
 
 const debugLogger = debug("app:bg-exif");
 
 export async function populateExifData() {
-  const q = new Queue(10);
+  const q = new Queue(3);
   await Promise.all([waitUntilWalk()]);
   const albums = await getFolderAlbums();
   await Promise.all(
@@ -22,6 +23,7 @@ export async function populateExifData() {
         return;
       }
       m.entries.map(async (entry) => q.add(() => exifData(entry, false)));
+      await waitUntilIdle();
     }),
   );
   const t = setInterval(() => {
