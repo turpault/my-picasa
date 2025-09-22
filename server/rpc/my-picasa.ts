@@ -44,8 +44,6 @@ import { exifData } from "./rpcFunctions/exif";
 import { createFSJob, getJob, waitJob } from "./rpcFunctions/fileJobs";
 import { 
   queryFolders, 
-  getAllIndexedFolders, 
-  getFolderPictures, 
   searchIndexedPictures, 
   getIndexingStatistics,
   indexPictureEntry,
@@ -296,14 +294,6 @@ export const PicisaClient: ServiceMap = {
     queryFolders: {
       handler: queryFolders,
       arguments: ["matchingStrings:array"],
-    },
-    getAllIndexedFolders: {
-      handler: getAllIndexedFolders,
-      arguments: [],
-    },
-    getFolderPictures: {
-      handler: getFolderPictures,
-      arguments: ["folderPath:string"],
     },
     searchIndexedPictures: {
       handler: searchIndexedPictures,

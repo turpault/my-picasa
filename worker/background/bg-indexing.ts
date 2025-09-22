@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { join } from "path";
-import { AlbumEntry, AlbumKind } from "../../shared/types/types";
+import { AlbumEntry, AlbumKind, keyFromID, idFromKey } from "../../shared/types/types";
 import { media } from "../../server/rpc/rpcFunctions/albumUtils";
 import { exifData } from "../../server/rpc/rpcFunctions/exif";
 import { getFolderAlbums, waitUntilWalk } from "../../server/walker";
@@ -12,12 +12,33 @@ import { imagesRoot } from "../../server/utils/constants";
 
 const debugLogger = debug("app:bg-indexing");
 
+/**
+ * Generate a unique album entry ID from album key and file name
+ */
+function generateAlbumEntryId(albumKey: string, fileName: string): string {
+  return `${albumKey}»${fileName}`;
+}
+
+/**
+ * Parse album entry ID to get album key and file name
+ */
+function parseAlbumEntryId(albumEntryId: string): { albumKey: string; fileName: string } {
+  const lastSepIndex = albumEntryId.lastIndexOf('»');
+  if (lastSepIndex === -1) {
+    throw new Error(`Invalid album entry ID format: ${albumEntryId}`);
+  }
+  return {
+    albumKey: albumEntryId.substring(0, lastSepIndex),
+    fileName: albumEntryId.substring(lastSepIndex + 1)
+  };
+}
+
 export interface PictureIndex {
   id: number;
-  folder_path: string;
-  folder_name: string;
+  album_key: string;
+  album_entry_id: string;
+  album_name: string;
   file_name: string;
-  file_path: string;
   date_taken?: string;
   latitude?: number;
   longitude?: number;
@@ -30,9 +51,17 @@ export interface PictureIndex {
   updated_at: string;
 }
 
-export interface FolderQuery {
-  folder_path: string;
-  folder_name: string;
+export interface AlbumQuery {
+  album_key: string;
+  album_name: string;
+  match_count: number;
+}
+
+export interface AlbumEntryQuery {
+  album_entry_id: string;
+  album_key: string;
+  album_name: string;
+  file_name: string;
   match_count: number;
 }
 
@@ -236,7 +265,7 @@ class PictureIndexingService {
   /**
    * Query folders by matching strings
    */
-  queryFoldersByStrings(matchingStrings: string[]): FolderQuery[] {
+  queryFoldersByStrings(matchingStrings: string[]): AlbumQuery[] {
     if (matchingStrings.length === 0) {
       return [];
     }
@@ -275,47 +304,7 @@ class PictureIndexingService {
     }
   }
 
-  /**
-   * Get all unique folders in the index
-   */
-  getAllFolders(): FolderQuery[] {
-    const query = `
-      SELECT 
-        folder_path,
-        folder_name,
-        COUNT(*) as match_count
-      FROM pictures
-      GROUP BY folder_path, folder_name
-      ORDER BY folder_name ASC
-    `;
 
-    const stmt = this.db.prepare(query);
-    const results = stmt.all() as Array<{
-      folder_path: string;
-      folder_name: string;
-      match_count: number;
-    }>;
-
-    return results.map(row => ({
-      folder_path: row.folder_path,
-      folder_name: row.folder_name,
-      match_count: row.match_count
-    }));
-  }
-
-  /**
-   * Get pictures in a specific folder
-   */
-  getPicturesInFolder(folderPath: string): PictureIndex[] {
-    const query = `
-      SELECT * FROM pictures 
-      WHERE folder_path = ? 
-      ORDER BY file_name ASC
-    `;
-
-    const stmt = this.db.prepare(query);
-    return stmt.all(folderPath) as PictureIndex[];
-  }
 
   /**
    * Search pictures by text
@@ -422,20 +411,12 @@ export async function indexPicture(entry: AlbumEntry): Promise<void> {
   await service.indexPicture(entry);
 }
 
-export function queryFoldersByStrings(matchingStrings: string[]): FolderQuery[] {
+export function queryFoldersByStrings(matchingStrings: string[]): AlbumQuery[] {
   const service = getIndexingService();
   return service.queryFoldersByStrings(matchingStrings);
 }
 
-export function getAllFolders(): FolderQuery[] {
-  const service = getIndexingService();
-  return service.getAllFolders();
-}
 
-export function getPicturesInFolder(folderPath: string): PictureIndex[] {
-  const service = getIndexingService();
-  return service.getPicturesInFolder(folderPath);
-}
 
 export function searchPictures(searchTerm: string, limit?: number): PictureIndex[] {
   const service = getIndexingService();
