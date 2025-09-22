@@ -130,14 +130,14 @@ console.log(`Indexed ${stats.totalPictures} pictures in ${stats.totalFolders} fo
 
 - **Indexing**: Initial indexing runs in the background with a queue of 3 concurrent operations
 - **Queries**: Full-text search is optimized with SQLite FTS5
-- **Database**: SQLite database is stored at `picisa_index.db` in the application directory
+- **Database**: SQLite database is stored at `picisa_index.db` in the imagesRoot directory
 - **Updates**: Index is automatically updated when new pictures are added
 
 ## File Locations
 
 - **Service Implementation**: `worker/background/bg-indexing.ts`
 - **RPC Functions**: `server/rpc/rpcFunctions/indexing.ts`
-- **Database**: `picisa_index.db` (created automatically)
+- **Database**: `{imagesRoot}/picisa_index.db` (created automatically)
 - **Test Script**: `testing_scripts/test-indexing.ts`
 
 ## Integration

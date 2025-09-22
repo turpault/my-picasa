@@ -8,6 +8,7 @@ import { Queue } from "../../shared/lib/queue";
 import { waitUntilIdle } from "../../server/utils/busy";
 import debug from "debug";
 import { getPicasaEntry } from "../../server/rpc/rpcFunctions/picasa-ini";
+import { imagesRoot } from "../../server/utils/constants";
 
 const debugLogger = debug("app:bg-indexing");
 
@@ -40,7 +41,7 @@ class PictureIndexingService {
   private dbPath: string;
 
   constructor(dbPath?: string) {
-    this.dbPath = dbPath || join(process.cwd(), "picisa_index.db");
+    this.dbPath = dbPath || join(imagesRoot, "picisa_index.db");
     this.db = new Database(this.dbPath);
     this.initDatabase();
   }
@@ -342,7 +343,7 @@ class PictureIndexingService {
 
     // Create search terms for FTS
     const searchTerms = matchingStrings.map(term => `"${term}"`).join(' OR ');
-    
+
     const query = `
       SELECT 
         p.file_name,
