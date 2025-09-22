@@ -320,4 +320,9 @@ export class PicisaClient {
       'args': { entry } 
     });
   }
+  async queryAlbumEntriesInAlbum(albumId: string, matchingStrings: array):Promise<any> {
+    return this.emit('PicisaClient:queryAlbumEntriesInAlbum', {
+      'args': { albumId, matchingStrings } 
+    });
+  }
 }

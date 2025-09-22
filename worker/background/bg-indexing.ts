@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { join } from "path";
-import { AlbumEntry } from "../../shared/types/types";
+import { AlbumEntry, AlbumKind } from "../../shared/types/types";
 import { media } from "../../server/rpc/rpcFunctions/albumUtils";
 import { exifData } from "../../server/rpc/rpcFunctions/exif";
 import { getFolderAlbums, waitUntilWalk } from "../../server/walker";
@@ -100,23 +100,23 @@ class PictureIndexingService {
     try {
       const picasaEntry = await getPicasaEntry(entry);
       const exif = await exifData(entry, true); // Include stats
-      
+
       const filePath = `${entry.album.key}/${entry.name}`;
-      
+
       // Extract persons from picasa metadata
       const persons = picasaEntry.persons || '';
-      
+
       // Extract date taken
       const dateTaken = picasaEntry.dateTaken || exif.CreateDate || exif.DateTimeOriginal;
-      
+
       // Extract GPS coordinates
       const latitude = picasaEntry.latitude || exif.latitude;
       const longitude = picasaEntry.longitude || exif.longitude;
-      
+
       // Extract dimensions
       const width = exif.imageWidth || exif.ExifImageWidth;
       const height = exif.imageHeight || exif.ExifImageHeight;
-      
+
       // Extract file size
       const fileSize = exif.size;
 
@@ -171,11 +171,11 @@ class PictureIndexingService {
    */
   async indexAllPictures(): Promise<void> {
     debugLogger("Starting full picture indexing...");
-    
+
     const q = new Queue(3);
     await Promise.all([waitUntilWalk()]);
     const albums = await getFolderAlbums();
-    
+
     let totalPictures = 0;
     let processedPictures = 0;
 
@@ -228,7 +228,7 @@ class PictureIndexingService {
 
     await q.drain();
     clearInterval(progressInterval);
-    
+
     debugLogger("Picture indexing completed");
   }
 
@@ -242,7 +242,7 @@ class PictureIndexingService {
 
     // Create search terms for FTS
     const searchTerms = matchingStrings.map(term => `"${term}"`).join(' OR ');
-    
+
     const query = `
       SELECT 
         p.folder_path,
@@ -333,6 +333,52 @@ class PictureIndexingService {
   }
 
   /**
+   * Query AlbumEntry objects within a specific album by matching strings
+   */
+  queryAlbumEntries(albumId: string, matchingStrings: string[]): AlbumEntry[] {
+    if (matchingStrings.length === 0) {
+      return [];
+    }
+
+    // Create search terms for FTS
+    const searchTerms = matchingStrings.map(term => `"${term}"`).join(' OR ');
+    
+    const query = `
+      SELECT 
+        p.file_name,
+        p.folder_path,
+        p.folder_name
+      FROM pictures p
+      JOIN pictures_fts fts ON p.id = fts.rowid
+      WHERE p.folder_path = ? AND pictures_fts MATCH ?
+      ORDER BY p.file_name ASC
+    `;
+
+    try {
+      const stmt = this.db.prepare(query);
+      const results = stmt.all(albumId, searchTerms) as Array<{
+        file_name: string;
+        folder_path: string;
+        folder_name: string;
+      }>;
+
+      // Convert to AlbumEntry format
+      return results.map(row => ({
+        name: row.file_name,
+        album: {
+          key: row.folder_path,
+          name: row.folder_name,
+          kind: AlbumKind.FOLDER,
+          parent: null
+        }
+      }));
+    } catch (error) {
+      debugLogger("Error querying album entries:", error);
+      return [];
+    }
+  }
+
+  /**
    * Get statistics about the index
    */
   getStats(): { totalPictures: number; totalFolders: number; lastUpdated: string } {
@@ -398,4 +444,9 @@ export function searchPictures(searchTerm: string, limit?: number): PictureIndex
 export function getIndexingStats(): { totalPictures: number; totalFolders: number; lastUpdated: string } {
   const service = getIndexingService();
   return service.getStats();
+}
+
+export function queryAlbumEntries(albumId: string, matchingStrings: string[]): AlbumEntry[] {
+  const service = getIndexingService();
+  return service.queryAlbumEntries(albumId, matchingStrings);
 }

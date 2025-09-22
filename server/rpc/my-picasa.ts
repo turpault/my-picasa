@@ -48,7 +48,8 @@ import {
   getFolderPictures, 
   searchIndexedPictures, 
   getIndexingStatistics,
-  indexPictureEntry
+  indexPictureEntry,
+  queryAlbumEntriesInAlbum
 } from "./rpcFunctions/indexing";
 import {
   folder,
@@ -315,6 +316,10 @@ export const PicisaClient: ServiceMap = {
     indexPictureEntry: {
       handler: indexPictureEntry,
       arguments: ["entry:object"],
+    },
+    queryAlbumEntriesInAlbum: {
+      handler: queryAlbumEntriesInAlbum,
+      arguments: ["albumId:string", "matchingStrings:array"],
     },
   },
 };

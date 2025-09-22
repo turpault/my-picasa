@@ -55,6 +55,9 @@ Returns all pictures in a specific folder.
 #### `searchPictures(searchTerm: string, limit?: number): PictureIndex[]`
 Searches pictures by text content with optional result limit.
 
+#### `queryAlbumEntries(albumId: string, matchingStrings: string[]): AlbumEntry[]`
+Returns AlbumEntry objects within a specific album that match the given search strings.
+
 #### `getIndexingStats(): { totalPictures: number; totalFolders: number; lastUpdated: string }`
 Returns statistics about the current index.
 
@@ -74,6 +77,7 @@ The following RPC endpoints are available to the client:
 - `getAllIndexedFolders()` - Get all folders in the index
 - `getFolderPictures(folderPath: string)` - Get pictures in a folder
 - `searchIndexedPictures(searchTerm: string, limit?: number)` - Search pictures
+- `queryAlbumEntriesInAlbum(albumId: string, matchingStrings: string[])` - Query AlbumEntry objects within a specific album
 - `getIndexingStatistics()` - Get index statistics
 - `indexPictureEntry(entry: AlbumEntry)` - Index a single picture
 
@@ -100,6 +104,19 @@ const results = await searchIndexedPictures("sunset", 50);
 
 // Get pictures in a specific folder
 const folderPictures = await getFolderPictures("/path/to/folder");
+```
+
+### Querying Album Entries
+
+```typescript
+// Search for AlbumEntry objects within a specific album
+const albumEntries = await queryAlbumEntriesInAlbum("/path/to/album", ["2023", "vacation"]);
+
+// Search for entries by file extensions
+const jpegEntries = await queryAlbumEntriesInAlbum("/path/to/album", ["jpg", "jpeg"]);
+
+// Search for entries by person names
+const familyEntries = await queryAlbumEntriesInAlbum("/path/to/album", ["john", "mary"]);
 ```
 
 ### Getting Statistics

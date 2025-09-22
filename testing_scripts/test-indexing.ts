@@ -9,7 +9,8 @@ import {
   getIndexingService, 
   queryFoldersByStrings, 
   getAllFolders, 
-  getIndexingStats 
+  getIndexingStats,
+  queryAlbumEntries
 } from "../worker/background/bg-indexing";
 
 async function testIndexingService() {
@@ -67,6 +68,32 @@ async function testIndexingService() {
     multiTermResults.slice(0, 5).forEach((folder, index) => {
       console.log(`  ${index + 1}. ${folder.folder_name} (${folder.match_count} matches)`);
     });
+
+    // Test album entry querying
+    console.log("\n📸 Testing Album Entry Querying:");
+    if (allFolders.length > 0) {
+      const testAlbum = allFolders[0];
+      console.log(`\nSearching for entries in album: "${testAlbum.folder_name}"`);
+      
+      const albumEntryResults = queryAlbumEntries(testAlbum.folder_path, ["2023", "photo"]);
+      console.log(`Found ${albumEntryResults.length} matching entries:`);
+      
+      albumEntryResults.slice(0, 10).forEach((entry, index) => {
+        console.log(`  ${index + 1}. ${entry.name}`);
+      });
+      
+      if (albumEntryResults.length > 10) {
+        console.log(`  ... and ${albumEntryResults.length - 10} more entries`);
+      }
+
+      // Test with different search terms
+      const differentSearchTerms = ["jpg", "jpeg", "png"];
+      console.log(`\nSearching for entries with file extensions: ${differentSearchTerms.join(", ")}`);
+      const extensionResults = queryAlbumEntries(testAlbum.folder_path, differentSearchTerms);
+      console.log(`Found ${extensionResults.length} entries with those extensions`);
+    } else {
+      console.log("No folders available for album entry testing");
+    }
 
     console.log("\n✅ Indexing service test completed successfully!");
     

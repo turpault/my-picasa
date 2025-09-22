@@ -6,6 +6,7 @@ import {
   searchPictures, 
   getIndexingStats,
   indexPicture,
+  queryAlbumEntries,
   FolderQuery,
   PictureIndex
 } from "../../../worker/background/bg-indexing";
@@ -50,4 +51,11 @@ export async function getIndexingStatistics(): Promise<{ totalPictures: number; 
  */
 export async function indexPictureEntry(entry: AlbumEntry): Promise<void> {
   return indexPicture(entry);
+}
+
+/**
+ * Query AlbumEntry objects within a specific album by matching strings
+ */
+export async function queryAlbumEntriesInAlbum(albumId: string, matchingStrings: string[]): Promise<AlbumEntry[]> {
+  return queryAlbumEntries(albumId, matchingStrings);
 }
