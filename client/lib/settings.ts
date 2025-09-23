@@ -11,7 +11,6 @@ export type Settings = {
     favoritePhoto: boolean;
     text: string;
   };
-  search: string;
   iconSize: number;
   inverseSort: boolean;
   sort: "date" | "name";
@@ -31,7 +30,6 @@ const settings: Settings = {
     persons: [],
     text: "",
   },
-  search: "",
   sort: "date",
   inverseSort: false,
   iconSize: 250,
@@ -47,7 +45,6 @@ export async function makeSettings() {
   settings.filters.location = (await get("filterByLocation")) || false;
   settings.filters.favoritePhoto = (await get("favoritePhoto")) || false;
   settings.filters.text = (await get("filterByText")) || "";
-  settings.search = settings.filters.text;
   settings.sort = (await get("sort")) || "date";
   settings.inverseSort = (await get("inverseSort")) || false;
   settings.iconSize = (await get("iconSize")) || 250;
@@ -105,9 +102,7 @@ export function updateSort(newValue: "date" | "name") {
 }
 export function updateFilterByText(newValue: string) {
   settings.filters.text = newValue;
-  settings.search = newValue;
   changed("filters.text");
-  changed("search");
 }
 
 export function updateInverseSort(newValue: boolean) {
