@@ -47,7 +47,7 @@ export async function makeSettings() {
   settings.filters.location = (await get("filterByLocation")) || false;
   settings.filters.favoritePhoto = (await get("favoritePhoto")) || false;
   settings.filters.text = (await get("filterByText")) || "";
-  settings.search = (await get("search")) || "";
+  settings.search = settings.filters.text;
   settings.sort = (await get("sort")) || "date";
   settings.inverseSort = (await get("inverseSort")) || false;
   settings.iconSize = (await get("iconSize")) || 250;
@@ -66,7 +66,6 @@ async function changed(field: string) {
   await set("filterByPerson", settings.filters.persons.join("|"));
   await set("filterByLocation", settings.filters.location);
   await set("filterByFavoritePhoto", settings.filters.favoritePhoto);
-  await set("search", settings.search);
   await set("sort", settings.sort);
   await set("inverseSort", settings.inverseSort);
   await set("iconSize", settings.iconSize);
@@ -106,7 +105,9 @@ export function updateSort(newValue: "date" | "name") {
 }
 export function updateFilterByText(newValue: string) {
   settings.filters.text = newValue;
+  settings.search = newValue;
   changed("filters.text");
+  changed("search");
 }
 
 export function updateInverseSort(newValue: boolean) {
@@ -116,8 +117,4 @@ export function updateInverseSort(newValue: boolean) {
 export function updateIconSize(newValue: number) {
   settings.iconSize = newValue;
   changed("iconSize");
-}
-export function updateSearch(newValue: string) {
-  settings.search = newValue;
-  changed("search");
 }

@@ -3,6 +3,7 @@ import {
   idFromAlbumEntry,
   isPicture,
   isVideo,
+  parseFilterTerms,
   removeDiacritics,
   sortByKey,
 } from "../../../shared/lib/utils";
@@ -34,6 +35,7 @@ import {
 } from "../albumTypes/projects";
 import { getPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasa-ini";
 import { searchIndexedPictures } from "./indexing";
+import { getIndexingService } from "../../../worker/background/bg-indexing";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
   const entries = (await media(entry.album)).entries;
@@ -288,21 +290,20 @@ export async function getAlbumEntryMetadata(albumEntry: AlbumEntry) {
 }
 
 export async function monitorAlbums(filter?: string): Promise<{}> {
-  const lastWalk = await getFolderAlbums();
   const f = getFaceAlbums();
   const p = await getProjectAlbums();
-  
-  let albums = [...lastWalk, ...f, ...p];
-  
-  // If search filter is provided, filter albums by search terms
-  if (filter && filter.trim()) {
-    const searchTerms = filter.trim().split(/\s+/).filter(term => term.length > 0);
-    if (searchTerms.length > 0) {
-      // For now, we'll return all albums and let the client filter the media
-      // In the future, we could implement server-side album filtering
-    }
+
+  let albums: AlbumWithData[] = [];
+
+  if (filter) {
+    const searchTerms = parseFilterTerms(filter);
+    const matchedAlbums = getIndexingService().queryFoldersByStrings(searchTerms);
+    albums = [...matchedAlbums, ...f, ...p];
+  } else {
+    const lastWalk = await getFolderAlbums();
+    albums = [...lastWalk, ...f, ...p];
   }
-  
+
   queueNotification({ type: "albums", albums });
   return {};
 }

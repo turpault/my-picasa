@@ -1,10 +1,8 @@
-import { isPicture, isVideo, removeDiacritics } from "../shared/lib/utils";
+import { isVideo } from "../shared/lib/utils";
 import {
   Album,
-  AlbumEntry,
-  AlbumEntryPicasa,
   AlbumContents,
-  AlbumEntryMetaData,
+  AlbumEntry
 } from "../shared/types/types";
 import { getAlbumMetadata } from "./lib/handles";
 import { Settings, getSettings } from "./lib/settings";
@@ -27,6 +25,7 @@ export async function getAlbumContents(
 ): Promise<AlbumContents & { filtered: boolean }> {
   let filtered = false;
   let settings: Settings = {
+    search: "",
     sort: "date",
     iconSize: 250,
     filters: {
@@ -47,7 +46,7 @@ export async function getAlbumContents(
   // Gettings contents might change the picasa data
   const contents = await albumContents(
     album,
-    settings.search,
+    settings.filters.text,
   );
   const picasa = await getAlbumMetadata(album);
   let entries = contents.entries;

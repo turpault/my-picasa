@@ -52,11 +52,11 @@ export class AlbumIndexedDataSource {
 
     // Listen for search setting changes
     getSettingsEmitter().on("changed", (event) => {
-      if (event.field === "search") {
+      if (event.field === "filters.text") {
         // Invalidate all albums when search changes
         this.emitter.emit("reset", {});
         // Call monitorAlbums with the new search filter
-        s.monitorAlbums(event.search);
+        s.monitorAlbums(event.filters.text);
       }
     });
 
@@ -93,7 +93,7 @@ export class AlbumIndexedDataSource {
     return new Promise<void>((resolve) => {
       // Call monitorAlbums with current search setting
       const settings = getSettings();
-      s.monitorAlbums(settings.search);
+      s.monitorAlbums(settings.filters.text);
       let gotEvent = false;
 
       this.shortcutsUnreg = s.on("shortcutsUpdated", async () => {
