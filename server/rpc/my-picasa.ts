@@ -67,6 +67,7 @@ import {
 } from "./rpcFunctions/picasa-ini";
 import { clientReady } from "./rpcFunctions/ready";
 import { setAlbumShortcut } from "./rpcFunctions/shortcuts";
+import { getFeatureFlags } from "./rpcFunctions/featureFlags";
 
 /**
  * ConcurrencyService IDL
@@ -289,6 +290,10 @@ export const PicisaClient: ServiceMap = {
     },
     getPersons: {
       handler: getPersons,
+      arguments: [],
+    },
+    getFeatureFlags: {
+      handler: getFeatureFlags,
       arguments: [],
     }
   },

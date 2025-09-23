@@ -290,4 +290,9 @@ export class PicisaClient {
       'args': {  } 
     });
   }
+  async getFeatureFlags():Promise<any> {
+    return this.emit('PicisaClient:getFeatureFlags', {
+      'args': {  } 
+    });
+  }
 }

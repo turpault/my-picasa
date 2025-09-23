@@ -25,7 +25,6 @@ export async function getAlbumContents(
 ): Promise<AlbumContents & { filtered: boolean }> {
   let filtered = false;
   let settings: Settings = {
-    search: "",
     sort: "date",
     iconSize: 250,
     filters: {

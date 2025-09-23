@@ -223,6 +223,10 @@ const stringTable: { [key: string]: any } = {
   "Mosaic can have at $1 images": {
     fr: "La mosaique peut avoir au maximum $1 images",
   },
+  "Topaz Photo AI": { fr: "Topaz Photo AI" },
+  "Enhance $1 image(s) with Topaz Photo AI": {
+    fr: "Améliorer $1 image(s) avec Topaz Photo AI",
+  },
 };
 const lang = window.navigator.language.split("-")[0];
 let str = new Set<string>();

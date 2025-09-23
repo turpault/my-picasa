@@ -49,12 +49,14 @@ export class AlbumIndexedDataSource {
     const s = await getService();
     this.shortcuts = await s.getShortcuts();
     let invalidations: any[] = [];
+    let gotFirstAlbumEvent = false;
 
     // Listen for search setting changes
     getSettingsEmitter().on("changed", (event) => {
       if (event.field === "filters.text") {
         // Invalidate all albums when search changes
         this.emitter.emit("reset", {});
+        gotFirstAlbumEvent = false;
         // Call monitorAlbums with the new search filter
         s.monitorAlbums(event.filters.text);
       }
@@ -94,11 +96,10 @@ export class AlbumIndexedDataSource {
       // Call monitorAlbums with current search setting
       const settings = getSettings();
       s.monitorAlbums(settings.filters.text);
-      let gotEvent = false;
 
       this.shortcutsUnreg = s.on("shortcutsUpdated", async () => {
         this.shortcuts = await s.getShortcuts();
-        if (gotEvent) {
+        if (gotFirstAlbumEvent) {
           invalidations.push(0);
           invalidations.push(10);
           resolveAndInvalidate();
@@ -106,14 +107,14 @@ export class AlbumIndexedDataSource {
       });
       this.unreg = s.on("albumEvent", async (e: any) => {
         for (const event of e.payload as AlbumChangeEvent[]) {
-          if (!gotEvent && event.type !== "albums") {
+          if (!gotFirstAlbumEvent && event.type !== "albums") {
             continue;
           }
           console.log("Got event", event.type, ";", event.album?.name);
           switch (event.type) {
             case "albums":
               {
-                gotEvent = true;
+                gotFirstAlbumEvent = true;
                 this.allAlbums = event.albums!.map((a) => ({
                   ...a,
                   indent: 0,

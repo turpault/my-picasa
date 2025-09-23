@@ -319,7 +319,6 @@ class PictureIndexingService {
       SELECT p.* FROM pictures p
       JOIN pictures_fts fts ON p.id = fts.rowid
       WHERE pictures_fts MATCH ?${albumId ? ' AND p.album_key = ?' : ''}
-      ORDER BY p.date_taken DESC
       ${limit ? 'LIMIT ?' : ''}
     `;
 

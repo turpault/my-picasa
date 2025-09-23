@@ -28,6 +28,7 @@ import { initCacheBuster } from "./imageProcess/client";
 import { makeSettings } from "./lib/settings";
 import { State } from "./lib/state";
 import { getService, setServicePort } from "./rpc/connect";
+import { featureFlagService } from "./lib/feature-flags";
 import { AppEvent, ApplicationSharedStateDef } from "./uiTypes";
 async function init(port: number) {
   initClientSentry();
@@ -44,6 +45,10 @@ async function init(port: number) {
 
   const emitter = buildEmitter<AppEvent>(false);
   const s = await getService();
+  
+  // Initialize feature flag service
+  featureFlagService.setClient(s);
+  
   await consoleOverload();
   const dataSource = new AlbumIndexedDataSource();
 
