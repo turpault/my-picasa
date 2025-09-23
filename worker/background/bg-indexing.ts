@@ -7,7 +7,7 @@ import { waitUntilIdle } from "../../server/utils/busy";
 import { imagesRoot } from "../../server/utils/constants";
 import { getFolderAlbums, waitUntilWalk } from "../../server/walker";
 import { Queue } from "../../shared/lib/queue";
-import { Album, AlbumEntry, AlbumKind } from "../../shared/types/types";
+import { Album, AlbumEntry, AlbumKind, AlbumWithData } from "../../shared/types/types";
 
 const debugLogger = debug("app:bg-indexing");
 
@@ -261,7 +261,7 @@ class PictureIndexingService {
   /**
    * Query folders by matching strings
    */
-  queryFoldersByStrings(matchingStrings: string[]): Album[] {
+  queryFoldersByStrings(matchingStrings: string[]): AlbumWithData[] {
     if (matchingStrings.length === 0) {
       return [];
     }
@@ -292,7 +292,9 @@ class PictureIndexingService {
       return results.map(row => ({
         key: row.album_key,
         name: row.album_name,
-        kind: AlbumKind.FOLDER
+        kind: AlbumKind.FOLDER,
+        count: row.match_count,
+        shortcut: undefined
       }));
     } catch (error) {
       debugLogger("Error querying folders:", error);

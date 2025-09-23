@@ -38,7 +38,7 @@ export function sortByKey<T>(
 ) {
   array.sort(alphaSorter(false, keys as string[], order));
 }
-export const noop = (..._a: any[]) => {};
+export const noop = (..._a: any[]) => { };
 
 export function alphaSorter(
   caseSensitive: boolean = true,
@@ -102,6 +102,44 @@ export function mergeObjects<T>(a?: T, b?: Partial<T>): T {
     }
   }
   return res;
+}
+// Utility function to parse filter string into terms
+// Terms are separated by spaces, unless enclosed in single or double quotes
+export function parseFilterTerms(filter: string): string[] {
+  const terms: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  let quoteChar = '';
+
+  for (let i = 0; i < filter.length; i++) {
+    const char = filter[i];
+
+    if (!inQuotes && (char === '"' || char === "'")) {
+      // Start of quoted term
+      inQuotes = true;
+      quoteChar = char;
+    } else if (inQuotes && char === quoteChar) {
+      // End of quoted term
+      inQuotes = false;
+      quoteChar = '';
+    } else if (!inQuotes && char === ' ') {
+      // Space outside quotes - end current term
+      if (current.trim()) {
+        terms.push(current.trim());
+        current = '';
+      }
+    } else {
+      // Regular character
+      current += char;
+    }
+  }
+
+  // Add final term if exists
+  if (current.trim()) {
+    terms.push(current.trim());
+  }
+
+  return terms;
 }
 
 export function removeDiacritics(from: string): string {
@@ -517,7 +555,7 @@ export function idFromAlbumEntry(
 }
 
 export function hashString(b: string) {
-  for (var a = 0, c = b.length; c--; )
+  for (var a = 0, c = b.length; c--;)
     (a += b.charCodeAt(c)), (a += a << 10), (a ^= a >> 6);
   a += a << 3;
   a ^= a >> 11;

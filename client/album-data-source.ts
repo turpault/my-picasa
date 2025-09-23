@@ -49,7 +49,7 @@ export class AlbumIndexedDataSource {
     const s = await getService();
     this.shortcuts = await s.getShortcuts();
     let invalidations: any[] = [];
-    
+
     // Listen for search setting changes
     getSettingsEmitter().on("changed", (event) => {
       if (event.field === "search") {

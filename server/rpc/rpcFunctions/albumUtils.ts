@@ -287,7 +287,7 @@ export async function getAlbumEntryMetadata(albumEntry: AlbumEntry) {
   return albumMetadata[albumEntry.name] as AlbumEntryMetaData;
 }
 
-export async function monitorAlbums(searchFilter?: string): Promise<{}> {
+export async function monitorAlbums(filter?: string): Promise<{}> {
   const lastWalk = await getFolderAlbums();
   const f = getFaceAlbums();
   const p = await getProjectAlbums();
@@ -295,8 +295,8 @@ export async function monitorAlbums(searchFilter?: string): Promise<{}> {
   let albums = [...lastWalk, ...f, ...p];
   
   // If search filter is provided, filter albums by search terms
-  if (searchFilter && searchFilter.trim()) {
-    const searchTerms = searchFilter.trim().split(/\s+/).filter(term => term.length > 0);
+  if (filter && filter.trim()) {
+    const searchTerms = filter.trim().split(/\s+/).filter(term => term.length > 0);
     if (searchTerms.length > 0) {
       // For now, we'll return all albums and let the client filter the media
       // In the future, we could implement server-side album filtering

@@ -123,11 +123,11 @@ export const PicisaClient: ServiceMap = {
     },
     folders: {
       handler: folders,
-      arguments: ["filter:string[]"],
+      arguments: ["filter:string"],
     },
     monitorAlbums: {
       handler: monitorAlbums,
-      arguments: ["searchFilter:string"],
+      arguments: ["filter:string"],
     },
     media: {
       handler: media,
@@ -290,22 +290,6 @@ export const PicisaClient: ServiceMap = {
     getPersons: {
       handler: getPersons,
       arguments: [],
-    },
-    queryFolders: {
-      handler: queryFolders,
-      arguments: ["matchingStrings:string[]"],
-    },
-    searchIndexedPictures: {
-      handler: searchIndexedPictures,
-      arguments: ["searchTerm:string", "limit:integer", "albumId:string"],
-    },
-    getIndexingStatistics: {
-      handler: getIndexingStatistics,
-      arguments: [],
-    },
-    indexPictureEntry: {
-      handler: indexPictureEntry,
-      arguments: ["entry:object"],
     }
   },
 };

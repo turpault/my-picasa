@@ -7,6 +7,7 @@ import {
   alphaSorter,
   buildReadySemaphore,
   differs,
+  parseFilterTerms,
   setReady,
   sleep,
 } from "../shared/lib/utils";
@@ -23,6 +24,7 @@ import {
 import { mediaCount } from "./rpc/rpcFunctions/albumUtils";
 import {
   albumentriesInFilter,
+  getShortcuts,
   readShortcut,
 } from "./rpc/rpcFunctions/picasa-ini";
 import { imagesRoot, specialFolders } from "./utils/constants";
@@ -238,20 +240,22 @@ export async function getFolderAlbums(): Promise<AlbumWithData[]> {
 
 export async function folders(filter: string): Promise<AlbumWithData[]> {
   if (filter) {
+
     const indexingService = getIndexingService();
 
     // Query folders by matching the filter string
-    const matchedAlbums = indexingService.queryFoldersByStrings([filter]);
+    const filterTerms = parseFilterTerms(filter);
+    const matchedAlbums = indexingService.queryFoldersByStrings(filterTerms);
 
-    // Convert matched albums to AlbumWithData by finding them in lastWalk
-    const filtered: AlbumWithData[] = [];
-    for (const matchedAlbum of matchedAlbums) {
-      const album = lastWalk.find(a => a.key === matchedAlbum.key);
-      if (album) {
-        filtered.push(album);
+    // Complete with shortcuts
+    const shortcuts = Object.values(getShortcuts());
+    for (const album of matchedAlbums) {
+      const shortcut = shortcuts.find(s => s.key === album.key);
+      if (shortcut) {
+        album.shortcut = shortcut.name;
       }
     }
-    return filtered;
+    return matchedAlbums;
   }
   return [...(lastWalk as AlbumWithData[])];
 }

@@ -85,14 +85,14 @@ export class PicisaClient {
       'args': { jobName, jobData } 
     });
   }
-  async folders(filter: string[]):Promise<any> {
+  async folders(filter: string):Promise<any> {
     return this.emit('PicisaClient:folders', {
       'args': { filter } 
     });
   }
-  async monitorAlbums(searchFilter: string):Promise<any> {
+  async monitorAlbums(filter: string):Promise<any> {
     return this.emit('PicisaClient:monitorAlbums', {
-      'args': { searchFilter } 
+      'args': { filter } 
     });
   }
   async media(album: object, filter: string):Promise<any> {
@@ -288,26 +288,6 @@ export class PicisaClient {
   async getPersons():Promise<any> {
     return this.emit('PicisaClient:getPersons', {
       'args': {  } 
-    });
-  }
-  async queryFolders(matchingStrings: string[]):Promise<any> {
-    return this.emit('PicisaClient:queryFolders', {
-      'args': { matchingStrings } 
-    });
-  }
-  async searchIndexedPictures(searchTerm: string, limit: number, albumId: string):Promise<any> {
-    return this.emit('PicisaClient:searchIndexedPictures', {
-      'args': { searchTerm, limit, albumId } 
-    });
-  }
-  async getIndexingStatistics():Promise<any> {
-    return this.emit('PicisaClient:getIndexingStatistics', {
-      'args': {  } 
-    });
-  }
-  async indexPictureEntry(entry: object):Promise<any> {
-    return this.emit('PicisaClient:indexPictureEntry', {
-      'args': { entry } 
     });
   }
 }
