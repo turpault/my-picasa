@@ -27,6 +27,7 @@ import {
 } from "./rpc/rpcFunctions/picasa-ini";
 import { imagesRoot, specialFolders } from "./utils/constants";
 import { pathForAlbum } from "./utils/serverUtils";
+import { getIndexingService } from "../worker/background/bg-indexing";
 
 const readyLabelKey = "fileWalker";
 const ready = buildReadySemaphore(readyLabelKey);
@@ -236,16 +237,23 @@ export async function getFolderAlbums(): Promise<AlbumWithData[]> {
 }
 
 export async function folders(filter: string): Promise<AlbumWithData[]> {
-  let w = [...(lastWalk as AlbumWithData[])];
   if (filter) {
+    const indexingService = getIndexingService();
+
+    // Query folders by matching the filter string
+    const matchedAlbums = indexingService.queryFoldersByStrings([filter]);
+
+    // Convert matched albums to AlbumWithData by finding them in lastWalk
     const filtered: AlbumWithData[] = [];
-    for (const album of lastWalk) {
-      if ((await albumentriesInFilter(album, filter)).length > 0)
+    for (const matchedAlbum of matchedAlbums) {
+      const album = lastWalk.find(a => a.key === matchedAlbum.key);
+      if (album) {
         filtered.push(album);
+      }
     }
-    w = filtered;
+    return filtered;
   }
-  return w;
+  return [...(lastWalk as AlbumWithData[])];
 }
 
 export function getFolderAlbumData(key: string) {

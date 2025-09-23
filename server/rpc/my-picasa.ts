@@ -42,9 +42,9 @@ import { addBug, getBugs } from "./rpcFunctions/bugs";
 import { clientException, clientLog } from "./rpcFunctions/clientLog";
 import { exifData } from "./rpcFunctions/exif";
 import { createFSJob, getJob, waitJob } from "./rpcFunctions/fileJobs";
-import { 
-  queryFolders, 
-  searchIndexedPictures, 
+import {
+  queryFolders,
+  searchIndexedPictures,
   getIndexingStatistics,
   indexPictureEntry,
   queryAlbumEntriesInAlbum
@@ -123,11 +123,11 @@ export const PicisaClient: ServiceMap = {
     },
     folders: {
       handler: folders,
-      arguments: ["filter:string"],
+      arguments: ["filter:string[]"],
     },
     monitorAlbums: {
       handler: monitorAlbums,
-      arguments: [],
+      arguments: ["searchFilter:string"],
     },
     media: {
       handler: media,
@@ -135,7 +135,7 @@ export const PicisaClient: ServiceMap = {
     },
     mediaCount: {
       handler: mediaCount,
-      arguments: ["album:object"],
+      arguments: ["album:object", "filter:string"],
     },
     getFileContents: {
       handler: getFileContents,
@@ -293,11 +293,11 @@ export const PicisaClient: ServiceMap = {
     },
     queryFolders: {
       handler: queryFolders,
-      arguments: ["matchingStrings:array"],
+      arguments: ["matchingStrings:string[]"],
     },
     searchIndexedPictures: {
       handler: searchIndexedPictures,
-      arguments: ["searchTerm:string", "limit:integer"],
+      arguments: ["searchTerm:string", "limit:integer", "albumId:string"],
     },
     getIndexingStatistics: {
       handler: getIndexingStatistics,
@@ -306,10 +306,6 @@ export const PicisaClient: ServiceMap = {
     indexPictureEntry: {
       handler: indexPictureEntry,
       arguments: ["entry:object"],
-    },
-    queryAlbumEntriesInAlbum: {
-      handler: queryAlbumEntriesInAlbum,
-      arguments: ["albumId:string", "matchingStrings:array"],
-    },
+    }
   },
 };

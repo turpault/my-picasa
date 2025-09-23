@@ -47,7 +47,7 @@ export async function getAlbumContents(
   // Gettings contents might change the picasa data
   const contents = await albumContents(
     album,
-    removeDiacritics(settings.filters.text).toLowerCase(),
+    settings.search,
   );
   const picasa = await getAlbumMetadata(album);
   let entries = contents.entries;

@@ -146,10 +146,11 @@ export async function sortAlbum(album: Album, order: string): Promise<void> {
   }
 }
 
-export async function mediaCount(album: Album, filter?: string[]): Promise<{ count: number }> {
+export async function mediaCount(album: Album, filter?: string): Promise<{ count: number }> {
   if (album.kind === AlbumKind.FOLDER) {
     if (filter) {
-      const entries = await searchIndexedPictures(filter, undefined, album.key);
+      const searchTerms = filter.trim().split(/\s+/).filter(term => term.length > 0);
+      const entries = await searchIndexedPictures(searchTerms, undefined, album.key);
       return { count: entries.length };
     }
     return { count: (await assetsInFolderAlbum(album)).entries.length };
@@ -192,11 +193,12 @@ function inFilter(entry: AlbumEntry, meta: AlbumEntryMetaData, filter: string) {
  */
 export async function media(
   album: Album,
-  filter?: string[],
+  filter?: string,
 ): Promise<{ entries: AlbumEntry[] }> {
   if (album.kind === AlbumKind.FOLDER) {
     if (filter) {
-      const entries = await searchIndexedPictures(filter, undefined, album.key);
+      const searchTerms = filter.trim().split(/\s+/).filter(term => term.length > 0);
+      const entries = await searchIndexedPictures(searchTerms, undefined, album.key);
       console.log("entries", entries);
       await sortAssetsByRank(entries);
       return { entries };
@@ -285,11 +287,23 @@ export async function getAlbumEntryMetadata(albumEntry: AlbumEntry) {
   return albumMetadata[albumEntry.name] as AlbumEntryMetaData;
 }
 
-export async function monitorAlbums(): Promise<{}> {
+export async function monitorAlbums(searchFilter?: string): Promise<{}> {
   const lastWalk = await getFolderAlbums();
   const f = getFaceAlbums();
   const p = await getProjectAlbums();
-  queueNotification({ type: "albums", albums: [...lastWalk, ...f, ...p] });
+  
+  let albums = [...lastWalk, ...f, ...p];
+  
+  // If search filter is provided, filter albums by search terms
+  if (searchFilter && searchFilter.trim()) {
+    const searchTerms = searchFilter.trim().split(/\s+/).filter(term => term.length > 0);
+    if (searchTerms.length > 0) {
+      // For now, we'll return all albums and let the client filter the media
+      // In the future, we could implement server-side album filtering
+    }
+  }
+  
+  queueNotification({ type: "albums", albums });
   return {};
 }
 

@@ -10,6 +10,7 @@ import {
 import { t } from "./components/strings";
 import { getService } from "./rpc/connect";
 import { AlbumListEvent } from "./uiTypes";
+import { getSettingsEmitter, getSettings } from "./lib/settings";
 function firstAlbum(node: Node): AlbumWithData | undefined {
   if (node.albums.length > 0) return node.albums[0];
   if (node.childs) {
@@ -48,6 +49,16 @@ export class AlbumIndexedDataSource {
     const s = await getService();
     this.shortcuts = await s.getShortcuts();
     let invalidations: any[] = [];
+    
+    // Listen for search setting changes
+    getSettingsEmitter().on("changed", (event) => {
+      if (event.field === "search") {
+        // Invalidate all albums when search changes
+        this.emitter.emit("reset", {});
+        // Call monitorAlbums with the new search filter
+        s.monitorAlbums(event.search);
+      }
+    });
 
     const resolveAndInvalidate = debounced(() => {
       if (invalidations.length > 0) {
@@ -80,7 +91,9 @@ export class AlbumIndexedDataSource {
       }
     }, 100);
     return new Promise<void>((resolve) => {
-      s.monitorAlbums();
+      // Call monitorAlbums with current search setting
+      const settings = getSettings();
+      s.monitorAlbums(settings.search);
       let gotEvent = false;
 
       this.shortcutsUnreg = s.on("shortcutsUpdated", async () => {

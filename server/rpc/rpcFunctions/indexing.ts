@@ -1,18 +1,16 @@
-import { AlbumEntry } from "../../../shared/types/types";
-import { 
-  queryFoldersByStrings, 
-  searchPictures, 
+import { AlbumEntry, Album } from "../../../shared/types/types";
+import {
+  queryFoldersByStrings,
+  searchPictures,
   getIndexingStats,
   indexPicture,
-  queryAlbumEntries,
-  AlbumQuery,
-  PictureIndex
+  queryAlbumEntries
 } from "../../../worker/background/bg-indexing";
 
 /**
  * Query folders by matching strings
  */
-export async function queryFolders(matchingStrings: string[]): Promise<AlbumQuery[]> {
+export async function queryFolders(matchingStrings: string[]): Promise<Album[]> {
   return queryFoldersByStrings(matchingStrings);
 }
 
@@ -21,8 +19,8 @@ export async function queryFolders(matchingStrings: string[]): Promise<AlbumQuer
 /**
  * Search pictures by text
  */
-export async function searchIndexedPictures(searchTerm: string, limit?: number): Promise<PictureIndex[]> {
-  return searchPictures(searchTerm, limit);
+export async function searchIndexedPictures(searchTerm: string[], limit?: number, albumId?: string): Promise<AlbumEntry[]> {
+  return searchPictures(searchTerm, limit, albumId);
 }
 
 /**

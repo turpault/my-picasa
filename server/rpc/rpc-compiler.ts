@@ -15,6 +15,7 @@ const argumentMapTs: ArgumentMap = {
   string: "string",
   istring: "string",
   integer: "number",
+  "string[]": "string[]",
   boolean: "boolean",
   ComponentMap: "ComponentMap",
   JSONPatch: "Operation[]",
@@ -73,12 +74,10 @@ export function generateCode(services: ServiceMap): GeneratedCode {
 
     // Add typescript function body
     tsfunctionBodies += `
-  async ${name}(${tsFunctionArguments}):${
-      func.noPayload === true ? "Promise<void>" : "Promise<any>"
-    } {
-    return this.${
-      func.noPayload === true ? "emitNoPayload" : "emit"
-    }('${klass}:${name}', {
+  async ${name}(${tsFunctionArguments}):${func.noPayload === true ? "Promise<void>" : "Promise<any>"
+      } {
+    return this.${func.noPayload === true ? "emitNoPayload" : "emit"
+      }('${klass}:${name}', {
       'args': { ${tsFunctionArgList} } 
     });
   }`;
