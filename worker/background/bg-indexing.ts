@@ -1,4 +1,4 @@
-import * as Database from "better-sqlite3";
+import Database from "better-sqlite3";
 import debug from "debug";
 import { join } from "path";
 import { media } from "../../server/rpc/rpcFunctions/albumUtils";
@@ -62,7 +62,7 @@ class PictureIndexingService {
       } else {
         // Check current version
         const currentVersion = this.db.prepare("SELECT version FROM db_version ORDER BY version DESC LIMIT 1").get() as { version: number } | undefined;
-        
+
         if (!currentVersion || currentVersion.version < DATABASE_VERSION) {
           debugLogger(`Database version mismatch. Current: ${currentVersion?.version || 'unknown'}, Required: ${DATABASE_VERSION}`);
           this.migrateDatabase(currentVersion?.version || 0);
@@ -83,7 +83,7 @@ class PictureIndexingService {
    */
   private migrateDatabase(fromVersion: number): void {
     debugLogger(`Migrating database from version ${fromVersion} to ${DATABASE_VERSION}`);
-    
+
     try {
       // Drop all existing tables
       this.db.exec(`
@@ -94,13 +94,13 @@ class PictureIndexingService {
         DROP INDEX IF EXISTS idx_entry_name;
         DROP INDEX IF EXISTS idx_persons;
       `);
-      
+
       // Update version
       this.db.exec(`UPDATE db_version SET version = ${DATABASE_VERSION} WHERE version = ${fromVersion}`);
-      
+
       // Recreate database schema
       this.initDatabase();
-      
+
       debugLogger(`Database migration completed to version ${DATABASE_VERSION}`);
     } catch (error) {
       debugLogger("Error during database migration:", error);
@@ -305,7 +305,14 @@ class PictureIndexingService {
   /**
    * Search pictures by text
    */
-  searchPictures(searchTerm: string, limit?: number, albumId?: string): AlbumEntry[] {
+  searchPictures(searchTerm: string[], limit?: number, albumId?: string): AlbumEntry[] {
+    if (searchTerm.length === 0) {
+      return [];
+    }
+
+    // Create search terms for FTS with normalized text, using AND logic
+    const searchTerms = searchTerm.map(term => `"${normalizeText(term)}"`).join(' AND ');
+
     const query = `
       SELECT p.* FROM pictures p
       JOIN pictures_fts fts ON p.id = fts.rowid
@@ -316,8 +323,8 @@ class PictureIndexingService {
 
     const stmt = this.db.prepare(query);
     const params = albumId
-      ? [`"${normalizeText(searchTerm)}"`, albumId, ...(limit ? [limit] : [])]
-      : [`"${normalizeText(searchTerm)}"`, ...(limit ? [limit] : [])];
+      ? [searchTerms, albumId, ...(limit ? [limit] : [])]
+      : [searchTerms, ...(limit ? [limit] : [])];
     const results = stmt.all(...params) as Array<{
       entry_name: string;
       album_key: string;
@@ -444,7 +451,7 @@ export function queryFoldersByStrings(matchingStrings: string[]): Album[] {
 
 
 
-export function searchPictures(searchTerm: string, limit?: number, albumId?: string): AlbumEntry[] {
+export function searchPictures(searchTerm: string[], limit?: number, albumId?: string): AlbumEntry[] {
   const service = getIndexingService();
   return service.searchPictures(searchTerm, limit, albumId);
 }
