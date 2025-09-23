@@ -1,68 +1,29 @@
-import Database from "better-sqlite3";
+import * as Database from "better-sqlite3";
+import debug from "debug";
 import { join } from "path";
-import { AlbumEntry, AlbumKind, keyFromID, idFromKey } from "../../shared/types/types";
 import { media } from "../../server/rpc/rpcFunctions/albumUtils";
-import { exifData } from "../../server/rpc/rpcFunctions/exif";
+import { getPicasaEntry } from "../../server/rpc/rpcFunctions/picasa-ini";
+import { waitUntilIdle } from "../../server/utils/busy";
+import { imagesRoot } from "../../server/utils/constants";
 import { getFolderAlbums, waitUntilWalk } from "../../server/walker";
 import { Queue } from "../../shared/lib/queue";
-import { waitUntilIdle } from "../../server/utils/busy";
-import debug from "debug";
-import { getPicasaEntry } from "../../server/rpc/rpcFunctions/picasa-ini";
-import { imagesRoot } from "../../server/utils/constants";
+import { Album, AlbumEntry, AlbumKind } from "../../shared/types/types";
 
 const debugLogger = debug("app:bg-indexing");
 
-/**
- * Generate a unique album entry ID from album key and file name
- */
-function generateAlbumEntryId(albumKey: string, fileName: string): string {
-  return `${albumKey}»${fileName}`;
-}
+// Database version constant - increment this when schema changes
+const DATABASE_VERSION = 1;
 
 /**
- * Parse album entry ID to get album key and file name
+ * Normalize text by removing diacritics and converting to lowercase
  */
-function parseAlbumEntryId(albumEntryId: string): { albumKey: string; fileName: string } {
-  const lastSepIndex = albumEntryId.lastIndexOf('»');
-  if (lastSepIndex === -1) {
-    throw new Error(`Invalid album entry ID format: ${albumEntryId}`);
-  }
-  return {
-    albumKey: albumEntryId.substring(0, lastSepIndex),
-    fileName: albumEntryId.substring(lastSepIndex + 1)
-  };
-}
-
-export interface PictureIndex {
-  id: number;
-  album_key: string;
-  album_entry_id: string;
-  album_name: string;
-  file_name: string;
-  date_taken?: string;
-  latitude?: number;
-  longitude?: number;
-  persons?: string;
-  exif_data?: string;
-  file_size?: number;
-  width?: number;
-  height?: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AlbumQuery {
-  album_key: string;
-  album_name: string;
-  match_count: number;
-}
-
-export interface AlbumEntryQuery {
-  album_entry_id: string;
-  album_key: string;
-  album_name: string;
-  file_name: string;
-  match_count: number;
+function normalizeText(text: string): string {
+  if (!text) return '';
+  return text
+    .normalize('NFD') // Decompose characters into base + combining characters
+    .replace(/[\u0300-\u036f]/g, '') // Remove combining diacritical marks
+    .toLowerCase()
+    .trim();
 }
 
 class PictureIndexingService {
@@ -72,7 +33,79 @@ class PictureIndexingService {
   constructor(dbPath?: string) {
     this.dbPath = dbPath || join(imagesRoot, "picisa_index.db");
     this.db = new Database(this.dbPath);
-    this.initDatabase();
+    this.checkAndMigrateDatabase();
+  }
+
+  /**
+   * Check database version and migrate if necessary
+   */
+  private checkAndMigrateDatabase(): void {
+    try {
+      // Check if version table exists
+      const versionTableExists = this.db.prepare(`
+        SELECT name FROM sqlite_master 
+        WHERE type='table' AND name='db_version'
+      `).get();
+
+      if (!versionTableExists) {
+        // First time setup - create version table and initialize database
+        debugLogger("First time database setup - creating version table");
+        this.db.exec(`
+          CREATE TABLE db_version (
+            version INTEGER PRIMARY KEY,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+        this.db.exec(`INSERT INTO db_version (version) VALUES (${DATABASE_VERSION})`);
+        this.initDatabase();
+        debugLogger(`Database initialized with version ${DATABASE_VERSION}`);
+      } else {
+        // Check current version
+        const currentVersion = this.db.prepare("SELECT version FROM db_version ORDER BY version DESC LIMIT 1").get() as { version: number } | undefined;
+        
+        if (!currentVersion || currentVersion.version < DATABASE_VERSION) {
+          debugLogger(`Database version mismatch. Current: ${currentVersion?.version || 'unknown'}, Required: ${DATABASE_VERSION}`);
+          this.migrateDatabase(currentVersion?.version || 0);
+        } else if (currentVersion.version > DATABASE_VERSION) {
+          debugLogger(`Database version ${currentVersion.version} is newer than expected ${DATABASE_VERSION}. This may cause compatibility issues.`);
+        } else {
+          debugLogger(`Database version ${DATABASE_VERSION} is up to date`);
+        }
+      }
+    } catch (error) {
+      debugLogger("Error checking database version:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Migrate database to new version by dropping and recreating tables
+   */
+  private migrateDatabase(fromVersion: number): void {
+    debugLogger(`Migrating database from version ${fromVersion} to ${DATABASE_VERSION}`);
+    
+    try {
+      // Drop all existing tables
+      this.db.exec(`
+        DROP TABLE IF EXISTS pictures_fts;
+        DROP TABLE IF EXISTS pictures;
+        DROP INDEX IF EXISTS idx_album_key;
+        DROP INDEX IF EXISTS idx_album_name;
+        DROP INDEX IF EXISTS idx_entry_name;
+        DROP INDEX IF EXISTS idx_persons;
+      `);
+      
+      // Update version
+      this.db.exec(`UPDATE db_version SET version = ${DATABASE_VERSION} WHERE version = ${fromVersion}`);
+      
+      // Recreate database schema
+      this.initDatabase();
+      
+      debugLogger(`Database migration completed to version ${DATABASE_VERSION}`);
+    } catch (error) {
+      debugLogger("Error during database migration:", error);
+      throw error;
+    }
   }
 
   private initDatabase() {
@@ -80,18 +113,10 @@ class PictureIndexingService {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS pictures (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        folder_path TEXT NOT NULL,
-        folder_name TEXT NOT NULL,
-        file_name TEXT NOT NULL,
-        file_path TEXT NOT NULL UNIQUE,
-        date_taken TEXT,
-        latitude REAL,
-        longitude REAL,
+        album_key TEXT NOT NULL,
+        album_name TEXT NOT NULL,
+        entry_name TEXT NOT NULL,
         persons TEXT,
-        exif_data TEXT,
-        file_size INTEGER,
-        width INTEGER,
-        height INTEGER,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
@@ -99,22 +124,23 @@ class PictureIndexingService {
 
     // Create indexes for better query performance
     this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_folder_path ON pictures(folder_path);
-      CREATE INDEX IF NOT EXISTS idx_folder_name ON pictures(folder_name);
-      CREATE INDEX IF NOT EXISTS idx_file_name ON pictures(file_name);
-      CREATE INDEX IF NOT EXISTS idx_date_taken ON pictures(date_taken);
+      CREATE INDEX IF NOT EXISTS idx_album_key ON pictures(album_key);
+      CREATE INDEX IF NOT EXISTS idx_album_name ON pictures(album_name);
+      CREATE INDEX IF NOT EXISTS idx_entry_name ON pictures(entry_name);
       CREATE INDEX IF NOT EXISTS idx_persons ON pictures(persons);
-      CREATE INDEX IF NOT EXISTS idx_file_path ON pictures(file_path);
     `);
 
-    // Create full-text search index for metadata
+    // Create full-text search index for metadata with normalized text
     this.db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS pictures_fts USING fts5(
-        folder_path,
-        folder_name,
-        file_name,
+        album_key,
+        album_name,
+        entry_name,
         persons,
-        exif_data,
+        album_key_norm,
+        album_name_norm,
+        entry_name_norm,
+        persons_norm,
         content='pictures',
         content_rowid='id'
       )
@@ -129,55 +155,33 @@ class PictureIndexingService {
   async indexPicture(entry: AlbumEntry): Promise<void> {
     try {
       const picasaEntry = await getPicasaEntry(entry);
-      const exif = await exifData(entry, true); // Include stats
-
-      const filePath = `${entry.album.key}/${entry.name}`;
 
       // Extract persons from picasa metadata
       const persons = picasaEntry.persons || '';
 
-      // Extract date taken
-      const dateTaken = picasaEntry.dateTaken || exif.CreateDate || exif.DateTimeOriginal;
 
-      // Extract GPS coordinates
-      const latitude = picasaEntry.latitude || exif.latitude;
-      const longitude = picasaEntry.longitude || exif.longitude;
-
-      // Extract dimensions
-      const width = exif.imageWidth || exif.ExifImageWidth;
-      const height = exif.imageHeight || exif.ExifImageHeight;
-
-      // Extract file size
-      const fileSize = exif.size;
 
       const insertStmt = this.db.prepare(`
         INSERT OR REPLACE INTO pictures (
-          folder_path, folder_name, file_name, file_path,
-          date_taken, latitude, longitude, persons, exif_data,
-          file_size, width, height, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          album_key, album_name, entry_name,
+          persons,
+          updated_at
+        ) VALUES (?, ?, ?, ?,  CURRENT_TIMESTAMP)
       `);
 
       insertStmt.run(
         entry.album.key,
         entry.album.name,
         entry.name,
-        filePath,
-        dateTaken,
-        latitude,
-        longitude,
-        persons,
-        JSON.stringify(exif),
-        fileSize,
-        width,
-        height
+        persons
       );
 
-      // Update FTS index
+      // Update FTS index with normalized text
       const ftsStmt = this.db.prepare(`
         INSERT OR REPLACE INTO pictures_fts (
-          rowid, folder_path, folder_name, file_name, persons, exif_data
-        ) VALUES (?, ?, ?, ?, ?, ?)
+          rowid, album_key, album_name, entry_name, persons,
+          album_key_norm, album_name_norm, entry_name_norm, persons_norm
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?,  ?)
       `);
 
       const lastId = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
@@ -187,7 +191,10 @@ class PictureIndexingService {
         entry.album.name,
         entry.name,
         persons,
-        JSON.stringify(exif)
+        normalizeText(entry.album.key),
+        normalizeText(entry.album.name),
+        normalizeText(entry.name),
+        normalizeText(persons)
       );
 
     } catch (error) {
@@ -209,17 +216,6 @@ class PictureIndexingService {
     let totalPictures = 0;
     let processedPictures = 0;
 
-    // Count total pictures first
-    for (const album of albums) {
-      try {
-        const m = await media(album);
-        totalPictures += m.entries.length;
-      } catch (e) {
-        debugLogger(`Album ${album.name} is gone, skipping...`);
-      }
-    }
-
-    debugLogger(`Found ${totalPictures} pictures to index`);
 
     // Index pictures in parallel with queue
     for (const album of albums) {
@@ -233,6 +229,7 @@ class PictureIndexingService {
 
       for (const entry of m.entries) {
         q.add(async () => {
+          await waitUntilIdle();
           try {
             await this.indexPicture(entry);
             processedPictures++;
@@ -244,7 +241,6 @@ class PictureIndexingService {
           }
         });
       }
-      await waitUntilIdle();
     }
 
     // Progress monitoring
@@ -265,38 +261,38 @@ class PictureIndexingService {
   /**
    * Query folders by matching strings
    */
-  queryFoldersByStrings(matchingStrings: string[]): AlbumQuery[] {
+  queryFoldersByStrings(matchingStrings: string[]): Album[] {
     if (matchingStrings.length === 0) {
       return [];
     }
 
-    // Create search terms for FTS
-    const searchTerms = matchingStrings.map(term => `"${term}"`).join(' OR ');
+    // Create search terms for FTS with normalized text
+    const searchTerms = matchingStrings.map(term => `"${normalizeText(term)}"`).join(' OR ');
 
     const query = `
       SELECT 
-        p.folder_path,
-        p.folder_name,
+        p.album_key,
+        p.album_name,
         COUNT(*) as match_count
       FROM pictures p
       JOIN pictures_fts fts ON p.id = fts.rowid
       WHERE pictures_fts MATCH ?
-      GROUP BY p.folder_path, p.folder_name
-      ORDER BY match_count DESC, p.folder_name ASC
+      GROUP BY p.album_key, p.album_name
+      ORDER BY match_count DESC, p.album_name ASC
     `;
 
     try {
       const stmt = this.db.prepare(query);
       const results = stmt.all(searchTerms) as Array<{
-        folder_path: string;
-        folder_name: string;
+        album_key: string;
+        album_name: string;
         match_count: number;
       }>;
 
       return results.map(row => ({
-        folder_path: row.folder_path,
-        folder_name: row.folder_name,
-        match_count: row.match_count
+        key: row.album_key,
+        name: row.album_name,
+        kind: AlbumKind.FOLDER
       }));
     } catch (error) {
       debugLogger("Error querying folders:", error);
@@ -309,17 +305,34 @@ class PictureIndexingService {
   /**
    * Search pictures by text
    */
-  searchPictures(searchTerm: string, limit: number = 100): PictureIndex[] {
+  searchPictures(searchTerm: string, limit?: number, albumId?: string): AlbumEntry[] {
     const query = `
       SELECT p.* FROM pictures p
       JOIN pictures_fts fts ON p.id = fts.rowid
-      WHERE pictures_fts MATCH ?
+      WHERE pictures_fts MATCH ?${albumId ? ' AND p.album_key = ?' : ''}
       ORDER BY p.date_taken DESC
-      LIMIT ?
+      ${limit ? 'LIMIT ?' : ''}
     `;
 
     const stmt = this.db.prepare(query);
-    return stmt.all(`"${searchTerm}"`, limit) as PictureIndex[];
+    const params = albumId
+      ? [`"${normalizeText(searchTerm)}"`, albumId, ...(limit ? [limit] : [])]
+      : [`"${normalizeText(searchTerm)}"`, ...(limit ? [limit] : [])];
+    const results = stmt.all(...params) as Array<{
+      entry_name: string;
+      album_key: string;
+      album_name: string;
+    }>;
+
+    return results.map(row => ({
+      name: row.entry_name,
+      album: {
+        key: row.album_key,
+        name: row.album_name,
+        kind: AlbumKind.FOLDER,
+        parent: null
+      }
+    }));
   }
 
   /**
@@ -330,34 +343,34 @@ class PictureIndexingService {
       return [];
     }
 
-    // Create search terms for FTS
-    const searchTerms = matchingStrings.map(term => `"${term}"`).join(' OR ');
+    // Create search terms for FTS with normalized text
+    const searchTerms = matchingStrings.map(term => `"${normalizeText(term)}"`).join(' OR ');
 
     const query = `
       SELECT 
-        p.file_name,
-        p.folder_path,
-        p.folder_name
+        p.entry_name,
+        p.album_key,
+        p.album_name
       FROM pictures p
       JOIN pictures_fts fts ON p.id = fts.rowid
-      WHERE p.folder_path = ? AND pictures_fts MATCH ?
-      ORDER BY p.file_name ASC
+      WHERE p.album_key = ? AND pictures_fts MATCH ?
+      ORDER BY p.entry_name ASC
     `;
 
     try {
       const stmt = this.db.prepare(query);
       const results = stmt.all(albumId, searchTerms) as Array<{
-        file_name: string;
-        folder_path: string;
-        folder_name: string;
+        entry_name: string;
+        album_key: string;
+        album_name: string;
       }>;
 
       // Convert to AlbumEntry format
       return results.map(row => ({
-        name: row.file_name,
+        name: row.entry_name,
         album: {
-          key: row.folder_path,
-          name: row.folder_name,
+          key: row.album_key,
+          name: row.album_name,
           kind: AlbumKind.FOLDER,
           parent: null
         }
@@ -369,11 +382,24 @@ class PictureIndexingService {
   }
 
   /**
+   * Get current database version
+   */
+  getDatabaseVersion(): number {
+    try {
+      const version = this.db.prepare("SELECT version FROM db_version ORDER BY version DESC LIMIT 1").get() as { version: number } | undefined;
+      return version?.version || 0;
+    } catch (error) {
+      debugLogger("Error getting database version:", error);
+      return 0;
+    }
+  }
+
+  /**
    * Get statistics about the index
    */
   getStats(): { totalPictures: number; totalFolders: number; lastUpdated: string } {
     const totalPictures = this.db.prepare("SELECT COUNT(*) as count FROM pictures").get() as { count: number };
-    const totalFolders = this.db.prepare("SELECT COUNT(DISTINCT folder_path) as count FROM pictures").get() as { count: number };
+    const totalFolders = this.db.prepare("SELECT COUNT(DISTINCT album_key) as count FROM pictures").get() as { count: number };
     const lastUpdated = this.db.prepare("SELECT MAX(updated_at) as last_updated FROM pictures").get() as { last_updated: string };
 
     return {
@@ -411,16 +437,16 @@ export async function indexPicture(entry: AlbumEntry): Promise<void> {
   await service.indexPicture(entry);
 }
 
-export function queryFoldersByStrings(matchingStrings: string[]): AlbumQuery[] {
+export function queryFoldersByStrings(matchingStrings: string[]): Album[] {
   const service = getIndexingService();
   return service.queryFoldersByStrings(matchingStrings);
 }
 
 
 
-export function searchPictures(searchTerm: string, limit?: number): PictureIndex[] {
+export function searchPictures(searchTerm: string, limit?: number, albumId?: string): AlbumEntry[] {
   const service = getIndexingService();
-  return service.searchPictures(searchTerm, limit);
+  return service.searchPictures(searchTerm, limit, albumId);
 }
 
 export function getIndexingStats(): { totalPictures: number; totalFolders: number; lastUpdated: string } {
@@ -431,4 +457,13 @@ export function getIndexingStats(): { totalPictures: number; totalFolders: numbe
 export function queryAlbumEntries(albumId: string, matchingStrings: string[]): AlbumEntry[] {
   const service = getIndexingService();
   return service.queryAlbumEntries(albumId, matchingStrings);
+}
+
+export function getDatabaseVersion(): number {
+  const service = getIndexingService();
+  return service.getDatabaseVersion();
+}
+
+export function getRequiredDatabaseVersion(): number {
+  return DATABASE_VERSION;
 }
