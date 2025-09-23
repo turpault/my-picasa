@@ -33,6 +33,7 @@ import {
   getProjects,
 } from "../albumTypes/projects";
 import { getPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasa-ini";
+import { searchIndexedPictures } from "./indexing";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
   const entries = (await media(entry.album)).entries;
@@ -145,8 +146,12 @@ export async function sortAlbum(album: Album, order: string): Promise<void> {
   }
 }
 
-export async function mediaCount(album: Album): Promise<{ count: number }> {
+export async function mediaCount(album: Album, filter?: string[]): Promise<{ count: number }> {
   if (album.kind === AlbumKind.FOLDER) {
+    if (filter) {
+      const entries = await searchIndexedPictures(filter, undefined, album.key);
+      return { count: entries.length };
+    }
     return { count: (await assetsInFolderAlbum(album)).entries.length };
   } else if (album.kind === AlbumKind.FACE) {
     const ini = await readAlbumIni(album);
@@ -187,9 +192,15 @@ function inFilter(entry: AlbumEntry, meta: AlbumEntryMetaData, filter: string) {
  */
 export async function media(
   album: Album,
-  filter?: string,
+  filter?: string[],
 ): Promise<{ entries: AlbumEntry[] }> {
   if (album.kind === AlbumKind.FOLDER) {
+    if (filter) {
+      const entries = await searchIndexedPictures(filter, undefined, album.key);
+      console.log("entries", entries);
+      await sortAssetsByRank(entries);
+      return { entries };
+    }
     let [picasa, assets] = await Promise.all([
       readAlbumIni(album),
       assetsInFolderAlbum(album),
