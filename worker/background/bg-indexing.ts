@@ -178,7 +178,7 @@ class PictureIndexingService {
       const photostar = picasaEntry.photostar || false;
       const textContent = picasaEntry.text || '';
       const caption = picasaEntry.caption || '';
-      
+
       // Determine entry type
       let entryType = 'unknown';
       if (isPicture(entry)) {
@@ -465,7 +465,7 @@ class PictureIndexingService {
       const photostar = metadata.photostar || false;
       const textContent = metadata.text || '';
       const caption = metadata.caption || '';
-      
+
       // Determine entry type
       let entryType = 'unknown';
       if (isPicture(entry)) {
@@ -534,7 +534,7 @@ export function getIndexingService(): PictureIndexingService {
 export async function startPictureIndexing(): Promise<void> {
   const service = getIndexingService();
   await service.indexAllPictures();
-  
+
   // Set up event listener for picasa entry updates
   setupPicasaEntryUpdateListener(service);
 }
@@ -549,11 +549,11 @@ export async function indexPicture(entry: AlbumEntry): Promise<void> {
  */
 function setupPicasaEntryUpdateListener(service: PictureIndexingService): void {
   debugLogger("Setting up picasa entry update listener");
-  
+
   events.on("picasaEntryUpdated", async (event) => {
     try {
       const { entry, field, value } = event;
-      
+
       // Only update if the field is one we care about
       const relevantFields = ['starCount', 'geoPOI', 'photostar', 'text', 'caption', 'persons'];
       if (relevantFields.includes(field)) {
@@ -564,7 +564,7 @@ function setupPicasaEntryUpdateListener(service: PictureIndexingService): void {
       debugLogger("Error handling picasa entry update event:", error);
     }
   });
-  
+
   debugLogger("Picasa entry update listener set up successfully");
 }
 

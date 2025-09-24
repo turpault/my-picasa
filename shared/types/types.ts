@@ -425,3 +425,23 @@ export type Bug = {
   status: string;
   created: Date;
 };
+
+export type Filters = {
+  star: number;
+  video: boolean;
+  people: boolean;
+  persons: string[];
+  location: boolean;
+  favoritePhoto: boolean;
+  text: string;
+  // Additional filtering options
+  albumKind?: AlbumKind[];
+  dateRange?: {
+    start?: string; // ISO date string
+    end?: string;   // ISO date string
+  };
+  hasFaces?: boolean;
+  hasGeoLocation?: boolean;
+  minStarCount?: number;
+  maxStarCount?: number;
+};

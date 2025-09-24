@@ -1,16 +1,9 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
+import { Filters } from "../types/types";
 import { get, set } from "./idb-keyval";
 
 export type Settings = {
-  filters: {
-    star: number;
-    video: boolean;
-    people: boolean;
-    persons: string[];
-    location: boolean;
-    favoritePhoto: boolean;
-    text: string;
-  };
+  filters: Filters;
   iconSize: number;
   inverseSort: boolean;
   sort: "date" | "name";

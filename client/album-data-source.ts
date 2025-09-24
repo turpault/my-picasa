@@ -58,7 +58,7 @@ export class AlbumIndexedDataSource {
         this.emitter.emit("reset", {});
         gotFirstAlbumEvent = false;
         // Call monitorAlbums with the new search filter
-        s.monitorAlbums(event.filters.text);
+        s.monitorAlbums(event.filters);
       }
     });
 
@@ -95,7 +95,7 @@ export class AlbumIndexedDataSource {
     return new Promise<void>((resolve) => {
       // Call monitorAlbums with current search setting
       const settings = getSettings();
-      s.monitorAlbums(settings.filters.text);
+      s.monitorAlbums(settings.filters);
 
       this.shortcutsUnreg = s.on("shortcutsUpdated", async () => {
         this.shortcuts = await s.getShortcuts();

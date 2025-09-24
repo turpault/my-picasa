@@ -1008,7 +1008,7 @@ export async function makePhotoList(
       const v = visibleElement();
       const album = albumFromElement(v!, elementPrefix)!;
       const s = await getService();
-      const assets = (await s.media(album, "")).entries;
+      const assets = (await s.media(album, undefined)).entries;
       initialList = assets;
     }
 

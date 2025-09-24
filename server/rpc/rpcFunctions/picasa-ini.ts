@@ -444,7 +444,7 @@ export async function updatePicasaEntry(
         metadata: picasa[entry.name],
       });
     }
-    
+
     // Emit event for picasa entry updates
     events.emit("picasaEntryUpdated", {
       entry: {
@@ -454,7 +454,7 @@ export async function updatePicasaEntry(
       field: field as string,
       value: value,
     });
-    
+
     writePicasaIni(entry.album, picasa);
   }
 }

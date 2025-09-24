@@ -2,7 +2,8 @@ import { isVideo } from "../shared/lib/utils";
 import {
   Album,
   AlbumContents,
-  AlbumEntry
+  AlbumEntry,
+  Filters
 } from "../shared/types/types";
 import { getAlbumMetadata } from "./lib/handles";
 import { Settings, getSettings } from "./lib/settings";
@@ -10,12 +11,12 @@ import { getService } from "./rpc/connect";
 
 async function albumContents(
   fh: Album,
-  filter: string = "",
+  filters?: Filters,
 ): Promise<{
   entries: AlbumEntry[];
 }> {
   const service = await getService();
-  const { entries } = await service.media(fh, filter);
+  const { entries } = await service.media(fh, filters);
   return { entries };
 }
 
@@ -45,7 +46,7 @@ export async function getAlbumContents(
   // Gettings contents might change the picasa data
   const contents = await albumContents(
     album,
-    settings.filters.text,
+    settings.filters,
   );
   const picasa = await getAlbumMetadata(album);
   let entries = contents.entries;

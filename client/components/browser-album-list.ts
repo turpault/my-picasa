@@ -173,7 +173,7 @@ export async function makeAlbumList(
         const album = albumFromElement(item, elementPrefix)!;
         if (!album) return;
         const s = await getService();
-        const media = await s.media(album, "");
+        const media = await s.media(album, undefined);
         selectionManager.setSelection(media.entries);
       })
       .on("dragenter", (ev: DragEvent) => {

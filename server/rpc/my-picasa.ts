@@ -124,19 +124,19 @@ export const PicisaClient: ServiceMap = {
     },
     folders: {
       handler: folders,
-      arguments: ["filter:string"],
+      arguments: ["filters:object"],
     },
     monitorAlbums: {
       handler: monitorAlbums,
-      arguments: ["filter:string"],
+      arguments: ["filters:object"],
     },
     media: {
       handler: media,
-      arguments: ["album:object", "filter:string"],
+      arguments: ["album:object", "filters:object"],
     },
     mediaCount: {
       handler: mediaCount,
-      arguments: ["album:object", "filter:string"],
+      arguments: ["album:object", "filters:object"],
     },
     getFileContents: {
       handler: getFileContents,

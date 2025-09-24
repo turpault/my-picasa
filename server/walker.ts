@@ -15,6 +15,7 @@ import {
   Album,
   AlbumKind,
   AlbumWithData,
+  Filters,
   keyFromID,
 } from "../shared/types/types";
 import {
@@ -238,13 +239,12 @@ export async function getFolderAlbums(): Promise<AlbumWithData[]> {
   return lastWalk;
 }
 
-export async function folders(filter: string): Promise<AlbumWithData[]> {
-  if (filter) {
-
+export async function folders(filters?: Filters): Promise<AlbumWithData[]> {
+  if (filters && filters.text) {
     const indexingService = getIndexingService();
 
     // Query folders by matching the filter string
-    const filterTerms = parseFilterTerms(filter);
+    const filterTerms = parseFilterTerms(filters.text);
     const matchedAlbums = indexingService.queryFoldersByStrings(filterTerms);
 
     // Complete with shortcuts

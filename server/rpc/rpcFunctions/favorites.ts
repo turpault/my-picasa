@@ -190,7 +190,7 @@ export async function syncFavoritesFromPhotoApp(
   progress: (progress: number, total: number) => void,
 ) {
   await waitUntilWalk();
-  const albums = await folders("");
+  const albums = await folders(undefined);
   const alreadyStarred: AlbumEntryWithMetadata[] = [];
   const allPhotos: {
     metadata: AlbumEntryWithMetadata;

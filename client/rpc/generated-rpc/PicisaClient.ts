@@ -85,24 +85,24 @@ export class PicisaClient {
       'args': { jobName, jobData } 
     });
   }
-  async folders(filter: string):Promise<any> {
+  async folders(filters: object):Promise<any> {
     return this.emit('PicisaClient:folders', {
-      'args': { filter } 
+      'args': { filters } 
     });
   }
-  async monitorAlbums(filter: string):Promise<any> {
+  async monitorAlbums(filters: object):Promise<any> {
     return this.emit('PicisaClient:monitorAlbums', {
-      'args': { filter } 
+      'args': { filters } 
     });
   }
-  async media(album: object, filter: string):Promise<any> {
+  async media(album: object, filters: object):Promise<any> {
     return this.emit('PicisaClient:media', {
-      'args': { album, filter } 
+      'args': { album, filters } 
     });
   }
-  async mediaCount(album: object, filter: string):Promise<any> {
+  async mediaCount(album: object, filters: object):Promise<any> {
     return this.emit('PicisaClient:mediaCount', {
-      'args': { album, filter } 
+      'args': { album, filters } 
     });
   }
   async getFileContents(file: string):Promise<any> {
