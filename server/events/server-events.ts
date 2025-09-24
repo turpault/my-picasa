@@ -13,6 +13,11 @@ type ServerEvents = {
   captionChanged: {
     entry: AlbumEntryPicasa;
   };
+  picasaEntryUpdated: {
+    entry: AlbumEntryPicasa;
+    field: string;
+    value: any;
+  };
 };
 
 export const events = buildEmitter<ServerEvents>();

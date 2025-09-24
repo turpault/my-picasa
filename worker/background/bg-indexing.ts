@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import debug from "debug";
 import { join } from "path";
+import { events } from "../../server/events/server-events";
 import { media } from "../../server/rpc/rpcFunctions/albumUtils";
 import { getPicasaEntry } from "../../server/rpc/rpcFunctions/picasa-ini";
 import { waitUntilIdle } from "../../server/utils/busy";
@@ -8,11 +9,12 @@ import { imagesRoot } from "../../server/utils/constants";
 import { getFolderAlbums, waitUntilWalk } from "../../server/walker";
 import { Queue } from "../../shared/lib/queue";
 import { Album, AlbumEntry, AlbumKind, AlbumWithData } from "../../shared/types/types";
+import { isPicture, isVideo } from "../../shared/lib/utils";
 
 const debugLogger = debug("app:bg-indexing");
 
 // Database version constant - increment this when schema changes
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 
 /**
  * Normalize text by removing diacritics and converting to lowercase
@@ -117,6 +119,12 @@ class PictureIndexingService {
         album_name TEXT NOT NULL,
         entry_name TEXT NOT NULL,
         persons TEXT,
+        star_count TEXT,
+        geo_poi TEXT,
+        photostar BOOLEAN,
+        text_content TEXT,
+        caption TEXT,
+        entry_type TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
@@ -128,6 +136,9 @@ class PictureIndexingService {
       CREATE INDEX IF NOT EXISTS idx_album_name ON pictures(album_name);
       CREATE INDEX IF NOT EXISTS idx_entry_name ON pictures(entry_name);
       CREATE INDEX IF NOT EXISTS idx_persons ON pictures(persons);
+      CREATE INDEX IF NOT EXISTS idx_star_count ON pictures(star_count);
+      CREATE INDEX IF NOT EXISTS idx_photostar ON pictures(photostar);
+      CREATE INDEX IF NOT EXISTS idx_entry_type ON pictures(entry_type);
     `);
 
     // Create full-text search index for metadata with normalized text
@@ -137,10 +148,14 @@ class PictureIndexingService {
         album_name,
         entry_name,
         persons,
+        text_content,
+        caption,
         album_key_norm,
         album_name_norm,
         entry_name_norm,
         persons_norm,
+        text_content_norm,
+        caption_norm,
         content='pictures',
         content_rowid='id'
       )
@@ -156,32 +171,49 @@ class PictureIndexingService {
     try {
       const picasaEntry = await getPicasaEntry(entry);
 
-      // Extract persons from picasa metadata
+      // Extract metadata from picasa entry
       const persons = picasaEntry.persons || '';
-
-
+      const starCount = picasaEntry.starCount || '';
+      const geoPOI = picasaEntry.geoPOI || '';
+      const photostar = picasaEntry.photostar || false;
+      const textContent = picasaEntry.text || '';
+      const caption = picasaEntry.caption || '';
+      
+      // Determine entry type
+      let entryType = 'unknown';
+      if (isPicture(entry)) {
+        entryType = 'picture';
+      } else if (isVideo(entry)) {
+        entryType = 'video';
+      }
 
       const insertStmt = this.db.prepare(`
         INSERT OR REPLACE INTO pictures (
           album_key, album_name, entry_name,
-          persons,
+          persons, star_count, geo_poi, photostar, text_content, caption, entry_type,
           updated_at
-        ) VALUES (?, ?, ?, ?,  CURRENT_TIMESTAMP)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `);
 
       insertStmt.run(
         entry.album.key,
         entry.album.name,
         entry.name,
-        persons
+        persons,
+        starCount,
+        geoPOI,
+        photostar,
+        textContent,
+        caption,
+        entryType
       );
 
       // Update FTS index with normalized text
       const ftsStmt = this.db.prepare(`
         INSERT OR REPLACE INTO pictures_fts (
-          rowid, album_key, album_name, entry_name, persons,
-          album_key_norm, album_name_norm, entry_name_norm, persons_norm
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?,  ?)
+          rowid, album_key, album_name, entry_name, persons, text_content, caption,
+          album_key_norm, album_name_norm, entry_name_norm, persons_norm, text_content_norm, caption_norm
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const lastId = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
@@ -191,10 +223,14 @@ class PictureIndexingService {
         entry.album.name,
         entry.name,
         persons,
+        textContent,
+        caption,
         normalizeText(entry.album.key),
         normalizeText(entry.album.name),
         normalizeText(entry.name),
-        normalizeText(persons)
+        normalizeText(persons),
+        normalizeText(textContent),
+        normalizeText(caption)
       );
 
     } catch (error) {
@@ -418,6 +454,66 @@ class PictureIndexingService {
   }
 
   /**
+   * Update a single entry's metadata in the database
+   */
+  async updateEntry(entry: AlbumEntry, metadata: any): Promise<void> {
+    try {
+      // Extract metadata from picasa entry
+      const persons = metadata.persons || '';
+      const starCount = metadata.starCount || '';
+      const geoPOI = metadata.geoPOI || '';
+      const photostar = metadata.photostar || false;
+      const textContent = metadata.text || '';
+      const caption = metadata.caption || '';
+      
+      // Determine entry type
+      let entryType = 'unknown';
+      if (isPicture(entry)) {
+        entryType = 'picture';
+      } else if (isVideo(entry)) {
+        entryType = 'video';
+      }
+
+      const updateStmt = this.db.prepare(`
+        UPDATE pictures SET
+          persons = ?, star_count = ?, geo_poi = ?, photostar = ?, 
+          text_content = ?, caption = ?, entry_type = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE album_key = ? AND entry_name = ?
+      `);
+
+      const result = updateStmt.run(
+        persons, starCount, geoPOI, photostar, textContent, caption, entryType,
+        entry.album.key, entry.name
+      );
+
+      if (result.changes > 0) {
+        // Update FTS index
+        const ftsUpdateStmt = this.db.prepare(`
+          UPDATE pictures_fts SET
+            persons = ?, text_content = ?, caption = ?,
+            persons_norm = ?, text_content_norm = ?, caption_norm = ?
+          WHERE rowid = (
+            SELECT id FROM pictures WHERE album_key = ? AND entry_name = ?
+          )
+        `);
+
+        ftsUpdateStmt.run(
+          persons, textContent, caption,
+          normalizeText(persons), normalizeText(textContent), normalizeText(caption),
+          entry.album.key, entry.name
+        );
+
+        debugLogger(`Updated entry ${entry.name} in database`);
+      } else {
+        debugLogger(`Entry ${entry.name} not found in database, skipping update`);
+      }
+    } catch (error) {
+      debugLogger(`Error updating entry ${entry.name}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Clean up resources
    */
   close(): void {
@@ -438,11 +534,38 @@ export function getIndexingService(): PictureIndexingService {
 export async function startPictureIndexing(): Promise<void> {
   const service = getIndexingService();
   await service.indexAllPictures();
+  
+  // Set up event listener for picasa entry updates
+  setupPicasaEntryUpdateListener(service);
 }
 
 export async function indexPicture(entry: AlbumEntry): Promise<void> {
   const service = getIndexingService();
   await service.indexPicture(entry);
+}
+
+/**
+ * Set up event listener for picasa entry updates
+ */
+function setupPicasaEntryUpdateListener(service: PictureIndexingService): void {
+  debugLogger("Setting up picasa entry update listener");
+  
+  events.on("picasaEntryUpdated", async (event) => {
+    try {
+      const { entry, field, value } = event;
+      
+      // Only update if the field is one we care about
+      const relevantFields = ['starCount', 'geoPOI', 'photostar', 'text', 'caption', 'persons'];
+      if (relevantFields.includes(field)) {
+        debugLogger(`Updating database for entry ${entry.name}, field: ${field}`);
+        await service.updateEntry(entry, entry.metadata);
+      }
+    } catch (error) {
+      debugLogger("Error handling picasa entry update event:", error);
+    }
+  });
+  
+  debugLogger("Picasa entry update listener set up successfully");
 }
 
 export function queryFoldersByStrings(matchingStrings: string[]): Album[] {
