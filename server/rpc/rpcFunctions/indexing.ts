@@ -1,7 +1,9 @@
-import { AlbumEntry, Album } from "../../../shared/types/types";
+import { AlbumEntry, Album, AlbumWithData, Filters } from "../../../shared/types/types";
 import {
   queryFoldersByStrings,
+  queryFoldersByFilters as queryFoldersByFiltersService,
   searchPictures,
+  searchPicturesByFilters,
   getIndexingStats,
   indexPicture,
   queryAlbumEntries
@@ -14,13 +16,25 @@ export async function queryFolders(matchingStrings: string[]): Promise<Album[]> 
   return queryFoldersByStrings(matchingStrings);
 }
 
-
+/**
+ * Query folders by Filters object
+ */
+export async function queryFoldersByFilters(filters: Filters): Promise<AlbumWithData[]> {
+  return queryFoldersByFiltersService(filters);
+}
 
 /**
  * Search pictures by text
  */
 export async function searchIndexedPictures(searchTerm: string[], limit?: number, albumId?: string): Promise<AlbumEntry[]> {
   return searchPictures(searchTerm, limit, albumId);
+}
+
+/**
+ * Search pictures by Filters object
+ */
+export async function searchIndexedPicturesByFilters(filters: Filters, limit?: number, albumId?: string): Promise<AlbumEntry[]> {
+  return searchPicturesByFilters(filters, limit, albumId);
 }
 
 /**

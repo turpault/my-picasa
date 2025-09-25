@@ -35,8 +35,7 @@ import {
   getProjects,
 } from "../albumTypes/projects";
 import { getPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasa-ini";
-import { searchIndexedPictures } from "./indexing";
-import { getIndexingService } from "../../../worker/background/bg-indexing";
+import { searchIndexedPictures, searchIndexedPicturesByFilters, queryFoldersByFilters } from "./indexing";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
   const entries = (await media(entry.album)).entries;
@@ -151,21 +150,13 @@ export async function sortAlbum(album: Album, order: string): Promise<void> {
 
 export async function mediaCount(album: Album, filters?: Filters): Promise<{ count: number }> {
   if (album.kind === AlbumKind.FOLDER) {
-    if (filters && filters.text) {
-      const searchTerms = filters.text.trim().split(/\s+/).filter(term => term.length > 0);
-      const entries = await searchIndexedPictures(searchTerms, undefined, album.key);
+    if (filters) {
+      // Use database-level filtering for better performance
+      const entries = await searchIndexedPicturesByFilters(filters, undefined, album.key);
       return { count: entries.length };
     }
     const assets = await assetsInFolderAlbum(album);
-    let entries = assets.entries;
-    
-    // Apply filters if provided
-    if (filters) {
-      const picasa = await readAlbumIni(album);
-      entries = applyMediaFilters(entries, picasa, filters);
-    }
-    
-    return { count: entries.length };
+    return { count: assets.entries.length };
   } else if (album.kind === AlbumKind.FACE) {
     const ini = await readAlbumIni(album);
     return { count: Object.keys(ini).length };
@@ -208,9 +199,9 @@ export async function media(
   filters?: Filters,
 ): Promise<{ entries: AlbumEntry[] }> {
   if (album.kind === AlbumKind.FOLDER) {
-    if (filters && filters.text) {
-      const searchTerms = filters.text.trim().split(/\s+/).filter(term => term.length > 0);
-      const entries = await searchIndexedPictures(searchTerms, undefined, album.key);
+    if (filters) {
+      // Use database-level filtering for better performance
+      const entries = await searchIndexedPicturesByFilters(filters, undefined, album.key);
       console.log("entries", entries);
       await sortAssetsByRank(entries);
       return { entries };
@@ -221,11 +212,6 @@ export async function media(
     ]);
 
     let entries = assets.entries;
-
-    // Apply filters if provided
-    if (filters) {
-      entries = applyMediaFilters(entries, picasa, filters);
-    }
 
     await sortAssetsByRank(entries);
     await assignRanks(entries);
@@ -308,9 +294,9 @@ export async function monitorAlbums(filters?: Filters): Promise<{}> {
 
   let albums: AlbumWithData[] = [];
 
-  if (filters && filters.text) {
-    const searchTerms = parseFilterTerms(filters.text);
-    const matchedAlbums = getIndexingService().queryFoldersByStrings(searchTerms);
+  if (filters) {
+    // Use database-level filtering for better performance
+    const matchedAlbums = await queryFoldersByFilters(filters);
     albums = [...matchedAlbums, ...f, ...p];
   } else {
     const lastWalk = await getFolderAlbums();
@@ -334,7 +320,7 @@ function applyAlbumFilters(albums: AlbumWithData[], filters: Filters): AlbumWith
 
   // Filter by album kind
   if (filters.albumKind && filters.albumKind.length > 0) {
-    filteredAlbums = filteredAlbums.filter(album => 
+    filteredAlbums = filteredAlbums.filter(album =>
       filters.albumKind!.includes(album.kind)
     );
   }
@@ -415,8 +401,8 @@ function applyMediaFilters(entries: AlbumEntry[], picasa: any, filters: Filters)
         meta?.text || "",
         meta?.persons || ""
       ].join(" ").toLowerCase();
-      
-      return searchTerms.every(term => 
+
+      return searchTerms.every(term =>
         searchableText.includes(term.toLowerCase())
       );
     });

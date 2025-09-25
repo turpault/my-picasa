@@ -31,6 +31,7 @@ import {
 import { imagesRoot, specialFolders } from "./utils/constants";
 import { pathForAlbum } from "./utils/serverUtils";
 import { getIndexingService } from "../worker/background/bg-indexing";
+import { queryFoldersByFilters } from "./rpc/rpcFunctions/indexing";
 
 const readyLabelKey = "fileWalker";
 const ready = buildReadySemaphore(readyLabelKey);
@@ -240,12 +241,9 @@ export async function getFolderAlbums(): Promise<AlbumWithData[]> {
 }
 
 export async function folders(filters?: Filters): Promise<AlbumWithData[]> {
-  if (filters && filters.text) {
-    const indexingService = getIndexingService();
-
-    // Query folders by matching the filter string
-    const filterTerms = parseFilterTerms(filters.text);
-    const matchedAlbums = indexingService.queryFoldersByStrings(filterTerms);
+  if (filters) {
+    // Use database-level filtering for better performance
+    const matchedAlbums = await queryFoldersByFilters(filters);
 
     // Complete with shortcuts
     const shortcuts = Object.values(getShortcuts());

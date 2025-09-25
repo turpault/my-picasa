@@ -20,7 +20,7 @@ export async function buildFavoriteFolder() {
 
 async function exportAllMissing() {
   // Job with no parameters
-  const albums = await folders("");
+  const albums = await folders();
   const q = new Queue(10);
   for (const album of albums) {
     q.add(async () => {

@@ -53,9 +53,8 @@ export async function makeAlbumList(
     const e = $(
       `
       <div class="folder-row ${node.collapsed ? "folder-collapsed" : ""}">
-        <div class="browser-list-head browser-list-head-${indent}">${
-          node.name
-        }</div>
+        <div class="browser-list-head browser-list-head-${indent}">${node.name
+      }</div>
         <div class="browser-list-albums"></div>
       </div>`,
     );
@@ -71,11 +70,10 @@ export async function makeAlbumList(
     return e;
   }
   function renderAlbum(album: AlbumWithData): _$ {
-    const label = `${
-      album.shortcut
-        ? String.fromCharCode(0x245f + parseInt(album.shortcut)) + " "
-        : ""
-    }${album.name}`;
+    const label = `${album.shortcut
+      ? String.fromCharCode(0x245f + parseInt(album.shortcut)) + " "
+      : ""
+      }${album.name}`;
     const r = $(
       `
       <div class="browser-list-text">
