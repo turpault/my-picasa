@@ -14,7 +14,7 @@ import { isPicture, isVideo } from "../../shared/lib/utils";
 const debugLogger = debug("app:bg-indexing");
 
 // Database version constant - increment this when schema changes
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 
 /**
  * Normalize text by removing diacritics and converting to lowercase
@@ -81,27 +81,23 @@ class PictureIndexingService {
   }
 
   /**
-   * Migrate database to new version by dropping and recreating tables
+   * Migrate database to new version
    */
   private migrateDatabase(fromVersion: number): void {
     debugLogger(`Migrating database from version ${fromVersion} to ${DATABASE_VERSION}`);
 
     try {
-      // Drop all existing tables
-      this.db.exec(`
-        DROP TABLE IF EXISTS pictures_fts;
-        DROP TABLE IF EXISTS pictures;
-        DROP INDEX IF EXISTS idx_album_key;
-        DROP INDEX IF EXISTS idx_album_name;
-        DROP INDEX IF EXISTS idx_entry_name;
-        DROP INDEX IF EXISTS idx_persons;
-      `);
+      if (fromVersion < 3) {
+        // Add marked column for mark-and-sweep functionality
+        debugLogger("Adding marked column for mark-and-sweep functionality");
+        this.db.exec(`
+          ALTER TABLE pictures ADD COLUMN marked BOOLEAN NOT NULL DEFAULT 0;
+          CREATE INDEX IF NOT EXISTS idx_marked ON pictures(marked);
+        `);
+      }
 
       // Update version
       this.db.exec(`UPDATE db_version SET version = ${DATABASE_VERSION} WHERE version = ${fromVersion}`);
-
-      // Recreate database schema
-      this.initDatabase();
 
       debugLogger(`Database migration completed to version ${DATABASE_VERSION}`);
     } catch (error) {
@@ -125,6 +121,7 @@ class PictureIndexingService {
         text_content TEXT,
         caption TEXT,
         entry_type TEXT,
+        marked BOOLEAN NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
@@ -139,6 +136,7 @@ class PictureIndexingService {
       CREATE INDEX IF NOT EXISTS idx_star_count ON pictures(star_count);
       CREATE INDEX IF NOT EXISTS idx_photostar ON pictures(photostar);
       CREATE INDEX IF NOT EXISTS idx_entry_type ON pictures(entry_type);
+      CREATE INDEX IF NOT EXISTS idx_marked ON pictures(marked);
     `);
 
     // Create full-text search index for metadata with normalized text
@@ -190,9 +188,9 @@ class PictureIndexingService {
       const insertStmt = this.db.prepare(`
         INSERT OR REPLACE INTO pictures (
           album_key, album_name, entry_name,
-          persons, star_count, geo_poi, photostar, text_content, caption, entry_type,
+          persons, star_count, geo_poi, photostar, text_content, caption, entry_type, marked,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
       `);
 
       insertStmt.run(
@@ -240,10 +238,47 @@ class PictureIndexingService {
   }
 
   /**
-   * Index all pictures in the system
+   * Clear all marks from the database (mark phase preparation)
+   */
+  private clearAllMarks(): void {
+    debugLogger("Clearing all marks from database...");
+    this.db.exec("UPDATE pictures SET marked = 0");
+  }
+
+  /**
+   * Remove all unmarked records (sweep phase)
+   */
+  private sweepUnmarkedRecords(): number {
+    debugLogger("Sweeping unmarked records...");
+    
+    // Count unmarked records before deletion
+    const countStmt = this.db.prepare("SELECT COUNT(*) as count FROM pictures WHERE marked = 0");
+    const count = countStmt.get() as { count: number };
+    
+    if (count.count > 0) {
+      debugLogger(`Removing ${count.count} unmarked records...`);
+      
+      // Delete unmarked records
+      const deleteStmt = this.db.prepare("DELETE FROM pictures WHERE marked = 0");
+      deleteStmt.run();
+      
+      // Clean up FTS index (this will be handled automatically by SQLite)
+      debugLogger(`Removed ${count.count} unmarked records`);
+    } else {
+      debugLogger("No unmarked records to remove");
+    }
+    
+    return count.count;
+  }
+
+  /**
+   * Index all pictures in the system with mark-and-sweep cleanup
    */
   async indexAllPictures(): Promise<void> {
-    debugLogger("Starting full picture indexing...");
+    debugLogger("Starting full picture indexing with mark-and-sweep...");
+
+    // Phase 1: Clear all marks
+    this.clearAllMarks();
 
     const q = new Queue(3);
     await Promise.all([waitUntilWalk()]);
@@ -252,8 +287,7 @@ class PictureIndexingService {
     let totalPictures = 0;
     let processedPictures = 0;
 
-
-    // Index pictures in parallel with queue
+    // Phase 2: Mark and index pictures in parallel with queue
     for (const album of albums) {
       let m: { entries: AlbumEntry[] };
       try {
@@ -291,7 +325,10 @@ class PictureIndexingService {
     await q.drain();
     clearInterval(progressInterval);
 
-    debugLogger("Picture indexing completed");
+    // Phase 3: Sweep unmarked records
+    const removedCount = this.sweepUnmarkedRecords();
+
+    debugLogger(`Picture indexing completed. Removed ${removedCount} orphaned records.`);
   }
 
   /**
@@ -660,7 +697,7 @@ class PictureIndexingService {
       const updateStmt = this.db.prepare(`
         UPDATE pictures SET
           persons = ?, star_count = ?, geo_poi = ?, photostar = ?, 
-          text_content = ?, caption = ?, entry_type = ?, updated_at = CURRENT_TIMESTAMP
+          text_content = ?, caption = ?, entry_type = ?, marked = 1, updated_at = CURRENT_TIMESTAMP
         WHERE album_key = ? AND entry_name = ?
       `);
 
