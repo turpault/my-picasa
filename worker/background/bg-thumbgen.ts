@@ -13,7 +13,7 @@ export async function buildThumbs() {
       { size, animated: false },
     ])
     .flat();
-  const albums = await folders("");
+  const albums = await folders();
   for (const album of albums.reverse()) {
     let m: { entries: AlbumEntry[] };
     try {

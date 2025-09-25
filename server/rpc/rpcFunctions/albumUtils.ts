@@ -316,25 +316,9 @@ export async function monitorAlbums(filters?: Filters): Promise<{}> {
  * Apply filters to album list
  */
 function applyAlbumFilters(albums: AlbumWithData[], filters: Filters): AlbumWithData[] {
-  let filteredAlbums = albums;
-
-  // Filter by album kind
-  if (filters.albumKind && filters.albumKind.length > 0) {
-    filteredAlbums = filteredAlbums.filter(album =>
-      filters.albumKind!.includes(album.kind)
-    );
-  }
-
-  // Filter by date range (if albums have date information)
-  if (filters.dateRange) {
-    filteredAlbums = filteredAlbums.filter(album => {
-      // This would need to be implemented based on how album dates are stored
-      // For now, we'll skip this filter as it requires more context about album date storage
-      return true;
-    });
-  }
-
-  return filteredAlbums;
+  // For now, no album-level filtering is implemented
+  // All filtering is done at the database level in PictureIndexingService
+  return albums;
 }
 
 /**

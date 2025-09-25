@@ -317,16 +317,6 @@ class PictureIndexingService {
     // Add text search condition
     whereConditions.push('pictures_fts MATCH ?');
 
-    // Add album kind filter if specified
-    if (filters.albumKind && filters.albumKind.length > 0) {
-      const kindPlaceholders = filters.albumKind.map(() => '?').join(',');
-      whereConditions.push(`p.album_key IN (
-        SELECT DISTINCT album_key FROM pictures 
-        WHERE album_key LIKE 'folder:%' OR album_key LIKE 'face:%' OR album_key LIKE 'project:%'
-      )`);
-      // Note: This is a simplified approach. In a real implementation, 
-      // you'd need to properly map album kinds to their key patterns
-    }
 
     const query = `
       SELECT 
