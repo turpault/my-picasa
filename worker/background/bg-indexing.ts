@@ -401,7 +401,7 @@ class PictureIndexingService {
     // Favorite photo filter - only add condition if explicitly set to true
     if (filters.favoritePhoto === true) {
       whereConditions.push('p.photostar = ?');
-      params.push(1);
+      params.push(true);
     }
 
     // Has faces filter - only add condition if explicitly set to true
@@ -613,7 +613,8 @@ class PictureIndexingService {
 
     // Add favorite photo filter
     if (filters.favoritePhoto) {
-      whereConditions.push('p.photostar = 1');
+      whereConditions.push('p.photostar = ?');
+      params.push(true);
     }
 
     // Add faces filter
