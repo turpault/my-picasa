@@ -46,10 +46,10 @@ async function init(port: number) {
 
   const emitter = buildEmitter<AppEvent>(false);
   const s = await getService();
-  
+
   // Initialize feature flag service
   featureFlagService.setClient(s);
-  
+
   await consoleOverload();
   const dataSource = new AlbumIndexedDataSource();
 
@@ -82,13 +82,13 @@ async function init(port: number) {
   await makeBugWidget($("#action-new-bug"));
   const featureFlagsModal = makeFeatureFlagsModal();
   $(document.body).append(featureFlagsModal);
-  
+
   // Wire up feature flags button
   $("#action-feature-flags").on("click", () => {
     featureFlagsModal.trigger("show");
     featureFlagsModal.show();
   });
-  
+
   const metaViewer = makeMetadataViewer(state);
   const buttons = makeButtons(emitter, state);
   $(document.body).append(metaViewer).append(buttons);

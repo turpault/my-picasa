@@ -71,70 +71,75 @@ export function makeFeatureFlagsModal(): _$ {
     `);
   }
 
-  // Event handlers
-  $("#close-feature-flags-modal").on("click", () => {
-    modal.hide();
-  });
-
-  $("#cancel-feature-flags").on("click", () => {
-    if (originalFlags) {
-      currentFlags = JSON.parse(JSON.stringify(originalFlags));
-      renderFeatureFlags();
-    }
-    modal.hide();
-  });
-
-  $("#save-feature-flags").on("click", async () => {
-    if (!currentFlags) return;
-
-    try {
-      // Update flags based on toggle states
-      const toggles = modal.find(".feature-flag-toggle");
-      toggles.forEach((toggle: HTMLInputElement) => {
-        const flagName = toggle.getAttribute("data-flag-name");
-        if (flagName && currentFlags) {
-          currentFlags.flags[flagName].enabled = toggle.checked;
-        }
-      });
-
-      // Save changes
-      await featureFlagService.updateFeatureFlags(currentFlags);
-      
-      // Show success message
-      $("#feature-flags-content").prepend(`
-        <div class="w3-panel w3-green w3-display-container">
-          <span class="w3-button w3-display-topright" onclick="this.parentElement.style.display='none'">&times;</span>
-          <p>Feature flags updated successfully!</p>
-        </div>
-      `);
-
-      // Update original flags
-      originalFlags = JSON.parse(JSON.stringify(currentFlags));
-      
-      // Hide modal after a short delay
-      setTimeout(() => {
-        modal.hide();
-      }, 1500);
-
-    } catch (error) {
-      console.error("Error saving feature flags:", error);
-      $("#feature-flags-content").prepend(`
-        <div class="w3-panel w3-red">
-          <p>Error saving feature flags: ${error}</p>
-        </div>
-      `);
-    }
-  });
-
-  // Close modal when clicking outside
-  modal.on("click", (e) => {
-    if (e.target === modal.get()[0]) {
+  // Event handlers - set up after modal is created
+  function setupEventHandlers() {
+    modal.find("#close-feature-flags-modal").on("click", () => {
       modal.hide();
-    }
-  });
+    });
 
-  // Load flags when modal is shown
-  modal.on("show", loadFeatureFlags);
+    modal.find("#cancel-feature-flags").on("click", () => {
+      if (originalFlags) {
+        currentFlags = JSON.parse(JSON.stringify(originalFlags));
+        renderFeatureFlags();
+      }
+      modal.hide();
+    });
+
+    modal.find("#save-feature-flags").on("click", async () => {
+      if (!currentFlags) return;
+
+      try {
+        // Update flags based on toggle states
+        const toggles = modal.find(".feature-flag-toggle");
+        toggles.forEach((toggle: HTMLInputElement) => {
+          const flagName = toggle.getAttribute("data-flag-name");
+          if (flagName && currentFlags) {
+            currentFlags.flags[flagName].enabled = toggle.checked;
+          }
+        });
+
+        // Save changes
+        await featureFlagService.updateFeatureFlags(currentFlags);
+        
+        // Show success message
+        modal.find("#feature-flags-content").prepend(`
+          <div class="w3-panel w3-green w3-display-container">
+            <span class="w3-button w3-display-topright" onclick="this.parentElement.style.display='none'">&times;</span>
+            <p>Feature flags updated successfully!</p>
+          </div>
+        `);
+
+        // Update original flags
+        originalFlags = JSON.parse(JSON.stringify(currentFlags));
+        
+        // Hide modal after a short delay
+        setTimeout(() => {
+          modal.hide();
+        }, 1500);
+
+      } catch (error) {
+        console.error("Error saving feature flags:", error);
+        modal.find("#feature-flags-content").prepend(`
+          <div class="w3-panel w3-red">
+            <p>Error saving feature flags: ${error}</p>
+          </div>
+        `);
+      }
+    });
+
+    // Close modal when clicking outside
+    modal.on("click", (e) => {
+      if (e.target === modal.get()[0]) {
+        modal.hide();
+      }
+    });
+
+    // Load flags when modal is shown
+    modal.on("show", loadFeatureFlags);
+  }
+
+  // Set up event handlers after modal is created
+  setupEventHandlers();
 
   return modal;
 }
