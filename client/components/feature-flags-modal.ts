@@ -1,4 +1,4 @@
-import { $ } from "../lib/dom";
+import { $, _$ } from "../lib/dom";
 import { featureFlagService } from "../lib/feature-flags";
 import { FeatureFlags, FeatureFlag } from "../../shared/types/feature-flags";
 
@@ -7,15 +7,15 @@ export function makeFeatureFlagsModal(): _$ {
     <div id="feature-flags-modal" class="w3-modal" style="display: none;">
       <div class="w3-modal-content w3-card-4" style="max-width: 600px; margin-top: 50px;">
         <header class="w3-container w3-theme">
-          <span class="w3-button w3-display-topright" id="close-feature-flags-modal">&times;</span>
+          <span class="w3-button w3-display-topright close-feature-flags-modal">&times;</span>
           <h2>Feature Flags</h2>
         </header>
-        <div class="w3-container" id="feature-flags-content">
+        <div class="w3-container feature-flags-content">
           <p>Loading feature flags...</p>
         </div>
         <footer class="w3-container w3-theme">
-          <button class="w3-button w3-green" id="save-feature-flags">Save Changes</button>
-          <button class="w3-button w3-grey" id="cancel-feature-flags">Cancel</button>
+          <button class="w3-button w3-green save-feature-flags">Save Changes</button>
+          <button class="w3-button w3-grey cancel-feature-flags">Cancel</button>
         </footer>
       </div>
     </div>
@@ -32,7 +32,7 @@ export function makeFeatureFlagsModal(): _$ {
       renderFeatureFlags();
     } catch (error) {
       console.error("Error loading feature flags:", error);
-      $("#feature-flags-content").html(`
+      $(".feature-flags-content", modal).innerHTML(`
         <div class="w3-panel w3-red">
           <p>Error loading feature flags: ${error}</p>
         </div>
@@ -63,7 +63,7 @@ export function makeFeatureFlagsModal(): _$ {
       </div>
     `).join('');
 
-    $("#feature-flags-content").html(`
+    $(".feature-flags-content", modal).innerHTML(`
       <div class="w3-panel">
         <p>Toggle feature flags on or off. Changes will be saved to the configuration file.</p>
       </div>
@@ -73,11 +73,11 @@ export function makeFeatureFlagsModal(): _$ {
 
   // Event handlers - set up after modal is created
   function setupEventHandlers() {
-    modal.find("#close-feature-flags-modal").on("click", () => {
+    $(".close-feature-flags-modal", modal).on("click", () => {
       modal.hide();
     });
 
-    modal.find("#cancel-feature-flags").on("click", () => {
+    $(".cancel-feature-flags", modal).on("click", () => {
       if (originalFlags) {
         currentFlags = JSON.parse(JSON.stringify(originalFlags));
         renderFeatureFlags();
@@ -85,16 +85,16 @@ export function makeFeatureFlagsModal(): _$ {
       modal.hide();
     });
 
-    modal.find("#save-feature-flags").on("click", async () => {
+    $(".save-feature-flags", modal).on("click", async () => {
       if (!currentFlags) return;
 
       try {
         // Update flags based on toggle states
-        const toggles = modal.find(".feature-flag-toggle");
-        toggles.forEach((toggle: HTMLInputElement) => {
-          const flagName = toggle.getAttribute("data-flag-name");
+        const toggles = modal.all(".feature-flag-toggle");
+        toggles.forEach((toggle: _$) => {
+          const flagName = toggle.attr("data-flag-name");
           if (flagName && currentFlags) {
-            currentFlags.flags[flagName].enabled = toggle.checked;
+            currentFlags.flags[flagName].enabled = (toggle.get() as HTMLInputElement).checked;
           }
         });
 
@@ -102,12 +102,14 @@ export function makeFeatureFlagsModal(): _$ {
         await featureFlagService.updateFeatureFlags(currentFlags);
         
         // Show success message
-        modal.find("#feature-flags-content").prepend(`
+        const contentDiv = $(".feature-flags-content", modal);
+        const successMsg = $(`
           <div class="w3-panel w3-green w3-display-container">
             <span class="w3-button w3-display-topright" onclick="this.parentElement.style.display='none'">&times;</span>
             <p>Feature flags updated successfully!</p>
           </div>
         `);
+        contentDiv.get().insertBefore(successMsg.get(), contentDiv.get().firstChild);
 
         // Update original flags
         originalFlags = JSON.parse(JSON.stringify(currentFlags));
@@ -119,17 +121,19 @@ export function makeFeatureFlagsModal(): _$ {
 
       } catch (error) {
         console.error("Error saving feature flags:", error);
-        modal.find("#feature-flags-content").prepend(`
+        const contentDiv = $(".feature-flags-content", modal);
+        const errorMsg = $(`
           <div class="w3-panel w3-red">
             <p>Error saving feature flags: ${error}</p>
           </div>
         `);
+        contentDiv.get().insertBefore(errorMsg.get(), contentDiv.get().firstChild);
       }
     });
 
     // Close modal when clicking outside
     modal.on("click", (e) => {
-      if (e.target === modal.get()[0]) {
+      if (e.target === modal.get()) {
         modal.hide();
       }
     });
