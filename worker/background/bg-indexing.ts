@@ -420,10 +420,6 @@ class PictureIndexingService {
       whereConditions.push('p.star >= ?');
       params.push(filters.minStarCount);
     }
-    if (filters.maxStarCount !== undefined) {
-      whereConditions.push('p.star <= ?');
-      params.push(filters.maxStarCount);
-    }
 
     // If no filters are applied, return all folders
     if (whereConditions.length === 0) {
@@ -581,10 +577,6 @@ class PictureIndexingService {
       params.push(filters.minStarCount);
     }
 
-    if (filters.maxStarCount !== undefined) {
-      whereConditions.push('CAST(p.star_count AS INTEGER) <= ?');
-      params.push(filters.maxStarCount);
-    }
 
     // Add video filter
     if (filters.video) {

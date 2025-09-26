@@ -438,5 +438,4 @@ export type Filters = {
   hasFaces?: boolean;
   hasGeoLocation?: boolean;
   minStarCount?: number;
-  maxStarCount?: number;
 };
