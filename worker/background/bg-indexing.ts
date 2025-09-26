@@ -335,33 +335,155 @@ class PictureIndexingService {
    * Query folders by Filters object
    */
   queryFoldersByFilters(filters: Filters): AlbumWithData[] {
-    if (!filters.text || filters.text.trim().length === 0) {
-      return [];
-    }
-
-    const searchTerms = filters.text.trim().split(/\s+/).filter(term => term.length > 0);
-    if (searchTerms.length === 0) {
-      return [];
-    }
-
-    // Create search terms for FTS with normalized text
-    const ftsSearchTerms = searchTerms.map(term => `"${normalizeText(term)}"`).join(' OR ');
-
     // Build WHERE conditions based on filters
     const whereConditions: string[] = [];
-    const params: any[] = [ftsSearchTerms];
+    const params: any[] = [];
 
-    // Add text search condition
-    whereConditions.push('pictures_fts MATCH ?');
+    // Text search filter
+    if (filters.text && filters.text.trim().length > 0) {
+      const searchTerms = filters.text.trim().split(/\s+/).filter(term => term.length > 0);
+      if (searchTerms.length > 0) {
+        const ftsSearchTerms = searchTerms.map(term => `"${normalizeText(term)}"`).join(' OR ');
+        whereConditions.push('pictures_fts MATCH ?');
+        params.push(ftsSearchTerms);
+      }
+    }
 
+    // Star rating filter
+    if (filters.star !== undefined && filters.star > 0) {
+      whereConditions.push('p.star = ?');
+      params.push(filters.star);
+    }
 
-    const query = `
+    // Video filter
+    if (filters.video !== undefined) {
+      if (filters.video) {
+        whereConditions.push('p.name LIKE ?');
+        params.push('%.mp4%');
+      } else {
+        whereConditions.push('p.name NOT LIKE ?');
+        params.push('%.mp4%');
+      }
+    }
+
+    // People filter (has faces)
+    if (filters.people !== undefined) {
+      if (filters.people) {
+        whereConditions.push('p.faces IS NOT NULL AND p.faces != ?');
+        params.push('');
+      } else {
+        whereConditions.push('(p.faces IS NULL OR p.faces = ?)');
+        params.push('');
+      }
+    }
+
+    // Specific persons filter
+    if (filters.persons && filters.persons.length > 0) {
+      const personConditions = filters.persons.map(() => 'p.persons LIKE ?');
+      whereConditions.push(`(${personConditions.join(' OR ')})`);
+      filters.persons.forEach(person => {
+        params.push(`%${person}%`);
+      });
+    }
+
+    // Location filter
+    if (filters.location !== undefined) {
+      if (filters.location) {
+        whereConditions.push('(p.latitude IS NOT NULL AND p.longitude IS NOT NULL)');
+      } else {
+        whereConditions.push('(p.latitude IS NULL OR p.longitude IS NULL)');
+      }
+    }
+
+    // Favorite photo filter
+    if (filters.favoritePhoto !== undefined) {
+      if (filters.favoritePhoto) {
+        whereConditions.push('p.photostar = ?');
+        params.push(1);
+      } else {
+        whereConditions.push('(p.photostar IS NULL OR p.photostar = ?)');
+        params.push(0);
+      }
+    }
+
+    // Has faces filter
+    if (filters.hasFaces !== undefined) {
+      if (filters.hasFaces) {
+        whereConditions.push('p.faces IS NOT NULL AND p.faces != ?');
+        params.push('');
+      } else {
+        whereConditions.push('(p.faces IS NULL OR p.faces = ?)');
+        params.push('');
+      }
+    }
+
+    // Geo location filter
+    if (filters.hasGeoLocation !== undefined) {
+      if (filters.hasGeoLocation) {
+        whereConditions.push('(p.latitude IS NOT NULL AND p.longitude IS NOT NULL)');
+      } else {
+        whereConditions.push('(p.latitude IS NULL OR p.longitude IS NULL)');
+      }
+    }
+
+    // Star count range filters
+    if (filters.minStarCount !== undefined) {
+      whereConditions.push('p.star >= ?');
+      params.push(filters.minStarCount);
+    }
+    if (filters.maxStarCount !== undefined) {
+      whereConditions.push('p.star <= ?');
+      params.push(filters.maxStarCount);
+    }
+
+    // If no filters are applied, return all folders
+    if (whereConditions.length === 0) {
+      const query = `
+        SELECT 
+          p.album_key,
+          p.album_name,
+          COUNT(*) as match_count
+        FROM pictures p
+        GROUP BY p.album_key, p.album_name
+        ORDER BY p.album_name ASC
+      `;
+      
+      try {
+        const stmt = this.db.prepare(query);
+        const results = stmt.all() as Array<{
+          album_key: string;
+          album_name: string;
+          match_count: number;
+        }>;
+
+        return results.map(row => ({
+          key: row.album_key,
+          name: row.album_name,
+          kind: AlbumKind.FOLDER,
+          count: row.match_count,
+          shortcut: undefined
+        }));
+      } catch (error) {
+        debugLogger("Error querying all folders:", error);
+        return [];
+      }
+    }
+
+    // Build the main query with filters
+    let query = `
       SELECT 
         p.album_key,
         p.album_name,
         COUNT(*) as match_count
       FROM pictures p
-      JOIN pictures_fts fts ON p.id = fts.rowid
+    `;
+
+    // Add FTS join only if text search is used
+    if (filters.text && filters.text.trim().length > 0) {
+      query += ` JOIN pictures_fts fts ON p.id = fts.rowid`;
+    }
+
+    query += `
       WHERE ${whereConditions.join(' AND ')}
       GROUP BY p.album_key, p.album_name
       ORDER BY match_count DESC, p.album_name ASC

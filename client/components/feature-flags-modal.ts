@@ -100,7 +100,7 @@ export function makeFeatureFlagsModal(): _$ {
 
         // Save changes
         await featureFlagService.updateFeatureFlags(currentFlags);
-        
+
         // Show success message
         const contentDiv = $(".feature-flags-content", modal);
         const successMsg = $(`
@@ -113,7 +113,7 @@ export function makeFeatureFlagsModal(): _$ {
 
         // Update original flags
         originalFlags = JSON.parse(JSON.stringify(currentFlags));
-        
+
         // Hide modal after a short delay
         setTimeout(() => {
           modal.hide();

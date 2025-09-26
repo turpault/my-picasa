@@ -85,7 +85,6 @@ async function init(port: number) {
 
   // Wire up feature flags button
   $("#action-feature-flags").on("click", () => {
-    featureFlagsModal.trigger("show");
     featureFlagsModal.show();
   });
 
