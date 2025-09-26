@@ -28,6 +28,18 @@ const settings: Settings = {
   iconSize: 250,
 };
 
+export function isFilterEmpty(filters: Filters): Filters | undefined {
+  if (filters.star === 0 &&
+    !filters.video &&
+    !filters.people &&
+    filters.persons.length === 0 &&
+    !filters.location &&
+    !filters.favoritePhoto &&
+    filters.text === "") return undefined;
+
+  return filters;
+}
+
 export async function makeSettings() {
   settings.filters.star = (await get("filterByStar")) || 0;
   settings.filters.video = (await get("filterByVideos")) || false;

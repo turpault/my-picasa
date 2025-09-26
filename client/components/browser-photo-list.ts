@@ -87,7 +87,7 @@ export async function makePhotoList(
     appEvents.on("tabChanged", ({ win }) => {
       tabIsActive = $(container).isParent(win);
     }),
-    appEvents.on("edit", (event) => {}),
+    appEvents.on("edit", (event) => { }),
     appEvents.on("keyDown", async ({ code, win, meta, shift }) => {
       if (!tabIsActive) return;
       switch (code) {
@@ -266,7 +266,7 @@ export async function makePhotoList(
     const newPos = { x: e.clientX - rect.x, y: e.clientY - rect.y };
     if (
       Math.abs(newPos.x - dragStartPos.x) +
-        Math.abs(newPos.y - dragStartPos.y) <
+      Math.abs(newPos.y - dragStartPos.y) <
       20
     ) {
       return;
@@ -279,12 +279,10 @@ export async function makePhotoList(
       left: `${Math.min(dragStartPos.x, newPos.x) + cRect.left}px`,
       top: `${Math.min(dragStartPos.y, newPos.y) + cRect.top}px`,
       display: "",
-      width: `${
-        Math.max(dragStartPos.x, newPos.x) - Math.min(dragStartPos.x, newPos.x)
-      }px`,
-      height: `${
-        Math.max(dragStartPos.y, newPos.y) - Math.min(dragStartPos.y, newPos.y)
-      }px`,
+      width: `${Math.max(dragStartPos.x, newPos.x) - Math.min(dragStartPos.x, newPos.x)
+        }px`,
+      height: `${Math.max(dragStartPos.y, newPos.y) - Math.min(dragStartPos.y, newPos.y)
+        }px`,
     });
   });
 
@@ -521,9 +519,9 @@ export async function makePhotoList(
           if (album) {
             if (
               elemPos.bottom <
-                visibleScrollArea.top - minDistancesAboveBelowFold * 1.5 ||
+              visibleScrollArea.top - minDistancesAboveBelowFold * 1.5 ||
               elemPos.top >
-                visibleScrollArea.bottom + minDistancesAboveBelowFold * 1.5
+              visibleScrollArea.bottom + minDistancesAboveBelowFold * 1.5
             ) {
               console.info(
                 `Pruning album ${album.name} : Visible Area = ${visibleScrollArea.top}/${visibleScrollArea.bottom} - Element (${elemPos.top}/${elemPos.bottom})`,
@@ -560,7 +558,7 @@ export async function makePhotoList(
       if (
         firstItem &&
         parseInt(firstItem.css("top")) >
-          container.get().scrollTop - minDistancesAboveBelowFold &&
+        container.get().scrollTop - minDistancesAboveBelowFold &&
         topIndex > 0
       ) {
         promises.push(addAtTop());
@@ -568,9 +566,9 @@ export async function makePhotoList(
       if (
         lastItem &&
         parseInt(lastItem.css("top")) + lastItem.get().clientHeight <=
-          container.get().scrollTop +
-            container.get().clientHeight +
-            minDistancesAboveBelowFold
+        container.get().scrollTop +
+        container.get().clientHeight +
+        minDistancesAboveBelowFold
       ) {
         promises.push(addAtBottom());
       }
@@ -657,8 +655,7 @@ export async function makePhotoList(
       for (const c of container.children()) {
         const thisTop = parseInt(c.css("top"));
         console.info(
-          `New top for ${albumFromElement(c, elementPrefix)?.name} is ${
-            thisTop - displayedTop
+          `New top for ${albumFromElement(c, elementPrefix)?.name} is ${thisTop - displayedTop
           }`,
         );
         c.css("top", `${thisTop - displayedTop}px`);
@@ -689,11 +686,11 @@ export async function makePhotoList(
     const d = dateOfAlbumFromName(album.name);
     const dateString = d
       ? d.toLocaleDateString(undefined, {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        })
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
       : t("Unknown date");
     $(".name-container-date", headerElement).innerHTML(dateString);
 
@@ -744,36 +741,36 @@ export async function makePhotoList(
               <div class="name-container-date"/></div>
               <div class="name-container-buttons"/>
               <picasa-button data-tooltip-below="${t(
-                "Play slideshow",
-              )}" icon="resources/images/icons/actions/play.svg" class="play-album">Play</picasa-button>
+          "Play slideshow",
+        )}" icon="resources/images/icons/actions/play.svg" class="play-album">Play</picasa-button>
               <picasa-button data-tooltip-below="${t(
-                "Delete Album",
-              )}" class="trash-album" icon="resources/images/icons/actions/trash.svg"></picasa-button>
+          "Delete Album",
+        )}" class="trash-album" icon="resources/images/icons/actions/trash.svg"></picasa-button>
                 <picasa-button data-tooltip-below="${t(
-                  "Open in Finder",
-                )}" class="open-in-finder" icon="resources/images/icons/actions/finder.svg"></picasa-button>
+          "Open in Finder",
+        )}" class="open-in-finder" icon="resources/images/icons/actions/finder.svg"></picasa-button>
                 <picasa-button data-tooltip-below="${t(
-                  "Edit Album Name",
-                )}" class="edit-album-name" icon="resources/images/icons/actions/pen-50.png"></picasa-button>
+          "Edit Album Name",
+        )}" class="edit-album-name" icon="resources/images/icons/actions/pen-50.png"></picasa-button>
                 <span  style="display: inline-block; width: 1px;" class="vertical-separator"></span>
                 <picasa-button  data-tooltip-below="${t(
-                  "Sort by Name",
-                )}" class="sort-by-name" icon="resources/images/icons/actions/sort-name-50.png"></picasa-button >
+          "Sort by Name",
+        )}" class="sort-by-name" icon="resources/images/icons/actions/sort-name-50.png"></picasa-button >
                 <picasa-button  data-tooltip-below="${t(
-                  "Sort by Date",
-                )}" class="sort-by-date" icon="resources/images/icons/actions/sort-date-50.png"></picasa-button >
+          "Sort by Date",
+        )}" class="sort-by-date" icon="resources/images/icons/actions/sort-date-50.png"></picasa-button >
                 <picasa-button  data-tooltip-below="${t(
-                  "Reverse Sort",
-                )}" class="reverse-sort" icon="resources/images/icons/actions/sort-reverse-50.png"></picasa-button >
+          "Reverse Sort",
+        )}" class="reverse-sort" icon="resources/images/icons/actions/sort-reverse-50.png"></picasa-button >
                 <span  style="display: inline-block; width: 1px;" class="vertical-separator"></span>
                 <label>${t("Shortcut")}</label>
                 <select is="picasa-select" data-tooltip-below="${t(
-                  "Select shortcut for this folder",
-                )}" class="select-shortcut select-no-arrow" icon="resources/images/icons/actions/finger-50.png">
+          "Select shortcut for this folder",
+        )}" class="select-shortcut select-no-arrow" icon="resources/images/icons/actions/finger-50.png">
                 <option value="" selected>${t("None")}</option>
                 ${["1", "2", "3", "4", "5", "6", "7", "8", "9"]
-                  .map((v) => `<option value="${v}">${v}</option>`)
-                  .join("")}</select>
+          .map((v) => `<option value="${v}">${v}</option>`)
+          .join("")}</select>
               </div>
             </div>
           </div>
@@ -1008,7 +1005,7 @@ export async function makePhotoList(
       const v = visibleElement();
       const album = albumFromElement(v!, elementPrefix)!;
       const s = await getService();
-      const assets = (await s.media(album, undefined)).entries;
+      const assets = (await getAlbumContents(album)).entries;
       initialList = assets;
     }
 
@@ -1127,13 +1124,13 @@ export async function makeThumbnailManager(
       try {
         const e = elementFromEntry(key, elementPrefix);
         if (e.exists()) e.addClass("selected");
-      } catch (e) {}
+      } catch (e) { }
     });
     removed.forEach((key) => {
       try {
         const e = elementFromEntry(key, elementPrefix);
         if (e.exists()) e.removeClass("selected");
-      } catch (e) {}
+      } catch (e) { }
     });
   });
 }

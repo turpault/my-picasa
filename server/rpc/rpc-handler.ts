@@ -19,6 +19,7 @@ export type Service = {
 };
 
 export type ServiceMap = {
+  imports: { symbol: string, module: string }[];
   name: string;
   functions: {
     [key: string]: Service;
@@ -41,11 +42,7 @@ const validators: ValidatorMap = {
     typeof value === "string"
       ? value
       : new Error(`Expected string, got ${typeof value}`),
-  istring: (value: any) =>
-    typeof value === "string"
-      ? value
-      : new Error(`Expected string, got ${typeof value}`),
-  integer: (value: any) =>
+  number: (value: any) =>
     typeof value === "number"
       ? value
       : new Error(`Expected number, got ${typeof value}`),
@@ -70,41 +67,7 @@ const validators: ValidatorMap = {
       return value;
     }
     return new Error(`Expected object, got ${typeof value}`);
-  },
-  ComponentMap: (value: any) => {
-    if (typeof value === "string") {
-      try {
-        if (!value) {
-          return {};
-        }
-        const parsed = JSON.parse(value);
-        return parsed;
-      } catch (e) {
-        return e;
-      }
-    } else if (typeof value === "object") {
-      return value;
-    }
-    // TODO use JOI here
-    return new Error(`Expected string with JSON content, got ${typeof value}`);
-  },
-  JSONPatch: (value: any) => {
-    if (typeof value === "string") {
-      try {
-        if (!value) {
-          return {};
-        }
-        const parsed = JSON.parse(value);
-        return parsed;
-      } catch (e) {
-        return e;
-      }
-    } else if (typeof value === "object") {
-      // TODO use JOI here (Should be a Operation[])
-      return value;
-    }
-    return new Error(`Expected string with JSON content, got ${typeof value}`);
-  },
+  }
 };
 
 function getConvertedArguments(
@@ -115,16 +78,17 @@ function getConvertedArguments(
   const convertedArguments: any[] = [];
 
   service.arguments.forEach((argument) => {
-    const splitArgument = argument.split(":");
+    const splitArgument = argument.split(/\?|\:/);
     const argumentName = splitArgument[0];
-    const argumentType = splitArgument[1];
+    const argumentType = splitArgument[splitArgument.length - 1];
     const validator = validators[argumentType];
-    if (!validator) {
+    const isOptional = argument.includes("?");
+    if (!validator && !isOptional) {
       throw new Error(
         `${name}: Validator for type ${argumentType} does not exist, please validate the spec (Argument name is ${argumentName})`,
       );
     }
-    const newValue = validator(args[argumentName]);
+    const newValue = validator ? validator(args[argumentName]) : args[argumentName];
     if (newValue instanceof Error) {
       throw new Error(
         `${name} Argument ${argumentName} fails the validation checks : ${newValue.message}`,
@@ -169,11 +133,11 @@ export function registerServices(
             label = `${(++idx)
               .toString()
               .padStart(4, " ")}: Calling ${name}(${inspect(
-              convertedArguments,
-              false,
-              2,
-              true,
-            ).slice(0, 200)})`;
+                convertedArguments,
+                false,
+                2,
+                true,
+              ).slice(0, 200)})`;
             //console.time(label);
             const response = await serviceFunc.handler.bind(socket)(
               ...convertedArguments,

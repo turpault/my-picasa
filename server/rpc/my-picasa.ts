@@ -41,14 +41,8 @@ import {
 import { addBug, getBugs } from "./rpcFunctions/bugs";
 import { clientException, clientLog } from "./rpcFunctions/clientLog";
 import { exifData } from "./rpcFunctions/exif";
+import { getFeatureFlags, updateFeatureFlags } from "./rpcFunctions/featureFlags";
 import { createFSJob, getJob, waitJob } from "./rpcFunctions/fileJobs";
-import {
-  queryFolders,
-  searchIndexedPictures,
-  getIndexingStatistics,
-  indexPictureEntry,
-  queryAlbumEntriesInAlbum
-} from "./rpcFunctions/indexing";
 import {
   folder,
   getFileContents,
@@ -67,12 +61,12 @@ import {
 } from "./rpcFunctions/picasa-ini";
 import { clientReady } from "./rpcFunctions/ready";
 import { setAlbumShortcut } from "./rpcFunctions/shortcuts";
-import { getFeatureFlags } from "./rpcFunctions/featureFlags";
 
 /**
- * ConcurrencyService IDL
+ * PicisaClient IDL
  */
 export const PicisaClient: ServiceMap = {
+  imports: [{ symbol: "Filters", module: "../../../shared/types/types" }],
   name: "PicisaClient",
   constants: {
     Exceptions,
@@ -124,19 +118,19 @@ export const PicisaClient: ServiceMap = {
     },
     folders: {
       handler: folders,
-      arguments: ["filters:object"],
+      arguments: ["filters?:Filters"],
     },
     monitorAlbums: {
       handler: monitorAlbums,
-      arguments: ["filters:object"],
+      arguments: ["filters?:Filters"],
     },
     media: {
       handler: media,
-      arguments: ["album:object", "filters:object"],
+      arguments: ["album:object", "filters?:Filters"],
     },
     mediaCount: {
       handler: mediaCount,
-      arguments: ["album:object", "filters:object"],
+      arguments: ["album:object", "filters?:Filters"],
     },
     getFileContents: {
       handler: getFileContents,
@@ -156,7 +150,7 @@ export const PicisaClient: ServiceMap = {
     },
     setRank: {
       handler: setRank,
-      arguments: ["entry:string", "rank:integer"],
+      arguments: ["entry:string", "rank:number"],
     },
     getAlbumMetadata: {
       handler: getAlbumMetadata,
@@ -215,8 +209,8 @@ export const PicisaClient: ServiceMap = {
       arguments: [
         "message:string",
         "file:string",
-        "line:integer",
-        "col:integer",
+        "line:number",
+        "col:number",
         "error:object",
       ],
     },
@@ -295,6 +289,10 @@ export const PicisaClient: ServiceMap = {
     getFeatureFlags: {
       handler: getFeatureFlags,
       arguments: [],
+    },
+    updateFeatureFlags: {
+      handler: updateFeatureFlags,
+      arguments: ["flags:object"],
     }
   },
 };

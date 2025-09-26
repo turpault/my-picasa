@@ -11,16 +11,6 @@ type ArgumentMap = {
   [key: string]: string;
 };
 
-const argumentMapTs: ArgumentMap = {
-  string: "string",
-  istring: "string",
-  integer: "number",
-  "string[]": "string[]",
-  boolean: "boolean",
-  ComponentMap: "ComponentMap",
-  JSONPatch: "Operation[]",
-  object: "object",
-};
 
 export function generateCode(services: ServiceMap): GeneratedCode {
   let tscode = "" + TSCodeTemplate;
@@ -28,25 +18,21 @@ export function generateCode(services: ServiceMap): GeneratedCode {
   const klass = services.name;
   tscode = tscode.replace(/<<CLASS>>/g, klass);
 
-  let headerIncludes = "";
-  headerIncludes += `#include <Server/Concurrency/RPC/IRPCClient.h>`;
-
   let tsfunctionBodies = "";
-  let constantsCpp = "";
   let tsconstants = "";
 
   for (const constantEnum of Object.keys(services.constants)) {
     const constantObject = services.constants[constantEnum];
     tsconstants += `export enum ${constantEnum} {`;
     for (const constantName of Object.keys(constantObject)) {
-      constantsCpp += `\n#define ${(
-        constantEnum +
-        "_" +
-        constantName
-      ).toUpperCase()}  _DNGH("${constantObject[constantName]}")`;
       tsconstants += `  ${constantName} = "${constantObject[constantName]}",\n`;
     }
     tsconstants += "}\n";
+  }
+
+  // add imports
+  for (const imp of services.imports) {
+    tscode = `import { ${imp.symbol} } from "${imp.module}";\n` + tscode;
   }
 
   // tscode
@@ -56,17 +42,11 @@ export function generateCode(services: ServiceMap): GeneratedCode {
     const args = func.arguments;
     // Generate the TS function argument list string
     const tsFunctionArguments = args
-      .map((arg) => {
-        const argument = arg.split(":");
-        const argName = argument[0];
-        const argTypeTS = argumentMapTs[argument[1]] || argument[1];
-        return argName + ": " + argTypeTS;
-      })
       .join(", ");
     // Generate the TS argument list
     const tsFunctionArgList = args
       .map((arg) => {
-        const argument = arg.split(":");
+        const argument = arg.split(/\?|\:/);
         const argName = argument[0];
         return argName;
       })

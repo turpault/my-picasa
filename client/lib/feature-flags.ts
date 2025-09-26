@@ -58,6 +58,18 @@ class FeatureFlagService {
     return result;
   }
 
+  // Update feature flags
+  async updateFeatureFlags(flags: FeatureFlags): Promise<void> {
+    if (!this.client) {
+      throw new Error("Feature flag client not initialized");
+    }
+
+    await this.client.updateFeatureFlags(flags);
+    
+    // Clear cache to force reload on next access
+    this.clearCache();
+  }
+
   // Clear cache to force reload on next access
   clearCache() {
     this.featureFlags = null;

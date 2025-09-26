@@ -1,6 +1,7 @@
 import { uuid } from "../../shared/lib/utils";
 import { Album, AlbumWithData, JOBNAMES, Node } from "../../shared/types/types";
 import { AlbumIndexedDataSource } from "../album-data-source";
+import { getAlbumContents } from "../folder-utils";
 import {
   $,
   _$,
@@ -171,7 +172,7 @@ export async function makeAlbumList(
         const album = albumFromElement(item, elementPrefix)!;
         if (!album) return;
         const s = await getService();
-        const media = await s.media(album, undefined);
+        const media = await getAlbumContents(album);
         selectionManager.setSelection(media.entries);
       })
       .on("dragenter", (ev: DragEvent) => {

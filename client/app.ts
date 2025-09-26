@@ -6,6 +6,7 @@ import { AlbumIndexedDataSource } from "./album-data-source";
 import { makeButtons } from "./components/bottom-selection-buttons";
 import { makeBrowser } from "./components/browser";
 import { makeBugWidget } from "./components/bug-widget";
+import { makeFeatureFlagsModal } from "./components/feature-flags-modal";
 import { registerButton } from "./components/controls/button";
 import { registerCarousel } from "./components/controls/carousel";
 import { registerInput } from "./components/controls/input";
@@ -79,6 +80,15 @@ async function init(port: number) {
   $(".tabs-container").append(makeTabs(emitter, state));
 
   await makeBugWidget($("#action-new-bug"));
+  const featureFlagsModal = makeFeatureFlagsModal();
+  $(document.body).append(featureFlagsModal);
+  
+  // Wire up feature flags button
+  $("#action-feature-flags").on("click", () => {
+    featureFlagsModal.trigger("show");
+    featureFlagsModal.show();
+  });
+  
   const metaViewer = makeMetadataViewer(state);
   const buttons = makeButtons(emitter, state);
   $(document.body).append(metaViewer).append(buttons);

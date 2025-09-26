@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, writeFileSync } from "fs";
 import { join } from "path";
 import { imagesRoot } from "../../utils/constants";
 import { FeatureFlags } from "../../../shared/types/feature-flags";
@@ -78,4 +78,28 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
 export async function isFeatureEnabled(flagName: string): Promise<boolean> {
   const featureFlags = await getFeatureFlags();
   return featureFlags.flags[flagName]?.enabled || false;
+}
+
+export async function updateFeatureFlags(flags: FeatureFlags): Promise<void> {
+  const featureFlagsPath = join(imagesRoot, "feature-flags.json");
+  
+  try {
+    // Validate the structure
+    if (!flags.version || !flags.flags) {
+      throw new Error("Invalid feature flags structure");
+    }
+
+    // Write the updated flags to file
+    const flagsJson = JSON.stringify(flags, null, 2);
+    writeFileSync(featureFlagsPath, flagsJson, "utf8");
+    
+    // Clear cache to force reload
+    cachedFeatureFlags = null;
+    lastModified = 0;
+    
+    console.info(`Updated feature flags at ${featureFlagsPath}`);
+  } catch (error) {
+    console.error(`Error updating feature flags: ${error}`);
+    throw error;
+  }
 }

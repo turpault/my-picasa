@@ -250,24 +250,24 @@ class PictureIndexingService {
    */
   private sweepUnmarkedRecords(): number {
     debugLogger("Sweeping unmarked records...");
-    
+
     // Count unmarked records before deletion
     const countStmt = this.db.prepare("SELECT COUNT(*) as count FROM pictures WHERE marked = 0");
     const count = countStmt.get() as { count: number };
-    
+
     if (count.count > 0) {
       debugLogger(`Removing ${count.count} unmarked records...`);
-      
+
       // Delete unmarked records
       const deleteStmt = this.db.prepare("DELETE FROM pictures WHERE marked = 0");
       deleteStmt.run();
-      
+
       // Clean up FTS index (this will be handled automatically by SQLite)
       debugLogger(`Removed ${count.count} unmarked records`);
     } else {
       debugLogger("No unmarked records to remove");
     }
-    
+
     return count.count;
   }
 

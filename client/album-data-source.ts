@@ -10,7 +10,7 @@ import {
 import { t } from "./components/strings";
 import { getService } from "./rpc/connect";
 import { AlbumListEvent } from "./uiTypes";
-import { getSettingsEmitter, getSettings } from "./lib/settings";
+import { getSettingsEmitter, getSettings, isFilterEmpty } from "./lib/settings";
 function firstAlbum(node: Node): AlbumWithData | undefined {
   if (node.albums.length > 0) return node.albums[0];
   if (node.childs) {
@@ -58,7 +58,7 @@ export class AlbumIndexedDataSource {
         this.emitter.emit("reset", {});
         gotFirstAlbumEvent = false;
         // Call monitorAlbums with the new search filter
-        s.monitorAlbums(event.filters);
+        s.monitorAlbums(isFilterEmpty(event.filters));
       }
     });
 
@@ -95,7 +95,7 @@ export class AlbumIndexedDataSource {
     return new Promise<void>((resolve) => {
       // Call monitorAlbums with current search setting
       const settings = getSettings();
-      s.monitorAlbums(settings.filters);
+      s.monitorAlbums(isFilterEmpty(settings.filters));
 
       this.shortcutsUnreg = s.on("shortcutsUpdated", async () => {
         this.shortcuts = await s.getShortcuts();
@@ -110,11 +110,12 @@ export class AlbumIndexedDataSource {
           if (!gotFirstAlbumEvent && event.type !== "albums") {
             continue;
           }
-          console.log("Got event", event.type, ";", event.album?.name);
+          console.log("Got event", event.type, event.album?.name ? `; ${event.album.name}` : "");
           switch (event.type) {
             case "albums":
               {
                 gotFirstAlbumEvent = true;
+                console.log(`Got first album event: ${event.albums.length} albums`);
                 this.allAlbums = event.albums!.map((a) => ({
                   ...a,
                   indent: 0,
@@ -310,7 +311,7 @@ export class AlbumIndexedDataSource {
     const filteredAlbums = albumsFromServer;
     const groups = groupBy(filteredAlbums, "kind");
 
-    let folders = groups.get(AlbumKind.FOLDER)!;
+    let folders = groups.get(AlbumKind.FOLDER) || [];
     sortByKey(folders, ["name"], ["alpha"]);
     folders.reverse();
 
