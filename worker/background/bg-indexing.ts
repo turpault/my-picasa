@@ -14,7 +14,7 @@ import { isPicture, isVideo } from "../../shared/lib/utils";
 const debugLogger = debug("app:bg-indexing");
 
 // Database version constant - increment this when schema changes
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 4;
 
 /**
  * Normalize text by removing diacritics and converting to lowercase
@@ -93,6 +93,23 @@ class PictureIndexingService {
         this.db.exec(`
           ALTER TABLE pictures ADD COLUMN marked BOOLEAN NOT NULL DEFAULT 0;
           CREATE INDEX IF NOT EXISTS idx_marked ON pictures(marked);
+        `);
+      }
+
+      if (fromVersion < 4) {
+        // Add additional fields for better video/photo support
+        debugLogger("Adding additional fields for video/photo support");
+        this.db.exec(`
+          ALTER TABLE pictures ADD COLUMN file_extension TEXT;
+          ALTER TABLE pictures ADD COLUMN mime_type TEXT;
+          ALTER TABLE pictures ADD COLUMN file_size INTEGER;
+          ALTER TABLE pictures ADD COLUMN width INTEGER;
+          ALTER TABLE pictures ADD COLUMN height INTEGER;
+          ALTER TABLE pictures ADD COLUMN duration REAL;
+          CREATE INDEX IF NOT EXISTS idx_file_extension ON pictures(file_extension);
+          CREATE INDEX IF NOT EXISTS idx_mime_type ON pictures(mime_type);
+          CREATE INDEX IF NOT EXISTS idx_file_size ON pictures(file_size);
+          CREATE INDEX IF NOT EXISTS idx_dimensions ON pictures(width, height);
         `);
       }
 
@@ -190,7 +207,7 @@ class PictureIndexingService {
           album_key, album_name, entry_name,
           persons, star_count, geo_poi, photostar, text_content, caption, entry_type, marked,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
       `);
 
       insertStmt.run(
@@ -351,30 +368,20 @@ class PictureIndexingService {
 
     // Star rating filter
     if (filters.star !== undefined && filters.star > 0) {
-      whereConditions.push('p.star = ?');
+      whereConditions.push('p.star >= ?');
       params.push(filters.star);
     }
 
-    // Video filter
-    if (filters.video !== undefined) {
-      if (filters.video) {
-        whereConditions.push('p.name LIKE ?');
-        params.push('%.mp4%');
-      } else {
-        whereConditions.push('p.name NOT LIKE ?');
-        params.push('%.mp4%');
-      }
+    // Video filter - only add condition if explicitly set to true
+    if (filters.video === true) {
+      whereConditions.push('p.name LIKE ?');
+      params.push('%.mp4%');
     }
 
-    // People filter (has faces)
-    if (filters.people !== undefined) {
-      if (filters.people) {
-        whereConditions.push('p.faces IS NOT NULL AND p.faces != ?');
-        params.push('');
-      } else {
-        whereConditions.push('(p.faces IS NULL OR p.faces = ?)');
-        params.push('');
-      }
+    // People filter (has faces) - only add condition if explicitly set to true
+    if (filters.people === true) {
+      whereConditions.push('p.faces IS NOT NULL AND p.faces != ?');
+      params.push('');
     }
 
     // Specific persons filter
@@ -386,44 +393,26 @@ class PictureIndexingService {
       });
     }
 
-    // Location filter
-    if (filters.location !== undefined) {
-      if (filters.location) {
-        whereConditions.push('(p.latitude IS NOT NULL AND p.longitude IS NOT NULL)');
-      } else {
-        whereConditions.push('(p.latitude IS NULL OR p.longitude IS NULL)');
-      }
+    // Location filter - only add condition if explicitly set to true
+    if (filters.location === true) {
+      whereConditions.push('(p.latitude IS NOT NULL AND p.longitude IS NOT NULL)');
     }
 
-    // Favorite photo filter
-    if (filters.favoritePhoto !== undefined) {
-      if (filters.favoritePhoto) {
-        whereConditions.push('p.photostar = ?');
-        params.push(1);
-      } else {
-        whereConditions.push('(p.photostar IS NULL OR p.photostar = ?)');
-        params.push(0);
-      }
+    // Favorite photo filter - only add condition if explicitly set to true
+    if (filters.favoritePhoto === true) {
+      whereConditions.push('p.photostar = ?');
+      params.push(1);
     }
 
-    // Has faces filter
-    if (filters.hasFaces !== undefined) {
-      if (filters.hasFaces) {
-        whereConditions.push('p.faces IS NOT NULL AND p.faces != ?');
-        params.push('');
-      } else {
-        whereConditions.push('(p.faces IS NULL OR p.faces = ?)');
-        params.push('');
-      }
+    // Has faces filter - only add condition if explicitly set to true
+    if (filters.hasFaces === true) {
+      whereConditions.push('p.faces IS NOT NULL AND p.faces != ?');
+      params.push('');
     }
 
-    // Geo location filter
-    if (filters.hasGeoLocation !== undefined) {
-      if (filters.hasGeoLocation) {
-        whereConditions.push('(p.latitude IS NOT NULL AND p.longitude IS NOT NULL)');
-      } else {
-        whereConditions.push('(p.latitude IS NULL OR p.longitude IS NULL)');
-      }
+    // Geo location filter - only add condition if explicitly set to true
+    if (filters.hasGeoLocation === true) {
+      whereConditions.push('(p.latitude IS NOT NULL AND p.longitude IS NOT NULL)');
     }
 
     // Star count range filters
@@ -447,7 +436,7 @@ class PictureIndexingService {
         GROUP BY p.album_key, p.album_name
         ORDER BY p.album_name ASC
       `;
-      
+
       try {
         const stmt = this.db.prepare(query);
         const results = stmt.all() as Array<{
