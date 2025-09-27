@@ -38,11 +38,11 @@ Virtual table for full-text search across folder names, file names, persons, and
 
 ### Core Functions
 
-#### `queryFoldersByStrings(matchingStrings: string[]): FolderQuery[]`
-Returns folders that match the given search strings, ordered by relevance.
+#### `queryFoldersByFilters(filters: Filters): AlbumWithData[]`
+Returns folders that match the given filters, ordered by relevance.
 
 ```typescript
-const results = queryFoldersByStrings(["2023", "vacation"]);
+const results = queryFoldersByFilters({ text: "2023 vacation" });
 // Returns folders containing both "2023" and "vacation"
 ```
 
@@ -52,8 +52,8 @@ Returns all folders in the index with picture counts.
 #### `getPicturesInFolder(folderPath: string): PictureIndex[]`
 Returns all pictures in a specific folder.
 
-#### `searchPictures(searchTerm: string, limit?: number): PictureIndex[]`
-Searches pictures by text content with optional result limit.
+#### `searchPicturesByFilters(filters: Filters, limit?: number, albumId?: string): AlbumEntry[]`
+Searches pictures by filters with optional result limit and album filter.
 
 #### `queryAlbumEntries(albumId: string, matchingStrings: string[]): AlbumEntry[]`
 Returns AlbumEntry objects within a specific album that match the given search strings.
@@ -73,10 +73,10 @@ Indexes a single picture entry.
 
 The following RPC endpoints are available to the client:
 
-- `queryFolders(matchingStrings: string[])` - Query folders by search strings
+- `queryFoldersByFilters(filters: Filters)` - Query folders by filters
 - `getAllIndexedFolders()` - Get all folders in the index
 - `getFolderPictures(folderPath: string)` - Get pictures in a folder
-- `searchIndexedPictures(searchTerm: string, limit?: number)` - Search pictures
+- `searchIndexedPicturesByFilters(filters: Filters, limit?: number, albumId?: string)` - Search pictures by filters
 - `queryAlbumEntriesInAlbum(albumId: string, matchingStrings: string[])` - Query AlbumEntry objects within a specific album
 - `getIndexingStatistics()` - Get index statistics
 - `indexPictureEntry(entry: AlbumEntry)` - Index a single picture
@@ -87,20 +87,20 @@ The following RPC endpoints are available to the client:
 
 ```typescript
 // Find folders containing "2023" and "vacation"
-const folders = await queryFolders(["2023", "vacation"]);
+const folders = await queryFoldersByFilters({ text: "2023 vacation" });
 
 // Get all folders
 const allFolders = await getAllIndexedFolders();
 
 // Search for specific folders
-const birthdayFolders = await queryFolders(["birthday", "party"]);
+const birthdayFolders = await queryFoldersByFilters({ text: "birthday party" });
 ```
 
 ### Searching Pictures
 
 ```typescript
 // Search pictures by text
-const results = await searchIndexedPictures("sunset", 50);
+const results = await searchIndexedPicturesByFilters({ text: "sunset" }, 50);
 
 // Get pictures in a specific folder
 const folderPictures = await getFolderPictures("/path/to/folder");

@@ -64,7 +64,7 @@ export async function makeBrowserHeader(
     filters.select(0, settings.filters.video);
     filters.select(1, settings.filters.people);
     filters.select(2, settings.filters.location);
-    filters.select(3, settings.filters.favoritePhoto);
+    filters.select(3, settings.filters.isFavoriteInIPhoto);
     filterFavorites.attr("selected", settings.filters.star);
   });
   $(".new-album", container).on("click", makeNewAlbum);

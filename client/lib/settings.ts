@@ -19,7 +19,7 @@ const settings: Settings = {
     video: false,
     people: false,
     location: false,
-    favoritePhoto: false,
+    isFavoriteInIPhoto: false,
     persons: [],
     text: "",
   },
@@ -34,7 +34,7 @@ export function isFilterEmpty(filters: Filters): Filters | undefined {
     !filters.people &&
     filters.persons.length === 0 &&
     !filters.location &&
-    !filters.favoritePhoto &&
+    !filters.isFavoriteInIPhoto &&
     filters.text === "") return undefined;
 
   return filters;
@@ -48,7 +48,7 @@ export async function makeSettings() {
     .split("|")
     .filter((v: string) => v.trim());
   settings.filters.location = (await get("filterByLocation")) || false;
-  settings.filters.favoritePhoto = (await get("favoritePhoto")) || false;
+  settings.filters.isFavoriteInIPhoto = (await get("favoritePhoto")) || false;
   settings.filters.text = (await get("filterByText")) || "";
   settings.sort = (await get("sort")) || "date";
   settings.inverseSort = (await get("inverseSort")) || false;
@@ -67,7 +67,7 @@ async function changed(field: string) {
   await set("filterByPeople", settings.filters.people);
   await set("filterByPerson", settings.filters.persons.join("|"));
   await set("filterByLocation", settings.filters.location);
-  await set("filterByFavoritePhoto", settings.filters.favoritePhoto);
+  await set("filterByFavoritePhoto", settings.filters.isFavoriteInIPhoto);
   await set("sort", settings.sort);
   await set("inverseSort", settings.inverseSort);
   await set("iconSize", settings.iconSize);
@@ -90,7 +90,7 @@ export function updateFilterByLocation(newValue: boolean) {
   changed("filters.location");
 }
 export function updateFilterByFavoritePhoto(newValue: boolean) {
-  settings.filters.favoritePhoto = newValue;
+  settings.filters.isFavoriteInIPhoto = newValue;
   changed("filters.favoritePhoto");
 }
 export function updateFilterByPeople(newValue: boolean) {

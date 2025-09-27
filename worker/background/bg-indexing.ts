@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import * as Database from "better-sqlite3";
 import debug from "debug";
 import { join } from "path";
 import { events } from "../../server/events/server-events";
@@ -10,6 +10,7 @@ import { getFolderAlbums, waitUntilWalk } from "../../server/walker";
 import { Queue } from "../../shared/lib/queue";
 import { Album, AlbumEntry, AlbumKind, AlbumWithData, Filters } from "../../shared/types/types";
 import { isPicture, isVideo } from "../../shared/lib/utils";
+import { lock } from "../../shared/lib/mutex";
 
 const debugLogger = debug("app:bg-indexing");
 
@@ -138,6 +139,12 @@ class PictureIndexingService {
         text_content TEXT,
         caption TEXT,
         entry_type TEXT,
+        file_extension TEXT,
+        mime_type TEXT,
+        file_size INTEGER,
+        width INTEGER,
+        height INTEGER,
+        duration REAL,
         marked BOOLEAN NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -153,6 +160,10 @@ class PictureIndexingService {
       CREATE INDEX IF NOT EXISTS idx_star_count ON pictures(star_count);
       CREATE INDEX IF NOT EXISTS idx_photostar ON pictures(photostar);
       CREATE INDEX IF NOT EXISTS idx_entry_type ON pictures(entry_type);
+      CREATE INDEX IF NOT EXISTS idx_file_extension ON pictures(file_extension);
+      CREATE INDEX IF NOT EXISTS idx_mime_type ON pictures(mime_type);
+      CREATE INDEX IF NOT EXISTS idx_file_size ON pictures(file_size);
+      CREATE INDEX IF NOT EXISTS idx_dimensions ON pictures(width, height);
       CREATE INDEX IF NOT EXISTS idx_marked ON pictures(marked);
     `);
 
@@ -293,6 +304,7 @@ class PictureIndexingService {
    */
   async indexAllPictures(): Promise<void> {
     debugLogger("Starting full picture indexing with mark-and-sweep...");
+    const l = await lock("indexAllPictures");
 
     // Phase 1: Clear all marks
     this.clearAllMarks();
@@ -301,8 +313,20 @@ class PictureIndexingService {
     await Promise.all([waitUntilWalk()]);
     const albums = await getFolderAlbums();
 
+    // Count total pictures first
     let totalPictures = 0;
+    for (const album of albums) {
+      try {
+        const m = await media(album);
+        totalPictures += m.entries.length;
+      } catch (e) {
+        debugLogger(`Album ${album.name} is gone, skipping...`);
+        continue;
+      }
+    }
+
     let processedPictures = 0;
+    debugLogger(`Total pictures to index: ${totalPictures}`);
 
     // Phase 2: Mark and index pictures in parallel with queue
     for (const album of albums) {
@@ -346,6 +370,7 @@ class PictureIndexingService {
     const removedCount = this.sweepUnmarkedRecords();
 
     debugLogger(`Picture indexing completed. Removed ${removedCount} orphaned records.`);
+    l();
   }
 
   /**
@@ -399,7 +424,7 @@ class PictureIndexingService {
     }
 
     // Favorite photo filter - only add condition if explicitly set to true
-    if (filters.favoritePhoto === true) {
+    if (filters.isFavoriteInIPhoto === true) {
       whereConditions.push('p.photostar = ?');
       params.push(true);
     }
@@ -495,49 +520,6 @@ class PictureIndexingService {
     }
   }
 
-  /**
-   * Query folders by matching strings (legacy method for backward compatibility)
-   */
-  queryFoldersByStrings(matchingStrings: string[]): AlbumWithData[] {
-    if (matchingStrings.length === 0) {
-      return [];
-    }
-
-    // Create search terms for FTS with normalized text
-    const searchTerms = matchingStrings.map(term => `"${normalizeText(term)}"`).join(' OR ');
-
-    const query = `
-      SELECT 
-        p.album_key,
-        p.album_name,
-        COUNT(*) as match_count
-      FROM pictures p
-      JOIN pictures_fts fts ON p.id = fts.rowid
-      WHERE pictures_fts MATCH ?
-      GROUP BY p.album_key, p.album_name
-      ORDER BY match_count DESC, p.album_name ASC
-    `;
-
-    try {
-      const stmt = this.db.prepare(query);
-      const results = stmt.all(searchTerms) as Array<{
-        album_key: string;
-        album_name: string;
-        match_count: number;
-      }>;
-
-      return results.map(row => ({
-        key: row.album_key,
-        name: row.album_name,
-        kind: AlbumKind.FOLDER,
-        count: row.match_count,
-        shortcut: undefined
-      }));
-    } catch (error) {
-      debugLogger("Error querying folders:", error);
-      return [];
-    }
-  }
 
 
 
@@ -604,7 +586,7 @@ class PictureIndexingService {
     }
 
     // Add favorite photo filter
-    if (filters.favoritePhoto) {
+    if (filters.isFavoriteInIPhoto) {
       whereConditions.push('p.photostar = ?');
       params.push(true);
     }
@@ -664,44 +646,6 @@ class PictureIndexingService {
     }
   }
 
-  /**
-   * Search pictures by text (legacy method for backward compatibility)
-   */
-  searchPictures(searchTerm: string[], limit?: number, albumId?: string): AlbumEntry[] {
-    if (searchTerm.length === 0) {
-      return [];
-    }
-
-    // Create search terms for FTS with normalized text, using AND logic
-    const searchTerms = searchTerm.map(term => `"${normalizeText(term)}"`).join(' AND ');
-
-    const query = `
-      SELECT p.* FROM pictures p
-      JOIN pictures_fts fts ON p.id = fts.rowid
-      WHERE pictures_fts MATCH ?${albumId ? ' AND p.album_key = ?' : ''}
-      ${limit ? 'LIMIT ?' : ''}
-    `;
-
-    const stmt = this.db.prepare(query);
-    const params = albumId
-      ? [searchTerms, albumId, ...(limit ? [limit] : [])]
-      : [searchTerms, ...(limit ? [limit] : [])];
-    const results = stmt.all(...params) as Array<{
-      entry_name: string;
-      album_key: string;
-      album_name: string;
-    }>;
-
-    return results.map(row => ({
-      name: row.entry_name,
-      album: {
-        key: row.album_key,
-        name: row.album_name,
-        kind: AlbumKind.FOLDER,
-        parent: null
-      }
-    }));
-  }
 
   /**
    * Query AlbumEntry objects within a specific album by matching strings
@@ -775,6 +719,41 @@ class PictureIndexingService {
       totalFolders: totalFolders.count,
       lastUpdated: lastUpdated.last_updated || 'Never'
     };
+  }
+
+  /**
+   * Get all folders in the index
+   */
+  getAllFolders(): AlbumWithData[] {
+    const query = `
+      SELECT 
+        p.album_key,
+        p.album_name,
+        COUNT(*) as match_count
+      FROM pictures p
+      GROUP BY p.album_key, p.album_name
+      ORDER BY p.album_name ASC
+    `;
+
+    try {
+      const stmt = this.db.prepare(query);
+      const results = stmt.all() as Array<{
+        album_key: string;
+        album_name: string;
+        match_count: number;
+      }>;
+
+      return results.map(row => ({
+        key: row.album_key,
+        name: row.album_name,
+        kind: AlbumKind.FOLDER,
+        count: row.match_count,
+        shortcut: undefined
+      }));
+    } catch (error) {
+      debugLogger("Error getting all folders:", error);
+      return [];
+    }
   }
 
   /**
@@ -892,10 +871,6 @@ function setupPicasaEntryUpdateListener(service: PictureIndexingService): void {
   debugLogger("Picasa entry update listener set up successfully");
 }
 
-export function queryFoldersByStrings(matchingStrings: string[]): Album[] {
-  const service = getIndexingService();
-  return service.queryFoldersByStrings(matchingStrings);
-}
 
 export function queryFoldersByFilters(filters: Filters): AlbumWithData[] {
   const service = getIndexingService();
@@ -904,10 +879,6 @@ export function queryFoldersByFilters(filters: Filters): AlbumWithData[] {
 
 
 
-export function searchPictures(searchTerm: string[], limit?: number, albumId?: string): AlbumEntry[] {
-  const service = getIndexingService();
-  return service.searchPictures(searchTerm, limit, albumId);
-}
 
 export function searchPicturesByFilters(filters: Filters, limit?: number, albumId?: string): AlbumEntry[] {
   const service = getIndexingService();
@@ -931,4 +902,9 @@ export function getDatabaseVersion(): number {
 
 export function getRequiredDatabaseVersion(): number {
   return DATABASE_VERSION;
+}
+
+export function getAllFolders(): AlbumWithData[] {
+  const service = getIndexingService();
+  return service.getAllFolders();
 }

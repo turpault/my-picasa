@@ -35,7 +35,7 @@ import {
   getProjects,
 } from "../albumTypes/projects";
 import { getPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasa-ini";
-import { searchIndexedPictures, searchIndexedPicturesByFilters, queryFoldersByFilters } from "./indexing";
+import { searchIndexedPicturesByFilters, queryFoldersByFilters } from "./indexing";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
   const entries = (await media(entry.album)).entries;

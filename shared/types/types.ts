@@ -432,7 +432,7 @@ export type Filters = {
   people: boolean;
   persons: string[];
   location: boolean;
-  favoritePhoto: boolean;
+  isFavoriteInIPhoto: boolean;
   text: string;
   // Additional filtering options
   hasFaces?: boolean;
