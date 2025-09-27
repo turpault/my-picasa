@@ -1,4 +1,4 @@
-import * as Database from "better-sqlite3";
+import Database from "better-sqlite3";
 import debug from "debug";
 import { join } from "path";
 import { events } from "../../server/events/server-events";
@@ -7,10 +7,10 @@ import { getPicasaEntry } from "../../server/rpc/rpcFunctions/picasa-ini";
 import { waitUntilIdle } from "../../server/utils/busy";
 import { imagesRoot } from "../../server/utils/constants";
 import { getFolderAlbums, waitUntilWalk } from "../../server/walker";
-import { Queue } from "../../shared/lib/queue";
-import { Album, AlbumEntry, AlbumKind, AlbumWithData, Filters } from "../../shared/types/types";
-import { isPicture, isVideo } from "../../shared/lib/utils";
 import { lock } from "../../shared/lib/mutex";
+import { Queue } from "../../shared/lib/queue";
+import { isPicture, isVideo } from "../../shared/lib/utils";
+import { AlbumEntry, AlbumKind, AlbumWithData, Filters } from "../../shared/types/types";
 
 const debugLogger = debug("app:bg-indexing");
 
