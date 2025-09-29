@@ -1,15 +1,10 @@
 {
-  "ts-node": {
-    "compilerOptions": {
-      "module": "CommonJS"
-    }
-  },
   "compilerOptions": {
-    "module": "es6",
+    "module": "CommonJS",
     "target": "ESNext",
-
     "lib": [
-      "ESNext", "dom"
+      "ESNext",
+      "dom"
     ],
     "moduleResolution": "node",
     "strict": true,
@@ -18,8 +13,11 @@
     "strictNullChecks": false,
     "allowJs": true,
     "sourceMap": true,
-    "allowSyntheticDefaultImports" : true,
-    "rootDirs": ["./client", "./shared"],
+    "allowSyntheticDefaultImports": true,
+    "rootDirs": [
+      "./client",
+      "./shared"
+    ],
     "outDir": "./public/dist/",
     "typeRoots": [
       "./node_modules/@types",
@@ -29,11 +27,11 @@
   "include": [
     "./client/**/*.ts",
     "./shared/**/*.ts",
-    "./client/**/*.js"
-, "server/preload.js"  ],
+    "./client/**/*.js",
+    "server/preload.js"
+  ],
   "exclude": [
     "dist",
     "public"
   ]
 }
-

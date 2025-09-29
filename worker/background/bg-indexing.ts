@@ -167,7 +167,7 @@ class PictureIndexingService {
       CREATE INDEX IF NOT EXISTS idx_marked ON pictures(marked);
     `);
 
-    // Create full-text search index for metadata with normalized text
+    // Create full-text search index for metadata
     this.db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS pictures_fts USING fts5(
         album_key,
@@ -176,12 +176,6 @@ class PictureIndexingService {
         persons,
         text_content,
         caption,
-        album_key_norm,
-        album_name_norm,
-        entry_name_norm,
-        persons_norm,
-        text_content_norm,
-        caption_norm,
         content='pictures',
         content_rowid='id'
       )
@@ -234,12 +228,11 @@ class PictureIndexingService {
         entryType
       );
 
-      // Update FTS index with normalized text
+      // Update FTS index
       const ftsStmt = this.db.prepare(`
         INSERT OR REPLACE INTO pictures_fts (
-          rowid, album_key, album_name, entry_name, persons, text_content, caption,
-          album_key_norm, album_name_norm, entry_name_norm, persons_norm, text_content_norm, caption_norm
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          rowid, album_key, album_name, entry_name, persons, text_content, caption
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
 
       const lastId = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
@@ -250,13 +243,7 @@ class PictureIndexingService {
         entry.name,
         persons,
         textContent,
-        caption,
-        normalizeText(entry.album.key),
-        normalizeText(entry.album.name),
-        normalizeText(entry.name),
-        normalizeText(persons),
-        normalizeText(textContent),
-        normalizeText(caption)
+        caption
       );
 
     } catch (error) {
@@ -312,6 +299,8 @@ class PictureIndexingService {
     const q = new Queue(3);
     await Promise.all([waitUntilWalk()]);
     const albums = await getFolderAlbums();
+    // Sort album by name in reverse (most recent first)
+    albums.sort((a, b) => b.name.localeCompare(a.name));
 
     // Count total pictures first
     let totalPictures = 0;
@@ -793,8 +782,7 @@ class PictureIndexingService {
         // Update FTS index
         const ftsUpdateStmt = this.db.prepare(`
           UPDATE pictures_fts SET
-            persons = ?, text_content = ?, caption = ?,
-            persons_norm = ?, text_content_norm = ?, caption_norm = ?
+            persons = ?, text_content = ?, caption = ?
           WHERE rowid = (
             SELECT id FROM pictures WHERE album_key = ? AND entry_name = ?
           )
@@ -802,7 +790,6 @@ class PictureIndexingService {
 
         ftsUpdateStmt.run(
           persons, textContent, caption,
-          normalizeText(persons), normalizeText(textContent), normalizeText(caption),
           entry.album.key, entry.name
         );
 
