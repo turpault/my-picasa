@@ -6,7 +6,7 @@ import { media } from "../../server/rpc/rpcFunctions/albumUtils";
 import { getPicasaEntry } from "../../server/rpc/rpcFunctions/picasa-ini";
 import { waitUntilIdle } from "../../server/utils/busy";
 import { imagesRoot } from "../../server/utils/constants";
-import { getFolderAlbums, waitUntilWalk } from "../../server/walker";
+import { getFolderAlbums, waitUntilWalk, fileFoundEventEmitter, albumFoundEventEmitter } from "../../server/walker";
 import { lock } from "../../shared/lib/mutex";
 import { Queue } from "../../shared/lib/queue";
 import { isPicture, isVideo } from "../../shared/lib/utils";
@@ -15,7 +15,7 @@ import { AlbumEntry, AlbumKind, AlbumWithData, Filters } from "../../shared/type
 const debugLogger = debug("app:bg-indexing");
 
 // Database version constant - increment this when schema changes
-const DATABASE_VERSION = 4;
+const DATABASE_VERSION = 7;
 
 /**
  * Normalize text by removing diacritics and converting to lowercase
@@ -35,9 +35,20 @@ class PictureIndexingService {
 
   constructor(dbPath?: string) {
     this.dbPath = dbPath || join(imagesRoot, "picisa_index.db");
-    this.db = new Database(this.dbPath);
+
+    // Enable verbose mode for debugging SQL (logs every SQL statement)
+    if (process.env.DEBUG_SQL) {
+      this.db = new Database(this.dbPath, { verbose: (sql) => debugLogger(`SQL: ${sql}`) });
+    } else {
+      this.db = new Database(this.dbPath);
+    }
+
     this.checkAndMigrateDatabase();
+
+    // Check FTS integrity on startup
+    this.checkAndFixFTSIntegrity();
   }
+
 
   /**
    * Check database version and migrate if necessary
@@ -88,30 +99,55 @@ class PictureIndexingService {
     debugLogger(`Migrating database from version ${fromVersion} to ${DATABASE_VERSION}`);
 
     try {
-      if (fromVersion < 3) {
-        // Add marked column for mark-and-sweep functionality
-        debugLogger("Adding marked column for mark-and-sweep functionality");
+      if (fromVersion < 5) {
+        // Add unique constraint to prevent duplicate entries
+        debugLogger("Adding unique constraint on (album_key, entry_name)");
         this.db.exec(`
-          ALTER TABLE pictures ADD COLUMN marked BOOLEAN NOT NULL DEFAULT 0;
-          CREATE INDEX IF NOT EXISTS idx_marked ON pictures(marked);
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_picture ON pictures(album_key, entry_name);
         `);
       }
 
-      if (fromVersion < 4) {
-        // Add additional fields for better video/photo support
-        debugLogger("Adding additional fields for video/photo support");
+      if (fromVersion < 6) {
+        // Recreate FTS table without album_key column
+        debugLogger("Recreating FTS table without album_key");
         this.db.exec(`
-          ALTER TABLE pictures ADD COLUMN file_extension TEXT;
-          ALTER TABLE pictures ADD COLUMN mime_type TEXT;
-          ALTER TABLE pictures ADD COLUMN file_size INTEGER;
-          ALTER TABLE pictures ADD COLUMN width INTEGER;
-          ALTER TABLE pictures ADD COLUMN height INTEGER;
-          ALTER TABLE pictures ADD COLUMN duration REAL;
-          CREATE INDEX IF NOT EXISTS idx_file_extension ON pictures(file_extension);
-          CREATE INDEX IF NOT EXISTS idx_mime_type ON pictures(mime_type);
-          CREATE INDEX IF NOT EXISTS idx_file_size ON pictures(file_size);
-          CREATE INDEX IF NOT EXISTS idx_dimensions ON pictures(width, height);
+          DROP TABLE IF EXISTS pictures_fts;
+          CREATE VIRTUAL TABLE pictures_fts USING fts5(
+            album_name,
+            entry_name,
+            persons,
+            text_content,
+            caption,
+            content='pictures',
+            content_rowid='id',
+            tokenize="trigram remove_diacritics 1");
+          );
         `);
+        debugLogger("FTS table recreated - re-indexing will be needed");
+      }
+
+      if (fromVersion < 7) {
+        // Add triggers to automatically keep FTS in sync
+        debugLogger("Adding FTS sync triggers");
+        this.db.exec(`
+          CREATE TRIGGER IF NOT EXISTS pictures_fts_insert AFTER INSERT ON pictures BEGIN
+            INSERT INTO pictures_fts(rowid, album_name, entry_name, persons, text_content, caption)
+            VALUES (new.id, new.album_name, new.entry_name, new.persons, new.text_content, new.caption);
+          END;
+
+          CREATE TRIGGER IF NOT EXISTS pictures_fts_delete AFTER DELETE ON pictures BEGIN
+            INSERT INTO pictures_fts(pictures_fts, rowid, album_name, entry_name, persons, text_content, caption)
+            VALUES('delete', old.id, old.album_name, old.entry_name, old.persons, old.text_content, old.caption);
+          END;
+
+          CREATE TRIGGER IF NOT EXISTS pictures_fts_update AFTER UPDATE ON pictures BEGIN
+            INSERT INTO pictures_fts(pictures_fts, rowid, album_name, entry_name, persons, text_content, caption)
+            VALUES('delete', old.id, old.album_name, old.entry_name, old.persons, old.text_content, old.caption);
+            INSERT INTO pictures_fts(rowid, album_name, entry_name, persons, text_content, caption)
+            VALUES (new.id, new.album_name, new.entry_name, new.persons, new.text_content, new.caption);
+          END;
+        `);
+        debugLogger("FTS sync triggers created");
       }
 
       // Update version
@@ -153,6 +189,7 @@ class PictureIndexingService {
 
     // Create indexes for better query performance
     this.db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_picture ON pictures(album_key, entry_name);
       CREATE INDEX IF NOT EXISTS idx_album_key ON pictures(album_key);
       CREATE INDEX IF NOT EXISTS idx_album_name ON pictures(album_name);
       CREATE INDEX IF NOT EXISTS idx_entry_name ON pictures(entry_name);
@@ -170,7 +207,6 @@ class PictureIndexingService {
     // Create full-text search index for metadata
     this.db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS pictures_fts USING fts5(
-        album_key,
         album_name,
         entry_name,
         persons,
@@ -181,6 +217,26 @@ class PictureIndexingService {
       )
     `);
 
+    // Create triggers to automatically keep FTS in sync
+    this.db.exec(`
+      CREATE TRIGGER IF NOT EXISTS pictures_fts_insert AFTER INSERT ON pictures BEGIN
+        INSERT INTO pictures_fts(rowid, album_name, entry_name, persons, text_content, caption)
+        VALUES (new.id, new.album_name, new.entry_name, new.persons, new.text_content, new.caption);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS pictures_fts_delete AFTER DELETE ON pictures BEGIN
+        INSERT INTO pictures_fts(pictures_fts, rowid, album_name, entry_name, persons, text_content, caption)
+        VALUES('delete', old.id, old.album_name, old.entry_name, old.persons, old.text_content, old.caption);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS pictures_fts_update AFTER UPDATE ON pictures BEGIN
+        INSERT INTO pictures_fts(pictures_fts, rowid, album_name, entry_name, persons, text_content, caption)
+        VALUES('delete', old.id, old.album_name, old.entry_name, old.persons, old.text_content, old.caption);
+        INSERT INTO pictures_fts(rowid, album_name, entry_name, persons, text_content, caption)
+        VALUES (new.id, new.album_name, new.entry_name, new.persons, new.text_content, new.caption);
+      END;
+    `);
+
     debugLogger("Database initialized at:", this.dbPath);
   }
 
@@ -188,23 +244,28 @@ class PictureIndexingService {
    * Index a single picture entry
    */
   async indexPicture(entry: AlbumEntry): Promise<void> {
+    const picasaEntry = await getPicasaEntry(entry);
+
+    // Extract metadata from picasa entry
+    const persons = picasaEntry.persons || '';
+    const starCount = picasaEntry.starCount || '';
+    const geoPOI = picasaEntry.geoPOI || '';
+    const photostar = picasaEntry.photostar || false;
+    const textContent = picasaEntry.text || '';
+    const caption = picasaEntry.caption || '';
+
+    // Determine entry type
+    let entryType = 'unknown';
+    if (isPicture(entry)) {
+      entryType = 'picture';
+    } else if (isVideo(entry)) {
+      entryType = 'video';
+    }
+
     try {
-      const picasaEntry = await getPicasaEntry(entry);
-
-      // Extract metadata from picasa entry
-      const persons = picasaEntry.persons || '';
-      const starCount = picasaEntry.starCount || '';
-      const geoPOI = picasaEntry.geoPOI || '';
-      const photostar = picasaEntry.photostar || false;
-      const textContent = picasaEntry.text || '';
-      const caption = picasaEntry.caption || '';
-
-      // Determine entry type
-      let entryType = 'unknown';
-      if (isPicture(entry)) {
-        entryType = 'picture';
-      } else if (isVideo(entry)) {
-        entryType = 'video';
+      if (entry.album.key === undefined || entry.album.name === undefined || entry.name === undefined) {
+        debugLogger(`Error indexing picture ${entry.name}: album.key or album.name or name is undefined`);
+        return;
       }
 
       const insertStmt = this.db.prepare(`
@@ -216,38 +277,37 @@ class PictureIndexingService {
       `);
 
       insertStmt.run(
-        entry.album.key,
-        entry.album.name,
-        entry.name,
-        persons,
-        starCount,
-        geoPOI,
-        photostar,
-        textContent,
-        caption,
-        entryType
+        entry.album.key ?? '',
+        entry.album.name ?? '',
+        entry.name ?? '',
+        persons ?? '',
+        starCount ?? '',
+        geoPOI ?? '',
+        photostar ? 1 : 0,
+        textContent ?? '',
+        caption ?? '',
+        entryType ?? 'unknown'
       );
 
-      // Update FTS index
-      const ftsStmt = this.db.prepare(`
-        INSERT OR REPLACE INTO pictures_fts (
-          rowid, album_key, album_name, entry_name, persons, text_content, caption
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
+      // FTS index is automatically updated via triggers
 
-      const lastId = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
-      ftsStmt.run(
-        lastId.id,
-        entry.album.key,
-        entry.album.name,
-        entry.name,
-        persons,
-        textContent,
-        caption
-      );
-
-    } catch (error) {
-      debugLogger(`Error indexing picture ${entry.name}:`, error);
+    } catch (error: any) {
+      debugLogger(`Error indexing picture ${entry.name}:`);
+      debugLogger(`  Error message: ${error.message}`);
+      debugLogger(`  Error code: ${error.code}`);
+      debugLogger(`  SQL: ${error.sql || 'N/A'}`);
+      debugLogger(`  Entry data with types:`, {
+        album_key: `${typeof entry.album.key} = ${entry.album.key}`,
+        album_name: `${typeof entry.album.name} = ${entry.album.name}`,
+        entry_name: `${typeof entry.name} = ${entry.name}`,
+        persons: `${typeof persons} = ${persons}`,
+        starCount: `${typeof starCount} = ${starCount}`,
+        geoPOI: `${typeof geoPOI} = ${geoPOI}`,
+        photostar: `${typeof photostar} = ${photostar}`,
+        textContent: `${typeof textContent} = ${textContent?.substring(0, 50)}`,
+        caption: `${typeof caption} = ${caption?.substring(0, 50)}`,
+        entryType: `${typeof entryType} = ${entryType}`
+      });
       throw error;
     }
   }
@@ -303,45 +363,11 @@ class PictureIndexingService {
     albums.sort((a, b) => b.name.localeCompare(a.name));
 
     // Count total pictures first
-    let totalPictures = 0;
-    for (const album of albums) {
-      try {
-        const m = await media(album);
-        totalPictures += m.entries.length;
-      } catch (e) {
-        debugLogger(`Album ${album.name} is gone, skipping...`);
-        continue;
-      }
-    }
+
 
     let processedPictures = 0;
-    debugLogger(`Total pictures to index: ${totalPictures}`);
-
-    // Phase 2: Mark and index pictures in parallel with queue
-    for (const album of albums) {
-      let m: { entries: AlbumEntry[] };
-      try {
-        m = await media(album);
-      } catch (e) {
-        debugLogger(`Album ${album.name} is gone, skipping...`);
-        continue;
-      }
-
-      for (const entry of m.entries) {
-        q.add(async () => {
-          await waitUntilIdle();
-          try {
-            await this.indexPicture(entry);
-            processedPictures++;
-            if (processedPictures % 100 === 0) {
-              debugLogger(`Indexed ${processedPictures}/${totalPictures} pictures`);
-            }
-          } catch (error) {
-            debugLogger(`Error indexing ${entry.name}:`, error);
-          }
-        });
-      }
-    }
+    let processedAlbums = 0;
+    debugLogger(`Total albums to index: ${albums.length}`);
 
     // Progress monitoring
     const progressInterval = setInterval(() => {
@@ -352,12 +378,41 @@ class PictureIndexingService {
       }
     }, 2000);
 
+    // Phase 2: Mark and index pictures in parallel with queue
+    for (const album of albums) {
+      let m: { entries: AlbumEntry[] };
+      try {
+        m = await media(album);
+      } catch (e) {
+        debugLogger(`Album ${album.name} is gone, skipping...`);
+        continue;
+      }
+      processedAlbums++;
+
+      for (const entry of m.entries) {
+        q.add(async () => {
+          await waitUntilIdle();
+          try {
+            await this.indexPicture(entry);
+            processedPictures++;
+            if (processedPictures % 100 === 0) {
+              debugLogger(`Indexed ${processedPictures} pictures (${processedAlbums}/${albums.length} albums)`);
+            }
+          } catch (error) {
+            debugLogger(`Error indexing ${entry.name}:`, error);
+          }
+        });
+      }
+    }
+
+
     await q.drain();
     clearInterval(progressInterval);
 
     // Phase 3: Sweep unmarked records
     const removedCount = this.sweepUnmarkedRecords();
 
+    this.checkAndFixFTSIntegrity();
     debugLogger(`Picture indexing completed. Removed ${removedCount} orphaned records.`);
     l();
   }
@@ -437,15 +492,7 @@ class PictureIndexingService {
 
     // If no filters are applied, return all folders
     if (whereConditions.length === 0) {
-      const query = `
-        SELECT 
-          p.album_key,
-          p.album_name,
-          COUNT(*) as match_count
-        FROM pictures p
-        GROUP BY p.album_key, p.album_name
-        ORDER BY p.album_name ASC
-      `;
+      const query = `SELECT p.album_key,p.album_name,COUNT(*) as match_count FROM pictures p GROUP BY p.album_key, p.album_name ORDER BY p.album_name DESC`;
 
       try {
         const stmt = this.db.prepare(query);
@@ -469,24 +516,14 @@ class PictureIndexingService {
     }
 
     // Build the main query with filters
-    let query = `
-      SELECT 
-        p.album_key,
-        p.album_name,
-        COUNT(*) as match_count
-      FROM pictures p
-    `;
+    let query = `SELECT p.album_key,p.album_name,COUNT(*) as match_count FROM pictures p `;
 
     // Add FTS join only if text search is used
     if (filters.text && filters.text.trim().length > 0) {
-      query += ` JOIN pictures_fts fts ON p.id = fts.rowid`;
+      query += `JOIN pictures_fts fts ON p.id = fts.rowid `;
     }
 
-    query += `
-      WHERE ${whereConditions.join(' AND ')}
-      GROUP BY p.album_key, p.album_name
-      ORDER BY match_count DESC, p.album_name ASC
-    `;
+    query += `WHERE ${whereConditions.join(' AND ')} GROUP BY p.album_key, p.album_name ORDER BY p.album_name DESC `;
 
     try {
       const stmt = this.db.prepare(query);
@@ -775,7 +812,7 @@ class PictureIndexingService {
 
       const result = updateStmt.run(
         persons, starCount, geoPOI, photostar, textContent, caption, entryType,
-        entry.album.key, entry.name
+        entry.album.key || '', entry.name || ''
       );
 
       if (result.changes > 0) {
@@ -790,7 +827,7 @@ class PictureIndexingService {
 
         ftsUpdateStmt.run(
           persons, textContent, caption,
-          entry.album.key, entry.name
+          entry.album.key || '', entry.name || ''
         );
 
         debugLogger(`Updated entry ${entry.name} in database`);
@@ -800,6 +837,46 @@ class PictureIndexingService {
     } catch (error) {
       debugLogger(`Error updating entry ${entry.name}:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Rebuild the FTS index to fix orphaned entries
+   */
+  rebuildFTSIndex(): void {
+    debugLogger("Rebuilding FTS index to fix orphaned entries...");
+    try {
+      this.db.exec(`INSERT INTO pictures_fts(pictures_fts) VALUES('rebuild');`);
+      debugLogger("FTS index rebuilt successfully");
+    } catch (error) {
+      debugLogger("Error rebuilding FTS index:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check for orphaned FTS entries and fix them
+   */
+  checkAndFixFTSIntegrity(): void {
+    debugLogger("Checking FTS integrity...");
+
+    try {
+      // Count total pictures vs FTS entries
+      const pictureCount = this.db.prepare("SELECT COUNT(*) as count FROM pictures").get() as { count: number };
+      const ftsCount = this.db.prepare("SELECT COUNT(*) as count FROM pictures_fts").get() as { count: number };
+
+      debugLogger(`Pictures: ${pictureCount.count}, FTS entries: ${ftsCount.count}`);
+
+      if (pictureCount.count !== ftsCount.count) {
+        debugLogger("FTS index is out of sync, rebuilding...");
+        this.rebuildFTSIndex();
+      } else {
+        debugLogger("FTS index appears to be in sync");
+      }
+    } catch (error) {
+      debugLogger("Error checking FTS integrity:", error);
+      // If there are orphaned entries, rebuild will fix them
+      this.rebuildFTSIndex();
     }
   }
 
@@ -823,10 +900,40 @@ export function getIndexingService(): PictureIndexingService {
 
 export async function startPictureIndexing(): Promise<void> {
   const service = getIndexingService();
-  await service.indexAllPictures();
+  
+  // Set up event-driven indexing instead of batch processing
+  setupEventDrivenIndexing(service);
 
   // Set up event listener for picasa entry updates
   setupPicasaEntryUpdateListener(service);
+}
+
+/**
+ * Set up event-driven indexing that processes files as they are found
+ */
+function setupEventDrivenIndexing(service: PictureIndexingService): void {
+  debugLogger("Setting up event-driven indexing");
+
+  // Listen for files found during walk
+  fileFoundEventEmitter.on("fileFound", async (event) => {
+    try {
+      debugLogger(`Processing ${event.entries.length} files from album ${event.album.name}`);
+      
+      // Process each entry individually
+      for (const entry of event.entries) {
+        await waitUntilIdle();
+        try {
+          await service.indexPicture(entry);
+        } catch (error) {
+          debugLogger(`Error indexing ${entry.name}:`, error);
+        }
+      }
+    } catch (error) {
+      debugLogger("Error processing file found event:", error);
+    }
+  });
+
+  debugLogger("Event-driven indexing set up successfully");
 }
 
 export async function indexPicture(entry: AlbumEntry): Promise<void> {
@@ -894,4 +1001,14 @@ export function getRequiredDatabaseVersion(): number {
 export function getAllFolders(): AlbumWithData[] {
   const service = getIndexingService();
   return service.getAllFolders();
+}
+
+export function rebuildFTSIndex(): void {
+  const service = getIndexingService();
+  return service.rebuildFTSIndex();
+}
+
+export function checkFTSIntegrity(): void {
+  const service = getIndexingService();
+  return service.checkAndFixFTSIntegrity();
 }

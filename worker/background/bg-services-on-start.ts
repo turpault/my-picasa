@@ -4,8 +4,11 @@ import { buildThumbs } from "./bg-thumbgen";
 import { startPictureIndexing } from "./bg-indexing";
 
 export async function startBackgroundTasksOnStart() {
-  await buildFavoriteFolder();
-  await populateExifData();
-  await buildThumbs();
-  await startPictureIndexing();
+  await Promise.all([
+    startPictureIndexing(),
+    buildFavoriteFolder(),
+    populateExifData(),
+    buildThumbs(),
+  ]);
+
 }

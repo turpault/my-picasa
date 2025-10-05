@@ -13,6 +13,7 @@ import {
 } from "../shared/lib/utils";
 import {
   Album,
+  AlbumEntry,
   AlbumKind,
   AlbumWithData,
   Filters,
@@ -22,7 +23,7 @@ import {
   assetsInFolderAlbum,
   queueNotification,
 } from "./rpc/albumTypes/fileAndFolders";
-import { mediaCount } from "./rpc/rpcFunctions/albumUtils";
+import { media, mediaCount } from "./rpc/rpcFunctions/albumUtils";
 import {
   albumentriesInFilter,
   getShortcuts,
@@ -43,7 +44,20 @@ export type AlbumChangeEvent = {
   updated: AlbumWithData;
 };
 
+export type FileFoundEvent = {
+  fileFound: {
+    album: Album;
+    entries: AlbumEntry[];
+  };
+};
+
+export type AlbumFoundEvent = {
+  albumFound: AlbumWithData;
+};
+
 export const albumEventEmitter = buildEmitter<AlbumChangeEvent>();
+export const fileFoundEventEmitter = buildEmitter<FileFoundEvent>();
+export const albumFoundEventEmitter = buildEmitter<AlbumFoundEvent>();
 
 export async function updateLastWalkLoop() {
   let iteration = 0;
@@ -180,6 +194,7 @@ export async function addOrRefreshOrDeleteAlbum(
           album: updated,
         });
         albumEventEmitter.emit("added", updated);
+        albumFoundEventEmitter.emit("albumFound", updated);
         lastWalk.push(updated);
       } else {
         if (options !== "SkipCheckInfo") {
@@ -231,6 +246,12 @@ async function walk(
   }
 
   if (m.entries.length > 0) {
+    // Emit file found event for immediate processing
+    fileFoundEventEmitter.emit("fileFound", {
+      album,
+      entries: m.entries,
+    });
+    
     cb(album);
   }
 }

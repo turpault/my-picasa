@@ -44,7 +44,7 @@
     "postbuild": "electron-packager . --osx-sign.identity 'Jocelyn Turpault (B9Y23YHJ74)' --icon resources/picisa.icns --app-version 1.0.0 --appname Picisa --prune --no-deref-symlinks --overwrite --ignore='\\.d$|\\.ts$|\\.log$|\\.map$|^/tools|^/client|^/deployed|^/worker|^/shared|^/server|^/public|^/resources|^/modeles|^/custom-typings' && electron-installer-dmg picisa-darwin-x64/picisa.app picisa --overwrite",
     "native-filters": "cd server/imageOperations/native-filters ; npm run configure ; npm run build",
     "prestart": "npm run native-filters",
-    "start": "PICISA_PICTURE_FOLDER=/Volumes/1TB\\ USB/Photos run-p start:*",
+    "start": "DEBUG=app:* PICISA_PICTURE_FOLDER=/Volumes/1TB\\ USB/Photos run-p start:*",
     "start:webpack": "webpack --watch --progress --mode development",
     "start:server": "nodemon -e ts --watch ./shared  --watch ./server -x \"ts-node -P tsconfig-server.json server/index.ts\"",
     "start-worker": "PICISA_PICTURE_FOLDER=/Volumes/1TB\\ USB/Photos ts-node -P tsconfig-server.json server/worker.ts",
