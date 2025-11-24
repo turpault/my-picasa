@@ -69,28 +69,46 @@ export async function undo(id: string) {
 
 export async function undoList(): Promise<UndoStep[]> {
   if ((await fileExists(undoFile)) === false) return [];
-  return new Promise<UndoStep[]>(async (resolve) => {
+  return new Promise<UndoStep[]>(async (resolve, reject) => {
     const readUndo = createReadStream(undoFile, { encoding: "utf-8" });
     const undoneOperations = (
       await readFile(undoneFile, { encoding: "utf-8" }).catch((e) => "")
     ).split("\n");
     const res: UndoStep[] = [];
     const reader = createInterface(readUndo);
+    
     reader.on("line", (line) => {
-      const op = JSON.parse(line);
-      if (undoneOperations.includes(op.uuid)) {
-        return;
+      try {
+        const op = JSON.parse(line);
+        if (undoneOperations.includes(op.uuid)) {
+          return;
+        }
+        res.push({
+          description: op.description as string,
+          timestamp: (op.timestamp as number) || 0,
+          uuid: op.uuid as string,
+          operation: op.operation as string,
+          payload: op.payload as object,
+        });
+      } catch (e) {
+        // Skip invalid JSON lines
+        console.error(`Error parsing undo entry: ${e}`);
       }
-      res.push({
-        description: op.description as string,
-        timestamp: (op.timestamp as number) || 0,
-        uuid: op.uuid as string,
-        operation: op.operation as string,
-        payload: op.payload as object,
-      });
     });
+    
     reader.on("close", () => {
+      readUndo.destroy(); // Explicitly close the stream
       resolve(res.slice(-10));
+    });
+    
+    reader.on("error", (error) => {
+      readUndo.destroy();
+      reject(error);
+    });
+    
+    readUndo.on("error", (error) => {
+      reader.close();
+      reject(error);
     });
   });
 }

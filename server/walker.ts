@@ -251,7 +251,7 @@ async function walk(
       album,
       entries: m.entries,
     });
-    
+
     cb(album);
   }
 }

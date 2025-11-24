@@ -97,7 +97,7 @@ export function entryRelativePath(entry: AlbumEntry): string {
 
 export function addImageInfo(
   image: Buffer,
-  value: { softwareInfo: string; imageDescription: string },
+  value: { softwareInfo: string; imageDescription: string, dateTaken?: Date },
 ): Buffer {
   const imageStr = image.toString("binary");
   const exif = load(imageStr);
@@ -108,6 +108,13 @@ export function addImageInfo(
       `${value.softwareInfo}: ${value.imageDescription}`,
     ),
   };
+  if (value.dateTaken) {
+    exif["Exif"] = {
+      ...exif["Exif"],
+      [TagValues.ExifIFD.DateTimeOriginal]: value.dateTaken.toISOString(),
+      [TagValues.ExifIFD.DateTimeDigitized]: value.dateTaken.toISOString(),
+    };
+  }
   var exifStr = dump(exif);
   return Buffer.from(insert(exifStr, imageStr), "binary");
 }

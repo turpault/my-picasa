@@ -99,56 +99,6 @@ class PictureIndexingService {
     debugLogger(`Migrating database from version ${fromVersion} to ${DATABASE_VERSION}`);
 
     try {
-      if (fromVersion < 5) {
-        // Add unique constraint to prevent duplicate entries
-        debugLogger("Adding unique constraint on (album_key, entry_name)");
-        this.db.exec(`
-          CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_picture ON pictures(album_key, entry_name);
-        `);
-      }
-
-      if (fromVersion < 6) {
-        // Recreate FTS table without album_key column
-        debugLogger("Recreating FTS table without album_key");
-        this.db.exec(`
-          DROP TABLE IF EXISTS pictures_fts;
-          CREATE VIRTUAL TABLE pictures_fts USING fts5(
-            album_name,
-            entry_name,
-            persons,
-            text_content,
-            caption,
-            content='pictures',
-            content_rowid='id',
-            tokenize="trigram remove_diacritics 1");
-          );
-        `);
-        debugLogger("FTS table recreated - re-indexing will be needed");
-      }
-
-      if (fromVersion < 7) {
-        // Add triggers to automatically keep FTS in sync
-        debugLogger("Adding FTS sync triggers");
-        this.db.exec(`
-          CREATE TRIGGER IF NOT EXISTS pictures_fts_insert AFTER INSERT ON pictures BEGIN
-            INSERT INTO pictures_fts(rowid, album_name, entry_name, persons, text_content, caption)
-            VALUES (new.id, new.album_name, new.entry_name, new.persons, new.text_content, new.caption);
-          END;
-
-          CREATE TRIGGER IF NOT EXISTS pictures_fts_delete AFTER DELETE ON pictures BEGIN
-            INSERT INTO pictures_fts(pictures_fts, rowid, album_name, entry_name, persons, text_content, caption)
-            VALUES('delete', old.id, old.album_name, old.entry_name, old.persons, old.text_content, old.caption);
-          END;
-
-          CREATE TRIGGER IF NOT EXISTS pictures_fts_update AFTER UPDATE ON pictures BEGIN
-            INSERT INTO pictures_fts(pictures_fts, rowid, album_name, entry_name, persons, text_content, caption)
-            VALUES('delete', old.id, old.album_name, old.entry_name, old.persons, old.text_content, old.caption);
-            INSERT INTO pictures_fts(rowid, album_name, entry_name, persons, text_content, caption)
-            VALUES (new.id, new.album_name, new.entry_name, new.persons, new.text_content, new.caption);
-          END;
-        `);
-        debugLogger("FTS sync triggers created");
-      }
 
       // Update version
       this.db.exec(`UPDATE db_version SET version = ${DATABASE_VERSION} WHERE version = ${fromVersion}`);
@@ -900,7 +850,7 @@ export function getIndexingService(): PictureIndexingService {
 
 export async function startPictureIndexing(): Promise<void> {
   const service = getIndexingService();
-  
+
   // Set up event-driven indexing instead of batch processing
   setupEventDrivenIndexing(service);
 
@@ -918,7 +868,7 @@ function setupEventDrivenIndexing(service: PictureIndexingService): void {
   fileFoundEventEmitter.on("fileFound", async (event) => {
     try {
       debugLogger(`Processing ${event.entries.length} files from album ${event.album.name}`);
-      
+
       // Process each entry individually
       for (const entry of event.entries) {
         await waitUntilIdle();

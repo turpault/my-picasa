@@ -5,14 +5,16 @@ import { env } from "process";
 export const realImagesRoot = "/Volumes/Photos/Photos";
 export const adminRoot = "/Volumes/Photos";
 export const imagesRoot = process.env.PICISA_PICTURE_FOLDER || realImagesRoot;
-export const facesFolder = join(imagesRoot, "faces");
-export const favoritesFolder = join(imagesRoot, "favorites");
-export const exportsFolder = join(imagesRoot, "exports");
-export const projectFolder = join(imagesRoot, "projects");
+export const facesFolder = join(imagesRoot, ".faces");
+export const favoritesFolder = join(imagesRoot, ".favorites");
+export const exportsFolder = join(imagesRoot, ".exports");
+export const iCloudPhotosFolder = join(imagesRoot, ".icloud-photos");
+export const projectFolder = join(imagesRoot, ".projects");
 export const bugsFolder = join(adminRoot, ".bugs");
 export const rootPath = join(__dirname, "..", "..");
 
 export const specialFolders = [
+  iCloudPhotosFolder,
   facesFolder,
   favoritesFolder,
   projectFolder,

@@ -1,20 +1,18 @@
 import { mkdir } from "fs/promises";
-import { join } from "path";
+import { exportToFolder } from "../../server/imageOperations/export";
 import { media } from "../../server/rpc/rpcFunctions/albumUtils";
-import { exportFavorite } from "../../server/rpc/rpcFunctions/favorites";
+import { getPicasaEntry } from "../../server/rpc/rpcFunctions/picasa-ini";
 import { waitUntilIdle } from "../../server/utils/busy";
-import { imagesRoot } from "../../server/utils/constants";
+import { favoritesFolder } from "../../server/utils/constants";
 import { fileExists } from "../../server/utils/serverUtils";
 import { folders, waitUntilWalk } from "../../server/walker";
 import { Queue } from "../../shared/lib/queue";
 
 export async function buildFavoriteFolder() {
-  const favoritesFolder = join(imagesRoot, "favorites");
   if (!(await fileExists(favoritesFolder))) {
     await mkdir(favoritesFolder, { recursive: true });
   }
   await waitUntilWalk();
-
   await exportAllMissing();
 }
 
@@ -26,9 +24,13 @@ async function exportAllMissing() {
     q.add(async () => {
       const m = await media(album);
       for (const entry of m.entries) {
+        const withMetadata = await getPicasaEntry(entry);
+        if (!withMetadata.star) {
+          continue;
+        }
         q.add(async () => {
           await waitUntilIdle();
-          exportFavorite(entry);
+          exportToFolder(entry, favoritesFolder, { label: true, compress: true });
         });
       }
     });

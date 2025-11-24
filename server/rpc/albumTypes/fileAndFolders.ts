@@ -45,9 +45,13 @@ export async function assetsInFolderAlbum(
         if (isPicture(entry) || isVideo(entry)) {
           entries.push(entry);
         } else {
-          const s = await stat(join(imagesRoot, pathForAlbum(album), i));
-          if (s.isDirectory()) {
-            folders.push(i);
+          try {
+            const s = await stat(join(imagesRoot, pathForAlbum(album), i));
+            if (s.isDirectory()) {
+              folders.push(i);
+            }
+          } catch (e) {
+            console.error(`Error while statting file ${i}: ${e}`);
           }
         }
       }),

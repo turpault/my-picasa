@@ -1,82 +1,125 @@
-import { writeFile, stat, copyFile } from "fs/promises";
+import exifr from "exifr";
+import { copyFile, utimes } from "fs/promises";
 import { extname, join } from "path";
+import { RESIZE_ON_EXPORT_SIZE } from "../../shared/lib/shared-constants";
+import { isPicture, isVideo, namify } from "../../shared/lib/utils";
+import { AlbumEntry } from "../../shared/types/types";
+import { getPicasaEntry, readAlbumIni } from "../rpc/rpcFunctions/picasa-ini";
+import { entryFilePath, fileExists, mediaName, safeWriteFile } from "../utils/serverUtils";
+import { addImageInfo, updateImageDate } from "./info";
 import {
-  encode,
   buildContext,
+  buildImage,
+  commit,
+  destroyContext,
+  encode,
   setOptions,
   transform,
-  destroyContext,
-  commit,
 } from "./sharp-processor";
-import { AlbumEntry } from "../../shared/types/types";
-import { readAlbumIni } from "../rpc/rpcFunctions/picasa-ini";
-import { isPicture, isVideo, namify } from "../../shared/lib/utils";
-import { entryFilePath, safeWriteFile } from "../utils/serverUtils";
 
-export async function exportToFolder(entry: AlbumEntry, targetFolder: string): Promise<string> {
-  const picasa = await readAlbumIni(entry.album);
-  const options = picasa[entry.name] || {};
-  const targetFilename = namify(entry.album.name + "_" + entry.name);
+
+const originDate = new Date(1900, 0, 1);
+function albumNameToDate(name: string): Date {
+  let [y, m, d] = name
+    .split(" ")[0]
+    .split("-")
+    .map((v) => parseInt(v));
+  if (y < 1900) {
+    y = 1900;
+  }
+  if (y > 3000 || y < 1800 || Number.isNaN(y)) {
+    // No date information, return an old date
+    return originDate;
+  }
+
+  // Month are 1-based in the input string, but 0-based in the Date object
+  if (m === undefined || m < 1 || m > 12 || Number.isNaN(m)) {
+    m = 0;
+  } else {
+    m--;
+  }
+  // Day are 1-based in the input string, but 0-based in the Date object
+  if (d === undefined || d < 1 || d > 31 || Number.isNaN(d)) {
+    d = 1;
+  } else {
+    d--;
+  }
+  return new Date(y, m, d, 12);
+}
+
+
+export async function exportToFolder(entry: AlbumEntry, targetFolder: string, exportOptions?: { label?: boolean, filename?: string, compress?: boolean, filters?: string, overwrite?: boolean }): Promise<string> {
+  const targetFilename = exportOptions?.filename || namify(entry.album.name + "_" + entry.name);
+  const label = exportOptions?.label || false;
+  const compress = exportOptions?.compress || false;
+  const filters = exportOptions?.filters || "";
 
   if (isVideo(entry)) {
     // Straight copy
     const ext = extname(entry.name);
     const targetFile = join(targetFolder, targetFilename + ext);
-    await copyFile(entryFilePath(entry), targetFile);
+    const shouldOverwrite = exportOptions?.overwrite || false;
+    const fileExistsCheck = shouldOverwrite ? Promise.resolve(false) : fileExists(targetFile);
+    
+    if (!(await fileExistsCheck)) {
+      await copyFile(entryFilePath(entry), targetFile);
+      const albumDate = albumNameToDate(entry.album.name);
+      await utimes(targetFile, albumDate, albumDate);
+    }
+
     return targetFile;
   } else if (isPicture(entry)) {
-    const context = await buildContext(entry);
+    const targetFile = join(targetFolder, targetFilename + '.jpg');
+    const shouldOverwrite = exportOptions?.overwrite || false;
+    const fileExistsCheck = shouldOverwrite ? Promise.resolve(false) : fileExists(targetFile);
+    
+    if (!(await fileExistsCheck)) {
+      const imageLabel = mediaName(entry);
+      const [entryMeta] = await Promise.all([getPicasaEntry(entry)]);
+      const transform = entryMeta.filters || "";
+      // Build transformation string with proper conditional concatenation
+      const parts: string[] = [];
+      if (compress) {
+        parts.push(`compress=1,${RESIZE_ON_EXPORT_SIZE},;`);
+      }
+      if (transform) {
+        parts.push(transform);
+      }
+      if (filters) {
+        parts.push(`;${filters}`);
+      }
+      if (label) {
+        parts.push(`;label=1,${encodeURIComponent(imageLabel)},25,south`);
+      }
+      const transformations = parts.join("");
 
-    await setOptions(context, options);
-
-    if (options.filters) {
-      await transform(context, options.filters!);
+      const res = await buildImage(
+        entry,
+        entryMeta,
+        transformations,
+        [],
+      );
+      let dateTimeOriginal = entryMeta.dateTaken ? new Date(entryMeta.dateTaken) : albumNameToDate(entry.album.name);
+      if (dateTimeOriginal < originDate) {
+        dateTimeOriginal = originDate;
+      }
+      const imageData = addImageInfo(res.data, {
+        softwareInfo: "PICISA",
+        imageDescription: entry.album.name,
+        dateTaken: dateTimeOriginal,
+      });
+      
+      // Parallelize file write and utimes operations
+      await Promise.all([
+        safeWriteFile(targetFile, imageData),
+        utimes(targetFile, dateTimeOriginal, dateTimeOriginal).catch((e) => {
+          console.error(`Failed to update file times for ${targetFile}:`, e);
+        }),
+      ]);
     }
-    await commit(context);
-    const res = (await encode(context)).data as Buffer;
-    await destroyContext(context);
-    let targetFileRoot = join(targetFolder, targetFilename);
-
-    let idx = 0;
-    let targetFile = targetFileRoot + ".jpg";
-    while (
-      await stat(targetFile)
-        .then(() => {
-          idx++;
-          targetFile = targetFileRoot + "-" + idx.toString() + ".jpg";
-          return true;
-        })
-        .catch(() => {
-          return false;
-        })
-    ) { }
-    await safeWriteFile(targetFile, res);
     return targetFile;
   }
 
   // This should never be reached, but TypeScript requires a return statement
   throw new Error(`Unsupported file type for entry: ${entry.name}`);
-}
-
-export async function exportToSpecificFile(entry: AlbumEntry, targetFilePath: string) {
-  const picasa = await readAlbumIni(entry.album);
-  const options = picasa[entry.name] || {};
-
-  if (isVideo(entry)) {
-    // Straight copy
-    await copyFile(entryFilePath(entry), targetFilePath);
-  } else if (isPicture(entry)) {
-    const context = await buildContext(entry);
-
-    await setOptions(context, options);
-
-    if (options.filters) {
-      await transform(context, options.filters!);
-    }
-    await commit(context);
-    const res = (await encode(context)).data as Buffer;
-    await destroyContext(context);
-
-    await safeWriteFile(targetFilePath, res);
-  }
 }

@@ -94,7 +94,6 @@ function setupRoutes(server: FastifyInstance) {
       return {};
     }
     const animated = (request.query as any)["animated"] !== undefined;
-    3;
 
     const r = await albumThumbnail(album, resolution, animated);
     reply.type(r.mime);

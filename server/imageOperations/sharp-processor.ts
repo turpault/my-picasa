@@ -75,7 +75,7 @@ export function dimensionsFromFileBuffer(file: Buffer): {
   height: number;
 } {
   try {
-    const d = imageSize(file);
+    const d = imageSize(file as Uint8Array);
     return { width: d!.width!, height: d!.height! };
   } catch (e) {
     console.error(`An error occurred while getting dimensions of an image`, e);
@@ -155,13 +155,13 @@ export async function buildRawContext(entry: AlbumEntry) {
   let extraMetadata: CreateRaw | undefined = undefined;
   if (isHEICFileType(getMimeFromExtension(extname(entry.name)))) {
 
-    const decoded = await decode({ buffer: fileData });
+    const decoded = await decode({ buffer: fileData.buffer as ArrayBufferLike });
     extraMetadata = {
       width: decoded.width,
       height: decoded.height,
       channels: 4,
     }
-    fileData = Buffer.from(decoded.data);
+    fileData = Buffer.from(decoded.data.buffer, decoded.data.byteOffset, decoded.data.byteLength);
   }
 
   try {
@@ -1105,6 +1105,7 @@ export async function setOptions(
 export async function destroyContext(context: string): Promise<void> {
   debugInfo("Delete context", context);
   contexts.delete(context);
+  contextOptions.delete(context);
 }
 
 const emptyPng = Buffer.from(
