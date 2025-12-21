@@ -27,7 +27,7 @@ import {
   getPhotoFavorites,
 } from "../../rpc/rpcFunctions/osascripts";
 import {
-  readAlbumIni,
+  getPicasaEntry,
   updatePicasaEntry,
 } from "../../rpc/rpcFunctions/picasa-ini";
 import { PhotoLibraryPath, favoritesFolder, imagesRoot } from "../../utils/constants";
@@ -95,7 +95,7 @@ async function deleteFavorite(entry: AlbumEntry): Promise<void> {
   }
 }
 
-export async function exportFavorite(entry: AlbumEntry): Promise<void> {
+async function exportFavorite(entry: AlbumEntry): Promise<void> {
   await exportToFolder(entry, favoritesFolder, { label: true, resize: RESIZE_ON_EXPORT_SIZE });
 }
 
@@ -120,14 +120,17 @@ export async function syncFavoritesFromPhotoApp(
 
         for (const entry of m.entries) {
           try {
-            const metadata = await imageInfo(entry);
+            const [imageMetadata, picasaMetadata] = await Promise.all([
+              imageInfo(entry),
+              getPicasaEntry(entry),
+            ]);
             allPhotos.push({
-              metadata,
+              metadata: imageMetadata,
               name: removeExtension(entry.name).toLowerCase(),
-              dateTaken: new Date(metadata.raw.dateTaken!).getTime(),
+              dateTaken: new Date(picasaMetadata.dateTaken!).getTime(),
             });
-            if (metadata.raw.photostar) {
-              alreadyStarred.push(metadata);
+            if (picasaMetadata.photostar) {
+              alreadyStarred.push(imageMetadata);
             }
           } catch (e) {
             console.error(`Error while getting image info for ${entry.name}`);

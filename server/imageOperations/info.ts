@@ -11,8 +11,6 @@ import {
 import { exifDataAndStats } from "../rpc/rpcFunctions/exif";
 import {
   getPicasaEntry,
-  readAlbumIni,
-  updatePicasaEntries,
   updatePicasaEntry,
 } from "../rpc/rpcFunctions/picasa-ini";
 import { pathForAlbumEntry, safeWriteFile } from "../utils/serverUtils";
@@ -30,9 +28,9 @@ export async function imageInfo(
   metadata?: AlbumEntryMetaData,
 ): Promise<AlbumEntryWithMetadata> {
   metadata ||= await getPicasaEntry(entry);
+  const options = metadata;
   const res: AlbumEntryWithMetadata = {
     ...entry,
-    raw: metadata,
     meta: { transform: "", type: Filetype.Picture, width: 0, height: 0 },
   };
   if (isVideo(entry)) {
@@ -52,9 +50,9 @@ export async function imageInfo(
         dateTaken = dateTaken.toISOString();
       }
 
-      if (dateTaken && dateTaken !== res.raw.dateTaken) {
+      if (dateTaken && dateTaken !== metadata.dateTaken) {
         updatePicasaEntry(entry, "dateTaken", dateTaken);
-        res.raw.dateTaken = dateTaken;
+        metadata.dateTaken = dateTaken;
       }
     }
     if (
@@ -74,10 +72,10 @@ export async function imageInfo(
         const encoded = await encode(context);
         res.meta.width = encoded.width;
         res.meta.height = encoded.height;
-        updatePicasaEntries(entry, {
-          dimensions: `${encoded.width}x${encoded.height}`,
-          dimensionsFromFilter: options.filters,
-        });
+        await Promise.all([
+          updatePicasaEntry(entry, "dimensions", `${encoded.width}x${encoded.height}`),
+          updatePicasaEntry(entry, "dimensionsFromFilter", options.filters),
+        ]);
       } catch (e) {
         console.error(
           "Error getting image info for file",

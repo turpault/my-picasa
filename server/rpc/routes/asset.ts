@@ -10,7 +10,7 @@ import {
   setOptions,
   transform,
 } from "../../imageOperations/sharp-processor";
-import { readAlbumIni } from "../rpcFunctions/picasa-ini";
+import { getPicasaEntry } from "../rpcFunctions/picasa-ini";
 
 export async function asset(entry: AlbumEntry): Promise<string> {
   if (isVideo(entry)) {
@@ -19,8 +19,7 @@ export async function asset(entry: AlbumEntry): Promise<string> {
     return path;
   }
 
-  const picasa = await readAlbumIni(entry.album);
-  const options = picasa[entry.name] || {};
+  const options = await getPicasaEntry(entry);
 
   const context = await buildContext(entry);
   if (options) {

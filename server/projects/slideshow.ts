@@ -13,7 +13,7 @@ import {
   transform,
 } from "../imageOperations/sharp-processor";
 import { getProject } from "../rpc/albumTypes/projects";
-import { readAlbumIni } from "../rpc/rpcFunctions/picasa-ini";
+import { getPicasaEntry } from "../rpc/rpcFunctions/picasa-ini";
 import { imagesRoot } from "../utils/constants";
 import {
   entryFilePath,
@@ -43,7 +43,7 @@ export async function generateSlideshowFile(
     if (page.type === "image") {
       const entry = page.entry!;
       if (isPicture(entry)) {
-        const entryMeta = (await readAlbumIni(entry.album))[entry.name];
+        const entryMeta = await getPicasaEntry(entry);
         let filters = entryMeta.filters || "";
         if (page.text && page.border !== "polaroid")
           filters += `;label=1,${encodeURIComponent(page.text!)},${textSize},s`;
@@ -213,8 +213,7 @@ export async function generateSlideshowFile(
 
   const targetFile =
     namify(
-      `${
-        project.name
+      `${project.name
       } ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
     ) + ".mp4";
 

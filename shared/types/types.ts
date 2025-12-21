@@ -163,6 +163,62 @@ export enum JOBNAMES {
   TOPAZ_PHOTO_AI = "Topaz Photo AI",
 }
 
+export enum ExifTag {
+  ApertureValue = "ApertureValue",
+  BrightnessValue = "BrightnessValue",
+  ColorSpace = "ColorSpace",
+  ComponentsConfiguration = "ComponentsConfiguration",
+  CreateDate = "CreateDate",
+  DateTimeOriginal = "DateTimeOriginal",
+  DigitalZoomRatio = "DigitalZoomRatio",
+  ExifImageHeight = "ExifImageHeight",
+  ExifImageWidth = "ExifImageWidth",
+  ExifVersion = "ExifVersion",
+  ExposureMode = "ExposureMode",
+  ExposureProgram = "ExposureProgram",
+  ExposureTime = "ExposureTime",
+  FileSource = "FileSource",
+  Flash = "Flash",
+  FlashpixVersion = "FlashpixVersion",
+  FNumber = "FNumber",
+  FocalLength = "FocalLength",
+  GPSAltitude = "GPSAltitude",
+  GPSAltitudeRef = "GPSAltitudeRef",
+  GPSDateStamp = "GPSDateStamp",
+  GPSImgDirection = "GPSImgDirection",
+  GPSImgDirectionRef = "GPSImgDirectionRef",
+  GPSLatitude = "GPSLatitude",
+  GPSLatitudeRef = "GPSLatitudeRef",
+  GPSLongitude = "GPSLongitude",
+  GPSLongitudeRef = "GPSLongitudeRef",
+  GPSTimeStamp = "GPSTimeStamp",
+  ImageUniqueID = "ImageUniqueID",
+  ISO = "ISO",
+  latitude = "latitude",
+  LightSource = "LightSource",
+  longitude = "longitude",
+  Make = "Make",
+  MeteringMode = "MeteringMode",
+  Model = "Model",
+  ModifyDate = "ModifyDate",
+  Orientation = "Orientation",
+  ResolutionUnit = "ResolutionUnit",
+  SceneCaptureType = "SceneCaptureType",
+  SceneType = "SceneType",
+  SensingMethod = "SensingMethod",
+  ShutterSpeedValue = "ShutterSpeedValue",
+  Software = "Software",
+  SubjectArea = "SubjectArea",
+  SubSecTimeDigitized = "SubSecTimeDigitized",
+  SubSecTimeOriginal = "SubSecTimeOriginal",
+  WhiteBalance = "WhiteBalance",
+  XResolution = "XResolution",
+  YResolution = "YResolution",
+}
+export type ExifData = {
+  [key in ExifTag]: any;
+};
+
 export const ThumbnailSizeVals = ["th-small", "th-medium", "th-large"] as const;
 export type ThumbnailSize = (typeof ThumbnailSizeVals)[number];
 export type ImageEncoding = "base64" | "base64url" | "base64urlInfo" | "Buffer";
@@ -273,7 +329,8 @@ export type AlbumEntryWithMetadata = AlbumEntry & {
 };
 
 export type AlbumEntryWithMetadataAndExif = AlbumEntry & {
-  raw: AlbumEntryMetaData;
+  metadata: AlbumEntryMetaData;
+  exif: ExifData;
 };
 
 export type AlbumEntryPicasa = AlbumEntry & {

@@ -1,6 +1,8 @@
 import { Stats } from "fs";
 import { stat } from "fs/promises";
 import { join, relative } from "path";
+import { isMainThread, parentPort } from "worker_threads";
+import { startWorker as startWorkerThread } from "./worker-manager";
 import { buildEmitter } from "../shared/lib/event";
 import { Queue } from "../shared/lib/queue";
 import {
@@ -8,10 +10,11 @@ import {
   buildReadySemaphore,
   differs,
   setReady,
-  sleep
+  sleep,
 } from "../shared/lib/utils";
 import {
   Album,
+  AlbumChangeEvent,
   AlbumEntry,
   AlbumEntryWithMetadata,
   AlbumKind,
@@ -26,7 +29,7 @@ import {
 import { mediaCount } from "./rpc/rpcFunctions/albumUtils";
 import {
   getShortcuts,
-  readShortcut
+  readShortcut,
 } from "./rpc/rpcFunctions/picasa-ini";
 import { imagesRoot, specialFolders } from "./utils/constants";
 import { pathForAlbum } from "./utils/serverUtils";
@@ -52,7 +55,7 @@ export type AlbumFoundEvent = {
 };
 
 export type ListedMediaEvent = {
-  assetsInFolderAlbum: { album: Album, entries: AlbumEntry[] };
+  assetsInFolderAlbum: { album: Album; entries: AlbumEntry[] };
 };
 export type AlbumEntryChangedEvent = {
   albumEntryChanged: AlbumEntryWithMetadata;
@@ -64,7 +67,71 @@ export const albumFoundEventEmitter = buildEmitter<AlbumFoundEvent>();
 export const listedMediaEventEmitter = buildEmitter<ListedMediaEvent>();
 export const albumEntryEventEmitter = buildEmitter<AlbumEntryChangedEvent>();
 
+export function startWorker() {
+  if (!isMainThread) return;
+  
+  console.info("Initializing worker listeners...");
+  const worker = startWorkerThread();
+  
+  if (!worker) return;
+
+  worker.on("message", (msg) => {
+    if (msg.type === "ready") {
+      setReady(readyLabelKey);
+    } else if (msg.type === "event" && msg.emitter === "albumEventEmitter") {
+      // Update local cache and re-emit
+      const event = msg.data;
+      if (msg.eventType === "added") {
+        const idx = lastWalk.findIndex((a) => a.key === event.key);
+        if (idx === -1) {
+          lastWalk.push(event);
+        } else {
+          lastWalk[idx] = event;
+        }
+        albumEventEmitter.emit("added", event);
+      } else if (msg.eventType === "updated") {
+        const idx = lastWalk.findIndex((a) => a.key === event.key);
+        if (idx !== -1) lastWalk[idx] = event;
+        albumEventEmitter.emit("updated", event);
+      } else if (msg.eventType === "deleted") {
+        const idx = lastWalk.findIndex((a) => a.key === event.key);
+        if (idx !== -1) lastWalk.splice(idx, 1);
+        albumEventEmitter.emit("deleted", event);
+      }
+    } else if (msg.type === "notification") {
+      queueNotification(msg.event);
+    }
+  });
+
+  worker.on("error", (err) => {
+    console.error("Worker error:", err);
+  });
+
+  worker.on("exit", (code) => {
+    if (code !== 0) {
+      console.error(new Error(`Worker stopped with exit code ${code}`));
+    }
+  });
+}
+
+// Forward events from worker
+if (!isMainThread && parentPort) {
+  albumEventEmitter.on("*", (type, event) => {
+    parentPort?.postMessage({
+      type: "event",
+      emitter: "albumEventEmitter",
+      eventType: type,
+      data: event,
+    });
+  });
+}
+
 export async function updateLastWalkLoop() {
+  // If in main thread, do nothing (worker handles it)
+  if (isMainThread) {
+    return;
+  }
+
   let iteration = 0;
   while (true) {
     console.info(`Filesystem scan: iteration ${iteration}`);
@@ -74,10 +141,9 @@ export async function updateLastWalkLoop() {
         addOrRefreshOrDeleteAlbum(
           a,
           "SkipCheckInfo",
-          true /* we know it's added */,
+          true /* we know it's added */
         );
-      }
-      ),
+      })
     );
     await walkQueue.drain();
     const deletedAlbums: AlbumWithData[] = [];
@@ -105,6 +171,9 @@ export async function updateLastWalkLoop() {
     if (iteration === 0) {
       console.info(`Album list retrieved`);
       setReady(readyLabelKey);
+      if (parentPort) {
+        parentPort.postMessage({ type: "ready" });
+      }
     }
     iteration++;
     await sleep(60 * 60); // Wait 60 minutes
@@ -116,6 +185,12 @@ export async function waitUntilWalk() {
 }
 
 export async function refreshAlbumKeys(albums: string[]) {
+  // if (isMainThread && worker) {
+    // TODO: Send message to worker to refresh specific albums?
+    // For now, we rely on local refresh which is fine if shared FS
+    // But better to delegate to worker if consistent state is needed
+  // }
+
   if (!lastWalk) {
     return;
   }
@@ -124,7 +199,7 @@ export async function refreshAlbumKeys(albums: string[]) {
       .map((key) => {
         return lastWalk.find((album) => album.key === key);
       })
-      .map((album) => addOrRefreshOrDeleteAlbum(album)),
+      .map((album) => addOrRefreshOrDeleteAlbum(album))
   );
 }
 
@@ -172,7 +247,7 @@ async function folderAlbumExists(album: Album): Promise<boolean> {
 export async function addOrRefreshOrDeleteAlbum(
   album: Album | undefined,
   options?: "SkipCheckInfo",
-  added?: boolean,
+  added?: boolean
 ) {
   if (!album) {
     return;
@@ -233,7 +308,7 @@ async function walk(
   name: string,
   path: string,
   cb: (a: Album) => Promise<void>,
-  cdEntryCb?: (e: AlbumEntry) => Promise<void>,
+  cdEntryCb?: (e: AlbumEntry) => Promise<void>
 ): Promise<void> {
   // Exclude special folders
   if (specialFolders.includes(path)) {
@@ -249,7 +324,7 @@ async function walk(
   // depth down first
   for (const child of m.folders.sort(alphaSorter()).reverse()) {
     walkQueue.add<Album[]>(() =>
-      walk(child.normalize(), join(path, child), cb),
+      walk(child.normalize(), join(path, child), cb)
     );
   }
 
@@ -274,7 +349,7 @@ export async function folders(filters?: Filters): Promise<AlbumWithData[]> {
     // Complete with shortcuts
     const shortcuts = Object.values(getShortcuts());
     for (const album of matchedAlbums) {
-      const shortcut = shortcuts.find(s => s.key === album.key);
+      const shortcut = shortcuts.find((s) => s.key === album.key);
       if (shortcut) {
         album.shortcut = shortcut.name;
       }

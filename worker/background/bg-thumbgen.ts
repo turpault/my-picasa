@@ -18,10 +18,12 @@ export async function buildThumbs() {
   // For backward compatibility, still wait for walk to complete
   // but thumbnails will be generated as files are found
   await waitUntilWalk();
-  for (const album of await getFolderAlbums()) {
+  const albums = await getFolderAlbums();
+  // Sort albums in reverse order (most recent first)
+  albums.sort((a, b) => b.name.localeCompare(a.name));
+  for (const album of albums) {
     const m = await media(album);
     for (const entry of m.entries) {
-      await imageInfo(entry);
       await Promise.all(
         thumbnailSizes.map(({ size, animated }) =>
           makeThumbnailIfNeeded(entry, size, animated),

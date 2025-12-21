@@ -10,6 +10,7 @@ import {
   Album,
   AlbumEntry,
   AlbumEntryMetaData,
+  AlbumEntryWithMetadataAndExif,
   AlbumKind,
   AlbumWithData,
   Filters,
@@ -34,7 +35,8 @@ import {
   getFaceData,
   readFaceAlbumEntries,
 } from "./faces";
-import { getPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasa-ini";
+import { exifData } from "./exif";
+import { getAlbumMetaData, getPicasaEntries, getPicasaEntry, updatePicasaEntry } from "./picasa-ini";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
   const entries = (await media(entry.album)).entries;
@@ -79,7 +81,6 @@ async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {
 }
 
 export async function sortAlbum(album: Album, order: string): Promise<void> {
-  const i = await readAlbumIni(album);
   const entries = (await media(album)).entries;
 
   switch (order) {
@@ -104,43 +105,26 @@ export async function sortAlbum(album: Album, order: string): Promise<void> {
       break;
     case "date":
       {
-        /*
-        const infos = await Promise.all(
-          entries.map((file) =>
-            exifDataAndStats({ album, name: file.name }).then((exif) => ({
-              exif,
-              entry: { album, name: file.name },
-            }))
-          )
+        const entriesWithDates = await Promise.all(
+          entries.map(async (entry) => ({
+            entry,
+            metadata: await getPicasaEntry(entry),
+          })),
         );
-        */
-        const sorted = entries.sort((e1, e2) => {
+        const sorted = entriesWithDates.sort((e1, e2) => {
           if (
-            i[e1.name] &&
-            i[e2.name] &&
-            i[e1.name].dateTaken !== undefined &&
-            i[e2.name].dateTaken !== undefined
+            e1.metadata.dateTaken !== undefined &&
+            e2.metadata.dateTaken !== undefined
           )
             return (
-              new Date(i[e1.name].dateTaken!).getTime() -
-              new Date(i[e2.name].dateTaken!).getTime()
+              new Date(e1.metadata.dateTaken).getTime() -
+              new Date(e2.metadata.dateTaken).getTime()
             );
           return 0;
         });
+        const sortedEntries = sorted.map((e) => e.entry);
+        await assignRanks(sortedEntries);
 
-        /*const sorted = infos.sort((e1, e2) => {
-          if (e1.exif.tags.DateTime && e2.exif.tags.DateTime)
-            return e1.exif.tags.DateTime - e2.exif.tags.DateTime;
-          if (!e1.exif.tags.DateTime && !e2.exif.tags.DateTime)
-            return (
-              e1.exif.stats.ctime.getTime() - e2.exif.stats.ctime.getTime()
-            );
-          if (!e1.exif.tags.DateTime)
-            return e1.exif.stats.ctime.getTime() - e2.exif.tags.DateTime;
-          return e1.exif.tags.DateTime - e2.exif.stats.ctime.getTime();
-        });*/
-
-        await assignRanks(sorted);
         notifyAlbumOrderUpdated(album);
       }
       break;
@@ -157,8 +141,8 @@ export async function mediaCount(album: Album, filters?: Filters): Promise<{ cou
     const assets = await assetsInFolderAlbum(album);
     return { count: assets.entries.length };
   } else if (album.kind === AlbumKind.FACE) {
-    const ini = await readAlbumIni(album);
-    return { count: Object.keys(ini).length };
+    const entries = await getPicasaEntries(album);
+    return { count: entries.length };
   } else throw new Error(`Unknown kind ${album.kind}`);
 }
 
@@ -205,11 +189,7 @@ export async function media(
       await sortAssetsByRank(entries);
       return { entries };
     }
-    let [picasa, assets] = await Promise.all([
-      readAlbumIni(album),
-      assetsInFolderAlbum(album),
-    ]);
-
+    const assets = await assetsInFolderAlbum(album);
     let entries = assets.entries;
 
     await sortAssetsByRank(entries);
@@ -256,13 +236,13 @@ export async function albumWithData(
 export async function getAlbumMetadata(album: Album) {
   switch (album.kind) {
     case AlbumKind.FOLDER: {
-      const ini = await readAlbumIni(album);
+      const ini = await getAlbumMetaData(album);
       return ini;
     }
     case AlbumKind.PROJECT:
       return {};
     case AlbumKind.FACE: {
-      const ini = await readAlbumIni(album);
+      const ini = await getAlbumMetaData(album);
       await Promise.all(
         Object.keys(ini).map(async (name) => {
           const faceData = await getFaceData({ album, name });
@@ -319,4 +299,22 @@ export async function getSourceEntry(entry: AlbumEntry) {
     default:
       throw new Error(`Unkown kind ${entry.album.kind}`);
   }
+}
+
+export async function albumEntriesWithMetadataAndExif(
+  entries: AlbumEntry[],
+): Promise<AlbumEntryWithMetadataAndExif[]> {
+  return Promise.all(
+    entries.map(async (entry) => {
+      const [metadata, exif] = await Promise.all([
+        getPicasaEntry(entry),
+        exifData(entry),
+      ]);
+      return {
+        ...entry,
+        metadata,
+        exif,
+      };
+    }),
+  );
 }

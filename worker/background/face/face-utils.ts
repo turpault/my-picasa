@@ -1,8 +1,8 @@
 import { mkdir } from "fs/promises";
 import { join } from "path";
 import {
-  readAlbumIni,
-  readContacts,
+  getContactsFromAlbum,
+  getPicasaEntry,
 } from "../../../server/rpc/rpcFunctions/picasa-ini";
 import { getFaceImage } from "../../../server/rpc/rpcFunctions/thumbnail";
 import { facesFolder } from "../../../server/utils/constants";
@@ -53,10 +53,9 @@ export function rectOfReference(feature: ReferenceData) {
 export async function getPicasaIdentifiedReferences(
   entry: AlbumEntry,
 ): Promise<IdentifiedContact[]> {
-  const picasaIni = await readAlbumIni(entry.album);
-
-  const contacts = readContacts(picasaIni);
-  const iniFaces = picasaIni[entry.name]?.faces;
+  const contacts = await getContactsFromAlbum(entry.album);
+  const entryMeta = await getPicasaEntry(entry);
+  const iniFaces = entryMeta.faces;
   if (iniFaces) {
     const facesInEntry = decodeFaces(iniFaces);
     return facesInEntry

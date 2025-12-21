@@ -6,6 +6,8 @@ import { exifData } from "../../server/rpc/rpcFunctions/exif";
 import { getFolderAlbums, waitUntilWalk } from "../../server/walker";
 import debug from "debug";
 import { waitUntilIdle } from "../../server/utils/busy";
+import { isPicture } from "../../shared/lib/utils";
+import { getPicasaEntry } from "../../server/rpc/rpcFunctions/picasa-ini";
 
 const debugLogger = debug("app:bg-exif");
 
@@ -22,9 +24,21 @@ export async function populateExifData() {
         // Yuck folder is gone...
         return;
       }
-      m.entries.map(async (entry) => q.add(() => exifData(entry, false)));
-      await waitUntilIdle();
-    }),
+      m.entries.forEach(async (entry) => {
+        if (isPicture(entry)) {
+          const meta = await getPicasaEntry(entry);
+          if (meta.exif) {
+            return;
+          }
+          q.add(async () => {
+            debugLogger(`exif data for ${entry.name} missing`);
+            await exifData(entry, false);
+            await waitUntilIdle(
+            );
+          });
+        }
+      });
+    })
   );
   const t = setInterval(() => {
     if (q.total() > 0)

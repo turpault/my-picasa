@@ -3,7 +3,7 @@ import { Stats } from "fs";
 import { readFile, stat } from "fs/promises";
 import { lock } from "../../../shared/lib/mutex";
 import { isPicture, isVideo } from "../../../shared/lib/utils";
-import { AlbumEntry } from "../../../shared/types/types";
+import { AlbumEntry, ExifData, ExifTag } from "../../../shared/types/types";
 import { dimensionsFromFileBuffer } from "../../imageOperations/sharp-processor";
 import { entryFilePath } from "../../utils/serverUtils";
 import { getPicasaEntry, updatePicasaEntry } from "./picasa-ini";
@@ -33,64 +33,12 @@ export function toExifDate(isoDate: string) {
   )}`;
 }
 
-const exifTags = Object.fromEntries(
-  [
-    "ApertureValue",
-    "BrightnessValue",
-    "ColorSpace",
-    "ComponentsConfiguration",
-    "CreateDate",
-    "DateTimeOriginal",
-    "DigitalZoomRatio",
-    "DigitalZoomRatio",
-    "ExifImageHeight",
-    "ExifImageWidth",
-    "ExifVersion",
-    "ExposureMode",
-    "ExposureMode",
-    "ExposureProgram",
-    "ExposureTime",
-    "FileSource",
-    "Flash",
-    "FlashpixVersion",
-    "FNumber",
-    "FocalLength",
-    "GPSAltitude",
-    "GPSImgDirection",
-    "GPSImgDirectionRef",
-    "GPSLatitude",
-    "GPSLatitudeRef",
-    "GPSLongitude",
-    "GPSLongitudeRef",
-    "GPSTimeStamp",
-    "ImageUniqueID",
-    "ISO",
-    "latitude",
-    "LightSource",
-    "longitude",
-    "Make",
-    "MeteringMode",
-    "Model",
-    "ModifyDate",
-    "Orientation",
-    "ResolutionUnit",
-    "SceneCaptureType",
-    "SceneType",
-    "SensingMethod",
-    "ShutterSpeedValue",
-    "Software",
-    "SubjectArea",
-    "SubSecTimeDigitized",
-    "SubSecTimeOriginal",
-    "WhiteBalance",
-    "XResolution",
-    "YResolution",
-  ].map((k) => [k, true]),
-);
+
+
 function filterExifTags(tags: any): any {
   const filtered: { [tag: string]: any } = {};
   for (const key in tags) {
-    if (tags[key] && exifTags[key]) {
+    if (tags[key] && (ExifTag as any)[key]) {
       filtered[key] = tags[key];
     } else {
       // console.warn("Tag not included in exif: " + key);
@@ -125,7 +73,7 @@ export async function exifData(
           exif = {};
         });
         const dimensions = dimensionsFromFileBuffer(fileData);
-        const filtered = {
+        const filtered: ExifData = {
           ...filterExifTags(tags || {}),
           imageWidth: dimensions.width,
           imageHeight: dimensions.height,

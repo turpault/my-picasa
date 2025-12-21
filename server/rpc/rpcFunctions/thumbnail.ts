@@ -26,7 +26,7 @@ import { dec, inc } from "../../utils/stats";
 import { createGif } from "../../videoOperations/gif";
 import { makeProjectThumbnail } from "../albumTypes/projects";
 import { decodeReferenceId } from "../albumTypes/referenceFiles";
-import { getPicasaEntry, readAlbumIni } from "./picasa-ini";
+import { getPicasaEntry } from "./picasa-ini";
 import {
   readThumbnailBufferFromCache,
   shouldMakeThumbnail,
@@ -154,9 +154,9 @@ async function makeVideoThumbnail(
   size: ThumbnailSize = "th-medium",
   animated: boolean,
 ): Promise<undefined | Buffer> {
-  const picasa = await readAlbumIni(entry.album);
-  const transform = picasa[entry.name].filters || "";
-  const rotate = picasa[entry.name].rotate || "";
+  const picasa = await getPicasaEntry(entry);
+  const transform = picasa.filters || "";
+  const rotate = picasa.rotate || "";
   const data = await createGif(entry, ThumbnailSizes[size], animated, {
     rotate: decodeRotate(rotate),
     transform,
@@ -208,8 +208,8 @@ async function readOrMakeVideoThumbnail(
 ): Promise<{ data: Buffer; width: number; height: number; mime: string }> {
   let res: { data: Buffer; width: number; height: number } | undefined;
   await makeVideoThumbnailIfNeeded(entry, size, animated);
-  const { path, mime } = thumbnailPathFromEntryAndSize(entry, size, animated);
-  const data = await readFile(path);
+  const { fullPath, mime } = thumbnailPathFromEntryAndSize(entry, size, animated);
+  const data = await readFile(fullPath);
   const d = await dimensionsFromFileBuffer(data);
   return { data, ...d, mime };
 }

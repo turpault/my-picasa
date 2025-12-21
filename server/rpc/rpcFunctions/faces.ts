@@ -14,13 +14,12 @@ import {
   readReferenceFromReferenceId,
 } from "../albumTypes/referenceFiles";
 import {
-  PicasaBaseKeys,
   albumFromNameAndKind,
   deletePicasaSection,
   listAlbumsOfKind,
-  readAlbumEntries,
-  readPicasaSection,
-  writePicasaSection,
+  getPicasaEntries,
+  writeFaceAlbumContact,
+  writeFaceAlbumEntry,
 } from "./picasa-ini";
 
 export async function eraseFace(entry: AlbumEntry) {
@@ -53,7 +52,7 @@ export async function getFaceData(entry: AlbumEntry): Promise<FaceData> {
 export async function readFaceAlbumEntries(
   album: Album,
 ): Promise<AlbumEntry[]> {
-  return await readAlbumEntries(album);
+  return await getPicasaEntries(album);
 }
 
 /**
@@ -72,7 +71,7 @@ export function getFaceAlbum(contact: Contact | string): AlbumWithData {
     AlbumKind.FACE,
   );
   if (typeof contact !== "string") {
-    writePicasaSection(album, PicasaBaseKeys.contact, contact);
+    writeFaceAlbumContact(album, contact);
   }
   let a = faceAlbums.find((a) => a.key === album.key);
   if (!a) {
@@ -99,8 +98,8 @@ export async function addReferenceToFaceAlbum(
   contact: Contact,
 ) {
   const faceAlbum = getFaceAlbum(contact);
-  writePicasaSection(faceAlbum, referenceId, face);
-  faceAlbum.count = (await readAlbumEntries(faceAlbum)).length;
+  writeFaceAlbumEntry(faceAlbum, referenceId, face);
+  faceAlbum.count = (await getPicasaEntries(faceAlbum)).length;
 }
 
 export async function removeReferenceToFaceAlbum(
@@ -109,14 +108,14 @@ export async function removeReferenceToFaceAlbum(
 ) {
   const faceAlbum = getFaceAlbum(contact);
   deletePicasaSection(faceAlbum, referenceId);
-  faceAlbum.count = (await readAlbumEntries(faceAlbum)).length;
+  faceAlbum.count = (await getPicasaEntries(faceAlbum)).length;
 }
 
 const faceAlbums: AlbumWithData[] = [];
 export async function loadFaceAlbums() {
   const l = await listAlbumsOfKind(AlbumKind.FACE);
   for (const album of l) {
-    const entries = await readAlbumEntries(album);
+    const entries = await getPicasaEntries(album);
     faceAlbums.push({ ...album, count: entries.length });
   }
 }

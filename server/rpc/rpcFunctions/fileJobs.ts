@@ -35,7 +35,6 @@ import { openWithFinder } from "./osascripts";
 import {
   albumFromNameAndKind,
   getPicasaEntry,
-  readAlbumIni,
   updatePicasaEntry,
 } from "./picasa-ini";
 import { copyThumbnails } from "./thumbnail-cache";
@@ -754,12 +753,11 @@ async function copyMetadata(
   dest: AlbumEntry,
   deleteSource: boolean = false,
 ) {
-  const sourceIniData = await readAlbumIni(source.album);
-  if (sourceIniData[source.name]) {
-    updatePicasaEntry(dest, "*", sourceIniData[source.name]);
+  const sourceMetadata = await getPicasaEntry(source);
+  if (sourceMetadata) {
+    updatePicasaEntry(dest, "*", sourceMetadata);
 
     if (deleteSource) {
-      delete sourceIniData[source.name];
       updatePicasaEntry(source, "*", undefined);
     }
   }

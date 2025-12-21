@@ -43,72 +43,65 @@ function albumNameToDate(name: string): Date {
 
 
 export async function exportToFolder(entry: AlbumEntry, targetFolder: string, exportOptions?: { extraOperations?: any[], label?: boolean, filename?: string, resize?: number, filters?: string, overwrite?: boolean }): Promise<string> {
-  const targetFilename = exportOptions?.filename || namifyAlbumEntry(entry);
+  const targetFilename = exportOptions?.filename || (namifyAlbumEntry(entry) + (isVideo(entry) ? extname(entry.name) : ".jpg"));
   const label = exportOptions?.label || false;
   const filters = exportOptions?.filters || "";
+  const targetFile = join(targetFolder, targetFilename);
+  const shouldOverwrite = exportOptions?.overwrite || false;
+  const fileExistsCheck = shouldOverwrite ? Promise.resolve(false) : fileExists(targetFile);
+  if (await fileExistsCheck) {
+    return targetFile;
+  }
 
   if (isVideo(entry)) {
     // Straight copy
-    const ext = extname(entry.name);
-    const targetFile = join(targetFolder, targetFilename + ext);
-    const shouldOverwrite = exportOptions?.overwrite || false;
-    const fileExistsCheck = shouldOverwrite ? Promise.resolve(false) : fileExists(targetFile);
-
-    if (!(await fileExistsCheck)) {
-      await copyFile(entryFilePath(entry), targetFile);
-      const albumDate = albumNameToDate(entry.album.name);
-      await utimes(targetFile, albumDate, albumDate);
-    }
-
+    await copyFile(entryFilePath(entry), targetFile);
+    const albumDate = albumNameToDate(entry.album.name);
+    await utimes(targetFile, albumDate, albumDate);
     return targetFile;
   } else if (isPicture(entry)) {
-    const targetFile = join(targetFolder, targetFilename + '.jpg');
-    const shouldOverwrite = exportOptions?.overwrite || false;
-    const fileExistsCheck = shouldOverwrite ? Promise.resolve(false) : fileExists(targetFile);
-
-    if (!(await fileExistsCheck)) {
-      const imageLabel = mediaName(entry);
-      const [entryMeta] = await Promise.all([getPicasaEntry(entry)]);
-      const transform = entryMeta.filters || "";
-      // Build transformation string with proper conditional concatenation
-      const parts: string[] = [];
-      if (exportOptions?.resize) {
-        parts.push(`compress=1,${exportOptions?.resize},`);
-      }
-      if (transform) {
-        parts.push(`${transform}`);
-      }
-      if (filters) {
-        parts.push(`${filters}`);
-      }
-      if (label) {
-        parts.push(`label=1,${encodeURIComponent(imageLabel)},25,south`);
-      }
-      const transformations = parts.join(";");
-
-      const res = await buildImage(
-        entry,
-        entryMeta,
-        transformations,
-        exportOptions?.extraOperations,
-      );
-      let dateTimeOriginal = entryMeta.dateTaken ? new Date(entryMeta.dateTaken) : albumNameToDate(entry.album.name);
-      if (dateTimeOriginal < originDate) {
-        dateTimeOriginal = originDate;
-      }
-      const imageData = addImageInfo(res.data, {
-        softwareInfo: "PICISA",
-        imageDescription: entry.album.name,
-        dateTaken: dateTimeOriginal,
-      });
-
-      await safeWriteFile(targetFile, imageData);
-      // Parallelize file write and utimes operations
-      await utimes(targetFile, dateTimeOriginal, dateTimeOriginal).catch((e) => {
-        console.error(`Failed to update file times for ${targetFile}:`, e);
-      })
-
+    const imageLabel = mediaName(entry);
+    const [entryMeta] = await Promise.all([getPicasaEntry(entry)]);
+    const transform = entryMeta.filters || "";
+    // Build transformation string with proper conditional concatenation
+    const parts: string[] = [];
+    if (exportOptions?.resize) {
+      parts.push(`compress=1,${exportOptions?.resize},`);
     }
+    if (transform) {
+      parts.push(`${transform}`);
+    }
+    if (filters) {
+      parts.push(`${filters}`);
+    }
+    if (label) {
+      parts.push(`label=1,${encodeURIComponent(imageLabel)},25,south`);
+    }
+    const transformations = parts.join(";");
+
+    const res = await buildImage(
+      entry,
+      entryMeta,
+      transformations,
+      exportOptions?.extraOperations,
+    );
+    let dateTimeOriginal = entryMeta.dateTaken ? new Date(entryMeta.dateTaken) : albumNameToDate(entry.album.name);
+    if (dateTimeOriginal < originDate) {
+      dateTimeOriginal = originDate;
+    }
+    const imageData = addImageInfo(res.data, {
+      softwareInfo: "PICISA",
+      imageDescription: entry.album.name,
+      dateTaken: dateTimeOriginal,
+    });
+
+    await safeWriteFile(targetFile, imageData);
+    // Parallelize file write and utimes operations
+    await utimes(targetFile, dateTimeOriginal, dateTimeOriginal).catch((e) => {
+      console.error(`Failed to update file times for ${targetFile}:`, e);
+    })
+
+
     return targetFile;
   }
 

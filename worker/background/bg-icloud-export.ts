@@ -12,7 +12,7 @@ import { events } from "../../server/events/server-events";
 import debug from "debug";
 import { albumEntryFromId, namifyAlbumEntry, removeExtension } from "../../shared/lib/utils";
 import { RESIZE_ON_EXPORT_SIZE } from "../../shared/lib/shared-constants";
-import { walk } from "../../server/rpc/rpcFunctions/fs";
+import { walkAbsolutePath } from "../../server/rpc/rpcFunctions/fs";
 import { getPicasaEntry } from "../../server/rpc/rpcFunctions/picasa-ini";
 import { exifDataAndStats } from "../../server/rpc/rpcFunctions/exif";
 const debugLogger = debug("app:bg-icloud-export");
@@ -33,12 +33,11 @@ export async function buildExportsFolder() {
 
 async function exportAllMissing() {
   const allFilesInICloudFolder: string[] = [];
-  await walk(iCloudPhotosFolder, (path, modificationTime) => {
+  await walkAbsolutePath(iCloudPhotosFolder, (path, modificationTime) => {
     console.log(path, modificationTime);
     allFilesInICloudFolder.push(path);
   });
   const allFilesToExport: string[] = [];
-  // Job with no parameters
   const albums = await folders();
   for (const album of albums) {
     const m = await media(album);

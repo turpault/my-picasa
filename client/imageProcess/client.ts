@@ -10,6 +10,7 @@ import {
   AlbumEntryMetaData,
   AlbumEntryPicasa,
   AlbumEntryWithMetadata,
+  AlbumEntryWithMetadataAndExif,
   ThumbnailSize,
 } from "../../shared/types/types";
 import { getService, getServicePort } from "../rpc/connect";
@@ -162,4 +163,13 @@ export async function albumEntryMetadata(entry: AlbumEntry) {
   const s = await getService();
   if (!entry) debugger;
   return s.getAlbumEntryMetadata(entry) as AlbumEntryMetaData;
+}
+
+export async function albumEntriesWithMetadataAndExif(
+  entries: AlbumEntry[],
+): Promise<AlbumEntryWithMetadataAndExif[]> {
+  const s = await getService();
+  return s.albumEntriesWithMetadataAndExif(entries) as Promise<
+    AlbumEntryWithMetadataAndExif[]
+  >;
 }

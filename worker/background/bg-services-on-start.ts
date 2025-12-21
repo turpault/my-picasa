@@ -8,7 +8,7 @@ export async function startBackgroundTasksOnStart() {
   await Promise.all([
     indexPictures(),
     buildFavoriteFolder(),
-    buildExportsFolder(),
+    //await buildExportsFolder(); // disabled for now - too heavy
     populateExifData(),
     buildThumbs(),
   ]);

@@ -14,9 +14,9 @@ import { fileExists, pathForAlbum, safeWriteFile } from "../../utils/serverUtils
 import {
   cachedFilterKey,
   dimensionsFilterKey,
-  readAlbumIni,
+  getPicasaEntry,
   rotateFilterKey,
-  updatePicasaEntries,
+  updatePicasaEntry,
 } from "./picasa-ini";
 
 import Debug from "debug";
@@ -113,11 +113,11 @@ export async function updateCacheData(
   const picasaSizeLabel = dimensionsFilterKey[size];
   const picasaRotateLabel = rotateFilterKey[size];
 
-  updatePicasaEntries(entry, {
-    [picasaFilterLabel]: transform,
-    [picasaSizeLabel]: dimensions,
-    [picasaRotateLabel]: rotate,
-  });
+  await Promise.all([
+    updatePicasaEntry(entry, picasaFilterLabel, transform),
+    updatePicasaEntry(entry, picasaSizeLabel, dimensions),
+    updatePicasaEntry(entry, picasaRotateLabel, rotate),
+  ]);
 }
 
 export async function copyThumbnails(
@@ -127,12 +127,12 @@ export async function copyThumbnails(
 ): Promise<void> {
   for (const animated of [true, false]) {
     for (const size of ThumbnailSizeVals) {
-      const { path: source } = thumbnailPathFromEntryAndSize(
+      const { fullPath: source } = thumbnailPathFromEntryAndSize(
         entry,
         size,
         animated,
       );
-      const { path: dest } = thumbnailPathFromEntryAndSize(
+      const { fullPath: dest } = thumbnailPathFromEntryAndSize(
         target,
         size,
         animated,
@@ -153,7 +153,7 @@ export async function shouldMakeThumbnail(
   size: ThumbnailSize,
   animated: boolean,
 ): Promise<boolean> {
-  const picasa = await readAlbumIni(entry.album);
+  const picasa = await getPicasaEntry(entry);
   const sourceStat = await stat(
     join(imagesRoot, entryRelativePath(entry)),
   ).catch((): undefined => undefined);
@@ -165,18 +165,17 @@ export async function shouldMakeThumbnail(
   const picasaFilterLabel = cachedFilterKey[size];
   const picasaSizeLabel = dimensionsFilterKey[size];
   const picasaRotateLabel = rotateFilterKey[size];
-  const cachedTransform = picasa[entry.name][picasaFilterLabel] || "";
-  const cachedSize = picasa[entry.name][picasaSizeLabel];
-  const cachedRotate = decodeRotate(picasa[entry.name][picasaRotateLabel]);
+  const cachedTransform = picasa[picasaFilterLabel] || "";
+  const cachedSize = picasa[picasaSizeLabel];
+  const cachedRotate = decodeRotate(picasa[picasaRotateLabel]);
 
-  picasa[entry.name] = picasa[entry.name] || {};
-  const transform = picasa[entry.name].filters || "";
-  const rotate = decodeRotate(picasa[entry.name].rotate);
-  const { path } = thumbnailPathFromEntryAndSize(entry, size, animated);
-  const thumbStats = await stat(path).catch((e) => { });
+  const transform = picasa.filters || "";
+  const rotate = decodeRotate(picasa.rotate);
+  const { fullPath } = thumbnailPathFromEntryAndSize(entry, size, animated);
+  const thumbStats = await stat(fullPath).catch((e) => { });
   if (!thumbStats) {
     debug(
-      `Thumbnail for media ${entry.album.name}/${entry.name} does not exist (${path})`,
+      `Thumbnail for media ${entry.album.name}/${entry.name} does not exist (${fullPath})`,
     );
     return true;
   }

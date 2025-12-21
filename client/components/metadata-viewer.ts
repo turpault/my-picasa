@@ -1,13 +1,12 @@
 import L from "leaflet";
 import { debounced } from "../../shared/lib/utils";
-import { getFilesExifData } from "../folder-utils";
 import {
-  albumEntriesWithMetadata,
+  albumEntriesWithMetadataAndExif,
   albumThumbnailUrl,
 } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
 import { getService } from "../rpc/connect";
-import { AlbumEntry, AlbumEntryMetaData } from "../types/types";
+import { AlbumEntry, AlbumEntryMetaData, AlbumEntryWithMetadataAndExif } from "../types/types";
 import { ApplicationState } from "../uiTypes";
 import { t } from "./strings";
 type MetaTransform = {
@@ -126,11 +125,7 @@ export function makeMetadataViewer(state: ApplicationState): _$ {
 
   update();
 
-  let imageData: {
-    entry: AlbumEntry;
-    metadata: AlbumEntryMetaData;
-    exifData: any;
-  }[] = [];
+  let imageData: AlbumEntryWithMetadataAndExif[] = [];
 
   async function update() {
     const visible = state.getValue("activeMetaPage") !== undefined;
@@ -153,15 +148,7 @@ export function makeMetadataViewer(state: ApplicationState): _$ {
         const selections = selManager.selected();
         if (selections.some((s) => !s)) debugger;
 
-        const [metadata, exifData] = await Promise.all([
-          albumEntriesWithMetadata(selections),
-          getFilesExifData(selections),
-        ]);
-        imageData = selections.map((selection, index) => ({
-          entry: selection,
-          metadata: metadata[index].raw,
-          exifData: exifData[index],
-        }));
+        imageData = await albumEntriesWithMetadataAndExif(selections);
         p.update();
       }
     }
@@ -170,11 +157,11 @@ export function makeMetadataViewer(state: ApplicationState): _$ {
   function updateMetadata() {
     pages.metadata.e.empty();
     for (const data of imageData) {
-      if (!data.exifData) return;
+      if (!data.exif) return;
       pages.metadata.e.append(
-        `<div class="metadata-section-filename">${data.entry.name}</div>`,
+        `<div class="metadata-section-filename">${data.name}</div>`,
       );
-      const keys = Object.keys(data.exifData);
+      const keys = Object.keys(data.exif);
       for (const section of metaSections) {
         if (section.available.find((s) => !keys.includes(s)) === undefined) {
           pages.metadata.e.append(
@@ -182,7 +169,7 @@ export function makeMetadataViewer(state: ApplicationState): _$ {
           );
           pages.metadata.e.append(
             `<div class="metadata-section-value">${section.transform(
-              data.exifData,
+              data.exif,
             )}</div>`,
           );
         }
@@ -194,7 +181,7 @@ export function makeMetadataViewer(state: ApplicationState): _$ {
     pages.persons.e.empty();
     for (const data of imageData) {
       const s = await getService();
-      const faces = await s.getFaceDataFromAlbumEntry(data.entry);
+      const faces = await s.getFaceDataFromAlbumEntry(data);
       for (const face of faces) {
         const url = albumThumbnailUrl(face.contact);
         pages.persons.e.append(
@@ -227,7 +214,8 @@ export function makeMetadataViewer(state: ApplicationState): _$ {
       }
       markers.forEach((m) => m.remove());
       const latLongs: [number, number, AlbumEntry][] = [];
-      for (const coordinates of imageData.map((i) => i.exifData)) {
+      for (const item of imageData) {
+        const coordinates = item.exif;
         // Add OSM tile layer to the Leaflet map.
         if (
           coordinates.GPSLatitudeRef === undefined ||
@@ -242,7 +230,7 @@ export function makeMetadataViewer(state: ApplicationState): _$ {
           coordinates.GPSLongitudeRef === "W"
             ? -tripletToDecimal(coordinates.GPSLongitude)
             : -tripletToDecimal(coordinates.GPSLongitude);
-        latLongs.push([lat, long, coordinates.entry]);
+        latLongs.push([lat, long, item]);
       }
       if (latLongs.length === 0) return;
       for (const latLong of latLongs) {

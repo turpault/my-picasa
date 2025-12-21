@@ -93,3 +93,24 @@ export async function walk(
   }
   return Promise.all(promises).then((): void => void 0);
 }
+
+
+export async function walkAbsolutePath(
+  folder: string,
+  cb: (path: string, modificationTime: Date) => void,
+) {
+  const promises: Promise<void>[] = [];
+  const data = await readdir(folder);
+  for (const f of data) {
+    if (!f.startsWith(".")) {
+      const path = join(folder, f);
+      const s = await stat(path);
+      if (s.isDirectory()) {
+        promises.push(walkAbsolutePath(path, cb));
+      } else {
+        cb(path, new Date(s.mtime));
+      }
+    }
+  }
+  return Promise.all(promises).then((): void => void 0);
+}

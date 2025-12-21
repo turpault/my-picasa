@@ -191,6 +191,11 @@ export class PicisaClient {
       'args': { entry } 
     });
   }
+  async albumEntriesWithMetadataAndExif(entries:object[]):Promise<any> {
+    return this.emit('PicisaClient:albumEntriesWithMetadataAndExif', {
+      'args': { entries } 
+    });
+  }
   async log(event:string, data:object):Promise<any> {
     return this.emit('PicisaClient:log', {
       'args': { event, data } 

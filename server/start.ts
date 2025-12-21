@@ -5,7 +5,7 @@ import { join } from "path";
 import { lockedLocks, startLockMonitor } from "../shared/lib/mutex";
 import { SocketAdaptorInterface } from "../shared/socket/socket-adaptor-interface";
 import { WsAdaptor } from "../shared/socket/ws-adaptor";
-import { updateLastWalkLoop, waitUntilWalk } from "./walker";
+import { startWorker, updateLastWalkLoop, waitUntilWalk } from "./walker";
 import { parseLUTs } from "./imageOperations/image-filters";
 import { encode } from "./imageOperations/sharp-processor";
 import { startAlbumUpdateNotification } from "./rpc/albumTypes/fileAndFolders";
@@ -14,7 +14,7 @@ import { RPCInit } from "./rpc/index";
 import { asset } from "./rpc/routes/asset";
 import { albumThumbnail, thumbnail } from "./rpc/routes/thumbnail";
 import { albumWithData } from "./rpc/rpcFunctions/albumUtils";
-import { picasaIniCacheWriter } from "./rpc/rpcFunctions/picasa-ini";
+import { initializePicasaIniCache } from "./rpc/rpcFunctions/picasa-ini";
 import { startSentry } from "./sentry";
 import { busy, measureCPULoad } from "./utils/busy";
 import { addSocket, removeSocket } from "./utils/socketList";
@@ -24,7 +24,7 @@ import { info } from "console";
 import { initUndo } from "./utils/undo";
 import { buildPersonsList } from "./rpc/albumTypes/persons";
 import { imagesRoot, rootPath } from "./utils/constants";
-import { startBackgroundTasksOnStart } from "../worker/background/bg-services-on-start";
+// import { startBackgroundTasksOnStart } from "../worker/background/bg-services-on-start";
 
 /** */
 
@@ -187,11 +187,12 @@ export async function startServer(p?: number) {
 export async function startServices() {
   await initUndo();
   info("Starting services...");
-  updateLastWalkLoop();
+  startWorker();
+  // updateLastWalkLoop();
   info("Measuring CPU load...");
   measureCPULoad();
   info("Starting picasa ini cache writer...");
-  picasaIniCacheWriter();
+  initializePicasaIniCache();
   info("Starting lock monitor...");
   startLockMonitor();
   info("Starting album update notification...");
@@ -199,7 +200,7 @@ export async function startServices() {
   info("Fetch persons list...");
   buildPersonsList();
   info("Starting background tasks...");
-  startBackgroundTasksOnStart();
+  // startBackgroundTasksOnStart();
   info("Parsing LUTs...");
   await parseLUTs();
   info("Initializing projects...");

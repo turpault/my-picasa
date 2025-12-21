@@ -19,14 +19,13 @@ import {
 } from "../../../server/rpc/rpcFunctions/faces";
 import { media } from "../../../server/rpc/rpcFunctions/albumUtils";
 import {
-  PicasaBaseKeys,
   getPicasaEntry,
-  readAlbumIni,
-  readContacts,
-  readPicasaSection,
-  updatePicasa,
+  getContactsFromAlbum,
+  getContactByHash,
+  getPicasaSection,
+  updateContactInAlbum,
   updatePicasaEntry,
-  writePicasaSection,
+  writeCandidateFacesSection,
 } from "../../../server/rpc/rpcFunctions/picasa-ini";
 import { getFolderAlbums, waitUntilWalk } from "../../../server/walker";
 import { readReferencesOfEntry } from "../../../server/rpc/albumTypes/referenceFiles";
@@ -53,13 +52,14 @@ export async function getPicasaFeatures(): Promise<PicasaFeatures> {
   await Promise.all(
     albums.map(async (album) => {
       const m = await media(album);
-      const picasaIni = await readAlbumIni(album);
+      const contacts = await getContactsFromAlbum(album);
       self._features.contacts = {
         ...self._features.contacts,
-        ...readContacts(picasaIni),
+        ...contacts,
       };
       for (const entry of m.entries) {
-        const faceString = picasaIni[entry.name]?.faces;
+        const entryMeta = await getPicasaEntry(entry);
+        const faceString = entryMeta.faces;
         const faces = faceString ? decodeFaces(faceString) : [];
         self._features.facesByEntry[idFromAlbumEntry(entry)] = faces;
       }
@@ -131,7 +131,7 @@ export async function addCandidateFaceRectToEntry(
   strategy: string,
 ) {
   const name = `candidateFaces-${strategy}`;
-  const current = await readPicasaSection(entry.album, name);
+  const current = await getPicasaSection(entry.album, name);
   const iniFaces = current[entry.name] || "";
   const faces = decodeFaces(iniFaces);
   if (faces.find((f) => f.hash === hash)) {
@@ -143,7 +143,7 @@ export async function addCandidateFaceRectToEntry(
   };
   faces.push(face);
   current[entry.name] = encodeFaces(faces);
-  writePicasaSection(entry.album, name, current);
+  writeCandidateFacesSection(entry.album, name, current);
   await Promise.all([
     addContact(entry.album, referenceId, contact),
     addReferenceToFaceAlbum(face, referenceId, contact),
@@ -173,20 +173,9 @@ export async function removeFaceFromEntry(
 }
 
 async function addContact(album: Album, hash: string, contact: Contact) {
-  updatePicasa(
-    album,
-    hash,
-    [contact.originalName, contact.email, contact.something].join(";"),
-    PicasaBaseKeys.Contacts2,
-  );
+  await updateContactInAlbum(album, hash, contact);
 }
 
 async function getContact(album: Album, hash: string): Promise<Contact> {
-  const section = await readPicasaSection(album, PicasaBaseKeys.Contacts2);
-  const data = section[hash];
-  if (!data) {
-    throw new Error(`Contact not found for hash ${hash}`);
-  }
-  const [originalName, email, something] = data.split(";");
-  return { key: originalName, originalName, email, something };
+  return await getContactByHash(album, hash);
 }

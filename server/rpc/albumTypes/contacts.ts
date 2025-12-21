@@ -7,8 +7,7 @@ import {
 } from "../../../shared/lib/utils";
 import { Contact } from "../../../shared/types/types";
 import {
-  readAlbumIni,
-  readContacts,
+  getContactsFromAlbum,
   updateContactInAlbum,
 } from "../rpcFunctions/picasa-ini";
 import { getFolderAlbums } from "../../walker";
@@ -22,8 +21,7 @@ const ready = buildReadySemaphore(readyLabelKey);
 export async function buildContactList() {
   const albums = await getFolderAlbums();
   for (const album of albums) {
-    const picasaIni = await readAlbumIni(album);
-    const contactsInFile = readContacts(picasaIni);
+    const contactsInFile = await getContactsFromAlbum(album);
     for (const [hash, contact] of Object.entries(contactsInFile)) {
       const updatedContact = mergeObjects(
         contactsByContactKey.get(contact.key),

@@ -196,8 +196,8 @@ class PictureIndexingService {
       .prepare(
         `SELECT * FROM pictures WHERE album_key = ?`,
       )
-      .all(album.key ?? "") as AlbumEntry[];
-    return entries.map(e => ({ ...e, album }));
+      .all(album.key ?? "") as any[];
+    return entries.map(e => ({ album, name: e.entry_name }));
   }
 
   async isIndexed(entry: AlbumEntry): Promise<boolean> {

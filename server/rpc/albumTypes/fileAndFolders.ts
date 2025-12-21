@@ -1,5 +1,6 @@
 import { readdir, stat } from "fs/promises";
 import { join } from "path";
+import { isMainThread, parentPort } from "worker_threads";
 import { isPicture, isVideo, sleep } from "../../../shared/lib/utils";
 import {
   Album,
@@ -15,6 +16,10 @@ import { fileFoundEventEmitter, listedMediaEventEmitter } from "../../walker";
 const notificationQueue: AlbumChangeEvent[] = [];
 
 export function queueNotification(event: AlbumChangeEvent) {
+  if (!isMainThread && parentPort) {
+    parentPort.postMessage({ type: "notification", event });
+    return;
+  }
   notificationQueue.push(event);
 }
 

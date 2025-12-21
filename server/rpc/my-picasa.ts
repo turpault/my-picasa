@@ -29,6 +29,7 @@ import {
 } from "./albumTypes/projects";
 import { ServiceMap } from "./rpc-handler";
 import {
+  albumEntriesWithMetadataAndExif,
   getAlbumEntryMetadata,
   getAlbumMetadata,
   getSourceEntry,
@@ -199,6 +200,10 @@ export const PicisaClient: ServiceMap = {
     imageInfo: {
       handler: imageInfo,
       arguments: ["entry:object"],
+    },
+    albumEntriesWithMetadataAndExif: {
+      handler: albumEntriesWithMetadataAndExif,
+      arguments: ["entries:object[]"],
     },
     log: {
       handler: clientLog,

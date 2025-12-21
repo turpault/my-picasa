@@ -5,14 +5,17 @@ import {
   AlbumKind,
   FaceList,
   animatedPictureExtensions,
-  idFromKey,
   pictureExtensions,
-  videoExtensions,
+  videoExtensions
 } from "../types/types";
-import { extname, join } from "path";
 
 export async function sleep(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));
+}
+
+
+export function extname(path: string): string {
+  return path.slice(path.lastIndexOf("."));
 }
 
 export function groupBy<T, K>(
@@ -179,7 +182,7 @@ export function namify(s: string) {
 }
 export function removeExtension(fileName: string) {
   return fileName.slice(0, -extname(fileName).length);
-}
+} 0
 export function namifyAlbumEntry(entry: AlbumEntry) {
   return namify(entry.album.name + "_" + removeExtension(entry.name));
 }
