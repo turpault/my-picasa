@@ -76,7 +76,7 @@ export async function undoList(): Promise<UndoStep[]> {
     ).split("\n");
     const res: UndoStep[] = [];
     const reader = createInterface(readUndo);
-    
+
     reader.on("line", (line) => {
       try {
         const op = JSON.parse(line);
@@ -95,17 +95,17 @@ export async function undoList(): Promise<UndoStep[]> {
         console.error(`Error parsing undo entry: ${e}`);
       }
     });
-    
+
     reader.on("close", () => {
       readUndo.destroy(); // Explicitly close the stream
       resolve(res.slice(-10));
     });
-    
+
     reader.on("error", (error) => {
       readUndo.destroy();
       reject(error);
     });
-    
+
     readUndo.on("error", (error) => {
       reader.close();
       reject(error);

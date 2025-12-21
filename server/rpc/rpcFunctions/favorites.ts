@@ -96,7 +96,7 @@ async function deleteFavorite(entry: AlbumEntry): Promise<void> {
 }
 
 export async function exportFavorite(entry: AlbumEntry): Promise<void> {
-  await exportToFolder(entry, favoritesFolder, { label: true, compress: true });
+  await exportToFolder(entry, favoritesFolder, { label: true, resize: RESIZE_ON_EXPORT_SIZE });
 }
 
 export async function syncFavoritesFromPhotoApp(

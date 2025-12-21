@@ -3,9 +3,8 @@ import {
   idFromAlbumEntry,
   isPicture,
   isVideo,
-  parseFilterTerms,
   removeDiacritics,
-  sortByKey,
+  sortByKey
 } from "../../../shared/lib/utils";
 import {
   Album,
@@ -18,13 +17,8 @@ import {
   idFromKey,
   ProjectType,
 } from "../../../shared/types/types";
+import { queryFoldersByFilters, searchPicturesByFilters } from "../../../worker/background/bg-indexing";
 import { getFolderAlbumData, getFolderAlbums } from "../../walker";
-import {
-  getFaceAlbum,
-  getFaceAlbums,
-  getFaceData,
-  readFaceAlbumEntries,
-} from "./faces";
 import {
   assetsInFolderAlbum,
   queueNotification,
@@ -34,8 +28,13 @@ import {
   getProjectAlbums,
   getProjects,
 } from "../albumTypes/projects";
+import {
+  getFaceAlbum,
+  getFaceAlbums,
+  getFaceData,
+  readFaceAlbumEntries,
+} from "./faces";
 import { getPicasaEntry, readAlbumIni, updatePicasaEntry } from "./picasa-ini";
-import { searchIndexedPicturesByFilters, queryFoldersByFilters } from "./indexing";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
   const entries = (await media(entry.album)).entries;
@@ -152,7 +151,7 @@ export async function mediaCount(album: Album, filters?: Filters): Promise<{ cou
   if (album.kind === AlbumKind.FOLDER) {
     if (filters) {
       // Use database-level filtering for better performance
-      const entries = await searchIndexedPicturesByFilters(filters, undefined, album.key);
+      const entries = await searchPicturesByFilters(filters, undefined, album.key);
       return { count: entries.length };
     }
     const assets = await assetsInFolderAlbum(album);
@@ -201,7 +200,7 @@ export async function media(
   if (album.kind === AlbumKind.FOLDER) {
     if (filters) {
       // Use database-level filtering for better performance
-      const entries = await searchIndexedPicturesByFilters(filters, undefined, album.key);
+      const entries = await searchPicturesByFilters(filters, undefined, album.key);
       console.log("entries", entries);
       await sortAssetsByRank(entries);
       return { entries };

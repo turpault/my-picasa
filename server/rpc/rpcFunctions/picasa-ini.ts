@@ -14,6 +14,7 @@ import {
   Album,
   AlbumEntry,
   AlbumEntryMetaData,
+  AlbumEntryWithMetadata,
   AlbumKind,
   AlbumMetaData,
   Contact,
@@ -41,6 +42,7 @@ import { broadcast } from "../../utils/socketList";
 import { rate } from "../../utils/stats";
 import { media } from "./albumUtils";
 import { normalizeName } from "./faces";
+import { albumEntryEventEmitter } from "../../walker";
 
 export const cachedFilterKey: Record<ThumbnailSize, extraFields> = {
   "th-small": "cached:filters:th-small",
@@ -63,7 +65,7 @@ let picasaMap = new Map<string, AlbumMetaData>();
 let lastAccessPicasaMap = new Map<string, number>();
 let dirtyPicasaSet = new Map<string, Album>();
 let shortcuts: { [shotcut: string]: Album } = {};
-const DEFAULT_GRACE_DELAY = "120";
+const DEFAULT_GRACE_DELAY = "120000";
 
 function albumPath(album: Album): string {
   const { id } = idFromKey(album.key);
@@ -435,6 +437,9 @@ export async function updatePicasaEntry(
     } else {
       delete picasa[entry.name][field as keyof AlbumEntryMetaData];
     }
+    albumEntryEventEmitter.emit("albumEntryChanged",
+      entryWithMeta(entry, picasa[entry.name]),
+    );
   }
 
   if (hasChanged) {

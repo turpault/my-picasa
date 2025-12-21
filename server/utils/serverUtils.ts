@@ -15,10 +15,6 @@ export async function fileExists(path: string): Promise<boolean> {
     .catch(() => false);
 }
 
-export function entryFilePath(entry: AlbumEntry) {
-  let root = imagesRoot;
-  return join(root, idFromKey(entry.album.key).id, entry.name);
-}
 
 export function mediaName(entry: AlbumEntry): string {
   return removeExtension(entry.album.name + " - " + entry.name);
@@ -27,6 +23,7 @@ export function mediaName(entry: AlbumEntry): string {
 export function removeExtension(fileName: string) {
   return fileName.slice(0, -extname(fileName).length);
 }
+
 
 export async function safeWriteFile(fileName: string, data: any) {
   const unlock = await lock("safeWriteFile: " + fileName);
@@ -39,6 +36,12 @@ export async function safeWriteFile(fileName: string, data: any) {
   } finally {
     unlock();
   }
+}
+
+
+export function entryFilePath(entry: AlbumEntry) {
+  let root = imagesRoot;
+  return join(root, idFromKey(entry.album.key).id, entry.name);
 }
 
 export function pathAndFileForAlbumEntry(entry: AlbumEntry) {
@@ -58,3 +61,4 @@ export function pathForAlbum(album: Album) {
     return id;
   } else throw new Error("Not a folder");
 }
+

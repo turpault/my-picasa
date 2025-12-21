@@ -3,34 +3,30 @@ import { join } from "path";
 import { lock } from "../../../shared/lib/mutex";
 import {
   decodeRotate,
-  hash,
   isPicture,
   isVideo,
-  namify,
+  namify
 } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
   AlbumKind,
-  FaceData,
-  Reference,
-  ThumbnailSize,
+  ThumbnailSize
 } from "../../../shared/types/types";
+import { exportToFolder } from "../../imageOperations/export";
 import {
   buildFaceImage,
-  buildImage,
-  dimensionsFromFileBuffer,
+  dimensionsFromFileBuffer
 } from "../../imageOperations/sharp-processor";
 import { ThumbnailSizes, facesFolder } from "../../utils/constants";
 import {
   fileExists,
-  removeExtension,
-  safeWriteFile,
+  safeWriteFile
 } from "../../utils/serverUtils";
 import { dec, inc } from "../../utils/stats";
 import { createGif } from "../../videoOperations/gif";
-import { getFaceData, getFaceRect } from "./faces";
 import { makeProjectThumbnail } from "../albumTypes/projects";
-import { readAlbumIni } from "./picasa-ini";
+import { decodeReferenceId } from "../albumTypes/referenceFiles";
+import { getPicasaEntry, readAlbumIni } from "./picasa-ini";
 import {
   readThumbnailBufferFromCache,
   shouldMakeThumbnail,
@@ -38,7 +34,6 @@ import {
   updateCacheData,
   writeThumbnailToCache,
 } from "./thumbnail-cache";
-import { decodeReferenceId } from "../albumTypes/referenceFiles";
 
 export async function readOrMakeThumbnail(
   entry: AlbumEntry,
@@ -91,35 +86,28 @@ async function makeImageThumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize,
   animated: boolean,
-): Promise<Buffer | undefined> {
+): Promise<string | undefined> {
   const lockLabel = `makeImageThumbnail: ${entry.album.key}-${entry.name}-${size}`;
   const release = await lock(lockLabel);
   inc("thumbnail");
   try {
-    const picasa = await readAlbumIni(entry.album);
+    const picasaEntry = await getPicasaEntry(entry);
 
-    picasa[entry.name] = picasa[entry.name] || {};
-    const transform = picasa[entry.name].filters || "";
-    const rotate = picasa[entry.name].rotate || "";
+    const transform = picasaEntry.filters || "";
+    const rotate = picasaEntry.rotate || "";
+    const { path, filename } = thumbnailPathFromEntryAndSize(entry, size, animated);
 
-    const res = await buildImage(entry, picasa[entry.name], transform, [
-      [
-        "resize",
-        ThumbnailSizes[size],
-        undefined,
-        { fit: "inside", kernel: "nearest" },
-      ],
-    ]);
+    const thumbpath = await exportToFolder(entry, path, { label: false, filename, resize: ThumbnailSizes[size], filters: transform, overwrite: true });
+
 
     updateCacheData(
       entry,
       transform,
       size,
-      `${res.width}x${res.height}`,
+      `${ThumbnailSizes[size]}`,
       rotate,
     );
-    await writeThumbnailToCache(entry, size, res.data, animated);
-    return res.data;
+    return thumbpath;
   } finally {
     dec("thumbnail");
     release();
@@ -196,12 +184,12 @@ async function makeVideoThumbnailIfNeeded(
   inc("thumbnail");
   const unlock = await lock(
     "makeVideoThumbnailIfNeeded: " +
-      entry.album.key +
-      " " +
-      entry.name +
-      " " +
-      size +
-      (animated ? " animated" : ""),
+    entry.album.key +
+    " " +
+    entry.name +
+    " " +
+    size +
+    (animated ? " animated" : ""),
   );
   try {
     if (await shouldMakeThumbnail(entry, size, animated)) {

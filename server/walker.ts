@@ -7,13 +7,13 @@ import {
   alphaSorter,
   buildReadySemaphore,
   differs,
-  parseFilterTerms,
   setReady,
-  sleep,
+  sleep
 } from "../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
+  AlbumEntryWithMetadata,
   AlbumKind,
   AlbumWithData,
   Filters,
@@ -23,16 +23,14 @@ import {
   assetsInFolderAlbum,
   queueNotification,
 } from "./rpc/albumTypes/fileAndFolders";
-import { media, mediaCount } from "./rpc/rpcFunctions/albumUtils";
+import { mediaCount } from "./rpc/rpcFunctions/albumUtils";
 import {
-  albumentriesInFilter,
   getShortcuts,
-  readShortcut,
+  readShortcut
 } from "./rpc/rpcFunctions/picasa-ini";
 import { imagesRoot, specialFolders } from "./utils/constants";
 import { pathForAlbum } from "./utils/serverUtils";
-import { getIndexingService } from "../worker/background/bg-indexing";
-import { queryFoldersByFilters } from "./rpc/rpcFunctions/indexing";
+import { queryFoldersByFilters } from "../worker/background/bg-indexing";
 
 const readyLabelKey = "fileWalker";
 const ready = buildReadySemaphore(readyLabelKey);
@@ -45,19 +43,26 @@ export type AlbumChangeEvent = {
 };
 
 export type FileFoundEvent = {
-  fileFound: {
-    album: Album;
-    entries: AlbumEntry[];
-  };
+  fileFound: AlbumEntry;
+  fileGone: AlbumEntry;
 };
 
 export type AlbumFoundEvent = {
   albumFound: AlbumWithData;
 };
 
+export type ListedMediaEvent = {
+  assetsInFolderAlbum: { album: Album, entries: AlbumEntry[] };
+};
+export type AlbumEntryChangedEvent = {
+  albumEntryChanged: AlbumEntryWithMetadata;
+};
+
 export const albumEventEmitter = buildEmitter<AlbumChangeEvent>();
 export const fileFoundEventEmitter = buildEmitter<FileFoundEvent>();
 export const albumFoundEventEmitter = buildEmitter<AlbumFoundEvent>();
+export const listedMediaEventEmitter = buildEmitter<ListedMediaEvent>();
+export const albumEntryEventEmitter = buildEmitter<AlbumEntryChangedEvent>();
 
 export async function updateLastWalkLoop() {
   let iteration = 0;
@@ -71,7 +76,8 @@ export async function updateLastWalkLoop() {
           "SkipCheckInfo",
           true /* we know it's added */,
         );
-      }),
+      }
+      ),
     );
     await walkQueue.drain();
     const deletedAlbums: AlbumWithData[] = [];
@@ -104,6 +110,7 @@ export async function updateLastWalkLoop() {
     await sleep(60 * 60); // Wait 60 minutes
   }
 }
+
 export async function waitUntilWalk() {
   return ready;
 }
@@ -226,6 +233,7 @@ async function walk(
   name: string,
   path: string,
   cb: (a: Album) => Promise<void>,
+  cdEntryCb?: (e: AlbumEntry) => Promise<void>,
 ): Promise<void> {
   // Exclude special folders
   if (specialFolders.includes(path)) {
@@ -246,13 +254,10 @@ async function walk(
   }
 
   if (m.entries.length > 0) {
-    // Emit file found event for immediate processing
-    fileFoundEventEmitter.emit("fileFound", {
-      album,
-      entries: m.entries,
-    });
-
     cb(album);
+    for (const entry of m.entries) {
+      cdEntryCb?.(entry);
+    }
   }
 }
 

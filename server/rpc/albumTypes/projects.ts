@@ -17,7 +17,7 @@ import {
 } from "../../../shared/types/types";
 import { generateMosaicFile, makeMosaic } from "../../projects/mosaic";
 import { generateSlideshowFile } from "../../projects/slideshow";
-import { ThumbnailSizes, projectFolder } from "../../utils/constants";
+import { projectFolder, ThumbnailSizes } from "../../utils/constants";
 import {
   entryFilePath,
   fileExists,
@@ -71,8 +71,10 @@ function projectIdToFileName(id: string, type: ProjectType) {
 
 function fileNameToProjectIdAndType(name: string) {
   const [type, id] = name.split("~");
-
-  return { id: id.replace(/\.json$/, ""), type: type as ProjectType };
+  if (Object.values(ProjectType).includes(type as ProjectType)) {
+    return { id: id.replace(/\.json$/, ""), type: type as ProjectType };
+  }
+  return { id: "", type: undefined as ProjectType | undefined };
 }
 
 export async function getProjects(

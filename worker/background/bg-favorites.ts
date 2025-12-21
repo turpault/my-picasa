@@ -7,6 +7,7 @@ import { favoritesFolder } from "../../server/utils/constants";
 import { fileExists } from "../../server/utils/serverUtils";
 import { folders, waitUntilWalk } from "../../server/walker";
 import { Queue } from "../../shared/lib/queue";
+import { RESIZE_ON_EXPORT_SIZE } from "../../shared/lib/shared-constants";
 
 export async function buildFavoriteFolder() {
   if (!(await fileExists(favoritesFolder))) {
@@ -30,7 +31,7 @@ async function exportAllMissing() {
         }
         q.add(async () => {
           await waitUntilIdle();
-          exportToFolder(entry, favoritesFolder, { label: true, compress: true });
+          exportToFolder(entry, favoritesFolder, { label: true, resize: RESIZE_ON_EXPORT_SIZE });
         });
       }
     });

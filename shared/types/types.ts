@@ -267,8 +267,12 @@ export type AlbumEntry = {
   name: string;
   album: Album;
 };
+
 export type AlbumEntryWithMetadata = AlbumEntry & {
   meta: ImageFileMeta;
+};
+
+export type AlbumEntryWithMetadataAndExif = AlbumEntry & {
   raw: AlbumEntryMetaData;
 };
 

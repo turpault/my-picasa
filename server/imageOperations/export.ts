@@ -1,21 +1,15 @@
-import exifr from "exifr";
 import { copyFile, utimes } from "fs/promises";
 import { extname, join } from "path";
 import { RESIZE_ON_EXPORT_SIZE } from "../../shared/lib/shared-constants";
-import { isPicture, isVideo, namify } from "../../shared/lib/utils";
+import { isPicture, isVideo, namifyAlbumEntry } from "../../shared/lib/utils";
 import { AlbumEntry } from "../../shared/types/types";
-import { getPicasaEntry, readAlbumIni } from "../rpc/rpcFunctions/picasa-ini";
+import { getPicasaEntry } from "../rpc/rpcFunctions/picasa-ini";
 import { entryFilePath, fileExists, mediaName, safeWriteFile } from "../utils/serverUtils";
-import { addImageInfo, updateImageDate } from "./info";
+import { addImageInfo } from "./info";
 import {
-  buildContext,
-  buildImage,
-  commit,
-  destroyContext,
-  encode,
-  setOptions,
-  transform,
+  buildImage
 } from "./sharp-processor";
+import { ThumbnailSizes } from "../utils/constants";
 
 
 const originDate = new Date(1900, 0, 1);
@@ -48,10 +42,9 @@ function albumNameToDate(name: string): Date {
 }
 
 
-export async function exportToFolder(entry: AlbumEntry, targetFolder: string, exportOptions?: { label?: boolean, filename?: string, compress?: boolean, filters?: string, overwrite?: boolean }): Promise<string> {
-  const targetFilename = exportOptions?.filename || namify(entry.album.name + "_" + entry.name);
+export async function exportToFolder(entry: AlbumEntry, targetFolder: string, exportOptions?: { extraOperations?: any[], label?: boolean, filename?: string, resize?: number, filters?: string, overwrite?: boolean }): Promise<string> {
+  const targetFilename = exportOptions?.filename || namifyAlbumEntry(entry);
   const label = exportOptions?.label || false;
-  const compress = exportOptions?.compress || false;
   const filters = exportOptions?.filters || "";
 
   if (isVideo(entry)) {
@@ -60,7 +53,7 @@ export async function exportToFolder(entry: AlbumEntry, targetFolder: string, ex
     const targetFile = join(targetFolder, targetFilename + ext);
     const shouldOverwrite = exportOptions?.overwrite || false;
     const fileExistsCheck = shouldOverwrite ? Promise.resolve(false) : fileExists(targetFile);
-    
+
     if (!(await fileExistsCheck)) {
       await copyFile(entryFilePath(entry), targetFile);
       const albumDate = albumNameToDate(entry.album.name);
@@ -72,32 +65,32 @@ export async function exportToFolder(entry: AlbumEntry, targetFolder: string, ex
     const targetFile = join(targetFolder, targetFilename + '.jpg');
     const shouldOverwrite = exportOptions?.overwrite || false;
     const fileExistsCheck = shouldOverwrite ? Promise.resolve(false) : fileExists(targetFile);
-    
+
     if (!(await fileExistsCheck)) {
       const imageLabel = mediaName(entry);
       const [entryMeta] = await Promise.all([getPicasaEntry(entry)]);
       const transform = entryMeta.filters || "";
       // Build transformation string with proper conditional concatenation
       const parts: string[] = [];
-      if (compress) {
-        parts.push(`compress=1,${RESIZE_ON_EXPORT_SIZE},;`);
+      if (exportOptions?.resize) {
+        parts.push(`compress=1,${exportOptions?.resize},`);
       }
       if (transform) {
-        parts.push(transform);
+        parts.push(`${transform}`);
       }
       if (filters) {
-        parts.push(`;${filters}`);
+        parts.push(`${filters}`);
       }
       if (label) {
-        parts.push(`;label=1,${encodeURIComponent(imageLabel)},25,south`);
+        parts.push(`label=1,${encodeURIComponent(imageLabel)},25,south`);
       }
-      const transformations = parts.join("");
+      const transformations = parts.join(";");
 
       const res = await buildImage(
         entry,
         entryMeta,
         transformations,
-        [],
+        exportOptions?.extraOperations,
       );
       let dateTimeOriginal = entryMeta.dateTaken ? new Date(entryMeta.dateTaken) : albumNameToDate(entry.album.name);
       if (dateTimeOriginal < originDate) {
@@ -108,14 +101,13 @@ export async function exportToFolder(entry: AlbumEntry, targetFolder: string, ex
         imageDescription: entry.album.name,
         dateTaken: dateTimeOriginal,
       });
-      
+
+      await safeWriteFile(targetFile, imageData);
       // Parallelize file write and utimes operations
-      await Promise.all([
-        safeWriteFile(targetFile, imageData),
-        utimes(targetFile, dateTimeOriginal, dateTimeOriginal).catch((e) => {
-          console.error(`Failed to update file times for ${targetFile}:`, e);
-        }),
-      ]);
+      await utimes(targetFile, dateTimeOriginal, dateTimeOriginal).catch((e) => {
+        console.error(`Failed to update file times for ${targetFile}:`, e);
+      })
+
     }
     return targetFile;
   }

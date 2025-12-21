@@ -10,7 +10,7 @@ import {
 } from "../../../shared/types/types";
 import { entryRelativePath } from "../../imageOperations/info";
 import { imagesRoot } from "../../utils/constants";
-import { fileExists, safeWriteFile } from "../../utils/serverUtils";
+import { fileExists, pathForAlbum, safeWriteFile } from "../../utils/serverUtils";
 import {
   cachedFilterKey,
   dimensionsFilterKey,
@@ -33,24 +33,24 @@ export function thumbnailPathFromEntryAndSize(
   size: ThumbnailSize,
   animated: boolean,
 ) {
-  if (isVideo(entry))
+  const albumPath = join(imagesRoot, pathForAlbum(entry.album));
+  if (isVideo(entry)) {
+    const filename = `.${size}-${entry.name}${animated ? "" : ".non-animated"}.gif`;
     return {
-      path: join(
-        imagesRoot,
-        idFromKey(entry.album.key).id,
-        `.${size}-${entry.name}${animated ? "" : ".non-animated"}.gif`,
-      ),
+      path: albumPath,
+      fullPath: join(albumPath, filename),
+      filename,
       mime: "image/gif",
     };
-  else
+  } else {
+    const filename = `.${size}-${entry.name}`;
     return {
-      path: join(
-        imagesRoot,
-        idFromKey(entry.album.key).id,
-        `.${size}-${entry.name}`,
-      ),
+      path: albumPath,
+      fullPath: join(albumPath, filename),
+      filename,
       mime: "image/jpeg",
     };
+  }
 }
 
 export async function readThumbnailBufferFromCache(
@@ -58,11 +58,11 @@ export async function readThumbnailBufferFromCache(
   size: ThumbnailSize,
   animated: boolean,
 ): Promise<Buffer | undefined> {
-  const { path } = thumbnailPathFromEntryAndSize(entry, size, animated);
-  const unlock = await lock("readThumbnailBufferFromCache: " + path);
+  const { fullPath } = thumbnailPathFromEntryAndSize(entry, size, animated);
+  const unlock = await lock("readThumbnailBufferFromCache: " + fullPath);
   let d: Buffer | undefined;
   try {
-    d = await readFile(path);
+    d = await readFile(fullPath);
   } catch (e: any) {
     console.warn("Reading file from cache failed:", e);
     d = undefined;
@@ -77,10 +77,10 @@ export async function writeThumbnailToCache(
   data: Buffer,
   animated: boolean,
 ): Promise<void> {
-  const { path } = thumbnailPathFromEntryAndSize(entry, size, animated);
-  const unlock = await lock("writeThumbnailToCache: " + path);
+  const { fullPath } = thumbnailPathFromEntryAndSize(entry, size, animated);
+  const unlock = await lock("writeThumbnailToCache: " + fullPath);
   try {
-    await safeWriteFile(path, data);
+    await safeWriteFile(fullPath, data);
   } catch (e: any) {
     console.warn("Writing file to cache failed:", e);
   } finally {
@@ -93,10 +93,10 @@ export async function deleteThumbnailFromCache(
   size: ThumbnailSize,
 ): Promise<void> {
   for (const animated of [true, false]) {
-    const { path } = thumbnailPathFromEntryAndSize(entry, size, animated);
-    const unlock = await lock("deleteThumbnailFromCache: " + path);
+    const { fullPath } = thumbnailPathFromEntryAndSize(entry, size, animated);
+    const unlock = await lock("deleteThumbnailFromCache: " + fullPath);
     try {
-      await unlink(path);
+      await unlink(fullPath);
     } finally {
       unlock();
     }
@@ -173,7 +173,7 @@ export async function shouldMakeThumbnail(
   const transform = picasa[entry.name].filters || "";
   const rotate = decodeRotate(picasa[entry.name].rotate);
   const { path } = thumbnailPathFromEntryAndSize(entry, size, animated);
-  const thumbStats = await stat(path).catch((e) => {});
+  const thumbStats = await stat(path).catch((e) => { });
   if (!thumbStats) {
     debug(
       `Thumbnail for media ${entry.album.name}/${entry.name} does not exist (${path})`,

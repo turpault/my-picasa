@@ -9,7 +9,7 @@ import {
   pictureExtensions,
   videoExtensions,
 } from "../types/types";
-import { join } from "path";
+import { extname, join } from "path";
 
 export async function sleep(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));
@@ -176,6 +176,12 @@ export function fixedEncodeURIComponent(str: string): string {
 
 export function namify(s: string) {
   return s.replace(/[^\w]+/gi, "-");
+}
+export function removeExtension(fileName: string) {
+  return fileName.slice(0, -extname(fileName).length);
+}
+export function namifyAlbumEntry(entry: AlbumEntry) {
+  return namify(entry.album.name + "_" + removeExtension(entry.name));
 }
 
 export function ellipsis(s: string, length: number) {

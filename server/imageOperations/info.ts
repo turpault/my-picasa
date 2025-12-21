@@ -3,12 +3,14 @@ import { join } from "path";
 import { isPicture, isVideo, removeDiacritics } from "../../shared/lib/utils";
 import {
   AlbumEntry,
+  AlbumEntryMetaData,
   AlbumEntryWithMetadata,
   Filetype,
   idFromKey,
 } from "../../shared/types/types";
 import { exifDataAndStats } from "../rpc/rpcFunctions/exif";
 import {
+  getPicasaEntry,
   readAlbumIni,
   updatePicasaEntries,
   updatePicasaEntry,
@@ -25,12 +27,12 @@ import {
 
 export async function imageInfo(
   entry: AlbumEntry,
+  metadata?: AlbumEntryMetaData,
 ): Promise<AlbumEntryWithMetadata> {
-  const picasa = await readAlbumIni(entry.album);
-  const options = picasa[entry.name] || {};
+  metadata ||= await getPicasaEntry(entry);
   const res: AlbumEntryWithMetadata = {
     ...entry,
-    raw: options,
+    raw: metadata,
     meta: { transform: "", type: Filetype.Picture, width: 0, height: 0 },
   };
   if (isVideo(entry)) {

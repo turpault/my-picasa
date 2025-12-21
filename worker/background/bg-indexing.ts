@@ -6,11 +6,11 @@ import { media } from "../../server/rpc/rpcFunctions/albumUtils";
 import { getPicasaEntry } from "../../server/rpc/rpcFunctions/picasa-ini";
 import { waitUntilIdle } from "../../server/utils/busy";
 import { imagesRoot } from "../../server/utils/constants";
-import { getFolderAlbums, waitUntilWalk, fileFoundEventEmitter, albumFoundEventEmitter } from "../../server/walker";
+import { getFolderAlbums, waitUntilWalk, fileFoundEventEmitter, albumFoundEventEmitter, listedMediaEventEmitter, albumEventEmitter, albumEntryEventEmitter } from "../../server/walker";
 import { lock } from "../../shared/lib/mutex";
 import { Queue } from "../../shared/lib/queue";
-import { isPicture, isVideo } from "../../shared/lib/utils";
-import { AlbumEntry, AlbumKind, AlbumWithData, Filters } from "../../shared/types/types";
+import { buildReadySemaphore, isPicture, isVideo, setReady } from "../../shared/lib/utils";
+import { Album, AlbumEntry, AlbumKind, AlbumWithData, Filters } from "../../shared/types/types";
 
 const debugLogger = debug("app:bg-indexing");
 
@@ -28,6 +28,8 @@ function normalizeText(text: string): string {
     .toLowerCase()
     .trim();
 }
+const readyLabel = "indexingReady";
+const isReady = buildReadySemaphore(readyLabel);
 
 class PictureIndexingService {
   private db: Database.Database;
@@ -48,7 +50,6 @@ class PictureIndexingService {
     // Check FTS integrity on startup
     this.checkAndFixFTSIntegrity();
   }
-
 
   /**
    * Check database version and migrate if necessary
@@ -190,6 +191,26 @@ class PictureIndexingService {
     debugLogger("Database initialized at:", this.dbPath);
   }
 
+  async albumEntries(album: Album): Promise<AlbumEntry[]> {
+    const entries = this.db
+      .prepare(
+        `SELECT * FROM pictures WHERE album_key = ?`,
+      )
+      .all(album.key ?? "") as AlbumEntry[];
+    return entries.map(e => ({ ...e, album }));
+  }
+
+  async isIndexed(entry: AlbumEntry): Promise<boolean> {
+    const exists = this.db
+      .prepare(
+        `SELECT COUNT(*) as count FROM pictures WHERE album_key = ? AND entry_name = ?`,
+      )
+      .get(entry.album.key ?? "", entry.name ?? "") as { count?: number } | undefined;
+    if (exists === undefined || exists === null) {
+      return false;
+    }
+    return (exists.count ?? 0) > 0;
+  }
   /**
    * Index a single picture entry
    */
@@ -732,6 +753,21 @@ class PictureIndexingService {
     }
   }
 
+  async removePicture(entry: AlbumEntry): Promise<void> {
+    const removeStmt = this.db.prepare(`
+      DELETE FROM pictures WHERE album_key = ? AND entry_name = ?
+    `);
+    removeStmt.run(entry.album.key || '', entry.name || '');
+    debugLogger(`Removed entry ${entry.name} from database`);
+    const ftsRemoveStmt = this.db.prepare(`
+      DELETE FROM pictures_fts WHERE rowid = (
+        SELECT id FROM pictures WHERE album_key = ? AND entry_name = ?
+      )
+    `);
+    ftsRemoveStmt.run(entry.album.key || '', entry.name || '');
+    debugLogger(`Removed FTS entry ${entry.name} from database`);
+  }
+
   /**
    * Update a single entry's metadata in the database
    */
@@ -807,7 +843,7 @@ class PictureIndexingService {
   /**
    * Check for orphaned FTS entries and fix them
    */
-  checkAndFixFTSIntegrity(): void {
+  async checkAndFixFTSIntegrity(): Promise<void> {
     debugLogger("Checking FTS integrity...");
 
     try {
@@ -841,21 +877,11 @@ class PictureIndexingService {
 // Export singleton instance
 let indexingService: PictureIndexingService | null = null;
 
-export function getIndexingService(): PictureIndexingService {
+function getIndexingService(): PictureIndexingService {
   if (!indexingService) {
     indexingService = new PictureIndexingService();
   }
   return indexingService;
-}
-
-export async function startPictureIndexing(): Promise<void> {
-  const service = getIndexingService();
-
-  // Set up event-driven indexing instead of batch processing
-  setupEventDrivenIndexing(service);
-
-  // Set up event listener for picasa entry updates
-  setupPicasaEntryUpdateListener(service);
 }
 
 /**
@@ -864,12 +890,11 @@ export async function startPictureIndexing(): Promise<void> {
 function setupEventDrivenIndexing(service: PictureIndexingService): void {
   debugLogger("Setting up event-driven indexing");
 
-  // Listen for files found during walk
-  fileFoundEventEmitter.on("fileFound", async (event) => {
+  // Someone tried to access the assets in a folder album, piggy back on that to 
+  // discover new files / remove files that are no longer there
+  listedMediaEventEmitter.on("assetsInFolderAlbum", async (event) => {
     try {
       debugLogger(`Processing ${event.entries.length} files from album ${event.album.name}`);
-
-      // Process each entry individually
       for (const entry of event.entries) {
         await waitUntilIdle();
         try {
@@ -878,17 +903,40 @@ function setupEventDrivenIndexing(service: PictureIndexingService): void {
           debugLogger(`Error indexing ${entry.name}:`, error);
         }
       }
+
+      const albumEntries = await service.albumEntries(event.album);
+      for (const entry of event.entries) {
+        if (albumEntries.some(e => e.name === entry.name)) {
+          continue;
+        }
+        debugLogger(`Indexing ${entry.name} only found in event, adding to index...`);
+        fileFoundEventEmitter.emit("fileFound", entry);
+        try {
+          await service.indexPicture(entry);
+        } catch (error) {
+          debugLogger(`Error indexing ${entry.name}:`, error);
+        }
+      }
+      for (const entry of albumEntries) {
+        debugLogger(`Indexing ${entry.name} only found in database, removing from index...`);
+        fileFoundEventEmitter.emit("fileGone", entry);
+        try {
+          await service.removePicture(entry);
+        } catch (error) {
+          debugLogger(`Error removing ${entry.name} from index:`, error);
+        }
+      }
+
     } catch (error) {
       debugLogger("Error processing file found event:", error);
     }
   });
+  albumEntryEventEmitter.on("albumEntryChanged", async (entry) => {
+    await service.indexPicture(entry);
+  });
+
 
   debugLogger("Event-driven indexing set up successfully");
-}
-
-export async function indexPicture(entry: AlbumEntry): Promise<void> {
-  const service = getIndexingService();
-  await service.indexPicture(entry);
 }
 
 /**
@@ -915,23 +963,42 @@ function setupPicasaEntryUpdateListener(service: PictureIndexingService): void {
   debugLogger("Picasa entry update listener set up successfully");
 }
 
+// Main entry point for indexing pictures
+export async function indexPictures(): Promise<void> {
+  const service = getIndexingService();
+  await waitUntilWalk();
+
+  // From now on, we are ready to index
+  for (const album of await getFolderAlbums()) {
+    const m = await media(album);
+    for (const entry of m.entries) {
+      await service.indexPicture(entry);
+    }
+  }
+
+
+  // Set up event-driven indexing instead of batch processing
+  setupEventDrivenIndexing(service);
+
+  // Set up event listener for picasa entry updates
+  setupPicasaEntryUpdateListener(service);
+
+  setReady(readyLabel);
+}
+
+export async function indexingReady(): Promise<void> {
+  return isReady;
+}
+
 
 export function queryFoldersByFilters(filters: Filters): AlbumWithData[] {
   const service = getIndexingService();
   return service.queryFoldersByFilters(filters);
 }
 
-
-
-
 export function searchPicturesByFilters(filters: Filters, limit?: number, albumId?: string): AlbumEntry[] {
   const service = getIndexingService();
   return service.searchPicturesByFilters(filters, limit, albumId);
-}
-
-export function getIndexingStats(): { totalPictures: number; totalFolders: number; lastUpdated: string } {
-  const service = getIndexingService();
-  return service.getStats();
 }
 
 export function queryAlbumEntries(albumId: string, matchingStrings: string[]): AlbumEntry[] {
@@ -939,26 +1006,8 @@ export function queryAlbumEntries(albumId: string, matchingStrings: string[]): A
   return service.queryAlbumEntries(albumId, matchingStrings);
 }
 
-export function getDatabaseVersion(): number {
-  const service = getIndexingService();
-  return service.getDatabaseVersion();
-}
-
-export function getRequiredDatabaseVersion(): number {
-  return DATABASE_VERSION;
-}
 
 export function getAllFolders(): AlbumWithData[] {
   const service = getIndexingService();
   return service.getAllFolders();
-}
-
-export function rebuildFTSIndex(): void {
-  const service = getIndexingService();
-  return service.rebuildFTSIndex();
-}
-
-export function checkFTSIntegrity(): void {
-  const service = getIndexingService();
-  return service.checkAndFixFTSIntegrity();
 }
