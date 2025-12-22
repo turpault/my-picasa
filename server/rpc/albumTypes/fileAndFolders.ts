@@ -11,7 +11,6 @@ import {
 import { imagesRoot } from "../../utils/constants";
 import { broadcast } from "../../utils/socketList";
 import { pathForAlbum } from "../../utils/serverUtils";
-import { fileFoundEventEmitter, listedMediaEventEmitter } from "../../services/walker/worker";
 
 const notificationQueue: AlbumChangeEvent[] = [];
 
@@ -62,7 +61,6 @@ export async function assetsInFolderAlbum(
         }
       }),
   );
-  listedMediaEventEmitter.emit("assetsInFolderAlbum", { album, entries });
 
   return { entries, folders };
 }

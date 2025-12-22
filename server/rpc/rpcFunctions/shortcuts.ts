@@ -1,5 +1,5 @@
 import { Album } from "../../../shared/types/types";
-import { addOrRefreshOrDeleteAlbum } from "../../walker";
+import { events } from "../../events/server-events";
 import { broadcast } from "../../utils/socketList";
 import { albumWithData } from "./albumUtils";
 import { getShortcuts, setPicasaAlbumShortcut } from "./picasa-ini";
@@ -12,11 +12,15 @@ export async function setAlbumShortcut(album: Album, shortcut: string) {
   const previous = getShortcuts()[shortcut];
   await setPicasaAlbumShortcut(album, shortcut);
 
+  const albumsToReindex: Album[] = [];
   if (previous) {
-    addOrRefreshOrDeleteAlbum(previous, undefined, true);
+    albumsToReindex.push(previous);
   }
   if (shortcut) {
-    addOrRefreshOrDeleteAlbum(album, undefined, true);
+    albumsToReindex.push(album);
+  }
+  if (albumsToReindex.length > 0) {
+    events.emit("reindex", albumsToReindex);
   }
 
   broadcast("shortcutsUpdated", {});

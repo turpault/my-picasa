@@ -6,7 +6,7 @@ import { parentPort, workerData } from "worker_threads";
 import { events } from "../../events/server-events";
 import { media } from "../../rpc/rpcFunctions/albumUtils";
 import { waitUntilIdle } from "../../utils/busy";
-import { getFolderAlbums, waitUntilWalk } from "../walker/worker";
+import { getFolderAlbums } from "../../media";
 import { lock } from "../../../shared/lib/mutex";
 import { Queue } from "../../../shared/lib/queue";
 import { buildReadySemaphore, setReady } from "../../../shared/lib/utils";
@@ -28,8 +28,8 @@ function setupEventListeners(): void {
   debugLogger("Setting up event listeners for forwarded ServerEvents");
   const db = getExifDatabaseReadWrite();
 
-  // Handle fileFound - add new files to database and queue EXIF extraction
-  events.on("fileFound", async (entry: AlbumEntry) => {
+  // Handle albumEntryAdded - add new files to database and queue EXIF extraction
+  events.on("albumEntryAdded", async (entry: AlbumEntry) => {
     try {
       await waitUntilIdle();
       debugLogger(`Adding new file to EXIF database: ${entry.name}`);
@@ -37,12 +37,12 @@ function setupEventListeners(): void {
       // Queue EXIF data extraction
       queueExifExtraction(entry);
     } catch (error) {
-      debugLogger(`Error handling fileFound for ${entry.name}:`, error);
+      debugLogger(`Error handling albumEntryAdded for ${entry.name}:`, error);
     }
   });
 
-  // Handle fileGone - remove deleted files
-  events.on("fileGone", async (entry: AlbumEntry) => {
+  // Handle albumEntryRemoved - remove deleted files
+  events.on("albumEntryRemoved", async (entry: AlbumEntry) => {
     try {
       debugLogger(`Removing deleted file from EXIF database: ${entry.name}`);
       db.removeEntry(entry);
@@ -158,7 +158,6 @@ async function initializeExifDatabase(): Promise<void> {
   const l = await lock("initializeExifDatabase");
   const db = getExifDatabaseReadWrite();
 
-  await waitUntilWalk();
   const albums = await getFolderAlbums();
   debugLogger(`Total albums to process: ${albums.length}`);
 
@@ -240,7 +239,6 @@ async function processUnprocessedEntries(): Promise<void> {
 export async function processExifData(): Promise<void> {
   // Initialize database (read-write in EXIF worker)
   const db = getExifDatabaseReadWrite();
-  await waitUntilWalk();
 
   // Initialize database with all album entries (create rows with no EXIF data)
   await initializeExifDatabase();

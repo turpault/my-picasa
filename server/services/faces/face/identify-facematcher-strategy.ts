@@ -4,7 +4,7 @@ import { Queue } from "../../../shared/lib/queue";
 
 import { Album, Reference } from "../../../shared/types/types";
 import { media } from "../../../../rpc/rpcFunctions/albumUtils";
-import { getFolderAlbums } from "../../../walker/worker";
+import { getFolderAlbums } from "../../../../media";
 import {
   createCandidateThumbnail,
   findFaceInRect,

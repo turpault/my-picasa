@@ -21,11 +21,8 @@ import { exportsFolder, imagesRoot } from "../../utils/constants";
 import { entryFilePath, fileExists } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { addToUndo, registerUndoProvider } from "../../utils/undo";
-import {
-  addOrRefreshOrDeleteAlbum,
-  onRenamedAlbums,
-  refreshAlbumKeys,
-} from "../../walker";
+import { events } from "../../events/server-events";
+import { onRenamedAlbums, refreshAlbumKeys } from "../../services/walker/worker";
 import { buildPersonsList } from "../albumTypes/persons";
 import { buildProject, eraseProject } from "../albumTypes/projects";
 import { setRank } from "./albumUtils";
@@ -583,7 +580,7 @@ async function exportJob(job: Job): Promise<Album[]> {
   if (!destination) {
     openWithFinder(targetFolder, true);
   } else {
-    addOrRefreshOrDeleteAlbum(destination, undefined, true);
+    events.emit("reindex", [destination]);
   }
   return [];
 }
@@ -732,8 +729,8 @@ async function topazPhotoAIJob(job: Job): Promise<Album[]> {
 
     // Refresh the albums to show the new enhanced images
     const updatedAlbums = Array.from(albumGroups.values()).map(({ album }) => album);
-    for (const album of updatedAlbums) {
-      addOrRefreshOrDeleteAlbum(album, undefined, true);
+    if (updatedAlbums.length > 0) {
+      events.emit("reindex", updatedAlbums);
     }
 
     job.status = "finished";

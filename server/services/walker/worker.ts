@@ -8,9 +8,7 @@ import { buildEmitter } from "../../../shared/lib/event";
 import { Queue } from "../../../shared/lib/queue";
 import {
   alphaSorter,
-  buildReadySemaphore,
   differs,
-  setReady,
   sleep,
 } from "../../../shared/lib/utils";
 import {
@@ -20,7 +18,6 @@ import {
   AlbumEntryWithMetadata,
   AlbumKind,
   AlbumWithData,
-  Filters,
   keyFromID,
 } from "../../../shared/types/types";
 import {
@@ -29,42 +26,28 @@ import {
 } from "../../rpc/albumTypes/fileAndFolders";
 import { mediaCount } from "../../rpc/rpcFunctions/albumUtils";
 import {
-  getShortcuts,
   readShortcut,
 } from "../../rpc/rpcFunctions/picasa-ini";
 import { imagesRoot, specialFolders } from "../../utils/constants";
 import { pathForAlbum } from "../../utils/serverUtils";
-import { searchFoldersByFilters } from "../search/queries";
 import { events } from "../../events/server-events";
 import { getAllAlbums, getAlbum, getAlbumEntries as getWalkerAlbumEntries, upsertAlbum, deleteAlbum, replaceAlbumEntries } from "./queries";
 import { getWalkerDatabase } from "./database";
 
 const debugLogger = debug("app:walker-db");
-const readyLabelKey = "fileWalker";
-const ready = buildReadySemaphore(readyLabelKey);
 const walkQueue = new Queue(10);
-
-export type FileFoundEvent = {
-  fileFound: AlbumEntry;
-  fileGone: AlbumEntry;
-};
 
 export type AlbumFoundEvent = {
   albumFound: AlbumWithData;
 };
 
-export type ListedMediaEvent = {
-  assetsInFolderAlbum: { album: Album; entries: AlbumEntry[] };
-};
 export type AlbumEntryChangedEvent = {
   albumEntryChanged: AlbumEntryWithMetadata;
 };
 
 // Keep emitters for backward compatibility with existing code
 export const albumEventEmitter = buildEmitter<AlbumChangeEvent>();
-export const fileFoundEventEmitter = buildEmitter<FileFoundEvent>();
 export const albumFoundEventEmitter = buildEmitter<AlbumFoundEvent>();
-export const listedMediaEventEmitter = buildEmitter<ListedMediaEvent>();
 export const albumEntryEventEmitter = buildEmitter<AlbumEntryChangedEvent>();
 
 export function initializeWorkerListeners() {
@@ -78,7 +61,6 @@ export function initializeWorkerListeners() {
   for (const worker of workers) {
     worker.on("message", (msg) => {
       if (msg.type === "ready") {
-        setReady(readyLabelKey);
         // Relay ready to other workers
         broadcast(msg, 'walker');
       } else if (msg.type === "notification") {
@@ -99,6 +81,12 @@ async function walkFilesystem(): Promise<void> {
 
   // Initialize database (will be read-write in walker worker)
   getWalkerDatabase();
+
+  // Set up event listener for reindex events
+  events.on("reindex", async (albums: Album[]) => {
+    await reindexAlbumsFromList(albums);
+  });
+
   let iteration = 0;
   while (true) {
     console.info(`Filesystem scan: iteration ${iteration}`);
@@ -127,7 +115,6 @@ async function walkFilesystem(): Promise<void> {
 
     if (iteration === 0) {
       console.info(`Album list retrieved`);
-      setReady(readyLabelKey);
       if (parentPort) {
         parentPort.postMessage({ type: "ready" });
       }
@@ -152,10 +139,6 @@ if (parentPort && workerData?.serviceName === 'walker') {
     console.error(`Error starting worker ${serviceName}:`, error);
     process.exit(1);
   });
-}
-
-export async function waitUntilWalk() {
-  return ready;
 }
 
 export async function refreshAlbumKeys(albums: string[]) {
@@ -222,7 +205,7 @@ async function folderAlbumExists(album: Album): Promise<boolean> {
   return false;
 }
 
-export async function addOrRefreshOrDeleteAlbum(
+async function addOrRefreshOrDeleteAlbum(
   album: Album | undefined,
   options?: "SkipCheckInfo",
   added?: boolean
@@ -244,6 +227,8 @@ export async function addOrRefreshOrDeleteAlbum(
         queueNotification({ type: "albumDeleted", album: existing });
         // Emit through local emitter for backward compatibility
         albumEventEmitter.emit("deleted", existing);
+        // Emit server event
+        events.emit("albumRemoved", album);
         deleteAlbum(album.key);
       }
     } else {
@@ -262,7 +247,7 @@ export async function addOrRefreshOrDeleteAlbum(
           album: updated,
         });
         // Emit through ServerEvents (will be forwarded to all workers)
-        events.emit("albumFound", updated);
+        events.emit("albumAdded", updated);
         upsertAlbum(updated);
       } else {
         if (options !== "SkipCheckInfo") {
@@ -283,6 +268,8 @@ export async function addOrRefreshOrDeleteAlbum(
             });
             // Emit through local emitter for backward compatibility
             albumEventEmitter.emit("updated", updated);
+            // Emit server event
+            events.emit("albumUpdated", updated);
             upsertAlbum(updated);
           }
         }
@@ -310,6 +297,30 @@ async function walk(
   };
   const m = await assetsInFolderAlbum(album);
 
+  // Get existing entries from database
+  const existingEntries = getWalkerAlbumEntries(album);
+  const existingEntryNames = new Set(existingEntries.map(e => e.name));
+  const newEntryNames = new Set(m.entries.map(e => e.name));
+
+  // Emit events for added entries
+  for (const entry of m.entries) {
+    if (!existingEntryNames.has(entry.name)) {
+      events.emit("albumEntryAdded", entry);
+    }
+  }
+
+  // Emit events for removed entries
+  for (const entry of existingEntries) {
+    if (!newEntryNames.has(entry.name)) {
+      events.emit("albumEntryRemoved", entry);
+    }
+  }
+
+  // Update entries in database
+  if (m.entries.length > 0 || existingEntries.length > 0) {
+    replaceAlbumEntries(album, m.entries);
+  }
+
   // depth down first
   for (const child of m.folders.sort(alphaSorter()).reverse()) {
     walkQueue.add<Album[]>(() =>
@@ -325,35 +336,80 @@ async function walk(
   }
 }
 
-export async function getFolderAlbums(): Promise<AlbumWithData[]> {
-  await waitUntilWalk();
-  return getAllAlbums();
-}
 
-export async function folders(filters?: Filters): Promise<AlbumWithData[]> {
-  if (filters) {
-    // Use database-level filtering for better performance
-    const matchedAlbums = await searchFoldersByFilters(filters);
+/**
+ * Reindex albums from a list of Album objects
+ */
+async function reindexAlbumsFromList(albums: Album[]): Promise<void> {
+  if (isMainThread) {
+    throw new Error("reindexAlbumsFromList must be called from the walker worker");
+  }
 
-    // Complete with shortcuts
-    const shortcuts = Object.values(getShortcuts());
-    for (const album of matchedAlbums) {
-      const shortcut = shortcuts.find((s) => s.key === album.key);
-      if (shortcut) {
-        album.shortcut = shortcut.name;
+  try {
+    for (const album of albums) {
+      if (album.kind !== AlbumKind.FOLDER) {
+        debugLogger(`Skipping reindex for album ${album.key}: not a folder album`);
+        continue;
+      }
+
+      try {
+        // Get existing entries
+        const existingEntries = getWalkerAlbumEntries(album);
+        const existingEntryNames = new Set(existingEntries.map(e => e.name));
+
+        const { entries } = await assetsInFolderAlbum(album);
+        const newEntryNames = new Set(entries.map(e => e.name));
+
+        // Emit events for added entries
+        for (const entry of entries) {
+          if (!existingEntryNames.has(entry.name)) {
+            events.emit("albumEntryAdded", entry);
+          }
+        }
+
+        // Emit events for removed entries
+        for (const entry of existingEntries) {
+          if (!newEntryNames.has(entry.name)) {
+            events.emit("albumEntryRemoved", entry);
+          }
+        }
+
+        // Update album count
+        const existing = getAlbum(album.key);
+        if (existing) {
+          const updatedAlbum: AlbumWithData = {
+            ...existing,
+            count: entries.length,
+          };
+          upsertAlbum(updatedAlbum);
+          events.emit("albumUpdated", updatedAlbum);
+        } else {
+          // Album doesn't exist in DB, add it
+          const [count, shortcut] = await Promise.all([
+            mediaCount(album),
+            readShortcut(album),
+          ]);
+          const newAlbum: AlbumWithData = {
+            ...album,
+            ...count,
+            shortcut,
+          };
+          upsertAlbum(newAlbum);
+          events.emit("albumAdded", newAlbum);
+        }
+
+        // Replace all entries for this album
+        replaceAlbumEntries(album, entries);
+
+        debugLogger(`Reindexed album ${album.key}: ${entries.length} entries`);
+      } catch (error) {
+        debugLogger(`Error reindexing album ${album.key}:`, error);
       }
     }
-    return matchedAlbums;
+  } catch (error) {
+    debugLogger("Error in reindexAlbumsFromList:", error);
+    throw error;
   }
-  return getAllAlbums();
-}
-
-export function getFolderAlbumData(key: string) {
-  const album = getAlbum(key);
-  if (!album) {
-    throw new Error(`Album ${key} not found`);
-  }
-  return album;
 }
 
 /**
@@ -366,47 +422,16 @@ export async function reindexAlbums(albumIds: string[]): Promise<void> {
   }
 
   try {
-    for (const albumKey of albumIds) {
-      const album = getAlbum(albumKey);
-      if (!album || album.kind !== AlbumKind.FOLDER) {
-        debugLogger(`Skipping reindex for album ${albumKey}: not found or not a folder album`);
-        continue;
-      }
+    const albums = albumIds
+      .map((key) => getAlbum(key))
+      .filter((album): album is AlbumWithData => album !== undefined && album.kind === AlbumKind.FOLDER)
+      .map(album => ({ key: album.key, name: album.name, kind: album.kind } as Album));
 
-      try {
-        const folderAlbum: Album = {
-          key: album.key,
-          name: album.name,
-          kind: album.kind,
-        };
-
-        const { entries } = await assetsInFolderAlbum(folderAlbum);
-
-        // Update album count
-        const updatedAlbum: AlbumWithData = {
-          ...album,
-          count: entries.length,
-        };
-        upsertAlbum(updatedAlbum);
-
-        // Replace all entries for this album
-        replaceAlbumEntries(folderAlbum, entries);
-
-        debugLogger(`Reindexed album ${albumKey}: ${entries.length} entries`);
-      } catch (error) {
-        debugLogger(`Error reindexing album ${albumKey}:`, error);
-      }
-    }
+    await reindexAlbumsFromList(albums);
   } catch (error) {
     debugLogger("Cannot write to database (not walker worker):", error);
     throw error;
   }
 }
 
-/**
- * Get album entries from the database
- */
-export function getAlbumEntries(album: Album): AlbumEntry[] {
-  return getWalkerAlbumEntries(album);
-}
 

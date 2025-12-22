@@ -3,16 +3,13 @@ import { parentPort, workerData } from "worker_threads";
 import { events } from "../../events/server-events";
 import { media } from "../../rpc/rpcFunctions/albumUtils";
 import { waitUntilIdle } from "../../utils/busy";
-import { getFolderAlbums, waitUntilWalk } from "../walker/worker";
+import { getFolderAlbums } from "../../media";
 import { lock } from "../../../shared/lib/mutex";
 import { Queue } from "../../../shared/lib/queue";
-import { buildReadySemaphore, setReady } from "../../../shared/lib/utils";
 import { AlbumEntry } from "../../../shared/types/types";
 import { getIndexingDatabaseReadWrite } from "./database";
 
 const debugLogger = debug("app:bg-indexing");
-const readyLabel = "indexingReady";
-const isReady = buildReadySemaphore(readyLabel);
 
 /**
  * Set up event listeners for forwarded ServerEvents
@@ -22,8 +19,8 @@ function setupEventListeners(): void {
   debugLogger("Setting up event listeners for search index updates");
   const db = getIndexingDatabaseReadWrite();
 
-  // Handle fileFound - index new files
-  events.on("fileFound", async (entry: AlbumEntry) => {
+  // Handle albumEntryAdded - index new files
+  events.on("albumEntryAdded", async (entry: AlbumEntry) => {
     try {
       await waitUntilIdle();
       debugLogger(`Indexing new file: ${entry.name}`);
@@ -33,8 +30,8 @@ function setupEventListeners(): void {
     }
   });
 
-  // Handle fileGone - remove deleted files
-  events.on("fileGone", async (entry: AlbumEntry) => {
+  // Handle albumEntryRemoved - remove deleted files
+  events.on("albumEntryRemoved", async (entry: AlbumEntry) => {
     try {
       debugLogger(`Removing deleted file from index: ${entry.name}`);
       await db.removePicture(entry);
@@ -85,7 +82,6 @@ async function indexAllPictures(): Promise<void> {
   db.clearAllMarks();
 
   const q = new Queue(3);
-  await Promise.all([waitUntilWalk()]);
   const albums = await getFolderAlbums();
   // Sort album by name in reverse (most recent first)
   albums.sort((a, b) => b.name.localeCompare(a.name));
@@ -145,7 +141,6 @@ async function indexAllPictures(): Promise<void> {
 export async function indexPictures(): Promise<void> {
   // Initialize database (read-write in indexing worker)
   const db = getIndexingDatabaseReadWrite();
-  await waitUntilWalk();
 
   // From now on, we are ready to index
   for (const album of await getFolderAlbums()) {
@@ -157,8 +152,6 @@ export async function indexPictures(): Promise<void> {
 
   // Set up event listeners for forwarded ServerEvents
   setupEventListeners();
-
-  setReady(readyLabel);
 }
 
 /**
@@ -166,10 +159,6 @@ export async function indexPictures(): Promise<void> {
  */
 export async function startWorker(): Promise<void> {
   await indexPictures();
-}
-
-export async function indexingReady(): Promise<void> {
-  return isReady;
 }
 
 // Initialize worker if running in a worker thread

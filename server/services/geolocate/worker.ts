@@ -5,7 +5,6 @@ import {
   getPicasaEntry,
   updatePicasaEntry,
 } from "../../rpc/rpcFunctions/picasa-ini";
-import { indexingReady } from "../search/worker";
 import { getAllFolders, getAlbumEntries } from "../search/queries";
 import { getLocations } from "./poi/get-poi";
 import { initPOIDB } from "./poi/ingest";
@@ -15,7 +14,7 @@ import debug from "debug";
 const debugLogger = debug("app:bg-geolocate");
 
 export async function buildGeolocation() {
-  await Promise.all([initPOIDB(), indexingReady()]);
+  await initPOIDB();
 
   const albums = getAllFolders();
   for (const album of albums.reverse()) {

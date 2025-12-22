@@ -1,7 +1,7 @@
 import Debug from "debug";
 
 import { Album, AlbumKind } from "../../../shared/types/types";
-import { albumEventEmitter, waitUntilWalk } from "../../walker";
+import { albumEventEmitter } from "../../walker";
 import { getPicasaEntries, readPersons } from "../rpcFunctions/picasa-ini";
 const persons = new Set<string>();
 
@@ -26,6 +26,5 @@ export async function buildPersonsList() {
 }
 
 export async function getPersons() {
-  await waitUntilWalk();
   return Array.from(persons);
 }

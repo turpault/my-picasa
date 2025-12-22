@@ -14,7 +14,7 @@ import {
 } from "../../utils/constants";
 import { safeWriteFile } from "../../utils/serverUtils";
 import { openWithFinder } from "./osascripts";
-import { addOrRefreshOrDeleteAlbum } from "../../services/walker/worker";
+import { events } from "../../events/server-events";
 import { pathForAlbum, pathForAlbumEntry } from "../../utils/serverUtils";
 
 export async function getFileContents(file: string): Promise<string> {
@@ -57,7 +57,7 @@ export async function makeAlbum(name: string): Promise<Album> {
         name,
         kind: AlbumKind.FOLDER,
       };
-      addOrRefreshOrDeleteAlbum(a, undefined, true);
+      events.emit("reindex", [a]);
       return a;
     });
 }

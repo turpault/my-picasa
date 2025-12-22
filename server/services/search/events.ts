@@ -16,7 +16,7 @@ if (!isMainThread && parentPort) {
   parentPort.on("message", (msg) => {
     if (msg.type === "event" && msg.emitter === "events") {
       const { eventType, data } = msg;
-      if (eventType === "fileFound" || eventType === "fileGone" || eventType === "albumFound" || eventType === "albumEntryChanged") {
+      if (eventType === "fileFound" || eventType === "fileGone" || eventType === "albumFound" || eventType === "albumEntryUpdated") {
         serverEvents.emit(eventType, data);
       }
     }
@@ -33,8 +33,8 @@ if (!isMainThread && parentPort) {
   events.on("albumFound", (album: AlbumWithData) => {
     serverEvents.emit("albumFound", album);
   });
-  events.on("albumEntryChanged", (entry: AlbumEntryWithMetadata) => {
-    serverEvents.emit("albumEntryChanged", entry);
+  events.on("albumEntryUpdated", (entry: AlbumEntryWithMetadata) => {
+    serverEvents.emit("albumEntryUpdated", entry);
   });
 }
 

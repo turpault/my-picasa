@@ -466,7 +466,7 @@ export async function updatePicasaEntry(
     } else {
       delete picasa[entry.name][field as keyof AlbumEntryMetaData];
     }
-    events.emit("albumEntryChanged",
+    events.emit("albumEntryUpdated",
       await imageInfo(entry, picasa[entry.name]),
     );
   }

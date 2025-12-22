@@ -5,7 +5,7 @@ import { media } from "../../rpc/rpcFunctions/albumUtils";
 import { waitUntilIdle } from "../../utils/busy";
 import { iCloudPhotosFolder, ThumbnailSizes } from "../../utils/constants";
 import { fileExists, pathForAlbum, pathForAlbumEntry } from "../../utils/serverUtils";
-import { folders, waitUntilWalk } from "../walker/worker";
+import { folders } from "../../media";
 import { serverEvents } from "./events";
 import { Queue } from "../../../shared/lib/queue";
 import { AlbumEntry } from "../../../shared/types/types";
@@ -22,7 +22,6 @@ export async function buildExportsFolder() {
   if (!(await fileExists(iCloudPhotosFolder))) {
     await mkdir(iCloudPhotosFolder, { recursive: true });
   }
-  await waitUntilWalk();
   serverEvents.on("fileFound", async (event) => {
     if (await shouldExport(event)) {
       await exportToICloudFolder(event, true);

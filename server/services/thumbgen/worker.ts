@@ -4,7 +4,6 @@ import { AlbumEntry, ThumbnailSizeVals } from "../../../shared/types/types";
 import { imageInfo } from "../../imageOperations/info";
 import { makeThumbnailIfNeeded } from "../../rpc/rpcFunctions/thumbnail";
 import { serverEvents } from "./events";
-import { indexingReady } from "../search/worker";
 import { getAlbumEntries, getAllFolders } from "../search/queries";
 const debug = Debug("app:bg-thumbgen");
 
@@ -17,7 +16,6 @@ const thumbnailSizes = ThumbnailSizeVals.filter((f) => !f.includes("large"))
   .flat();
 
 export async function buildThumbs() {
-  await indexingReady();
   const albums = getAllFolders();
   // Sort albums in reverse order (most recent first)
   albums.sort((a, b) => b.name.localeCompare(a.name));

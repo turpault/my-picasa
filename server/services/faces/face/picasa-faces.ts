@@ -27,7 +27,7 @@ import {
   updatePicasaEntry,
   writeCandidateFacesSection,
 } from "../../../rpc/rpcFunctions/picasa-ini";
-import { getFolderAlbums, waitUntilWalk } from "../../../walker/worker";
+import { getFolderAlbums } from "../../../media";
 import { readReferencesOfEntry } from "../../../../rpc/albumTypes/referenceFiles";
 
 type PicasaFeatures = {
@@ -38,7 +38,6 @@ type PicasaFeatures = {
 };
 
 export async function getPicasaFeatures(): Promise<PicasaFeatures> {
-  await waitUntilWalk();
   const self = getPicasaFeatures as any;
   if (self._features) {
     return self._features;

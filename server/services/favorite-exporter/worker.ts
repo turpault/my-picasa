@@ -7,14 +7,12 @@ import { favoritesFolder } from "../../utils/constants";
 import { fileExists } from "../../utils/serverUtils";
 import { Queue } from "../../../shared/lib/queue";
 import { RESIZE_ON_EXPORT_SIZE } from "../../../shared/lib/shared-constants";
-import { indexingReady } from "../search/worker";
 import { getAlbumEntries, getAllFolders } from "../search/queries";
 
 export async function buildFavoriteFolder() {
   if (!(await fileExists(favoritesFolder))) {
     await mkdir(favoritesFolder, { recursive: true });
   }
-  await indexingReady();
   await exportAllMissing();
 }
 

@@ -24,7 +24,7 @@ import {
   safeWriteFile,
 } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
-import { addOrRefreshOrDeleteAlbum } from "../../services/walker/worker";
+import { events } from "../../events/server-events";
 import { queueNotification } from "./fileAndFolders";
 import { thumbnailPathFromEntryAndSize } from "../rpcFunctions/thumbnail-cache";
 import {
@@ -187,7 +187,7 @@ export async function buildProject(
       break;
   }
   if (newEntry)
-    await addOrRefreshOrDeleteAlbum(newEntry.album, undefined, true);
+    events.emit("reindex", [newEntry.album]);
   return newEntry;
 }
 

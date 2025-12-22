@@ -10,7 +10,7 @@ import {
 } from "../../../rpc/albumTypes/referenceFiles";
 import { media } from "../../../rpc/rpcFunctions/albumUtils";
 import { entryFilePath, fileExists } from "../../../utils/serverUtils";
-import { getFolderAlbums } from "../../walker/worker";
+import { getFolderAlbums } from "../../../media";
 import { lock } from "../../../../shared/lib/mutex";
 import { Queue } from "../../../../shared/lib/queue";
 import {

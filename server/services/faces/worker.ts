@@ -5,7 +5,6 @@ import { Queue } from "../../../shared/lib/queue";
 import { getFaceAlbums } from "../../rpc/rpcFunctions/faces";
 import { media } from "../../rpc/rpcFunctions/albumUtils";
 import { getFaceImage } from "../../rpc/rpcFunctions/thumbnail";
-import { indexingReady } from "../search/worker";
 import { runClusterStrategy } from "./face/identify-cluster-strategy";
 // import { runFaceMatcherStrategy } from "./face/identify-facematcher-strategy";
 // import { startRedis, stopRedis } from "./redis-process";
@@ -14,7 +13,7 @@ import { populateAllReferences, setupFaceAPI } from "./face/references";
 const debug = Debug("app:faces");
 
 export async function buildFaceScan() {
-  await Promise.all([tf.ready, indexingReady()]);
+  await tf.ready;
 
   debug("Building face scan");
   debug("Building identified contact list");

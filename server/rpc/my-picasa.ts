@@ -19,7 +19,7 @@ import {
   transform,
 } from "../imageOperations/sharp-processor";
 import { undo, undoList } from "../utils/undo";
-import { folders } from "../services/walker/worker";
+import { folders } from "../media";
 import { Filters, AlbumWithData } from "../../shared/types/types";
 import { getPersons } from "./albumTypes/persons";
 import {

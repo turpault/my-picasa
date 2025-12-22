@@ -19,7 +19,7 @@ import {
   ProjectType,
 } from "../../../shared/types/types";
 import { searchFoldersByFilters, searchPicturesByFilters } from "../../services/search/queries";
-import { getFolderAlbums, getFolderAlbumData } from "../../services/walker/worker";
+import { getFolderAlbums, getFolderAlbumData } from "../../media";
 import { media as getMedia } from "../../media";
 import {
   assetsInFolderAlbum,

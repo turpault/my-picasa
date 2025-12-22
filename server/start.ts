@@ -6,7 +6,6 @@ import { lockedLocks, startLockMonitor } from "../shared/lib/mutex";
 import { RPCAdaptorInterface } from "../shared/rpc-transport/rpc-adaptor-interface";
 import { WsAdaptor } from "../shared/rpc-transport/ws-adaptor";
 import { startWorker } from "./worker-manager";
-import { waitUntilWalk } from "./services/walker/worker";
 import { closePoiDb } from "./services/geolocate/poi/sqlite-client";
 // import { getIndexingService } from "../worker/background/bg-indexing"; // This causes DB initialization on main thread
 import { parseLUTs } from "./imageOperations/image-filters";
@@ -221,6 +220,5 @@ export async function startServices() {
   info("Loading face albums...");
   await loadFaceAlbums();
   info("Waiting until walk...");
-  await waitUntilWalk();
   info("Ready...");
 }
