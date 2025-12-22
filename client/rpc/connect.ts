@@ -1,6 +1,6 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
 import { sleep } from "../../shared/lib/utils";
-import { WsAdaptor } from "../rpc-transport/ws-adaptor";
+import { WsAdaptor } from "../../shared/rpc-transport/ws-adaptor";
 import { PicisaClient } from "./generated-rpc/PicisaClient";
 export type ConnectionEvent = {
   connected: { service: PicisaClient };
@@ -28,7 +28,7 @@ export function connect(
       events.emit("disconnected", { event });
       try {
         wSocket.close();
-      } catch (e) {}
+      } catch (e) { }
       reopen(1);
     };
     wSocket.onopen = () => {
@@ -42,7 +42,7 @@ export function connect(
         reopen(10);
       }
     };
-    wSocket.onclose = () => {};
+    wSocket.onclose = () => { };
   };
   reopen();
   return events;
