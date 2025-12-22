@@ -6,7 +6,7 @@ import { media } from "../../server/rpc/rpcFunctions/albumUtils";
 import { getPicasaEntry } from "../../server/rpc/rpcFunctions/picasa-ini";
 import { waitUntilIdle } from "../../server/utils/busy";
 import { imagesRoot } from "../../server/utils/constants";
-import { getFolderAlbums, waitUntilWalk, fileFoundEventEmitter, albumFoundEventEmitter, listedMediaEventEmitter, albumEventEmitter, albumEntryEventEmitter } from "../../server/walker";
+import { getFolderAlbums, waitUntilWalk, fileFoundEventEmitter, albumFoundEventEmitter, listedMediaEventEmitter, albumEventEmitter, albumEntryEventEmitter } from "../../server/workers";
 import { lock } from "../../shared/lib/mutex";
 import { Queue } from "../../shared/lib/queue";
 import { buildReadySemaphore, isPicture, isVideo, setReady } from "../../shared/lib/utils";

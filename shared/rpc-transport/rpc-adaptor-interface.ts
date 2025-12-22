@@ -1,6 +1,6 @@
 import EventEmitter from 'events';
 
-export interface SocketAdaptorInterface {
+export interface RPCAdaptorInterface {
   // Use a middleware function on each incoming packet
   use(middlewareHandler: (data: any, next: Function) => void): void;
 

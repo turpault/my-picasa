@@ -24,7 +24,7 @@ import {
   safeWriteFile,
 } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
-import { addOrRefreshOrDeleteAlbum } from "../../walker";
+import { addOrRefreshOrDeleteAlbum } from "../../workers";
 import { queueNotification } from "./fileAndFolders";
 import { thumbnailPathFromEntryAndSize } from "../rpcFunctions/thumbnail-cache";
 import {

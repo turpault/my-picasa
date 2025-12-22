@@ -1,6 +1,6 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
 import { sleep } from "../../shared/lib/utils";
-import { WsAdaptor } from "../../shared/socket/ws-adaptor";
+import { WsAdaptor } from "../rpc-transport/ws-adaptor";
 import { PicisaClient } from "./generated-rpc/PicisaClient";
 export type ConnectionEvent = {
   connected: { service: PicisaClient };

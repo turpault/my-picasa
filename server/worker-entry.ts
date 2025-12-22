@@ -1,16 +1,47 @@
-import { parentPort } from "worker_threads";
-import { startBackgroundTasksOnStart } from "../worker/background/services/on-start";
-import { updateLastWalkLoop } from "./walker";
+import { parentPort, workerData } from "worker_threads";
+import { WorkerAdaptor } from "../../shared/socket/worker-adaptor";
+import { registerServices } from "./rpc/rpc-handler";
 
 if (!parentPort) {
   throw new Error("This file must be run as a worker thread");
 }
 
-console.info("Worker thread started");
+const serviceName = workerData?.serviceName;
+console.info(`Worker thread started for service: ${serviceName}`);
 
-// Start filesystem walker
-updateLastWalkLoop();
+// Set up RPC adaptor for this worker
+const adaptor = new WorkerAdaptor();
 
-// Start background services
-startBackgroundTasksOnStart();
+// Register RPC services based on service name
+async function initializeWorkerRPC() {
+  switch (serviceName) {
+    case 'indexing': {
+      const { IndexingWorkerService } = await import("../worker/background/indexing/rpc-service");
+      registerServices(adaptor, [IndexingWorkerService], {});
+      break;
+    }
+    // Add other workers here as needed
+    // case 'exif': ...
+    // case 'thumbnails': ...
+    // case 'faces': ...
+    // case 'favorites': ...
+    // case 'geolocate': ...
+    default:
+      console.info(`No RPC service defined for worker: ${serviceName}`);
+  }
+}
+
+// Initialize RPC
+initializeWorkerRPC().catch((err) => {
+  console.error(`Error initializing RPC for worker ${serviceName}:`, err);
+});
+
+// Start worker-specific initialization
+if (serviceName === 'walker') {
+  const { updateLastWalkLoop } = await import("./walker");
+  updateLastWalkLoop();
+} else {
+  const { startBackgroundTasksOnStart } = await import("../worker/background/services/on-start");
+  startBackgroundTasksOnStart();
+}
 

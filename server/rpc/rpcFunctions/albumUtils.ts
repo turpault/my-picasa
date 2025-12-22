@@ -19,7 +19,7 @@ import {
   ProjectType,
 } from "../../../shared/types/types";
 import { getAlbumEntries, queryFoldersByFilters, searchPicturesByFilters } from "../../../worker/background/indexing";
-import { getFolderAlbumData, getFolderAlbums } from "../../walker";
+import { getFolderAlbumData, getFolderAlbums } from "../../workers";
 import {
   assetsInFolderAlbum,
   queueNotification,

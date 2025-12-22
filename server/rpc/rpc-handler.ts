@@ -1,7 +1,7 @@
 import { inspect } from "util";
 import { lock } from "../../shared/lib/mutex";
 import { uuid } from "../../shared/lib/utils";
-import { SocketAdaptorInterface } from "../../shared/socket/socket-adaptor-interface";
+import { RPCAdaptorInterface } from "../../shared/rpc-transport/rpc-adaptor-interface";
 import { busy, lockIdleWorkers, releaseIdleWorkers } from "../utils/busy";
 import { rate } from "../utils/stats";
 import { captureException } from "../sentry";
@@ -29,7 +29,7 @@ export type ServiceMap = {
   };
 };
 
-export interface SocketContext extends SocketAdaptorInterface {
+export interface SocketContext extends RPCAdaptorInterface {
   id: string;
 }
 
@@ -101,7 +101,7 @@ function getConvertedArguments(
 }
 
 export function registerServices(
-  socket: SocketAdaptorInterface,
+  socket: RPCAdaptorInterface,
   services: ServiceMap[],
   dependencies: {},
 ): void {

@@ -1,6 +1,6 @@
-import { sleep, uuid } from "../../shared/lib/utils";
+import { sleep, uuid } from "../lib/utils";
 import { buildEmitter, Emitter, Handler } from "../lib/event";
-import { SocketAdaptorInterface } from "./socket-adaptor-interface";
+import { RPCAdaptorInterface } from "./rpc-adaptor-interface";
 
 const defaultTimeoutInSeconds = 180;
 const retryDelayInSeconds = 1;
@@ -12,7 +12,7 @@ function _getTimeoutInSeconds(): number {
 /**
  * Wraps a WebSocket, so that we can use it in a similar manner to how we were using socket-io
  */
-export class WsAdaptor implements SocketAdaptorInterface {
+export class WsAdaptor implements RPCAdaptorInterface {
   constructor() {
     this.handlerMap = buildEmitter<any>(false);
     this.responseCallbacks = {};
