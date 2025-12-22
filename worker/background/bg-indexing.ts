@@ -6,8 +6,7 @@ import { media } from "../../server/rpc/rpcFunctions/albumUtils";
 import { getPicasaEntry } from "../../server/rpc/rpcFunctions/picasa-ini";
 import { waitUntilIdle } from "../../server/utils/busy";
 import { imagesRoot } from "../../server/utils/constants";
-import { getFolderAlbums, waitUntilWalk, listedMediaEventEmitter, albumEventEmitter } from "../../server/walker";
-import { serverEvents } from "./events";
+import { getFolderAlbums, waitUntilWalk, fileFoundEventEmitter, albumFoundEventEmitter, listedMediaEventEmitter, albumEventEmitter, albumEntryEventEmitter } from "../../server/walker";
 import { lock } from "../../shared/lib/mutex";
 import { Queue } from "../../shared/lib/queue";
 import { buildReadySemaphore, isPicture, isVideo, setReady } from "../../shared/lib/utils";
@@ -920,7 +919,7 @@ function setupEventDrivenIndexing(service: PictureIndexingService): void {
           continue;
         }
         debugLogger(`Indexing ${entry.name} only found in event, adding to index...`);
-        events.emit("fileFound", entry);
+        fileFoundEventEmitter.emit("fileFound", entry);
         try {
           await service.indexPicture(entry);
         } catch (error) {
@@ -929,7 +928,7 @@ function setupEventDrivenIndexing(service: PictureIndexingService): void {
       }
       for (const entry of albumEntries) {
         debugLogger(`Indexing ${entry.name} only found in database, removing from index...`);
-        events.emit("fileGone", entry);
+        fileFoundEventEmitter.emit("fileGone", entry);
         try {
           await service.removePicture(entry);
         } catch (error) {
@@ -941,7 +940,7 @@ function setupEventDrivenIndexing(service: PictureIndexingService): void {
       debugLogger("Error processing file found event:", error);
     }
   });
-  serverEvents.on("albumEntryChanged", async (entry) => {
+  albumEntryEventEmitter.on("albumEntryChanged", async (entry) => {
     await service.indexPicture(entry);
   });
 

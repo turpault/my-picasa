@@ -2,7 +2,7 @@ import Debug from "debug";
 import { AlbumEntry, ThumbnailSizeVals } from "../../shared/types/types";
 import { imageInfo } from "../../server/imageOperations/info";
 import { makeThumbnailIfNeeded } from "../../server/rpc/rpcFunctions/thumbnail";
-import { fileFoundEventEmitter } from "../../server/walker";
+import { serverEvents } from "./events";
 import { getAlbumEntries, getAllFolders, indexingReady } from "../indexing";
 const debug = Debug("app:bg-thumbgen");
 
@@ -41,7 +41,7 @@ function setupEventDrivenThumbnailGeneration(): void {
   debug("Setting up event-driven thumbnail generation");
 
   // Listen for files found during walk
-  fileFoundEventEmitter.on("fileFound", async (entry) => {
+  serverEvents.on("fileFound", async (entry) => {
     try {
       await imageInfo(entry);
       await Promise.all(

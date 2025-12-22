@@ -42,7 +42,6 @@ import { broadcast } from "../../utils/socketList";
 import { rate } from "../../utils/stats";
 import { media } from "./albumUtils";
 import { normalizeName } from "./faces";
-import { albumEntryEventEmitter } from "../../walker";
 import { imageInfo } from "../../imageOperations/info";
 
 export const cachedFilterKey: Record<ThumbnailSize, extraFields> = {
@@ -467,7 +466,7 @@ export async function updatePicasaEntry(
     } else {
       delete picasa[entry.name][field as keyof AlbumEntryMetaData];
     }
-    albumEntryEventEmitter.emit("albumEntryChanged",
+    events.emit("albumEntryChanged",
       await imageInfo(entry, picasa[entry.name]),
     );
   }

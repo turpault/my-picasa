@@ -1,6 +1,6 @@
 import { isMainThread, parentPort } from "worker_threads";
 import { buildEmitter } from "../../shared/lib/event";
-import { AlbumEntryPicasa } from "../../shared/types/types";
+import { AlbumEntry, AlbumEntryPicasa, AlbumEntryWithMetadata, AlbumWithData } from "../../shared/types/types";
 import { broadcast } from "../worker-manager";
 
 type ServerEvents = {
@@ -21,6 +21,10 @@ type ServerEvents = {
     field: string;
     value: any;
   };
+  fileFound: AlbumEntry;
+  fileGone: AlbumEntry;
+  albumFound: AlbumWithData;
+  albumEntryChanged: AlbumEntryWithMetadata;
 };
 
 export const events = buildEmitter<ServerEvents>();

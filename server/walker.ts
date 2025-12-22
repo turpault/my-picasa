@@ -34,6 +34,7 @@ import {
 import { imagesRoot, specialFolders } from "./utils/constants";
 import { pathForAlbum } from "./utils/serverUtils";
 import { queryFoldersByFilters } from "../worker/background/indexing";
+import { events } from "./events/server-events";
 
 const readyLabelKey = "fileWalker";
 const ready = buildReadySemaphore(readyLabelKey);
@@ -88,6 +89,10 @@ export function startWorker() {
       } else if (msg.type === "event" && msg.emitter === "fileFoundEventEmitter") {
         // Re-emit in main thread
         fileFoundEventEmitter.emit(msg.eventType, msg.data);
+        // Also emit through ServerEvents
+        if (msg.eventType === "fileFound" || msg.eventType === "fileGone") {
+          events.emit(msg.eventType, msg.data);
+        }
 
         // Broadcast to other workers
         broadcast(msg, 'walker');
@@ -127,6 +132,10 @@ if (!isMainThread && parentPort && workerData.serviceName !== 'walker') {
       albumEventEmitter.emit(msg.eventType, msg.data);
     } else if (msg.type === "event" && msg.emitter === "fileFoundEventEmitter") {
       fileFoundEventEmitter.emit(msg.eventType, msg.data);
+      // Also emit through ServerEvents
+      if (msg.eventType === "fileFound" || msg.eventType === "fileGone") {
+        events.emit(msg.eventType, msg.data);
+      }
     }
   });
 }
@@ -149,6 +158,10 @@ if (!isMainThread && parentPort && workerData.serviceName === 'walker') {
       eventType: type,
       data: event,
     });
+    // Also emit through ServerEvents
+    if (type === "fileFound" || type === "fileGone") {
+      events.emit(type, event);
+    }
   });
 }
 
@@ -302,7 +315,7 @@ export async function addOrRefreshOrDeleteAlbum(
           album: updated,
         });
         albumEventEmitter.emit("added", updated);
-        albumFoundEventEmitter.emit("albumFound", updated);
+        events.emit("albumFound", updated);
         lastWalk.push(updated);
       } else {
         if (options !== "SkipCheckInfo") {
