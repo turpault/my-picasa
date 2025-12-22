@@ -1,8 +1,8 @@
 import { Stats } from "fs";
 import { stat } from "fs/promises";
 import { join, relative } from "path";
-import { isMainThread, parentPort } from "worker_threads";
-import { startWorker as startWorkerThread } from "./worker-manager";
+import { isMainThread, parentPort, workerData } from "worker_threads";
+import { startWorkers, broadcast, getAllWorkers } from "./worker-manager";
 import { buildEmitter } from "../shared/lib/event";
 import { Queue } from "../shared/lib/queue";
 import {
@@ -33,17 +33,12 @@ import {
 } from "./rpc/rpcFunctions/picasa-ini";
 import { imagesRoot, specialFolders } from "./utils/constants";
 import { pathForAlbum } from "./utils/serverUtils";
-import { queryFoldersByFilters } from "../worker/background/bg-indexing";
+import { queryFoldersByFilters } from "../worker/background/indexing";
 
 const readyLabelKey = "fileWalker";
 const ready = buildReadySemaphore(readyLabelKey);
 let lastWalk: AlbumWithData[] = [];
 const walkQueue = new Queue(10);
-export type AlbumChangeEvent = {
-  added: AlbumWithData;
-  deleted: AlbumWithData;
-  updated: AlbumWithData;
-};
 
 export type FileFoundEvent = {
   fileFound: AlbumEntry;
@@ -69,53 +64,75 @@ export const albumEntryEventEmitter = buildEmitter<AlbumEntryChangedEvent>();
 
 export function startWorker() {
   if (!isMainThread) return;
-  
-  console.info("Initializing worker listeners...");
-  const worker = startWorkerThread();
-  
-  if (!worker) return;
 
-  worker.on("message", (msg) => {
+  console.info("Initializing worker listeners...");
+  startWorkers(); // Starts all workers
+
+  const workers = getAllWorkers();
+
+  for (const worker of workers) {
+    worker.on("message", (msg) => {
+      if (msg.type === "ready") {
+        setReady(readyLabelKey);
+        // Relay ready to other workers
+        broadcast(msg, 'walker');
+      } else if (msg.type === "event" && msg.emitter === "albumEventEmitter") {
+        // Update local cache
+        handleAlbumEvent(msg.eventType, msg.data);
+
+        // Re-emit in main thread
+        albumEventEmitter.emit(msg.eventType, msg.data);
+
+        // Broadcast to other workers (indexing, thumbs, etc)
+        broadcast(msg, 'walker');
+      } else if (msg.type === "event" && msg.emitter === "fileFoundEventEmitter") {
+        // Re-emit in main thread
+        fileFoundEventEmitter.emit(msg.eventType, msg.data);
+
+        // Broadcast to other workers
+        broadcast(msg, 'walker');
+      } else if (msg.type === "notification") {
+        queueNotification(msg.event);
+      }
+    });
+  }
+}
+
+// Helper to update local cache
+function handleAlbumEvent(type: string, event: any) {
+  if (type === "added") {
+    const idx = lastWalk.findIndex((a) => a.key === event.key);
+    if (idx === -1) {
+      lastWalk.push(event);
+    } else {
+      lastWalk[idx] = event;
+    }
+  } else if (type === "updated") {
+    const idx = lastWalk.findIndex((a) => a.key === event.key);
+    if (idx !== -1) lastWalk[idx] = event;
+  } else if (type === "deleted") {
+    const idx = lastWalk.findIndex((a) => a.key === event.key);
+    if (idx !== -1) lastWalk.splice(idx, 1);
+  }
+}
+
+// Support passive mode in workers
+if (!isMainThread && parentPort && workerData.serviceName !== 'walker') {
+  parentPort.on("message", (msg) => {
     if (msg.type === "ready") {
       setReady(readyLabelKey);
     } else if (msg.type === "event" && msg.emitter === "albumEventEmitter") {
-      // Update local cache and re-emit
-      const event = msg.data;
-      if (msg.eventType === "added") {
-        const idx = lastWalk.findIndex((a) => a.key === event.key);
-        if (idx === -1) {
-          lastWalk.push(event);
-        } else {
-          lastWalk[idx] = event;
-        }
-        albumEventEmitter.emit("added", event);
-      } else if (msg.eventType === "updated") {
-        const idx = lastWalk.findIndex((a) => a.key === event.key);
-        if (idx !== -1) lastWalk[idx] = event;
-        albumEventEmitter.emit("updated", event);
-      } else if (msg.eventType === "deleted") {
-        const idx = lastWalk.findIndex((a) => a.key === event.key);
-        if (idx !== -1) lastWalk.splice(idx, 1);
-        albumEventEmitter.emit("deleted", event);
-      }
-    } else if (msg.type === "notification") {
-      queueNotification(msg.event);
-    }
-  });
-
-  worker.on("error", (err) => {
-    console.error("Worker error:", err);
-  });
-
-  worker.on("exit", (code) => {
-    if (code !== 0) {
-      console.error(new Error(`Worker stopped with exit code ${code}`));
+      handleAlbumEvent(msg.eventType, msg.data);
+      // Also emit locally for listeners in this worker (e.g. indexer)
+      albumEventEmitter.emit(msg.eventType, msg.data);
+    } else if (msg.type === "event" && msg.emitter === "fileFoundEventEmitter") {
+      fileFoundEventEmitter.emit(msg.eventType, msg.data);
     }
   });
 }
 
-// Forward events from worker
-if (!isMainThread && parentPort) {
+// Forward events from active walker worker
+if (!isMainThread && parentPort && workerData.serviceName === 'walker') {
   albumEventEmitter.on("*", (type, event) => {
     parentPort?.postMessage({
       type: "event",
@@ -124,11 +141,20 @@ if (!isMainThread && parentPort) {
       data: event,
     });
   });
+
+  fileFoundEventEmitter.on("*", (type, event) => {
+    parentPort?.postMessage({
+      type: "event",
+      emitter: "fileFoundEventEmitter",
+      eventType: type,
+      data: event,
+    });
+  });
 }
 
 export async function updateLastWalkLoop() {
-  // If in main thread, do nothing (worker handles it)
-  if (isMainThread) {
+  // If in main thread OR not the walker service, do nothing
+  if (isMainThread || workerData.serviceName !== 'walker') {
     return;
   }
 
@@ -186,9 +212,9 @@ export async function waitUntilWalk() {
 
 export async function refreshAlbumKeys(albums: string[]) {
   // if (isMainThread && worker) {
-    // TODO: Send message to worker to refresh specific albums?
-    // For now, we rely on local refresh which is fine if shared FS
-    // But better to delegate to worker if consistent state is needed
+  // TODO: Send message to worker to refresh specific albums?
+  // For now, we rely on local refresh which is fine if shared FS
+  // But better to delegate to worker if consistent state is needed
   // }
 
   if (!lastWalk) {

@@ -1,7 +1,7 @@
 import { isMainThread, parentPort } from "worker_threads";
 import { buildEmitter } from "../../shared/lib/event";
 import { AlbumEntryPicasa } from "../../shared/types/types";
-import { postMessageToWorker } from "../worker-manager";
+import { broadcast } from "../worker-manager";
 
 type ServerEvents = {
   favoriteChanged: {
@@ -29,7 +29,7 @@ export const events = buildEmitter<ServerEvents>();
 const originalEmit = events.emit;
 events.emit = (type: any, event?: any) => {
   if (isMainThread) {
-    postMessageToWorker({
+    broadcast({
       type: "event",
       emitter: "events",
       eventType: type,

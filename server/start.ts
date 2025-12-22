@@ -6,6 +6,8 @@ import { lockedLocks, startLockMonitor } from "../shared/lib/mutex";
 import { SocketAdaptorInterface } from "../shared/socket/socket-adaptor-interface";
 import { WsAdaptor } from "../shared/socket/ws-adaptor";
 import { startWorker, updateLastWalkLoop, waitUntilWalk } from "./walker";
+import { closePoiDb } from "../worker/background/poi/sqlite-client";
+// import { getIndexingService } from "../worker/background/bg-indexing"; // This causes DB initialization on main thread
 import { parseLUTs } from "./imageOperations/image-filters";
 import { encode } from "./imageOperations/sharp-processor";
 import { startAlbumUpdateNotification } from "./rpc/albumTypes/fileAndFolders";
@@ -184,9 +186,18 @@ export async function startServer(p?: number) {
     process.exit(1);
   }
 }
+
+// Ensure cleanup on exit
+process.on('exit', () => {
+  closePoiDb();
+  // const service = getIndexingService(true);
+  // service.close();
+});
+
 export async function startServices() {
   await initUndo();
   info("Starting services...");
+  // startWorker(); // Moved to walker.ts -> startWorker() which now calls startWorkers()
   startWorker();
   // updateLastWalkLoop();
   info("Measuring CPU load...");

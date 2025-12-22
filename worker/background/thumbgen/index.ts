@@ -1,9 +1,9 @@
 import Debug from "debug";
 import { AlbumEntry, ThumbnailSizeVals } from "../../shared/types/types";
 import { imageInfo } from "../../server/imageOperations/info";
-import { media } from "../../server/rpc/rpcFunctions/albumUtils";
 import { makeThumbnailIfNeeded } from "../../server/rpc/rpcFunctions/thumbnail";
-import { folders, waitUntilWalk, fileFoundEventEmitter, getFolderAlbums } from "../../server/walker";
+import { fileFoundEventEmitter } from "../../server/walker";
+import { getAlbumEntries, getAllFolders, indexingReady } from "../indexing";
 const debug = Debug("app:bg-thumbgen");
 
 // Cache thumbnail sizes to avoid recalculating
@@ -15,15 +15,13 @@ const thumbnailSizes = ThumbnailSizeVals.filter((f) => !f.includes("large"))
   .flat();
 
 export async function buildThumbs() {
-  // For backward compatibility, still wait for walk to complete
-  // but thumbnails will be generated as files are found
-  await waitUntilWalk();
-  const albums = await getFolderAlbums();
+  await indexingReady();
+  const albums = getAllFolders();
   // Sort albums in reverse order (most recent first)
   albums.sort((a, b) => b.name.localeCompare(a.name));
   for (const album of albums) {
-    const m = await media(album);
-    for (const entry of m.entries) {
+    const entries = await getAlbumEntries(album);
+    for (const entry of entries) {
       await Promise.all(
         thumbnailSizes.map(({ size, animated }) =>
           makeThumbnailIfNeeded(entry, size, animated),

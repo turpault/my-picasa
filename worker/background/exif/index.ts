@@ -1,9 +1,8 @@
 import { clearInterval } from "timers";
 import { Queue } from "../../shared/lib/queue";
 import { AlbumEntry } from "../../shared/types/types";
-import { media } from "../../server/rpc/rpcFunctions/albumUtils";
 import { exifData } from "../../server/rpc/rpcFunctions/exif";
-import { getFolderAlbums, waitUntilWalk } from "../../server/walker";
+import { indexingReady, getAllFolders, getAlbumEntries } from "../indexing";
 import debug from "debug";
 import { waitUntilIdle } from "../../server/utils/busy";
 import { isPicture } from "../../shared/lib/utils";
@@ -13,18 +12,18 @@ const debugLogger = debug("app:bg-exif");
 
 export async function populateExifData() {
   const q = new Queue(3);
-  await Promise.all([waitUntilWalk()]);
-  const albums = await getFolderAlbums();
+  await indexingReady();
+  const albums = getAllFolders();
   await Promise.all(
     albums.map(async (album) => {
-      let m: { entries: AlbumEntry[] };
+      let entries: AlbumEntry[];
       try {
-        m = await media(album);
+        entries = await getAlbumEntries(album);
       } catch (e) {
         // Yuck folder is gone...
         return;
       }
-      m.entries.forEach(async (entry) => {
+      entries.forEach(async (entry) => {
         if (isPicture(entry)) {
           const meta = await getPicasaEntry(entry);
           if (meta.exif) {

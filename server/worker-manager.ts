@@ -1,36 +1,73 @@
 import { join } from "path";
 import { isMainThread, Worker } from "worker_threads";
 
-let worker: Worker | null = null;
+const workers: Map<string, Worker> = new Map();
 
-export function startWorker(): Worker | null {
+export function startWorkers() {
+  if (!isMainThread) return;
+  
+  const services = [
+    'walker',
+    'indexing',
+    'thumbnails',
+    'exif',
+    'faces',
+    'favorites',
+    'geolocate'
+  ];
+
+  for (const service of services) {
+    startWorker(service);
+  }
+}
+
+export function startWorker(serviceName: string): Worker | null {
   if (!isMainThread) return null;
-  if (worker) return worker;
+  if (workers.has(serviceName)) return workers.get(serviceName)!;
 
-  console.info("Starting background worker thread...");
-  worker = new Worker(join(__dirname, "worker-entry.js"));
+  console.info(`Starting background worker: ${serviceName}...`);
+  const isTs = __filename.endsWith('.ts');
+  const workerFile = isTs ? 'worker-entry.ts' : 'worker-entry.js';
+  
+  const worker = new Worker(join(__dirname, workerFile), {
+    workerData: { serviceName },
+    execArgv: isTs ? ["-r", "ts-node/register"] : undefined
+  });
   
   worker.on("error", (err) => {
-    console.error("Worker error:", err);
+    console.error(`Worker ${serviceName} error:`, err);
   });
 
   worker.on("exit", (code) => {
     if (code !== 0) {
-      console.error(new Error(`Worker stopped with exit code ${code}`));
+      console.error(new Error(`Worker ${serviceName} stopped with exit code ${code}`));
     }
-    worker = null;
+    workers.delete(serviceName);
   });
 
+  workers.set(serviceName, worker);
   return worker;
 }
 
-export function getWorker(): Worker | null {
-  return worker;
+export function getWorker(serviceName: string): Worker | null {
+  return workers.get(serviceName) || null;
 }
 
-export function postMessageToWorker(msg: any) {
+export function getAllWorkers(): Worker[] {
+  return Array.from(workers.values());
+}
+
+export function postMessageToWorker(serviceName: string, msg: any) {
+  const worker = workers.get(serviceName);
   if (worker) {
     worker.postMessage(msg);
   }
 }
 
+export function broadcast(msg: any, excludeService?: string) {
+  for (const [name, worker] of workers) {
+    if (name !== excludeService) {
+      worker.postMessage(msg);
+    }
+  }
+}

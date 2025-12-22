@@ -18,7 +18,7 @@ import {
   idFromKey,
   ProjectType,
 } from "../../../shared/types/types";
-import { queryFoldersByFilters, searchPicturesByFilters } from "../../../worker/background/bg-indexing";
+import { getAlbumEntries, queryFoldersByFilters, searchPicturesByFilters } from "../../../worker/background/indexing";
 import { getFolderAlbumData, getFolderAlbums } from "../../walker";
 import {
   assetsInFolderAlbum,
@@ -189,8 +189,7 @@ export async function media(
       await sortAssetsByRank(entries);
       return { entries };
     }
-    const assets = await assetsInFolderAlbum(album);
-    let entries = assets.entries;
+    const entries = await getAlbumEntries(album);
 
     await sortAssetsByRank(entries);
     await assignRanks(entries);

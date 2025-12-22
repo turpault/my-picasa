@@ -1,5 +1,5 @@
 import { parentPort } from "worker_threads";
-import { startBackgroundTasksOnStart } from "../worker/background/bg-services-on-start";
+import { startBackgroundTasksOnStart } from "../worker/background/services/on-start";
 import { updateLastWalkLoop } from "./walker";
 
 if (!parentPort) {

@@ -310,6 +310,9 @@ export type AlbumChangeEvent = {
   album?: AlbumWithData;
   albums?: AlbumWithData[];
   altAlbum?: AlbumWithData;
+  added?: AlbumWithData;
+  deleted?: AlbumWithData;
+  updated?: AlbumWithData;
 };
 
 export type Node = {

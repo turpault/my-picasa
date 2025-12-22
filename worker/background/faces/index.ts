@@ -4,16 +4,16 @@ import { Queue } from "../../shared/lib/queue";
 import { getFaceAlbums } from "../../server/rpc/rpcFunctions/faces";
 import { media } from "../../server/rpc/rpcFunctions/albumUtils";
 import { getFaceImage } from "../../server/rpc/rpcFunctions/thumbnail";
-import { waitUntilWalk } from "../../server/walker";
+import { indexingReady } from "../indexing";
 import { runClusterStrategy } from "./face/identify-cluster-strategy";
-import { runFaceMatcherStrategy } from "./face/identify-facematcher-strategy";
-import { startRedis, stopRedis } from "./redis-process";
+// import { runFaceMatcherStrategy } from "./face/identify-facematcher-strategy";
+// import { startRedis, stopRedis } from "./redis-process";
 import { buildContactList } from "../../server/rpc/albumTypes/contacts";
 import { populateAllReferences, setupFaceAPI } from "./face/references";
 const debug = Debug("app:faces");
 
 export async function buildFaceScan() {
-  await Promise.all([startRedis(), tf.ready, waitUntilWalk()]);
+  await Promise.all([tf.ready, indexingReady()]);
 
   debug("Building face scan");
   debug("Building identified contact list");
@@ -29,8 +29,6 @@ export async function buildFaceScan() {
 
   debug("Exporting all faces");
   await exportAllFaces();
-  debug("Stopping redis");
-  await stopRedis();
   debug("Face scan complete");
 }
 

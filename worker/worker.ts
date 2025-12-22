@@ -1,5 +1,5 @@
 import { sleep } from "../shared/lib/utils";
-import { startBackgroundServices } from "./background/bg-services";
+import { startBackgroundServices } from "./background/services";
 import { startRedis, stopRedis } from "./background/redis-process";
 import { updateLastWalkLoop } from "../server/walker";
 import { info } from "console";

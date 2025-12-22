@@ -34,21 +34,24 @@ const isReady = buildReadySemaphore(readyLabel);
 class PictureIndexingService {
   private db: Database.Database;
   private dbPath: string;
+  private readonly: boolean;
 
-  constructor(dbPath?: string) {
+  constructor(dbPath?: string, readonly: boolean = false) {
     this.dbPath = dbPath || join(imagesRoot, "picisa_index.db");
+    this.readonly = readonly;
 
     // Enable verbose mode for debugging SQL (logs every SQL statement)
     if (process.env.DEBUG_SQL) {
-      this.db = new Database(this.dbPath, { verbose: (sql) => debugLogger(`SQL: ${sql}`) });
+      this.db = new Database(this.dbPath, { verbose: (sql) => debugLogger(`SQL: ${sql}`), readonly });
     } else {
-      this.db = new Database(this.dbPath);
+      this.db = new Database(this.dbPath, { readonly });
     }
 
-    this.checkAndMigrateDatabase();
-
-    // Check FTS integrity on startup
-    this.checkAndFixFTSIntegrity();
+    if (!readonly) {
+      this.checkAndMigrateDatabase();
+      // Check FTS integrity on startup
+      this.checkAndFixFTSIntegrity();
+    }
   }
 
   /**
@@ -877,9 +880,15 @@ class PictureIndexingService {
 // Export singleton instance
 let indexingService: PictureIndexingService | null = null;
 
-function getIndexingService(): PictureIndexingService {
+function getIndexingService(readonly: boolean = false): PictureIndexingService {
   if (!indexingService) {
-    indexingService = new PictureIndexingService();
+    // If we're not the indexing worker, default to readonly
+    // But since this is bg-indexing.ts, it's shared.
+    // The caller should specify if they want readonly.
+    // However, if an instance exists, we return it. 
+    // This singleton pattern assumes all callers in the same process want the same mode.
+    // In workers, there is only one caller context usually.
+    indexingService = new PictureIndexingService(undefined, readonly);
   }
   return indexingService;
 }
@@ -992,22 +1001,27 @@ export async function indexingReady(): Promise<void> {
 
 
 export function queryFoldersByFilters(filters: Filters): AlbumWithData[] {
-  const service = getIndexingService();
+  const service = getIndexingService(true);
   return service.queryFoldersByFilters(filters);
 }
 
 export function searchPicturesByFilters(filters: Filters, limit?: number, albumId?: string): AlbumEntry[] {
-  const service = getIndexingService();
+  const service = getIndexingService(true);
   return service.searchPicturesByFilters(filters, limit, albumId);
 }
 
 export function queryAlbumEntries(albumId: string, matchingStrings: string[]): AlbumEntry[] {
-  const service = getIndexingService();
+  const service = getIndexingService(true);
   return service.queryAlbumEntries(albumId, matchingStrings);
+}
+
+export function getAlbumEntries(album: Album): Promise<AlbumEntry[]> {
+  const service = getIndexingService(true);
+  return service.albumEntries(album);
 }
 
 
 export function getAllFolders(): AlbumWithData[] {
-  const service = getIndexingService();
+  const service = getIndexingService(true);
   return service.getAllFolders();
 }

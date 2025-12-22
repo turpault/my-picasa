@@ -1,34 +1,32 @@
 import { AlbumEntry } from "../../shared/types/types";
-import { media } from "../../server/rpc/rpcFunctions/albumUtils";
 import { exifData } from "../../server/rpc/rpcFunctions/exif";
 import {
   getPicasaEntry,
   updatePicasaEntry,
 } from "../../server/rpc/rpcFunctions/picasa-ini";
-import { getFolderAlbums, waitUntilWalk } from "../../server/walker";
+import { indexingReady, getAllFolders, getAlbumEntries } from "../indexing";
 import { getLocations } from "./poi/get-poi";
 import { initPOIDB } from "./poi/ingest";
-import { startRedis, stopRedis } from "./redis-process";
+// import { startRedis, stopRedis } from "./redis-process";
 import debug from "debug";
 
 const debugLogger = debug("app:bg-geolocate");
 
 export async function buildGeolocation() {
-  await startRedis();
-  await Promise.all([initPOIDB(), waitUntilWalk()]);
+  await Promise.all([initPOIDB(), indexingReady()]);
 
-  const albums = await getFolderAlbums();
+  const albums = getAllFolders();
   for (const album of albums.reverse()) {
     debugLogger("buildGeolocation: Processing album", album.name);
-    let m: { entries: AlbumEntry[] };
+    let entries: AlbumEntry[];
     try {
-      m = await media(album);
+      entries = await getAlbumEntries(album);
     } catch (e) {
       // Yuck folder is gone...
       continue;
     }
     await Promise.all(
-      m.entries.map(async (entry) => {
+      entries.map(async (entry) => {
         const info = await getPicasaEntry(entry);
         if (info.geoPOI === undefined) {
           const exif = await exifData(entry, false /* no stats */);
@@ -61,5 +59,4 @@ export async function buildGeolocation() {
       }),
     );
   }
-  stopRedis();
 }
