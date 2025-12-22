@@ -3,13 +3,13 @@ export const TSCodeTemplate = `
 /* This file is generated from the template located here : ${__dirname} */
 <<CONSTANTS>>
 export class <<CLASS>> {
-  private socket_?: any;
+  private transport_?: any;
   async initialize(socket: any): Promise<void> {
-    this.socket_ = socket;
+    this.transport_ = socket;
   }
 
   public on(event: string, cb: Function): Function {
-    return this.socket_.on(event, cb);
+    return this.transport_.on(event, cb);
   }
 
   // @ts-ignore
@@ -19,7 +19,7 @@ export class <<CLASS>> {
 
   private async emit(command: string, payload: any): Promise<any> {
     return new Promise((resolve, reject) =>
-      this.socket_.emit(command, payload, (error:string, response:string) => {
+      this.transport_.emit(command, payload, (error:string, response:string) => {
         if (error) {
           reject(error);
         } else {

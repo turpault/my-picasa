@@ -3,21 +3,22 @@ import { join } from "path";
 import {
   getContactsFromAlbum,
   getPicasaEntry,
-} from "../../../../rpc/rpcFunctions/picasa-ini";
-import { getFaceImage } from "../../../../rpc/rpcFunctions/thumbnail";
-import { facesFolder } from "../../../../utils/constants";
-import { fileExists, safeWriteFile } from "../../../../utils/serverUtils";
+} from "../../../rpc/rpcFunctions/picasa-ini";
+import { getFaceImage } from "../../../rpc/rpcFunctions/thumbnail";
+import { facesFolder } from "../../../utils/constants";
+import { fileExists, safeWriteFile } from "../../../utils/serverUtils";
 import {
   decodeFaces,
   decodeRect,
   encodeRect,
   hash,
-} from "../../../shared/lib/utils";
+} from "../../../../shared/lib/utils";
 import {
   AlbumEntry,
+  Face,
   Reference,
   ReferenceData,
-} from "../../../shared/types/types";
+} from "../../../../shared/types/types";
 import { IdentifiedContact } from "./types";
 
 export function rectOfReference(feature: ReferenceData) {
@@ -59,8 +60,8 @@ export async function getPicasaIdentifiedReferences(
   if (iniFaces) {
     const facesInEntry = decodeFaces(iniFaces);
     return facesInEntry
-      .filter((face) => contacts[face.hash])
-      .map((face) => ({ face, contact: contacts[face.hash] }));
+      .filter((face: Face) => contacts[face.hash])
+      .map((face: Face) => ({ face, contact: contacts[face.hash] }));
   }
   return [];
 }

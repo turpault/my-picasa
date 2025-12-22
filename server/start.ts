@@ -3,8 +3,8 @@ import FastifyWebsocket from "@fastify/websocket";
 import Fastify, { FastifyInstance, RouteShorthandOptions } from "fastify";
 import { join } from "path";
 import { lockedLocks, startLockMonitor } from "../shared/lib/mutex";
-import { SocketAdaptorInterface } from "../shared/socket/socket-adaptor-interface";
-import { WsAdaptor } from "../shared/socket/ws-adaptor";
+import { RPCAdaptorInterface } from "../shared/rpc-transport/rpc-adaptor-interface";
+import { WsAdaptor } from "../shared/rpc-transport/ws-adaptor";
 import { startWorker } from "./worker-manager";
 import { waitUntilWalk } from "./services/walker/worker";
 import { closePoiDb } from "./services/geolocate/poi/sqlite-client";
@@ -32,7 +32,7 @@ import { imagesRoot, rootPath } from "./utils/constants";
 /** */
 
 // Returns a socket that can be used
-function socketAdaptorInit(serverClient: any): SocketAdaptorInterface {
+function socketAdaptorInit(serverClient: any): RPCAdaptorInterface {
   const s = new WsAdaptor();
   s.socket(serverClient);
   return s;
@@ -199,8 +199,8 @@ export async function startServices() {
   await initUndo();
   info("Starting services...");
   // startWorker(); // Moved to walker.ts -> startWorker() which now calls startWorkers()
-  const { startWorker: startWalkerWorker } = await import("./services/walker/worker");
-  startWalkerWorker();
+  const { initializeWorkerListeners } = await import("./services/walker/worker");
+  initializeWorkerListeners();
   // updateLastWalkLoop();
   info("Measuring CPU load...");
   measureCPULoad();

@@ -7,10 +7,10 @@ import {
   readReferencesOfEntry,
   referencePath,
   writeReferencesOfEntry,
-} from "../../../../rpc/albumTypes/referenceFiles";
-import { media } from "../../../../rpc/rpcFunctions/albumUtils";
-import { entryFilePath, fileExists } from "../../../../utils/serverUtils";
-import { getFolderAlbums } from "../../../walker/worker";
+} from "../../../rpc/albumTypes/referenceFiles";
+import { media } from "../../../rpc/rpcFunctions/albumUtils";
+import { entryFilePath, fileExists } from "../../../utils/serverUtils";
+import { getFolderAlbums } from "../../walker/worker";
 import { lock } from "../../../../shared/lib/mutex";
 import { Queue } from "../../../../shared/lib/queue";
 import {
@@ -18,13 +18,13 @@ import {
   isAnimated,
   isPicture,
   jsonifyObject,
-} from "../../../shared/lib/utils";
+} from "../../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
   Reference,
   ReferenceData,
-} from "../../../shared/types/types";
+} from "../../../../shared/types/types";
 import { isUsefulReference } from "./face-utils";
 import { FaceLandmarkData } from "./types";
 const debug = Debug("app:faces");

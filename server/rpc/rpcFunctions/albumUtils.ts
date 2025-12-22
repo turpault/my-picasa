@@ -18,8 +18,9 @@ import {
   idFromKey,
   ProjectType,
 } from "../../../shared/types/types";
-import { getAlbumEntries, queryFoldersByFilters, searchPicturesByFilters } from "../../services/indexing/worker";
-import { getFolderAlbumData, getFolderAlbums } from "../../workers";
+import { searchFoldersByFilters, searchPicturesByFilters } from "../../services/search/queries";
+import { getFolderAlbums, getFolderAlbumData } from "../../services/walker/worker";
+import { media as getMedia } from "../../media";
 import {
   assetsInFolderAlbum,
   queueNotification,
@@ -182,21 +183,9 @@ export async function media(
   filters?: Filters,
 ): Promise<{ entries: AlbumEntry[] }> {
   if (album.kind === AlbumKind.FOLDER) {
-    if (filters) {
-      // Use database-level filtering for better performance
-      const entries = await searchPicturesByFilters(filters, undefined, album.key);
-      console.log("entries", entries);
-      await sortAssetsByRank(entries);
-      return { entries };
-    }
-    const entries = await getAlbumEntries(album);
-
-    await sortAssetsByRank(entries);
-    await assignRanks(entries);
-    return { entries };
+    // Use media function (calls search or walker queries based on filters)
+    return getMedia(album, filters);
   } else if (album.kind === AlbumKind.FACE) {
-    //const ini = await readAlbumIni(album);
-    //const entries = Object.keys(ini).map((name) => ({ album, name }));
     const entries = await readFaceAlbumEntries(album);
     await sortAssetsByRank(entries);
     await assignRanks(entries);
@@ -274,7 +263,7 @@ export async function monitorAlbums(filters?: Filters): Promise<{}> {
 
   if (filters) {
     // Use database-level filtering for better performance
-    const matchedAlbums = await queryFoldersByFilters(filters);
+    const matchedAlbums = await searchFoldersByFilters(filters);
     albums = [...matchedAlbums, ...f, ...p];
   } else {
     const lastWalk = await getFolderAlbums();

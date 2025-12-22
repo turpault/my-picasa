@@ -1,25 +1,9 @@
-import exifr from "exifr";
 import { Stats } from "fs";
-import { readFile, stat } from "fs/promises";
-import { lock } from "../../../shared/lib/mutex";
-import { isPicture, isVideo } from "../../../shared/lib/utils";
-import { AlbumEntry, ExifData, ExifTag } from "../../../shared/types/types";
-import { dimensionsFromFileBuffer } from "../../imageOperations/sharp-processor";
+import { stat } from "fs/promises";
+import { AlbumEntry } from "../../../shared/types/types";
 import { entryFilePath } from "../../utils/serverUtils";
-import { getPicasaEntry, updatePicasaEntry } from "./picasa-ini";
-
-export async function exifDataAndStats(
-  entry: AlbumEntry,
-): Promise<{ stats: Stats; tags: any }> {
-  const path = entryFilePath(entry);
-  const [s, t] = await Promise.all([stat(path), exifData(entry)]);
-  const tags = t || {};
-
-  return {
-    stats: s,
-    tags: { ...tags.image, ...tags.gps, ...tags.exif, ...tags },
-  };
-}
+import { getExifData } from "../../services/exif/queries";
+import { getPicasaEntry } from "./picasa-ini";
 
 export function toExifDate(isoDate: string) {
   // exif is YYYY:MM:DD HH:MM:SS
@@ -33,65 +17,59 @@ export function toExifDate(isoDate: string) {
   )}`;
 }
 
-
-
-function filterExifTags(tags: any): any {
-  const filtered: { [tag: string]: any } = {};
-  for (const key in tags) {
-    if (tags[key] && (ExifTag as any)[key]) {
-      filtered[key] = tags[key];
-    } else {
-      // console.warn("Tag not included in exif: " + key);
-    }
-  }
-  return filtered;
-}
-
+/**
+ * Get EXIF data for an entry from the EXIF service database
+ * Falls back to parsing from picasa entry if not in database
+ */
 export async function exifData(
   entry: AlbumEntry,
   withStats = true,
 ): Promise<any> {
-  const picasaEntry = await getPicasaEntry(entry);
-  let exif: any;
-  if (isPicture(entry)) {
-    const path = entryFilePath(entry);
-    const r = await lock(`exifData/${path}`);
+  // Try to get from EXIF service database first
+  const exifJson = getExifData(entry);
+  let exif: any = null;
+
+  if (exifJson) {
     try {
-      if (picasaEntry.exif) {
-        try {
-          exif = JSON.parse(picasaEntry.exif);
-        } catch (e) {
-          console.error(
-            `Exception while parsing exif for ${path}: ${e}, will get exif data from file`,
-          );
-        }
-      }
-      if (!exif) {
-        const fileData = await readFile(path);
-        const tags = await exifr.parse(fileData).catch((e: any) => {
-          console.error(`Exception while reading exif for ${path}: ${e}`);
-          exif = {};
-        });
-        const dimensions = dimensionsFromFileBuffer(fileData);
-        const filtered: ExifData = {
-          ...filterExifTags(tags || {}),
-          imageWidth: dimensions.width,
-          imageHeight: dimensions.height,
-        };
-        exif = filtered;
-        updatePicasaEntry(entry, "exif", JSON.stringify(filtered));
-      }
-    } finally {
-      r();
+      exif = JSON.parse(exifJson);
+    } catch (e) {
+      // If parsing fails, continue to fallback
     }
-  } else if (isVideo(entry)) {
-    exif = {};
   }
+
+  // Fallback: try to get from picasa entry
+  if (!exif) {
+    const picasaEntry = await getPicasaEntry(entry);
+    if (picasaEntry.exif) {
+      try {
+        exif = JSON.parse(picasaEntry.exif);
+      } catch (e) {
+        // If parsing fails, return empty object
+        exif = {};
+      }
+    } else {
+      exif = {};
+    }
+  }
+
   if (withStats) {
     const path = entryFilePath(entry);
     const stats = await stat(path);
     exif = { ...exif, ...stats };
   }
-  // Not a video or picture
+
   return exif;
+}
+
+export async function exifDataAndStats(
+  entry: AlbumEntry,
+): Promise<{ stats: Stats; tags: any }> {
+  const path = entryFilePath(entry);
+  const [s, t] = await Promise.all([stat(path), exifData(entry)]);
+  const tags = t || {};
+
+  return {
+    stats: s,
+    tags: { ...tags.image, ...tags.gps, ...tags.exif, ...tags },
+  };
 }

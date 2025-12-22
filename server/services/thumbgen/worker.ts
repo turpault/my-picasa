@@ -1,9 +1,11 @@
 import Debug from "debug";
-import { AlbumEntry, ThumbnailSizeVals } from "../../shared/types/types";
+import { parentPort, workerData } from "worker_threads";
+import { AlbumEntry, ThumbnailSizeVals } from "../../../shared/types/types";
 import { imageInfo } from "../../imageOperations/info";
 import { makeThumbnailIfNeeded } from "../../rpc/rpcFunctions/thumbnail";
 import { serverEvents } from "./events";
-import { getAlbumEntries, getAllFolders, indexingReady } from "../indexing/worker";
+import { indexingReady } from "../search/worker";
+import { getAlbumEntries, getAllFolders } from "../search/queries";
 const debug = Debug("app:bg-thumbgen");
 
 // Cache thumbnail sizes to avoid recalculating
@@ -55,4 +57,21 @@ function setupEventDrivenThumbnailGeneration(): void {
   });
 
   debug("Event-driven thumbnail generation set up successfully");
+}
+
+/**
+ * Start the thumbnails worker
+ */
+export async function startWorker(): Promise<void> {
+  await buildThumbs();
+}
+
+// Initialize worker if running in a worker thread
+if (parentPort && workerData?.serviceName === 'thumbgen') {
+  const serviceName = workerData.serviceName;
+  console.info(`Worker thread started for service: ${serviceName}`);
+  startWorker().catch((error) => {
+    console.error(`Error starting worker ${serviceName}:`, error);
+    process.exit(1);
+  });
 }

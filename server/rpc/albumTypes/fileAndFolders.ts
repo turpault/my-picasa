@@ -11,7 +11,7 @@ import {
 import { imagesRoot } from "../../utils/constants";
 import { broadcast } from "../../utils/socketList";
 import { pathForAlbum } from "../../utils/serverUtils";
-import { fileFoundEventEmitter, listedMediaEventEmitter } from "../../workers";
+import { fileFoundEventEmitter, listedMediaEventEmitter } from "../../services/walker/worker";
 
 const notificationQueue: AlbumChangeEvent[] = [];
 

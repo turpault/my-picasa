@@ -1,10 +1,12 @@
-import { AlbumEntry } from "../../shared/types/types";
+import { parentPort, workerData } from "worker_threads";
+import { AlbumEntry } from "../../../shared/types/types";
 import { exifData } from "../../rpc/rpcFunctions/exif";
 import {
   getPicasaEntry,
   updatePicasaEntry,
 } from "../../rpc/rpcFunctions/picasa-ini";
-import { indexingReady, getAllFolders, getAlbumEntries } from "../indexing/worker";
+import { indexingReady } from "../search/worker";
+import { getAllFolders, getAlbumEntries } from "../search/queries";
 import { getLocations } from "./poi/get-poi";
 import { initPOIDB } from "./poi/ingest";
 // import { startRedis, stopRedis } from "./redis-process";
@@ -59,4 +61,21 @@ export async function buildGeolocation() {
       }),
     );
   }
+}
+
+/**
+ * Start the geolocate worker
+ */
+export async function startWorker(): Promise<void> {
+  await buildGeolocation();
+}
+
+// Initialize worker if running in a worker thread
+if (parentPort && workerData?.serviceName === 'geolocate') {
+  const serviceName = workerData.serviceName;
+  console.info(`Worker thread started for service: ${serviceName}`);
+  startWorker().catch((error) => {
+    console.error(`Error starting worker ${serviceName}:`, error);
+    process.exit(1);
+  });
 }

@@ -14,7 +14,7 @@ import {
 } from "../../utils/constants";
 import { safeWriteFile } from "../../utils/serverUtils";
 import { openWithFinder } from "./osascripts";
-import { addOrRefreshOrDeleteAlbum } from "../../workers";
+import { addOrRefreshOrDeleteAlbum } from "../../services/walker/worker";
 import { pathForAlbum, pathForAlbumEntry } from "../../utils/serverUtils";
 
 export async function getFileContents(file: string): Promise<string> {

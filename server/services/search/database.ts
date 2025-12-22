@@ -1,19 +1,12 @@
 import Database from "better-sqlite3";
 import debug from "debug";
 import { join } from "path";
-import { events } from "../../events/server-events";
-import { media } from "../../rpc/rpcFunctions/albumUtils";
-import { getPicasaEntry } from "../../rpc/rpcFunctions/picasa-ini";
-import { waitUntilIdle } from "../../utils/busy";
-import { imagesRoot } from "../../utils/constants";
-import { getFolderAlbums, waitUntilWalk, listedMediaEventEmitter, albumEventEmitter } from "../walker/worker";
-import { serverEvents } from "./events";
-import { lock } from "../../../shared/lib/mutex";
-import { Queue } from "../../../shared/lib/queue";
-import { buildReadySemaphore, isPicture, isVideo, setReady } from "../../../shared/lib/utils";
 import { Album, AlbumEntry, AlbumKind, AlbumWithData, Filters } from "../../../shared/types/types";
+import { getPicasaEntry } from "../../rpc/rpcFunctions/picasa-ini";
+import { isPicture, isVideo } from "../../../shared/lib/utils";
+import { imagesRoot } from "../../utils/constants";
 
-const debugLogger = debug("app:bg-indexing");
+const debugLogger = debug("app:indexing-db");
 
 // Database version constant - increment this when schema changes
 const DATABASE_VERSION = 7;
@@ -29,45 +22,78 @@ function normalizeText(text: string): string {
     .toLowerCase()
     .trim();
 }
-const readyLabel = "indexingReady";
-const isReady = buildReadySemaphore(readyLabel);
 
-class PictureIndexingService {
-  private db: Database.Database;
+export type OpenMode = 'READ' | 'READWRITE';
+
+/**
+ * Search Database Access with FTS (Full-Text Search)
+ * 
+ * This module provides access to the picisa_index.db database with FTS5 full-text search capabilities.
+ * The database maintains a search index with FTS5 virtual tables for fast text search across:
+ * - Album names
+ * - Entry names
+ * - Persons
+ * - Text content
+ * - Captions
+ * 
+ * Enforced single-writer pattern: only instances opened with READWRITE mode can write to the database.
+ * All other instances must use READ mode.
+ */
+export class IndexingDatabaseAccess {
+  private db: Database.Database | null = null;
   private dbPath: string;
   private readonly: boolean;
+  private isWriter: boolean;
+  private openMode: OpenMode;
 
-  constructor(dbPath?: string, readonly: boolean = false) {
-    this.dbPath = dbPath || join(imagesRoot, "picisa_index.db");
-    this.readonly = readonly;
+  constructor(openMode: OpenMode = 'READ') {
+    this.dbPath = join(imagesRoot, "picisa_index.db");
+    this.openMode = openMode;
+    this.isWriter = openMode === 'READWRITE';
+    this.readonly = !this.isWriter;
 
-    // Enable verbose mode for debugging SQL (logs every SQL statement)
-    if (process.env.DEBUG_SQL) {
-      this.db = new Database(this.dbPath, { verbose: (sql) => debugLogger(`SQL: ${sql}`), readonly });
+    if (this.isWriter) {
+      debugLogger("Opening indexing database in READ-WRITE mode");
     } else {
-      this.db = new Database(this.dbPath, { readonly });
-    }
-
-    if (!readonly) {
-      this.checkAndMigrateDatabase();
-      // Check FTS integrity on startup
-      this.checkAndFixFTSIntegrity();
+      debugLogger("Opening indexing database in READ-ONLY mode");
     }
   }
 
   /**
-   * Check database version and migrate if necessary
+   * Get the database connection, initializing if necessary
+   */
+  getDatabase(): Database.Database {
+    if (!this.db) {
+      if (process.env.DEBUG_SQL) {
+        this.db = new Database(this.dbPath, {
+          verbose: (sql) => debugLogger(`SQL: ${sql}`),
+          readonly: this.readonly
+        });
+      } else {
+        this.db = new Database(this.dbPath, { readonly: this.readonly });
+      }
+
+      if (this.isWriter) {
+        this.checkAndMigrateDatabase();
+        this.checkAndFixFTSIntegrity();
+      }
+    }
+    return this.db;
+  }
+
+  /**
+   * Check database version and migrate if necessary (writer only)
    */
   private checkAndMigrateDatabase(): void {
+    if (!this.isWriter || !this.db) return;
+
     try {
-      // Check if version table exists
       const versionTableExists = this.db.prepare(`
         SELECT name FROM sqlite_master 
         WHERE type='table' AND name='db_version'
       `).get();
 
       if (!versionTableExists) {
-        // First time setup - create version table and initialize database
         debugLogger("First time database setup - creating version table");
         this.db.exec(`
           CREATE TABLE db_version (
@@ -79,7 +105,6 @@ class PictureIndexingService {
         this.initDatabase();
         debugLogger(`Database initialized with version ${DATABASE_VERSION}`);
       } else {
-        // Check current version
         const currentVersion = this.db.prepare("SELECT version FROM db_version ORDER BY version DESC LIMIT 1").get() as { version: number } | undefined;
 
         if (!currentVersion || currentVersion.version < DATABASE_VERSION) {
@@ -98,16 +123,14 @@ class PictureIndexingService {
   }
 
   /**
-   * Migrate database to new version
+   * Migrate database to new version (writer only)
    */
   private migrateDatabase(fromVersion: number): void {
+    if (!this.isWriter || !this.db) return;
+
     debugLogger(`Migrating database from version ${fromVersion} to ${DATABASE_VERSION}`);
-
     try {
-
-      // Update version
       this.db.exec(`UPDATE db_version SET version = ${DATABASE_VERSION} WHERE version = ${fromVersion}`);
-
       debugLogger(`Database migration completed to version ${DATABASE_VERSION}`);
     } catch (error) {
       debugLogger("Error during database migration:", error);
@@ -115,7 +138,12 @@ class PictureIndexingService {
     }
   }
 
-  private initDatabase() {
+  /**
+   * Initialize database schema (writer only)
+   */
+  private initDatabase(): void {
+    if (!this.isWriter || !this.db) return;
+
     // Create pictures table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS pictures (
@@ -195,8 +223,73 @@ class PictureIndexingService {
     debugLogger("Database initialized at:", this.dbPath);
   }
 
-  async albumEntries(album: Album): Promise<AlbumEntry[]> {
-    const entries = this.db
+  /**
+   * Check for orphaned FTS entries and fix them (writer only)
+   */
+  private checkAndFixFTSIntegrity(): void {
+    if (!this.isWriter || !this.db) return;
+
+    debugLogger("Checking FTS integrity...");
+    try {
+      const pictureCount = this.db.prepare("SELECT COUNT(*) as count FROM pictures").get() as { count: number };
+      const ftsCount = this.db.prepare("SELECT COUNT(*) as count FROM pictures_fts").get() as { count: number };
+
+      debugLogger(`Pictures: ${pictureCount.count}, FTS entries: ${ftsCount.count}`);
+
+      if (pictureCount.count !== ftsCount.count) {
+        debugLogger("FTS index is out of sync, rebuilding...");
+        this.rebuildFTSIndex();
+      } else {
+        debugLogger("FTS index appears to be in sync");
+      }
+    } catch (error) {
+      debugLogger("Error checking FTS integrity:", error);
+      this.rebuildFTSIndex();
+    }
+  }
+
+  /**
+   * Rebuild the FTS index (writer only)
+   */
+  rebuildFTSIndex(): void {
+    if (!this.isWriter || !this.db) {
+      throw new Error("rebuildFTSIndex can only be called on a READWRITE database instance");
+    }
+
+    debugLogger("Rebuilding FTS index to fix orphaned entries...");
+    try {
+      this.db.exec(`INSERT INTO pictures_fts(pictures_fts) VALUES('rebuild');`);
+      debugLogger("FTS index rebuilt successfully");
+    } catch (error) {
+      debugLogger("Error rebuilding FTS index:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Close the database connection
+   */
+  close(): void {
+    if (this.db) {
+      this.db.close();
+      this.db = null;
+    }
+  }
+
+  /**
+   * Check if this instance has write access
+   */
+  canWrite(): boolean {
+    return this.isWriter;
+  }
+
+  // ========== QUERY METHODS (Read-only operations) ==========
+
+  /**
+   * Get all entries for an album
+   */
+  getAlbumEntries(album: Album): AlbumEntry[] {
+    const entries = this.getDatabase()
       .prepare(
         `SELECT * FROM pictures WHERE album_key = ?`,
       )
@@ -204,8 +297,11 @@ class PictureIndexingService {
     return entries.map(e => ({ album, name: e.entry_name }));
   }
 
-  async isIndexed(entry: AlbumEntry): Promise<boolean> {
-    const exists = this.db
+  /**
+   * Check if an entry is indexed
+   */
+  isIndexed(entry: AlbumEntry): boolean {
+    const exists = this.getDatabase()
       .prepare(
         `SELECT COUNT(*) as count FROM pictures WHERE album_key = ? AND entry_name = ?`,
       )
@@ -215,187 +311,12 @@ class PictureIndexingService {
     }
     return (exists.count ?? 0) > 0;
   }
-  /**
-   * Index a single picture entry
-   */
-  async indexPicture(entry: AlbumEntry): Promise<void> {
-    const picasaEntry = await getPicasaEntry(entry);
-
-    // Extract metadata from picasa entry
-    const persons = picasaEntry.persons || '';
-    const starCount = picasaEntry.starCount || '';
-    const geoPOI = picasaEntry.geoPOI || '';
-    const photostar = picasaEntry.photostar || false;
-    const textContent = picasaEntry.text || '';
-    const caption = picasaEntry.caption || '';
-
-    // Determine entry type
-    let entryType = 'unknown';
-    if (isPicture(entry)) {
-      entryType = 'picture';
-    } else if (isVideo(entry)) {
-      entryType = 'video';
-    }
-
-    try {
-      if (entry.album.key === undefined || entry.album.name === undefined || entry.name === undefined) {
-        debugLogger(`Error indexing picture ${entry.name}: album.key or album.name or name is undefined`);
-        return;
-      }
-
-      const insertStmt = this.db.prepare(`
-        INSERT OR REPLACE INTO pictures (
-          album_key, album_name, entry_name,
-          persons, star_count, geo_poi, photostar, text_content, caption, entry_type, marked,
-          updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
-      `);
-
-      insertStmt.run(
-        entry.album.key ?? '',
-        entry.album.name ?? '',
-        entry.name ?? '',
-        persons ?? '',
-        starCount ?? '',
-        geoPOI ?? '',
-        photostar ? 1 : 0,
-        textContent ?? '',
-        caption ?? '',
-        entryType ?? 'unknown'
-      );
-
-      // FTS index is automatically updated via triggers
-
-    } catch (error: any) {
-      debugLogger(`Error indexing picture ${entry.name}:`);
-      debugLogger(`  Error message: ${error.message}`);
-      debugLogger(`  Error code: ${error.code}`);
-      debugLogger(`  SQL: ${error.sql || 'N/A'}`);
-      debugLogger(`  Entry data with types:`, {
-        album_key: `${typeof entry.album.key} = ${entry.album.key}`,
-        album_name: `${typeof entry.album.name} = ${entry.album.name}`,
-        entry_name: `${typeof entry.name} = ${entry.name}`,
-        persons: `${typeof persons} = ${persons}`,
-        starCount: `${typeof starCount} = ${starCount}`,
-        geoPOI: `${typeof geoPOI} = ${geoPOI}`,
-        photostar: `${typeof photostar} = ${photostar}`,
-        textContent: `${typeof textContent} = ${textContent?.substring(0, 50)}`,
-        caption: `${typeof caption} = ${caption?.substring(0, 50)}`,
-        entryType: `${typeof entryType} = ${entryType}`
-      });
-      throw error;
-    }
-  }
 
   /**
-   * Clear all marks from the database (mark phase preparation)
+   * Search folders by Filters object (FTS function)
    */
-  private clearAllMarks(): void {
-    debugLogger("Clearing all marks from database...");
-    this.db.exec("UPDATE pictures SET marked = 0");
-  }
-
-  /**
-   * Remove all unmarked records (sweep phase)
-   */
-  private sweepUnmarkedRecords(): number {
-    debugLogger("Sweeping unmarked records...");
-
-    // Count unmarked records before deletion
-    const countStmt = this.db.prepare("SELECT COUNT(*) as count FROM pictures WHERE marked = 0");
-    const count = countStmt.get() as { count: number };
-
-    if (count.count > 0) {
-      debugLogger(`Removing ${count.count} unmarked records...`);
-
-      // Delete unmarked records
-      const deleteStmt = this.db.prepare("DELETE FROM pictures WHERE marked = 0");
-      deleteStmt.run();
-
-      // Clean up FTS index (this will be handled automatically by SQLite)
-      debugLogger(`Removed ${count.count} unmarked records`);
-    } else {
-      debugLogger("No unmarked records to remove");
-    }
-
-    return count.count;
-  }
-
-  /**
-   * Index all pictures in the system with mark-and-sweep cleanup
-   */
-  async indexAllPictures(): Promise<void> {
-    debugLogger("Starting full picture indexing with mark-and-sweep...");
-    const l = await lock("indexAllPictures");
-
-    // Phase 1: Clear all marks
-    this.clearAllMarks();
-
-    const q = new Queue(3);
-    await Promise.all([waitUntilWalk()]);
-    const albums = await getFolderAlbums();
-    // Sort album by name in reverse (most recent first)
-    albums.sort((a, b) => b.name.localeCompare(a.name));
-
-    // Count total pictures first
-
-
-    let processedPictures = 0;
-    let processedAlbums = 0;
-    debugLogger(`Total albums to index: ${albums.length}`);
-
-    // Progress monitoring
-    const progressInterval = setInterval(() => {
-      if (q.total() > 0) {
-        debugLogger(
-          `Indexing progress: ${Math.floor((q.done() * 100) / q.total())}% (${q.done()} done)`
-        );
-      }
-    }, 2000);
-
-    // Phase 2: Mark and index pictures in parallel with queue
-    for (const album of albums) {
-      let m: { entries: AlbumEntry[] };
-      try {
-        m = await media(album);
-      } catch (e) {
-        debugLogger(`Album ${album.name} is gone, skipping...`);
-        continue;
-      }
-      processedAlbums++;
-
-      for (const entry of m.entries) {
-        q.add(async () => {
-          await waitUntilIdle();
-          try {
-            await this.indexPicture(entry);
-            processedPictures++;
-            if (processedPictures % 100 === 0) {
-              debugLogger(`Indexed ${processedPictures} pictures (${processedAlbums}/${albums.length} albums)`);
-            }
-          } catch (error) {
-            debugLogger(`Error indexing ${entry.name}:`, error);
-          }
-        });
-      }
-    }
-
-
-    await q.drain();
-    clearInterval(progressInterval);
-
-    // Phase 3: Sweep unmarked records
-    const removedCount = this.sweepUnmarkedRecords();
-
-    this.checkAndFixFTSIntegrity();
-    debugLogger(`Picture indexing completed. Removed ${removedCount} orphaned records.`);
-    l();
-  }
-
-  /**
-   * Query folders by Filters object
-   */
-  queryFoldersByFilters(filters: Filters): AlbumWithData[] {
+  searchFoldersByFilters(filters: Filters): AlbumWithData[] {
+    const db = this.getDatabase();
     // Build WHERE conditions based on filters
     const whereConditions: string[] = [];
     const params: any[] = [];
@@ -470,7 +391,7 @@ class PictureIndexingService {
       const query = `SELECT p.album_key,p.album_name,COUNT(*) as match_count FROM pictures p GROUP BY p.album_key, p.album_name ORDER BY p.album_name DESC`;
 
       try {
-        const stmt = this.db.prepare(query);
+        const stmt = db.prepare(query);
         const results = stmt.all() as Array<{
           album_key: string;
           album_name: string;
@@ -501,7 +422,7 @@ class PictureIndexingService {
     query += `WHERE ${whereConditions.join(' AND ')} GROUP BY p.album_key, p.album_name ORDER BY p.album_name DESC `;
 
     try {
-      const stmt = this.db.prepare(query);
+      const stmt = db.prepare(query);
       const results = stmt.all(...params) as Array<{
         album_key: string;
         album_name: string;
@@ -521,13 +442,11 @@ class PictureIndexingService {
     }
   }
 
-
-
-
   /**
-   * Search pictures by Filters object
+   * Search pictures by Filters object (FTS function)
    */
   searchPicturesByFilters(filters: Filters, limit?: number, albumId?: string): AlbumEntry[] {
+    const db = this.getDatabase();
     // Build WHERE conditions based on filters
     const whereConditions: string[] = [];
     const params: any[] = [];
@@ -559,7 +478,6 @@ class PictureIndexingService {
       whereConditions.push('CAST(p.star_count AS INTEGER) >= ?');
       params.push(filters.minStarCount);
     }
-
 
     // Add video filter
     if (filters.video) {
@@ -625,7 +543,7 @@ class PictureIndexingService {
     }
 
     try {
-      const stmt = this.db.prepare(query);
+      const stmt = db.prepare(query);
       const results = stmt.all(...params) as Array<{
         entry_name: string;
         album_key: string;
@@ -647,15 +565,15 @@ class PictureIndexingService {
     }
   }
 
-
   /**
-   * Query AlbumEntry objects within a specific album by matching strings
+   * Query AlbumEntry objects within a specific album by matching strings (FTS function)
    */
   queryAlbumEntries(albumId: string, matchingStrings: string[]): AlbumEntry[] {
     if (matchingStrings.length === 0) {
       return [];
     }
 
+    const db = this.getDatabase();
     // Create search terms for FTS with normalized text
     const searchTerms = matchingStrings.map(term => `"${normalizeText(term)}"`).join(' OR ');
 
@@ -671,7 +589,7 @@ class PictureIndexingService {
     `;
 
     try {
-      const stmt = this.db.prepare(query);
+      const stmt = db.prepare(query);
       const results = stmt.all(albumId, searchTerms) as Array<{
         entry_name: string;
         album_key: string;
@@ -695,37 +613,10 @@ class PictureIndexingService {
   }
 
   /**
-   * Get current database version
-   */
-  getDatabaseVersion(): number {
-    try {
-      const version = this.db.prepare("SELECT version FROM db_version ORDER BY version DESC LIMIT 1").get() as { version: number } | undefined;
-      return version?.version || 0;
-    } catch (error) {
-      debugLogger("Error getting database version:", error);
-      return 0;
-    }
-  }
-
-  /**
-   * Get statistics about the index
-   */
-  getStats(): { totalPictures: number; totalFolders: number; lastUpdated: string } {
-    const totalPictures = this.db.prepare("SELECT COUNT(*) as count FROM pictures").get() as { count: number };
-    const totalFolders = this.db.prepare("SELECT COUNT(DISTINCT album_key) as count FROM pictures").get() as { count: number };
-    const lastUpdated = this.db.prepare("SELECT MAX(updated_at) as last_updated FROM pictures").get() as { last_updated: string };
-
-    return {
-      totalPictures: totalPictures.count,
-      totalFolders: totalFolders.count,
-      lastUpdated: lastUpdated.last_updated || 'Never'
-    };
-  }
-
-  /**
    * Get all folders in the index
    */
   getAllFolders(): AlbumWithData[] {
+    const db = this.getDatabase();
     const query = `
       SELECT 
         p.album_key,
@@ -737,7 +628,7 @@ class PictureIndexingService {
     `;
 
     try {
-      const stmt = this.db.prepare(query);
+      const stmt = db.prepare(query);
       const results = stmt.all() as Array<{
         album_key: string;
         album_name: string;
@@ -757,13 +648,159 @@ class PictureIndexingService {
     }
   }
 
+  /**
+   * Get statistics about the index
+   */
+  getStats(): { totalPictures: number; totalFolders: number; lastUpdated: string } {
+    const db = this.getDatabase();
+    const totalPictures = db.prepare("SELECT COUNT(*) as count FROM pictures").get() as { count: number };
+    const totalFolders = db.prepare("SELECT COUNT(DISTINCT album_key) as count FROM pictures").get() as { count: number };
+    const lastUpdated = db.prepare("SELECT MAX(updated_at) as last_updated FROM pictures").get() as { last_updated: string };
+
+    return {
+      totalPictures: totalPictures.count,
+      totalFolders: totalFolders.count,
+      lastUpdated: lastUpdated.last_updated || 'Never'
+    };
+  }
+
+  // ========== WRITE METHODS (Write operations - READWRITE only) ==========
+
+  /**
+   * Index a single picture entry
+   */
+  async indexPicture(entry: AlbumEntry): Promise<void> {
+    if (!this.isWriter) {
+      throw new Error("indexPicture can only be called on a READWRITE database instance");
+    }
+
+    const db = this.getDatabase();
+    const picasaEntry = await getPicasaEntry(entry);
+
+    // Extract metadata from picasa entry
+    const persons = picasaEntry.persons || '';
+    const starCount = picasaEntry.starCount || '';
+    const geoPOI = picasaEntry.geoPOI || '';
+    const photostar = picasaEntry.photostar || false;
+    const textContent = picasaEntry.text || '';
+    const caption = picasaEntry.caption || '';
+
+    // Determine entry type
+    let entryType = 'unknown';
+    if (isPicture(entry)) {
+      entryType = 'picture';
+    } else if (isVideo(entry)) {
+      entryType = 'video';
+    }
+
+    try {
+      if (entry.album.key === undefined || entry.album.name === undefined || entry.name === undefined) {
+        debugLogger(`Error indexing picture ${entry.name}: album.key or album.name or name is undefined`);
+        return;
+      }
+
+      const insertStmt = db.prepare(`
+        INSERT OR REPLACE INTO pictures (
+          album_key, album_name, entry_name,
+          persons, star_count, geo_poi, photostar, text_content, caption, entry_type, marked,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+      `);
+
+      insertStmt.run(
+        entry.album.key ?? '',
+        entry.album.name ?? '',
+        entry.name ?? '',
+        persons ?? '',
+        starCount ?? '',
+        geoPOI ?? '',
+        photostar ? 1 : 0,
+        textContent ?? '',
+        caption ?? '',
+        entryType ?? 'unknown'
+      );
+
+      // FTS index is automatically updated via triggers
+
+    } catch (error: any) {
+      debugLogger(`Error indexing picture ${entry.name}:`);
+      debugLogger(`  Error message: ${error.message}`);
+      debugLogger(`  Error code: ${error.code}`);
+      debugLogger(`  SQL: ${error.sql || 'N/A'}`);
+      debugLogger(`  Entry data with types:`, {
+        album_key: `${typeof entry.album.key} = ${entry.album.key}`,
+        album_name: `${typeof entry.album.name} = ${entry.album.name}`,
+        entry_name: `${typeof entry.name} = ${entry.name}`,
+        persons: `${typeof persons} = ${persons}`,
+        starCount: `${typeof starCount} = ${starCount}`,
+        geoPOI: `${typeof geoPOI} = ${geoPOI}`,
+        photostar: `${typeof photostar} = ${photostar}`,
+        textContent: `${typeof textContent} = ${textContent?.substring(0, 50)}`,
+        caption: `${typeof caption} = ${caption?.substring(0, 50)}`,
+        entryType: `${typeof entryType} = ${entryType}`
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Clear all marks from the database (mark phase preparation)
+   */
+  clearAllMarks(): void {
+    if (!this.isWriter) {
+      throw new Error("clearAllMarks can only be called on a READWRITE database instance");
+    }
+
+    debugLogger("Clearing all marks from database...");
+    this.getDatabase().exec("UPDATE pictures SET marked = 0");
+  }
+
+  /**
+   * Remove all unmarked records (sweep phase)
+   */
+  sweepUnmarkedRecords(): number {
+    if (!this.isWriter) {
+      throw new Error("sweepUnmarkedRecords can only be called on a READWRITE database instance");
+    }
+
+    const db = this.getDatabase();
+    debugLogger("Sweeping unmarked records...");
+
+    // Count unmarked records before deletion
+    const countStmt = db.prepare("SELECT COUNT(*) as count FROM pictures WHERE marked = 0");
+    const count = countStmt.get() as { count: number };
+
+    if (count.count > 0) {
+      debugLogger(`Removing ${count.count} unmarked records...`);
+
+      // Delete unmarked records
+      const deleteStmt = db.prepare("DELETE FROM pictures WHERE marked = 0");
+      deleteStmt.run();
+
+      // Clean up FTS index (this will be handled automatically by SQLite)
+      debugLogger(`Removed ${count.count} unmarked records`);
+    } else {
+      debugLogger("No unmarked records to remove");
+    }
+
+    return count.count;
+  }
+
+  /**
+   * Remove a picture from the database
+   */
   async removePicture(entry: AlbumEntry): Promise<void> {
-    const removeStmt = this.db.prepare(`
+    if (!this.isWriter) {
+      throw new Error("removePicture can only be called on a READWRITE database instance");
+    }
+
+    const db = this.getDatabase();
+    const removeStmt = db.prepare(`
       DELETE FROM pictures WHERE album_key = ? AND entry_name = ?
     `);
     removeStmt.run(entry.album.key || '', entry.name || '');
     debugLogger(`Removed entry ${entry.name} from database`);
-    const ftsRemoveStmt = this.db.prepare(`
+    const ftsRemoveStmt = db.prepare(`
       DELETE FROM pictures_fts WHERE rowid = (
         SELECT id FROM pictures WHERE album_key = ? AND entry_name = ?
       )
@@ -776,6 +813,11 @@ class PictureIndexingService {
    * Update a single entry's metadata in the database
    */
   async updateEntry(entry: AlbumEntry, metadata: any): Promise<void> {
+    if (!this.isWriter) {
+      throw new Error("updateEntry can only be called on a READWRITE database instance");
+    }
+
+    const db = this.getDatabase();
     try {
       // Extract metadata from picasa entry
       const persons = metadata.persons || '';
@@ -793,7 +835,7 @@ class PictureIndexingService {
         entryType = 'video';
       }
 
-      const updateStmt = this.db.prepare(`
+      const updateStmt = db.prepare(`
         UPDATE pictures SET
           persons = ?, star_count = ?, geo_poi = ?, photostar = ?, 
           text_content = ?, caption = ?, entry_type = ?, marked = 1, updated_at = CURRENT_TIMESTAMP
@@ -807,7 +849,7 @@ class PictureIndexingService {
 
       if (result.changes > 0) {
         // Update FTS index
-        const ftsUpdateStmt = this.db.prepare(`
+        const ftsUpdateStmt = db.prepare(`
           UPDATE pictures_fts SET
             persons = ?, text_content = ?, caption = ?
           WHERE rowid = (
@@ -829,200 +871,43 @@ class PictureIndexingService {
       throw error;
     }
   }
-
-  /**
-   * Rebuild the FTS index to fix orphaned entries
-   */
-  rebuildFTSIndex(): void {
-    debugLogger("Rebuilding FTS index to fix orphaned entries...");
-    try {
-      this.db.exec(`INSERT INTO pictures_fts(pictures_fts) VALUES('rebuild');`);
-      debugLogger("FTS index rebuilt successfully");
-    } catch (error) {
-      debugLogger("Error rebuilding FTS index:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Check for orphaned FTS entries and fix them
-   */
-  async checkAndFixFTSIntegrity(): Promise<void> {
-    debugLogger("Checking FTS integrity...");
-
-    try {
-      // Count total pictures vs FTS entries
-      const pictureCount = this.db.prepare("SELECT COUNT(*) as count FROM pictures").get() as { count: number };
-      const ftsCount = this.db.prepare("SELECT COUNT(*) as count FROM pictures_fts").get() as { count: number };
-
-      debugLogger(`Pictures: ${pictureCount.count}, FTS entries: ${ftsCount.count}`);
-
-      if (pictureCount.count !== ftsCount.count) {
-        debugLogger("FTS index is out of sync, rebuilding...");
-        this.rebuildFTSIndex();
-      } else {
-        debugLogger("FTS index appears to be in sync");
-      }
-    } catch (error) {
-      debugLogger("Error checking FTS integrity:", error);
-      // If there are orphaned entries, rebuild will fix them
-      this.rebuildFTSIndex();
-    }
-  }
-
-  /**
-   * Clean up resources
-   */
-  close(): void {
-    this.db.close();
-  }
 }
 
-// Export singleton instance
-let indexingService: PictureIndexingService | null = null;
+// Singleton instances per process/worker
+let readOnlyDbAccess: IndexingDatabaseAccess | null = null;
+let readWriteDbAccess: IndexingDatabaseAccess | null = null;
 
-function getIndexingService(readonly: boolean = false): PictureIndexingService {
-  if (!indexingService) {
-    // If we're not the indexing worker, default to readonly
-    // But since this is bg-indexing.ts, it's shared.
-    // The caller should specify if they want readonly.
-    // However, if an instance exists, we return it. 
-    // This singleton pattern assumes all callers in the same process want the same mode.
-    // In workers, there is only one caller context usually.
-    indexingService = new PictureIndexingService(undefined, readonly);
+/**
+ * Get a read-only indexing database access instance
+ */
+export function getIndexingDatabaseReadOnly(): IndexingDatabaseAccess {
+  if (!readOnlyDbAccess) {
+    readOnlyDbAccess = new IndexingDatabaseAccess('READ');
   }
-  return indexingService;
+  return readOnlyDbAccess;
 }
 
 /**
- * Set up event-driven indexing that processes files as they are found
+ * Get a read-write indexing database access instance
+ * Only the indexing worker should use this
  */
-function setupEventDrivenIndexing(service: PictureIndexingService): void {
-  debugLogger("Setting up event-driven indexing");
-
-  // Someone tried to access the assets in a folder album, piggy back on that to 
-  // discover new files / remove files that are no longer there
-  listedMediaEventEmitter.on("assetsInFolderAlbum", async (event) => {
-    try {
-      debugLogger(`Processing ${event.entries.length} files from album ${event.album.name}`);
-      for (const entry of event.entries) {
-        await waitUntilIdle();
-        try {
-          await service.indexPicture(entry);
-        } catch (error) {
-          debugLogger(`Error indexing ${entry.name}:`, error);
-        }
-      }
-
-      const albumEntries = await service.albumEntries(event.album);
-      for (const entry of event.entries) {
-        if (albumEntries.some(e => e.name === entry.name)) {
-          continue;
-        }
-        debugLogger(`Indexing ${entry.name} only found in event, adding to index...`);
-        events.emit("fileFound", entry);
-        try {
-          await service.indexPicture(entry);
-        } catch (error) {
-          debugLogger(`Error indexing ${entry.name}:`, error);
-        }
-      }
-      for (const entry of albumEntries) {
-        debugLogger(`Indexing ${entry.name} only found in database, removing from index...`);
-        events.emit("fileGone", entry);
-        try {
-          await service.removePicture(entry);
-        } catch (error) {
-          debugLogger(`Error removing ${entry.name} from index:`, error);
-        }
-      }
-
-    } catch (error) {
-      debugLogger("Error processing file found event:", error);
-    }
-  });
-  serverEvents.on("albumEntryChanged", async (entry) => {
-    await service.indexPicture(entry);
-  });
-
-
-  debugLogger("Event-driven indexing set up successfully");
+export function getIndexingDatabaseReadWrite(): IndexingDatabaseAccess {
+  if (!readWriteDbAccess) {
+    readWriteDbAccess = new IndexingDatabaseAccess('READWRITE');
+  }
+  return readWriteDbAccess;
 }
 
 /**
- * Set up event listener for picasa entry updates
+ * Close the database connections (for cleanup)
  */
-function setupPicasaEntryUpdateListener(service: PictureIndexingService): void {
-  debugLogger("Setting up picasa entry update listener");
-
-  events.on("picasaEntryUpdated", async (event) => {
-    try {
-      const { entry, field, value } = event;
-
-      // Only update if the field is one we care about
-      const relevantFields = ['starCount', 'geoPOI', 'photostar', 'text', 'caption', 'persons'];
-      if (relevantFields.includes(field)) {
-        debugLogger(`Updating database for entry ${entry.name}, field: ${field}`);
-        await service.updateEntry(entry, entry.metadata);
-      }
-    } catch (error) {
-      debugLogger("Error handling picasa entry update event:", error);
-    }
-  });
-
-  debugLogger("Picasa entry update listener set up successfully");
-}
-
-// Main entry point for indexing pictures
-export async function indexPictures(): Promise<void> {
-  const service = getIndexingService();
-  await waitUntilWalk();
-
-  // From now on, we are ready to index
-  for (const album of await getFolderAlbums()) {
-    const m = await media(album);
-    for (const entry of m.entries) {
-      await service.indexPicture(entry);
-    }
+export function closeIndexingDatabase(): void {
+  if (readOnlyDbAccess) {
+    readOnlyDbAccess.close();
+    readOnlyDbAccess = null;
   }
-
-
-  // Set up event-driven indexing instead of batch processing
-  setupEventDrivenIndexing(service);
-
-  // Set up event listener for picasa entry updates
-  setupPicasaEntryUpdateListener(service);
-
-  setReady(readyLabel);
-}
-
-export async function indexingReady(): Promise<void> {
-  return isReady;
-}
-
-
-export function queryFoldersByFilters(filters: Filters): AlbumWithData[] {
-  const service = getIndexingService(true);
-  return service.queryFoldersByFilters(filters);
-}
-
-export function searchPicturesByFilters(filters: Filters, limit?: number, albumId?: string): AlbumEntry[] {
-  const service = getIndexingService(true);
-  return service.searchPicturesByFilters(filters, limit, albumId);
-}
-
-export function queryAlbumEntries(albumId: string, matchingStrings: string[]): AlbumEntry[] {
-  const service = getIndexingService(true);
-  return service.queryAlbumEntries(albumId, matchingStrings);
-}
-
-export function getAlbumEntries(album: Album): Promise<AlbumEntry[]> {
-  const service = getIndexingService(true);
-  return service.albumEntries(album);
-}
-
-
-export function getAllFolders(): AlbumWithData[] {
-  const service = getIndexingService(true);
-  return service.getAllFolders();
+  if (readWriteDbAccess) {
+    readWriteDbAccess.close();
+    readWriteDbAccess = null;
+  }
 }

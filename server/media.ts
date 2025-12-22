@@ -1,248 +1,85 @@
-import { Stats } from "fs";
-import { stat } from "fs/promises";
-import { join, relative } from "path";
-import { isMainThread, parentPort, workerData } from "worker_threads";
-import { startWorkers, broadcast, getAllWorkers } from "./worker-manager";
-import { buildEmitter } from "../shared/lib/event";
-import { Queue } from "../shared/lib/queue";
 import {
-  alphaSorter,
-  buildReadySemaphore,
-  differs,
-  setReady,
-  sleep,
+  sortByKey
 } from "../shared/lib/utils";
 import {
   Album,
-  AlbumChangeEvent,
   AlbumEntry,
-  AlbumEntryWithMetadata,
   AlbumKind,
   AlbumWithData,
   Filters,
-  keyFromID,
+  idFromKey,
+  ProjectType,
 } from "../shared/types/types";
+import { searchPicturesByFilters } from "./services/search/queries";
+import { getAlbumEntries } from "./services/walker/queries";
 import {
-  assetsInFolderAlbum,
-  queueNotification,
-} from "./rpc/albumTypes/fileAndFolders";
-import { mediaCount } from "./rpc/rpcFunctions/albumUtils";
+  getProjects,
+} from "./rpc/albumTypes/projects";
 import {
-  getShortcuts,
-  readShortcut,
-} from "./rpc/rpcFunctions/picasa-ini";
-import { imagesRoot, specialFolders } from "./utils/constants";
-import { pathForAlbum } from "./utils/serverUtils";
-import { queryFoldersByFilters } from "./services/indexing/worker";
-import { events } from "./events/server-events";
-import { serverEvents } from "./services/indexing/events";
-import { waitUntilWalk, getFolderAlbums, folders } from "./services/walker/worker";
+  readFaceAlbumEntries,
+} from "./rpc/rpcFunctions/faces";
+import { getPicasaEntry, updatePicasaEntry } from "./rpc/rpcFunctions/picasa-ini";
+import { isPicture, isVideo } from "../shared/lib/utils";
 
-const readyLabelKey = "fileWalker";
-const ready = buildReadySemaphore(readyLabelKey);
-let lastWalk: AlbumWithData[] = [];
-const walkQueue = new Queue(10);
-
-export type FileFoundEvent = {
-  fileFound: AlbumEntry;
-  fileGone: AlbumEntry;
-};
-
-export type AlbumFoundEvent = {
-  albumFound: AlbumWithData;
-};
-
-export type ListedMediaEvent = {
-  assetsInFolderAlbum: { album: Album; entries: AlbumEntry[] };
-};
-export type AlbumEntryChangedEvent = {
-  albumEntryChanged: AlbumEntryWithMetadata;
-};
-
-export const albumEventEmitter = buildEmitter<AlbumChangeEvent>();
-export const fileFoundEventEmitter = buildEmitter<FileFoundEvent>();
-export const albumFoundEventEmitter = buildEmitter<AlbumFoundEvent>();
-export const listedMediaEventEmitter = buildEmitter<ListedMediaEvent>();
-export const albumEntryEventEmitter = buildEmitter<AlbumEntryChangedEvent>();
-
-
-// Helper to update local cache
-function handleAlbumEvent(type: string, event: any) {
-  if (type === "added") {
-    const idx = lastWalk.findIndex((a) => a.key === event.key);
-    if (idx === -1) {
-      lastWalk.push(event);
-    } else {
-      lastWalk[idx] = event;
+/**
+ * Returns the contents of an album, sorted by its rank
+ * Uses search service queries when filters are present, walker service queries otherwise
+ * @param album
+ * @param filters Optional filters for searching
+ * @returns
+ */
+export async function media(
+  album: Album,
+  filters?: Filters,
+): Promise<{ entries: AlbumEntry[] }> {
+  if (album.kind === AlbumKind.FOLDER) {
+    if (filters) {
+      // Use search service queries for filtered results
+      const entries = searchPicturesByFilters(filters, undefined, album.key);
+      await sortAssetsByRank(entries);
+      return { entries };
     }
-  } else if (type === "updated") {
-    const idx = lastWalk.findIndex((a) => a.key === event.key);
-    if (idx !== -1) lastWalk[idx] = event;
-  } else if (type === "deleted") {
-    const idx = lastWalk.findIndex((a) => a.key === event.key);
-    if (idx !== -1) lastWalk.splice(idx, 1);
-  }
+    // Use walker service queries when no filters (direct album entries)
+    const entries = getAlbumEntries(album);
+
+    await sortAssetsByRank(entries);
+    await assignRanks(entries);
+    return { entries };
+  } else if (album.kind === AlbumKind.FACE) {
+    const entries = await readFaceAlbumEntries(album);
+    await sortAssetsByRank(entries);
+    await assignRanks(entries);
+    return { entries };
+  } else if (album.kind === AlbumKind.PROJECT) {
+    const entries = await getProjects(idFromKey(album.key).id as ProjectType);
+    return { entries };
+  } else throw new Error(`Unknown kind ${album.kind}`);
 }
 
-export async function refreshAlbumKeys(albums: string[]) {
-  // if (isMainThread && worker) {
-  // TODO: Send message to worker to refresh specific albums?
-  // For now, we rely on local refresh which is fine if shared FS
-  // But better to delegate to worker if consistent state is needed
-  // }
-
-  if (!lastWalk) {
-    return;
-  }
+async function sortAssetsByRank(entries: AlbumEntry[]) {
   await Promise.all(
-    albums
-      .map((key) => {
-        return lastWalk.find((album) => album.key === key);
-      })
-      .map((album) => addOrRefreshOrDeleteAlbum(album))
+    entries.map(async (entry) => {
+      const meta = await getPicasaEntry(entry);
+      Object.assign(entry, { rank: meta.rank });
+    }),
   );
+
+  sortByKey(entries as (AlbumEntry & { rank: any })[], ["rank"], ["numeric"]);
 }
 
-export async function refreshAlbums(albums: AlbumWithData[]) {
-  await Promise.all(albums.map((album) => addOrRefreshOrDeleteAlbum(album)));
-}
-
-export async function onRenamedAlbums(from: Album, to: Album) {
-  const idx = lastWalk.findIndex((f) => f.key == from.key);
-  if (idx !== -1) {
-    const old = { ...lastWalk[idx] };
-    lastWalk[idx] = { ...lastWalk[idx], ...to };
-    queueNotification({
-      type: "albumRenamed",
-      altAlbum: old,
-      album: lastWalk[idx],
-    });
-  }
-}
-
-const ALLOW_EMPTY_ALBUM_CREATED_SINCE = 1000 * 60 * 60; // one hour
-async function folderAlbumExists(album: Album): Promise<boolean> {
-  if (album.kind !== AlbumKind.FOLDER) {
-    throw new Error("Not a folder album");
-  }
-  const p = join(imagesRoot, pathForAlbum(album));
-  const s = await stat(p).catch(() => false);
-  if (s === false) {
-    return false;
-  }
-  if (
-    Date.now() - (s as Stats).ctime.getTime() <
-    ALLOW_EMPTY_ALBUM_CREATED_SINCE
-  ) {
-    return true;
-  }
-
-  const count = (await mediaCount(album)).count;
-  if (count !== 0) {
-    return true;
-  }
-  return false;
-}
-
-export async function addOrRefreshOrDeleteAlbum(
-  album: Album | undefined,
-  options?: "SkipCheckInfo",
-  added?: boolean
-) {
-  if (!album) {
-    return;
-  }
-  if (lastWalk) {
-    const idx = lastWalk.findIndex((f) => f.key == album.key);
-    if (!added && !(await folderAlbumExists(album))) {
-      if (idx >= 0) {
-        const data = lastWalk.splice(idx, 1)[0];
-        queueNotification({ type: "albumDeleted", album: data });
-        albumEventEmitter.emit("deleted", data);
+async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {
+  let rank = 0;
+  for (const entry of filesInFolder) {
+    if (isPicture(entry) || isVideo(entry)) {
+      let current = (await getPicasaEntry(entry)).rank || "0";
+      if (rank !== parseInt(current)) {
+        updatePicasaEntry(entry, "rank", rank);
       }
-    } else {
-      if (idx === -1) {
-        const [count, shortcut] = await Promise.all([
-          mediaCount(album),
-          readShortcut(album),
-        ]);
-        const updated: AlbumWithData = {
-          ...album,
-          ...count,
-          shortcut,
-        };
-        queueNotification({
-          type: "albumAdded",
-          album: updated,
-        });
-        albumEventEmitter.emit("added", updated);
-        events.emit("albumFound", updated);
-        lastWalk.push(updated);
-      } else {
-        if (options !== "SkipCheckInfo") {
-          const [count, shortcut] = await Promise.all([
-            mediaCount(album),
-            readShortcut(album),
-          ]);
-          const updated: AlbumWithData = {
-            ...album,
-            ...count,
-            shortcut,
-          };
-
-          if (differs(updated, lastWalk[idx])) {
-            queueNotification({
-              type: "albumInfoUpdated",
-              album: updated,
-            });
-            albumEventEmitter.emit("updated", updated);
-            lastWalk[idx] = updated;
-          }
-        }
-      }
+      rank++;
     }
   }
 }
 
-async function walk(
-  name: string,
-  path: string,
-  cb: (a: Album) => Promise<void>,
-  cdEntryCb?: (e: AlbumEntry) => Promise<void>
-): Promise<void> {
-  // Exclude special folders
-  if (specialFolders.includes(path)) {
-    return;
-  }
-  const album: Album = {
-    name,
-    key: keyFromID(relative(imagesRoot, path), AlbumKind.FOLDER),
-    kind: AlbumKind.FOLDER,
-  };
-  const m = await assetsInFolderAlbum(album);
+// Re-export functions from walker worker
+export { getFolderAlbums, folders, getFolderAlbumData } from "./services/walker/worker";
 
-  // depth down first
-  for (const child of m.folders.sort(alphaSorter()).reverse()) {
-    walkQueue.add<Album[]>(() =>
-      walk(child.normalize(), join(path, child), cb)
-    );
-  }
-
-  if (m.entries.length > 0) {
-    cb(album);
-    for (const entry of m.entries) {
-      cdEntryCb?.(entry);
-    }
-  }
-}
-
-// Re-export from walker service
-export { getFolderAlbums, folders } from "./services/walker/worker";
-
-export function getFolderAlbumData(key: string) {
-  const f = lastWalk.find((f) => f.key == key);
-  if (f === undefined) {
-    throw new Error(`Album ${key} not found`);
-  }
-  return f;
-}

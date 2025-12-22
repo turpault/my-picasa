@@ -1,3 +1,4 @@
+import debug from "debug";
 import { Stats } from "fs";
 import { stat } from "fs/promises";
 import { join, relative } from "path";
@@ -33,12 +34,14 @@ import {
 } from "../../rpc/rpcFunctions/picasa-ini";
 import { imagesRoot, specialFolders } from "../../utils/constants";
 import { pathForAlbum } from "../../utils/serverUtils";
-import { queryFoldersByFilters } from "../indexing/worker";
+import { searchFoldersByFilters } from "../search/queries";
 import { events } from "../../events/server-events";
+import { getAllAlbums, getAlbum, getAlbumEntries as getWalkerAlbumEntries, upsertAlbum, deleteAlbum, replaceAlbumEntries } from "./queries";
+import { getWalkerDatabase } from "./database";
 
+const debugLogger = debug("app:walker-db");
 const readyLabelKey = "fileWalker";
 const ready = buildReadySemaphore(readyLabelKey);
-let lastWalk: AlbumWithData[] = [];
 const walkQueue = new Queue(10);
 
 export type FileFoundEvent = {
@@ -57,13 +60,14 @@ export type AlbumEntryChangedEvent = {
   albumEntryChanged: AlbumEntryWithMetadata;
 };
 
+// Keep emitters for backward compatibility with existing code
 export const albumEventEmitter = buildEmitter<AlbumChangeEvent>();
 export const fileFoundEventEmitter = buildEmitter<FileFoundEvent>();
 export const albumFoundEventEmitter = buildEmitter<AlbumFoundEvent>();
 export const listedMediaEventEmitter = buildEmitter<ListedMediaEvent>();
 export const albumEntryEventEmitter = buildEmitter<AlbumEntryChangedEvent>();
 
-export function startWorker() {
+export function initializeWorkerListeners() {
   if (!isMainThread) return;
 
   console.info("Initializing worker listeners...");
@@ -77,25 +81,6 @@ export function startWorker() {
         setReady(readyLabelKey);
         // Relay ready to other workers
         broadcast(msg, 'walker');
-      } else if (msg.type === "event" && msg.emitter === "albumEventEmitter") {
-        // Update local cache
-        handleAlbumEvent(msg.eventType, msg.data);
-
-        // Re-emit in main thread
-        albumEventEmitter.emit(msg.eventType, msg.data);
-
-        // Broadcast to other workers (indexing, thumbs, etc)
-        broadcast(msg, 'walker');
-      } else if (msg.type === "event" && msg.emitter === "fileFoundEventEmitter") {
-        // Re-emit in main thread
-        fileFoundEventEmitter.emit(msg.eventType, msg.data);
-        // Also emit through ServerEvents
-        if (msg.eventType === "fileFound" || msg.eventType === "fileGone") {
-          events.emit(msg.eventType, msg.data);
-        }
-
-        // Broadcast to other workers
-        broadcast(msg, 'walker');
       } else if (msg.type === "notification") {
         queueNotification(msg.event);
       }
@@ -103,78 +88,24 @@ export function startWorker() {
   }
 }
 
-// Helper to update local cache
-function handleAlbumEvent(type: string, event: any) {
-  if (type === "added") {
-    const idx = lastWalk.findIndex((a) => a.key === event.key);
-    if (idx === -1) {
-      lastWalk.push(event);
-    } else {
-      lastWalk[idx] = event;
-    }
-  } else if (type === "updated") {
-    const idx = lastWalk.findIndex((a) => a.key === event.key);
-    if (idx !== -1) lastWalk[idx] = event;
-  } else if (type === "deleted") {
-    const idx = lastWalk.findIndex((a) => a.key === event.key);
-    if (idx !== -1) lastWalk.splice(idx, 1);
-  }
-}
-
-// Support passive mode in workers
-if (!isMainThread && parentPort && workerData.serviceName !== 'walker') {
-  parentPort.on("message", (msg) => {
-    if (msg.type === "ready") {
-      setReady(readyLabelKey);
-    } else if (msg.type === "event" && msg.emitter === "albumEventEmitter") {
-      handleAlbumEvent(msg.eventType, msg.data);
-      // Also emit locally for listeners in this worker (e.g. indexer)
-      albumEventEmitter.emit(msg.eventType, msg.data);
-    } else if (msg.type === "event" && msg.emitter === "fileFoundEventEmitter") {
-      fileFoundEventEmitter.emit(msg.eventType, msg.data);
-      // Also emit through ServerEvents
-      if (msg.eventType === "fileFound" || msg.eventType === "fileGone") {
-        events.emit(msg.eventType, msg.data);
-      }
-    }
-  });
-}
-
-// Forward events from active walker worker
-if (!isMainThread && parentPort && workerData.serviceName === 'walker') {
-  albumEventEmitter.on("*", (type, event) => {
-    parentPort?.postMessage({
-      type: "event",
-      emitter: "albumEventEmitter",
-      eventType: type,
-      data: event,
-    });
-  });
-
-  fileFoundEventEmitter.on("*", (type, event) => {
-    parentPort?.postMessage({
-      type: "event",
-      emitter: "fileFoundEventEmitter",
-      eventType: type,
-      data: event,
-    });
-    // Also emit through ServerEvents
-    if (type === "fileFound" || type === "fileGone") {
-      events.emit(type, event as AlbumEntry);
-    }
-  });
-}
-
-export async function updateLastWalkLoop() {
+/**
+ * Main entry point for walker worker
+ */
+async function walkFilesystem(): Promise<void> {
   // If in main thread OR not the walker service, do nothing
   if (isMainThread || workerData.serviceName !== 'walker') {
     return;
   }
 
+  // Initialize database (will be read-write in walker worker)
+  getWalkerDatabase();
   let iteration = 0;
   while (true) {
     console.info(`Filesystem scan: iteration ${iteration}`);
-    const old = [...lastWalk];
+    const oldAlbums = getAllAlbums();
+    const oldKeys = new Set(oldAlbums.map(a => a.key));
+    const foundKeys = new Set<string>();
+
     walkQueue.add(() =>
       walk("", imagesRoot, async (a: Album) => {
         addOrRefreshOrDeleteAlbum(
@@ -182,29 +113,16 @@ export async function updateLastWalkLoop() {
           "SkipCheckInfo",
           true /* we know it's added */
         );
+        foundKeys.add(a.key);
       })
     );
     await walkQueue.drain();
-    const deletedAlbums: AlbumWithData[] = [];
-    let startIndex = 0;
-    for (const oldAlbum of old) {
-      if (
-        lastWalk.length < startIndex ||
-        lastWalk[startIndex].key > oldAlbum.key
-      ) {
-        // could not be found, it has been removed
-        deletedAlbums.push(oldAlbum);
-        continue;
+
+    // Find deleted albums
+    for (const oldAlbum of oldAlbums) {
+      if (!foundKeys.has(oldAlbum.key)) {
+        addOrRefreshOrDeleteAlbum(oldAlbum);
       }
-      if (lastWalk[startIndex].key === oldAlbum.key) {
-        // found it, do nothing
-        startIndex++;
-        continue;
-      }
-      startIndex++;
-    }
-    for (const oldAlbum of deletedAlbums) {
-      addOrRefreshOrDeleteAlbum(oldAlbum);
     }
 
     if (iteration === 0) {
@@ -219,25 +137,38 @@ export async function updateLastWalkLoop() {
   }
 }
 
+/**
+ * Start the walker worker
+ */
+export async function startWorker(): Promise<void> {
+  await walkFilesystem();
+}
+
+// Initialize worker if running in a worker thread
+if (parentPort && workerData?.serviceName === 'walker') {
+  const serviceName = workerData.serviceName;
+  console.info(`Worker thread started for service: ${serviceName}`);
+  startWorker().catch((error) => {
+    console.error(`Error starting worker ${serviceName}:`, error);
+    process.exit(1);
+  });
+}
+
 export async function waitUntilWalk() {
   return ready;
 }
 
 export async function refreshAlbumKeys(albums: string[]) {
-  // if (isMainThread && worker) {
-  // TODO: Send message to worker to refresh specific albums?
-  // For now, we rely on local refresh which is fine if shared FS
-  // But better to delegate to worker if consistent state is needed
-  // }
-
-  if (!lastWalk) {
+  if (isMainThread) {
+    // In main thread, we can't write to the database
+    // This should be called via RPC from the walker worker
     return;
   }
+
   await Promise.all(
     albums
-      .map((key) => {
-        return lastWalk.find((album) => album.key === key);
-      })
+      .map((key) => getAlbum(key))
+      .filter((album): album is AlbumWithData => album !== undefined)
       .map((album) => addOrRefreshOrDeleteAlbum(album))
   );
 }
@@ -247,15 +178,23 @@ export async function refreshAlbums(albums: AlbumWithData[]) {
 }
 
 export async function onRenamedAlbums(from: Album, to: Album) {
-  const idx = lastWalk.findIndex((f) => f.key == from.key);
-  if (idx !== -1) {
-    const old = { ...lastWalk[idx] };
-    lastWalk[idx] = { ...lastWalk[idx], ...to };
-    queueNotification({
-      type: "albumRenamed",
-      altAlbum: old,
-      album: lastWalk[idx],
-    });
+  if (isMainThread) {
+    return;
+  }
+
+  try {
+    const old = getAlbum(from.key);
+    if (old) {
+      const updated: AlbumWithData = { ...old, ...to };
+      upsertAlbum(updated);
+      queueNotification({
+        type: "albumRenamed",
+        altAlbum: old,
+        album: updated,
+      });
+    }
+  } catch (error) {
+    debugLogger("Cannot write to database (not walker worker):", error);
   }
 }
 
@@ -291,16 +230,24 @@ export async function addOrRefreshOrDeleteAlbum(
   if (!album) {
     return;
   }
-  if (lastWalk) {
-    const idx = lastWalk.findIndex((f) => f.key == album.key);
+
+  if (isMainThread) {
+    // In main thread, we can't write to the database
+    return;
+  }
+
+  try {
+    const existing = getAlbum(album.key);
+
     if (!added && !(await folderAlbumExists(album))) {
-      if (idx >= 0) {
-        const data = lastWalk.splice(idx, 1)[0];
-        queueNotification({ type: "albumDeleted", album: data });
-        albumEventEmitter.emit("deleted", data);
+      if (existing) {
+        queueNotification({ type: "albumDeleted", album: existing });
+        // Emit through local emitter for backward compatibility
+        albumEventEmitter.emit("deleted", existing);
+        deleteAlbum(album.key);
       }
     } else {
-      if (idx === -1) {
+      if (!existing) {
         const [count, shortcut] = await Promise.all([
           mediaCount(album),
           readShortcut(album),
@@ -314,9 +261,9 @@ export async function addOrRefreshOrDeleteAlbum(
           type: "albumAdded",
           album: updated,
         });
-        albumEventEmitter.emit("added", updated);
+        // Emit through ServerEvents (will be forwarded to all workers)
         events.emit("albumFound", updated);
-        lastWalk.push(updated);
+        upsertAlbum(updated);
       } else {
         if (options !== "SkipCheckInfo") {
           const [count, shortcut] = await Promise.all([
@@ -329,17 +276,20 @@ export async function addOrRefreshOrDeleteAlbum(
             shortcut,
           };
 
-          if (differs(updated, lastWalk[idx])) {
+          if (differs(updated, existing)) {
             queueNotification({
               type: "albumInfoUpdated",
               album: updated,
             });
+            // Emit through local emitter for backward compatibility
             albumEventEmitter.emit("updated", updated);
-            lastWalk[idx] = updated;
+            upsertAlbum(updated);
           }
         }
       }
     }
+  } catch (error) {
+    debugLogger("Cannot write to database (not walker worker):", error);
   }
 }
 
@@ -377,13 +327,13 @@ async function walk(
 
 export async function getFolderAlbums(): Promise<AlbumWithData[]> {
   await waitUntilWalk();
-  return lastWalk;
+  return getAllAlbums();
 }
 
 export async function folders(filters?: Filters): Promise<AlbumWithData[]> {
   if (filters) {
     // Use database-level filtering for better performance
-    const matchedAlbums = await queryFoldersByFilters(filters);
+    const matchedAlbums = await searchFoldersByFilters(filters);
 
     // Complete with shortcuts
     const shortcuts = Object.values(getShortcuts());
@@ -395,14 +345,68 @@ export async function folders(filters?: Filters): Promise<AlbumWithData[]> {
     }
     return matchedAlbums;
   }
-  return [...(lastWalk as AlbumWithData[])];
+  return getAllAlbums();
 }
 
 export function getFolderAlbumData(key: string) {
-  const f = lastWalk.find((f) => f.key == key);
-  if (f === undefined) {
+  const album = getAlbum(key);
+  if (!album) {
     throw new Error(`Album ${key} not found`);
   }
-  return f;
+  return album;
+}
+
+/**
+ * Reindex albums by updating their entries from folder contents
+ * @param albumIds List of album keys to reindex
+ */
+export async function reindexAlbums(albumIds: string[]): Promise<void> {
+  if (isMainThread) {
+    throw new Error("reindexAlbums must be called from the walker worker");
+  }
+
+  try {
+    for (const albumKey of albumIds) {
+      const album = getAlbum(albumKey);
+      if (!album || album.kind !== AlbumKind.FOLDER) {
+        debugLogger(`Skipping reindex for album ${albumKey}: not found or not a folder album`);
+        continue;
+      }
+
+      try {
+        const folderAlbum: Album = {
+          key: album.key,
+          name: album.name,
+          kind: album.kind,
+        };
+
+        const { entries } = await assetsInFolderAlbum(folderAlbum);
+
+        // Update album count
+        const updatedAlbum: AlbumWithData = {
+          ...album,
+          count: entries.length,
+        };
+        upsertAlbum(updatedAlbum);
+
+        // Replace all entries for this album
+        replaceAlbumEntries(folderAlbum, entries);
+
+        debugLogger(`Reindexed album ${albumKey}: ${entries.length} entries`);
+      } catch (error) {
+        debugLogger(`Error reindexing album ${albumKey}:`, error);
+      }
+    }
+  } catch (error) {
+    debugLogger("Cannot write to database (not walker worker):", error);
+    throw error;
+  }
+}
+
+/**
+ * Get album entries from the database
+ */
+export function getAlbumEntries(album: Album): AlbumEntry[] {
+  return getWalkerAlbumEntries(album);
 }
 

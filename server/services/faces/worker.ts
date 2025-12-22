@@ -1,10 +1,11 @@
 import * as tf from "@tensorflow/tfjs-node";
 import Debug from "debug";
+import { parentPort, workerData } from "worker_threads";
 import { Queue } from "../../../shared/lib/queue";
 import { getFaceAlbums } from "../../rpc/rpcFunctions/faces";
 import { media } from "../../rpc/rpcFunctions/albumUtils";
 import { getFaceImage } from "../../rpc/rpcFunctions/thumbnail";
-import { indexingReady } from "../indexing/worker";
+import { indexingReady } from "../search/worker";
 import { runClusterStrategy } from "./face/identify-cluster-strategy";
 // import { runFaceMatcherStrategy } from "./face/identify-facematcher-strategy";
 // import { startRedis, stopRedis } from "./redis-process";
@@ -56,4 +57,21 @@ async function exportAllFaces() {
   );
   await getFaceImageQueue.drain();
   clearInterval(interval);
+}
+
+/**
+ * Start the faces worker
+ */
+export async function startWorker(): Promise<void> {
+  await buildFaceScan();
+}
+
+// Initialize worker if running in a worker thread
+if (parentPort && workerData?.serviceName === 'faces') {
+  const serviceName = workerData.serviceName;
+  console.info(`Worker thread started for service: ${serviceName}`);
+  startWorker().catch((error) => {
+    console.error(`Error starting worker ${serviceName}:`, error);
+    process.exit(1);
+  });
 }

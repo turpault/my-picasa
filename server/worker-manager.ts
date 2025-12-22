@@ -5,14 +5,14 @@ const workers: Map<string, Worker> = new Map();
 
 export function startWorkers() {
   if (!isMainThread) return;
-  
+
   const services = [
     'walker',
-    'indexing',
-    'thumbnails',
+    'search',
+    'thumbgen',
     'exif',
     'faces',
-    'favorites',
+    'favorite-exporter',
     'geolocate'
   ];
 
@@ -27,13 +27,13 @@ export function startWorker(serviceName: string): Worker | null {
 
   console.info(`Starting background worker: ${serviceName}...`);
   const isTs = __filename.endsWith('.ts');
-  const workerFile = isTs ? 'worker-entry.ts' : 'worker-entry.js';
-  
-  const worker = new Worker(join(__dirname, workerFile), {
+  const workerFile = join(__dirname, 'services', serviceName, isTs ? 'worker.ts' : 'worker.js');
+
+  const worker = new Worker(workerFile, {
     workerData: { serviceName },
     execArgv: isTs ? ["-r", "ts-node/register"] : undefined
   });
-  
+
   worker.on("error", (err) => {
     console.error(`Worker ${serviceName} error:`, err);
   });

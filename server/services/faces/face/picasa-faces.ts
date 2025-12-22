@@ -2,7 +2,7 @@ import {
   decodeFaces,
   encodeFaces,
   idFromAlbumEntry,
-} from "../../../shared/lib/utils";
+} from "../../../../shared/lib/utils";
 import {
   FaceList,
   Album,
@@ -12,12 +12,12 @@ import {
   Face,
   AlbumEntryMetaData,
   Reference,
-} from "../../../shared/types/types";
+} from "../../../../shared/types/types";
 import {
   addReferenceToFaceAlbum,
   removeReferenceToFaceAlbum,
-} from "../../../../rpc/rpcFunctions/faces";
-import { media } from "../../../../rpc/rpcFunctions/albumUtils";
+} from "../../../rpc/rpcFunctions/faces";
+import { media } from "../../../rpc/rpcFunctions/albumUtils";
 import {
   getPicasaEntry,
   getContactsFromAlbum,
@@ -26,7 +26,7 @@ import {
   updateContactInAlbum,
   updatePicasaEntry,
   writeCandidateFacesSection,
-} from "../../../../rpc/rpcFunctions/picasa-ini";
+} from "../../../rpc/rpcFunctions/picasa-ini";
 import { getFolderAlbums, waitUntilWalk } from "../../../walker/worker";
 import { readReferencesOfEntry } from "../../../../rpc/albumTypes/referenceFiles";
 

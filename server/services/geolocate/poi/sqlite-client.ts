@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { join } from "path";
-import { imagesRoot } from "../../../../utils/constants";
+import { imagesRoot } from "../../../utils/constants";
 import { info } from "console";
 
 let dbInstance: Database.Database | null = null;
@@ -9,7 +9,7 @@ export function getPoiDb(): Database.Database {
   if (!dbInstance) {
     const dbPath = join(imagesRoot, "poi.db");
     dbInstance = new Database(dbPath);
-    
+
     // Initialize POI table
     dbInstance.exec(`
       CREATE TABLE IF NOT EXISTS poi (
@@ -30,7 +30,7 @@ export function getPoiDb(): Database.Database {
         processed_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    
+
     info(`POI Database initialized at ${dbPath}`);
   }
   return dbInstance;

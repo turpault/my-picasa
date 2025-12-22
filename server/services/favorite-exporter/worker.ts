@@ -1,4 +1,5 @@
 import { mkdir } from "fs/promises";
+import { parentPort, workerData } from "worker_threads";
 import { exportToFolder } from "../../imageOperations/export";
 import { getPicasaEntry } from "../../rpc/rpcFunctions/picasa-ini";
 import { waitUntilIdle } from "../../utils/busy";
@@ -6,7 +7,8 @@ import { favoritesFolder } from "../../utils/constants";
 import { fileExists } from "../../utils/serverUtils";
 import { Queue } from "../../../shared/lib/queue";
 import { RESIZE_ON_EXPORT_SIZE } from "../../../shared/lib/shared-constants";
-import { getAlbumEntries, getAllFolders, indexingReady } from "../indexing/worker";
+import { indexingReady } from "../search/worker";
+import { getAlbumEntries, getAllFolders } from "../search/queries";
 
 export async function buildFavoriteFolder() {
   if (!(await fileExists(favoritesFolder))) {
@@ -41,4 +43,21 @@ async function exportAllMissing() {
     });
   }
   await q.drain();
+}
+
+/**
+ * Start the favorite-exporter worker
+ */
+export async function startWorker(): Promise<void> {
+  await buildFavoriteFolder();
+}
+
+// Initialize worker if running in a worker thread
+if (parentPort && workerData?.serviceName === 'favorite-exporter') {
+  const serviceName = workerData.serviceName;
+  console.info(`Worker thread started for service: ${serviceName}`);
+  startWorker().catch((error) => {
+    console.error(`Error starting worker ${serviceName}:`, error);
+    process.exit(1);
+  });
 }
