@@ -8,7 +8,7 @@ import {
   FaceData,
   keyFromID,
 } from "../../../shared/types/types";
-import { rectOfReference } from "../../../worker/background/face/face-utils";
+import { rectOfReference } from "../../services/faces/face/face-utils";
 import {
   decodeReferenceId,
   readReferenceFromReferenceId,

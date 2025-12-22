@@ -1,10 +1,10 @@
 import { AlbumEntry } from "../../shared/types/types";
-import { exifData } from "../../server/rpc/rpcFunctions/exif";
+import { exifData } from "../../rpc/rpcFunctions/exif";
 import {
   getPicasaEntry,
   updatePicasaEntry,
-} from "../../server/rpc/rpcFunctions/picasa-ini";
-import { indexingReady, getAllFolders, getAlbumEntries } from "../indexing";
+} from "../../rpc/rpcFunctions/picasa-ini";
+import { indexingReady, getAllFolders, getAlbumEntries } from "../indexing/worker";
 import { getLocations } from "./poi/get-poi";
 import { initPOIDB } from "./poi/ingest";
 // import { startRedis, stopRedis } from "./redis-process";

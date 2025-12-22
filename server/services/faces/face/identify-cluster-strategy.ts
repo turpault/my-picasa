@@ -7,14 +7,14 @@ import {
   decodeReferenceId,
   readReferenceFromReferenceId,
   readReferencesOfEntry,
-} from "../../../server/rpc/albumTypes/referenceFiles";
-import { media } from "../../../server/rpc/rpcFunctions/albumUtils";
-import { readOrReferenceImageStats } from "../../../server/rpc/rpcFunctions/imageStats";
-import { facesFolder } from "../../../server/utils/constants";
-import { fileExists, safeWriteFile } from "../../../server/utils/serverUtils";
-import { getFolderAlbums } from "../../../server/walker";
-import { lock } from "../../../shared/lib/mutex";
-import { filenameify, hash, uuid } from "../../../shared/lib/utils";
+} from "../../../../rpc/albumTypes/referenceFiles";
+import { media } from "../../../../rpc/rpcFunctions/albumUtils";
+import { readOrReferenceImageStats } from "../../../../rpc/rpcFunctions/imageStats";
+import { facesFolder } from "../../../../utils/constants";
+import { fileExists, safeWriteFile } from "../../../../utils/serverUtils";
+import { getFolderAlbums } from "../../../walker/worker";
+import { lock } from "../../../../shared/lib/mutex";
+import { filenameify, hash, uuid } from "../../../../shared/lib/utils";
 import { AlbumEntry, Contact, Reference } from "../../../shared/types/types";
 import {
   createCandidateThumbnail,

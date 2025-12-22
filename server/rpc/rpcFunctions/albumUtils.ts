@@ -18,7 +18,7 @@ import {
   idFromKey,
   ProjectType,
 } from "../../../shared/types/types";
-import { getAlbumEntries, queryFoldersByFilters, searchPicturesByFilters } from "../../../worker/background/indexing";
+import { getAlbumEntries, queryFoldersByFilters, searchPicturesByFilters } from "../../services/indexing/worker";
 import { getFolderAlbumData, getFolderAlbums } from "../../workers";
 import {
   assetsInFolderAlbum,

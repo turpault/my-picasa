@@ -16,8 +16,8 @@ import {
 import {
   addReferenceToFaceAlbum,
   removeReferenceToFaceAlbum,
-} from "../../../server/rpc/rpcFunctions/faces";
-import { media } from "../../../server/rpc/rpcFunctions/albumUtils";
+} from "../../../../rpc/rpcFunctions/faces";
+import { media } from "../../../../rpc/rpcFunctions/albumUtils";
 import {
   getPicasaEntry,
   getContactsFromAlbum,
@@ -26,9 +26,9 @@ import {
   updateContactInAlbum,
   updatePicasaEntry,
   writeCandidateFacesSection,
-} from "../../../server/rpc/rpcFunctions/picasa-ini";
-import { getFolderAlbums, waitUntilWalk } from "../../../server/walker";
-import { readReferencesOfEntry } from "../../../server/rpc/albumTypes/referenceFiles";
+} from "../../../../rpc/rpcFunctions/picasa-ini";
+import { getFolderAlbums, waitUntilWalk } from "../../../walker/worker";
+import { readReferencesOfEntry } from "../../../../rpc/albumTypes/referenceFiles";
 
 type PicasaFeatures = {
   contacts: ContactByHash;

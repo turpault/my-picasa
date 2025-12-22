@@ -1,7 +1,7 @@
 import { sleep } from "../shared/lib/utils";
-import { startBackgroundServices } from "./background/services";
+import { startBackgroundServices } from "../server/services/services";
 import { startRedis, stopRedis } from "./background/redis-process";
-import { updateLastWalkLoop } from "../server/walker";
+import { updateLastWalkLoop } from "../server/services/walker/worker";
 import { info } from "console";
 
 async function start() {

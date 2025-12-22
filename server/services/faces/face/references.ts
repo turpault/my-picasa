@@ -7,12 +7,12 @@ import {
   readReferencesOfEntry,
   referencePath,
   writeReferencesOfEntry,
-} from "../../../server/rpc/albumTypes/referenceFiles";
-import { media } from "../../../server/rpc/rpcFunctions/albumUtils";
-import { entryFilePath, fileExists } from "../../../server/utils/serverUtils";
-import { getFolderAlbums } from "../../../server/walker";
-import { lock } from "../../../shared/lib/mutex";
-import { Queue } from "../../../shared/lib/queue";
+} from "../../../../rpc/albumTypes/referenceFiles";
+import { media } from "../../../../rpc/rpcFunctions/albumUtils";
+import { entryFilePath, fileExists } from "../../../../utils/serverUtils";
+import { getFolderAlbums } from "../../../walker/worker";
+import { lock } from "../../../../shared/lib/mutex";
+import { Queue } from "../../../../shared/lib/queue";
 import {
   idFromAlbumEntry,
   isAnimated,

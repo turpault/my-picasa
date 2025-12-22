@@ -1,12 +1,12 @@
 import { mkdir } from "fs/promises";
-import { exportToFolder } from "../../server/imageOperations/export";
-import { getPicasaEntry } from "../../server/rpc/rpcFunctions/picasa-ini";
-import { waitUntilIdle } from "../../server/utils/busy";
-import { favoritesFolder } from "../../server/utils/constants";
-import { fileExists } from "../../server/utils/serverUtils";
-import { Queue } from "../../shared/lib/queue";
-import { RESIZE_ON_EXPORT_SIZE } from "../../shared/lib/shared-constants";
-import { getAlbumEntries, getAllFolders, indexingReady } from "../indexing";
+import { exportToFolder } from "../../imageOperations/export";
+import { getPicasaEntry } from "../../rpc/rpcFunctions/picasa-ini";
+import { waitUntilIdle } from "../../utils/busy";
+import { favoritesFolder } from "../../utils/constants";
+import { fileExists } from "../../utils/serverUtils";
+import { Queue } from "../../../shared/lib/queue";
+import { RESIZE_ON_EXPORT_SIZE } from "../../../shared/lib/shared-constants";
+import { getAlbumEntries, getAllFolders, indexingReady } from "../indexing/worker";
 
 export async function buildFavoriteFolder() {
   if (!(await fileExists(favoritesFolder))) {

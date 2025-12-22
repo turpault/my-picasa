@@ -1,6 +1,6 @@
-import { ServiceMap } from "../../../../server/rpc/rpc-handler";
-import { getIndexingService } from "./index";
-import { queryFoldersByFilters, searchPicturesByFilters, queryAlbumEntries, getAlbumEntries, getAllFolders } from "./index";
+import { ServiceMap } from "../../../rpc/rpc-handler";
+import { getIndexingService } from "./worker";
+import { queryFoldersByFilters, searchPicturesByFilters, queryAlbumEntries, getAlbumEntries, getAllFolders } from "./worker";
 import { Filters, Album, AlbumEntry, AlbumWithData } from "../../../../shared/types/types";
 
 /**

@@ -3,10 +3,10 @@ import { join } from "path";
 import {
   getContactsFromAlbum,
   getPicasaEntry,
-} from "../../../server/rpc/rpcFunctions/picasa-ini";
-import { getFaceImage } from "../../../server/rpc/rpcFunctions/thumbnail";
-import { facesFolder } from "../../../server/utils/constants";
-import { fileExists, safeWriteFile } from "../../../server/utils/serverUtils";
+} from "../../../../rpc/rpcFunctions/picasa-ini";
+import { getFaceImage } from "../../../../rpc/rpcFunctions/thumbnail";
+import { facesFolder } from "../../../../utils/constants";
+import { fileExists, safeWriteFile } from "../../../../utils/serverUtils";
 import {
   decodeFaces,
   decodeRect,

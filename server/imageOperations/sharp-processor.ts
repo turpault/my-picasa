@@ -49,7 +49,7 @@ import {
   decodeReferenceId,
   readReferenceFromReferenceId,
 } from "../rpc/albumTypes/referenceFiles";
-import { rectOfReference } from "../../worker/background/face/face-utils";
+import { rectOfReference } from "../services/faces/face/face-utils";
 import { ChildProcess, spawn } from "child_process";
 import { fileExists } from "../utils/serverUtils";
 

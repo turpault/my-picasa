@@ -1,17 +1,17 @@
 import Database from "better-sqlite3";
 import debug from "debug";
 import { join } from "path";
-import { events } from "../../server/events/server-events";
-import { media } from "../../server/rpc/rpcFunctions/albumUtils";
-import { getPicasaEntry } from "../../server/rpc/rpcFunctions/picasa-ini";
-import { waitUntilIdle } from "../../server/utils/busy";
-import { imagesRoot } from "../../server/utils/constants";
-import { getFolderAlbums, waitUntilWalk, listedMediaEventEmitter, albumEventEmitter } from "../../server/walker";
+import { events } from "../../events/server-events";
+import { media } from "../../rpc/rpcFunctions/albumUtils";
+import { getPicasaEntry } from "../../rpc/rpcFunctions/picasa-ini";
+import { waitUntilIdle } from "../../utils/busy";
+import { imagesRoot } from "../../utils/constants";
+import { getFolderAlbums, waitUntilWalk, listedMediaEventEmitter, albumEventEmitter } from "../walker/worker";
 import { serverEvents } from "./events";
-import { lock } from "../../shared/lib/mutex";
-import { Queue } from "../../shared/lib/queue";
-import { buildReadySemaphore, isPicture, isVideo, setReady } from "../../shared/lib/utils";
-import { Album, AlbumEntry, AlbumKind, AlbumWithData, Filters } from "../../shared/types/types";
+import { lock } from "../../../shared/lib/mutex";
+import { Queue } from "../../../shared/lib/queue";
+import { buildReadySemaphore, isPicture, isVideo, setReady } from "../../../shared/lib/utils";
+import { Album, AlbumEntry, AlbumKind, AlbumWithData, Filters } from "../../../shared/types/types";
 
 const debugLogger = debug("app:bg-indexing");
 

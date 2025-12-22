@@ -33,9 +33,9 @@ import {
 } from "./rpc/rpcFunctions/picasa-ini";
 import { imagesRoot, specialFolders } from "./utils/constants";
 import { pathForAlbum } from "./utils/serverUtils";
-import { queryFoldersByFilters } from "../worker/background/indexing";
+import { queryFoldersByFilters } from "./services/indexing/worker";
 import { events } from "./events/server-events";
-import { serverEvents } from "../worker/background/indexing/events";
+import { serverEvents } from "./services/indexing/events";
 
 const readyLabelKey = "fileWalker";
 const ready = buildReadySemaphore(readyLabelKey);
@@ -73,12 +73,12 @@ export function initializeWorkers() {
   const workers = getAllWorkers();
 
   // Relay server events to all workers
-  serverEvents.on("*", (type, data)  => {
+  serverEvents.on("*", (eventType, data)  => {
     for (const worker of workers) {
       worker.postMessage({
         type: "event",
         emitter: "serverEvents",
-        type,
+        eventType,
         data,
       });
     }

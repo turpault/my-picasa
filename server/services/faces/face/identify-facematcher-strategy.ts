@@ -3,8 +3,8 @@ import Debug from "debug";
 import { Queue } from "../../../shared/lib/queue";
 
 import { Album, Reference } from "../../../shared/types/types";
-import { media } from "../../../server/rpc/rpcFunctions/albumUtils";
-import { getFolderAlbums } from "../../../server/walker";
+import { media } from "../../../../rpc/rpcFunctions/albumUtils";
+import { getFolderAlbums } from "../../../walker/worker";
 import {
   createCandidateThumbnail,
   findFaceInRect,
@@ -16,12 +16,12 @@ import {
 import {
   getContactByContactKey,
   getContacts,
-} from "../../../server/rpc/albumTypes/contacts";
+} from "../../../../rpc/albumTypes/contacts";
 import {
   addCandidateFaceRectToEntry,
   removeFaceFromEntry,
 } from "./picasa-faces";
-import { readReferencesOfEntry } from "../../../server/rpc/albumTypes/referenceFiles";
+import { readReferencesOfEntry } from "../../../../rpc/albumTypes/referenceFiles";
 import { join } from "path";
 
 let identifiedReferenceContactKeyMap = new Map<string, Reference[]>(); //  contact.Key -> reference[]

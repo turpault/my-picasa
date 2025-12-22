@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { join } from "path";
-import { imagesRoot } from "../../../server/utils/constants";
+import { imagesRoot } from "../../../../utils/constants";
 import { info } from "console";
 
 let dbInstance: Database.Database | null = null;

@@ -38,7 +38,7 @@ import {
   removeExtension,
   safeWriteFile,
 } from "../../utils/serverUtils";
-import { folders, waitUntilWalk } from "../../walker";
+import { folders, waitUntilWalk } from "../../services/walker/worker";
 import { exportToFolder } from "../../imageOperations/export";
 
 const readyLabelKey = "favorites";

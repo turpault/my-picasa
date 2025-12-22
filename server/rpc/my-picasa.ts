@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/camelcase */
 import { Exceptions } from "../../shared/types/exceptions";
-import { getFaceDataFromAlbumEntry } from "../../worker/background/face/picasa-faces";
+import { getFaceDataFromAlbumEntry } from "../services/faces/face/picasa-faces";
 import {
   getConvolutionKernelNames,
   getFilterGroups,
@@ -19,7 +19,7 @@ import {
   transform,
 } from "../imageOperations/sharp-processor";
 import { undo, undoList } from "../utils/undo";
-import { folders } from "../walker";
+import { folders } from "../services/walker/worker";
 import { getPersons } from "./albumTypes/persons";
 import {
   createProject,

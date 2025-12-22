@@ -1,5 +1,5 @@
 import { parentPort, workerData } from "worker_threads";
-import { WorkerAdaptor } from "../../shared/socket/worker-adaptor";
+import { WorkerAdaptor } from "../../shared/rpc-transport/worker-adaptor";
 import { registerServices } from "./rpc/rpc-handler";
 
 if (!parentPort) {
@@ -16,7 +16,7 @@ const adaptor = new WorkerAdaptor();
 async function initializeWorkerRPC() {
   switch (serviceName) {
     case 'indexing': {
-      const { IndexingWorkerService } = await import("../worker/background/indexing/rpc-service");
+      const { IndexingWorkerService } = await import("./services/indexing/rpc-service");
       registerServices(adaptor, [IndexingWorkerService], {});
       break;
     }
@@ -38,10 +38,10 @@ initializeWorkerRPC().catch((err) => {
 
 // Start worker-specific initialization
 if (serviceName === 'walker') {
-  const { updateLastWalkLoop } = await import("./walker");
+  const { updateLastWalkLoop } = await import("./services/walker/worker");
   updateLastWalkLoop();
 } else {
-  const { startBackgroundTasksOnStart } = await import("../worker/background/services/on-start");
+  const { startBackgroundTasksOnStart } = await import("./services/services/on-start");
   startBackgroundTasksOnStart();
 }
 

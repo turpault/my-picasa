@@ -5,8 +5,9 @@ import { join } from "path";
 import { lockedLocks, startLockMonitor } from "../shared/lib/mutex";
 import { SocketAdaptorInterface } from "../shared/socket/socket-adaptor-interface";
 import { WsAdaptor } from "../shared/socket/ws-adaptor";
-import { startWorker, updateLastWalkLoop, waitUntilWalk } from "./walker";
-import { closePoiDb } from "../worker/background/poi/sqlite-client";
+import { startWorker } from "./worker-manager";
+import { waitUntilWalk } from "./services/walker/worker";
+import { closePoiDb } from "./services/geolocate/poi/sqlite-client";
 // import { getIndexingService } from "../worker/background/bg-indexing"; // This causes DB initialization on main thread
 import { parseLUTs } from "./imageOperations/image-filters";
 import { encode } from "./imageOperations/sharp-processor";
@@ -198,7 +199,8 @@ export async function startServices() {
   await initUndo();
   info("Starting services...");
   // startWorker(); // Moved to walker.ts -> startWorker() which now calls startWorkers()
-  startWorker();
+  const { startWorker: startWalkerWorker } = await import("./services/walker/worker");
+  startWalkerWorker();
   // updateLastWalkLoop();
   info("Measuring CPU load...");
   measureCPULoad();

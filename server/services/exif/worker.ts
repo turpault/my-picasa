@@ -1,12 +1,12 @@
 import { clearInterval } from "timers";
 import { Queue } from "../../shared/lib/queue";
 import { AlbumEntry } from "../../shared/types/types";
-import { exifData } from "../../server/rpc/rpcFunctions/exif";
-import { indexingReady, getAllFolders, getAlbumEntries } from "../indexing";
+import { exifData } from "../../rpc/rpcFunctions/exif";
+import { indexingReady, getAllFolders, getAlbumEntries } from "../indexing/worker";
 import debug from "debug";
-import { waitUntilIdle } from "../../server/utils/busy";
-import { isPicture } from "../../shared/lib/utils";
-import { getPicasaEntry } from "../../server/rpc/rpcFunctions/picasa-ini";
+import { waitUntilIdle } from "../../utils/busy";
+import { isPicture } from "../../../shared/lib/utils";
+import { getPicasaEntry } from "../../rpc/rpcFunctions/picasa-ini";
 
 const debugLogger = debug("app:bg-exif");
 

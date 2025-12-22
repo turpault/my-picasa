@@ -2,16 +2,16 @@ import { Stats } from "fs";
 import { stat } from "fs/promises";
 import { join, relative } from "path";
 import { isMainThread, parentPort, workerData } from "worker_threads";
-import { startWorkers, broadcast, getAllWorkers } from "./worker-manager";
-import { buildEmitter } from "../shared/lib/event";
-import { Queue } from "../shared/lib/queue";
+import { startWorkers, broadcast, getAllWorkers } from "../../worker-manager";
+import { buildEmitter } from "../../../shared/lib/event";
+import { Queue } from "../../../shared/lib/queue";
 import {
   alphaSorter,
   buildReadySemaphore,
   differs,
   setReady,
   sleep,
-} from "../shared/lib/utils";
+} from "../../../shared/lib/utils";
 import {
   Album,
   AlbumChangeEvent,
@@ -21,22 +21,20 @@ import {
   AlbumWithData,
   Filters,
   keyFromID,
-} from "../shared/types/types";
+} from "../../../shared/types/types";
 import {
   assetsInFolderAlbum,
   queueNotification,
-} from "./rpc/albumTypes/fileAndFolders";
-import { mediaCount } from "./rpc/rpcFunctions/albumUtils";
+} from "../../rpc/albumTypes/fileAndFolders";
+import { mediaCount } from "../../rpc/rpcFunctions/albumUtils";
 import {
   getShortcuts,
   readShortcut,
-} from "./rpc/rpcFunctions/picasa-ini";
-import { imagesRoot, specialFolders } from "./utils/constants";
-import { pathForAlbum } from "./utils/serverUtils";
-import { queryFoldersByFilters } from "./services/indexing/worker";
-import { events } from "./events/server-events";
-import { serverEvents } from "./services/indexing/events";
-import { waitUntilWalk, getFolderAlbums, folders } from "./services/walker/worker";
+} from "../../rpc/rpcFunctions/picasa-ini";
+import { imagesRoot, specialFolders } from "../../utils/constants";
+import { pathForAlbum } from "../../utils/serverUtils";
+import { queryFoldersByFilters } from "../indexing/worker";
+import { events } from "../../events/server-events";
 
 const readyLabelKey = "fileWalker";
 const ready = buildReadySemaphore(readyLabelKey);
@@ -65,6 +63,45 @@ export const albumFoundEventEmitter = buildEmitter<AlbumFoundEvent>();
 export const listedMediaEventEmitter = buildEmitter<ListedMediaEvent>();
 export const albumEntryEventEmitter = buildEmitter<AlbumEntryChangedEvent>();
 
+export function startWorker() {
+  if (!isMainThread) return;
+
+  console.info("Initializing worker listeners...");
+  startWorkers(); // Starts all workers
+
+  const workers = getAllWorkers();
+
+  for (const worker of workers) {
+    worker.on("message", (msg) => {
+      if (msg.type === "ready") {
+        setReady(readyLabelKey);
+        // Relay ready to other workers
+        broadcast(msg, 'walker');
+      } else if (msg.type === "event" && msg.emitter === "albumEventEmitter") {
+        // Update local cache
+        handleAlbumEvent(msg.eventType, msg.data);
+
+        // Re-emit in main thread
+        albumEventEmitter.emit(msg.eventType, msg.data);
+
+        // Broadcast to other workers (indexing, thumbs, etc)
+        broadcast(msg, 'walker');
+      } else if (msg.type === "event" && msg.emitter === "fileFoundEventEmitter") {
+        // Re-emit in main thread
+        fileFoundEventEmitter.emit(msg.eventType, msg.data);
+        // Also emit through ServerEvents
+        if (msg.eventType === "fileFound" || msg.eventType === "fileGone") {
+          events.emit(msg.eventType, msg.data);
+        }
+
+        // Broadcast to other workers
+        broadcast(msg, 'walker');
+      } else if (msg.type === "notification") {
+        queueNotification(msg.event);
+      }
+    });
+  }
+}
 
 // Helper to update local cache
 function handleAlbumEvent(type: string, event: any) {
@@ -82,6 +119,108 @@ function handleAlbumEvent(type: string, event: any) {
     const idx = lastWalk.findIndex((a) => a.key === event.key);
     if (idx !== -1) lastWalk.splice(idx, 1);
   }
+}
+
+// Support passive mode in workers
+if (!isMainThread && parentPort && workerData.serviceName !== 'walker') {
+  parentPort.on("message", (msg) => {
+    if (msg.type === "ready") {
+      setReady(readyLabelKey);
+    } else if (msg.type === "event" && msg.emitter === "albumEventEmitter") {
+      handleAlbumEvent(msg.eventType, msg.data);
+      // Also emit locally for listeners in this worker (e.g. indexer)
+      albumEventEmitter.emit(msg.eventType, msg.data);
+    } else if (msg.type === "event" && msg.emitter === "fileFoundEventEmitter") {
+      fileFoundEventEmitter.emit(msg.eventType, msg.data);
+      // Also emit through ServerEvents
+      if (msg.eventType === "fileFound" || msg.eventType === "fileGone") {
+        events.emit(msg.eventType, msg.data);
+      }
+    }
+  });
+}
+
+// Forward events from active walker worker
+if (!isMainThread && parentPort && workerData.serviceName === 'walker') {
+  albumEventEmitter.on("*", (type, event) => {
+    parentPort?.postMessage({
+      type: "event",
+      emitter: "albumEventEmitter",
+      eventType: type,
+      data: event,
+    });
+  });
+
+  fileFoundEventEmitter.on("*", (type, event) => {
+    parentPort?.postMessage({
+      type: "event",
+      emitter: "fileFoundEventEmitter",
+      eventType: type,
+      data: event,
+    });
+    // Also emit through ServerEvents
+    if (type === "fileFound" || type === "fileGone") {
+      events.emit(type, event as AlbumEntry);
+    }
+  });
+}
+
+export async function updateLastWalkLoop() {
+  // If in main thread OR not the walker service, do nothing
+  if (isMainThread || workerData.serviceName !== 'walker') {
+    return;
+  }
+
+  let iteration = 0;
+  while (true) {
+    console.info(`Filesystem scan: iteration ${iteration}`);
+    const old = [...lastWalk];
+    walkQueue.add(() =>
+      walk("", imagesRoot, async (a: Album) => {
+        addOrRefreshOrDeleteAlbum(
+          a,
+          "SkipCheckInfo",
+          true /* we know it's added */
+        );
+      })
+    );
+    await walkQueue.drain();
+    const deletedAlbums: AlbumWithData[] = [];
+    let startIndex = 0;
+    for (const oldAlbum of old) {
+      if (
+        lastWalk.length < startIndex ||
+        lastWalk[startIndex].key > oldAlbum.key
+      ) {
+        // could not be found, it has been removed
+        deletedAlbums.push(oldAlbum);
+        continue;
+      }
+      if (lastWalk[startIndex].key === oldAlbum.key) {
+        // found it, do nothing
+        startIndex++;
+        continue;
+      }
+      startIndex++;
+    }
+    for (const oldAlbum of deletedAlbums) {
+      addOrRefreshOrDeleteAlbum(oldAlbum);
+    }
+
+    if (iteration === 0) {
+      console.info(`Album list retrieved`);
+      setReady(readyLabelKey);
+      if (parentPort) {
+        parentPort.postMessage({ type: "ready" });
+      }
+    }
+    iteration++;
+    await sleep(60 * 60); // Wait 60 minutes
+  }
+}
+
+export async function waitUntilWalk() {
+  return ready;
 }
 
 export async function refreshAlbumKeys(albums: string[]) {
@@ -236,8 +375,28 @@ async function walk(
   }
 }
 
-// Re-export from walker service
-export { getFolderAlbums, folders } from "./services/walker/worker";
+export async function getFolderAlbums(): Promise<AlbumWithData[]> {
+  await waitUntilWalk();
+  return lastWalk;
+}
+
+export async function folders(filters?: Filters): Promise<AlbumWithData[]> {
+  if (filters) {
+    // Use database-level filtering for better performance
+    const matchedAlbums = await queryFoldersByFilters(filters);
+
+    // Complete with shortcuts
+    const shortcuts = Object.values(getShortcuts());
+    for (const album of matchedAlbums) {
+      const shortcut = shortcuts.find((s) => s.key === album.key);
+      if (shortcut) {
+        album.shortcut = shortcut.name;
+      }
+    }
+    return matchedAlbums;
+  }
+  return [...(lastWalk as AlbumWithData[])];
+}
 
 export function getFolderAlbumData(key: string) {
   const f = lastWalk.find((f) => f.key == key);
@@ -246,3 +405,4 @@ export function getFolderAlbumData(key: string) {
   }
   return f;
 }
+

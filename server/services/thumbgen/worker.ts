@@ -1,9 +1,9 @@
 import Debug from "debug";
 import { AlbumEntry, ThumbnailSizeVals } from "../../shared/types/types";
-import { imageInfo } from "../../server/imageOperations/info";
-import { makeThumbnailIfNeeded } from "../../server/rpc/rpcFunctions/thumbnail";
+import { imageInfo } from "../../imageOperations/info";
+import { makeThumbnailIfNeeded } from "../../rpc/rpcFunctions/thumbnail";
 import { serverEvents } from "./events";
-import { getAlbumEntries, getAllFolders, indexingReady } from "../indexing";
+import { getAlbumEntries, getAllFolders, indexingReady } from "../indexing/worker";
 const debug = Debug("app:bg-thumbgen");
 
 // Cache thumbnail sizes to avoid recalculating
