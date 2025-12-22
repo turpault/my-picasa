@@ -1,4 +1,4 @@
-import { GeoPOI } from "../../../shared/types/types";
+import { GeoPOI } from "../../../../shared/types/types";
 import { POI_TYPE } from "./poi-types";
 import { getPoiDb } from "./sqlite-client";
 // import ts-2d-geometry for distance calculation if needed, 

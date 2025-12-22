@@ -28,7 +28,7 @@ import {
   writeCandidateFacesSection,
 } from "../../../rpc/rpcFunctions/picasa-ini";
 import { getFolderAlbums } from "../../../media";
-import { readReferencesOfEntry } from "../../../../rpc/albumTypes/referenceFiles";
+import { readReferencesOfEntry } from "../../../rpc/albumTypes/referenceFiles";
 
 type PicasaFeatures = {
   contacts: ContactByHash;

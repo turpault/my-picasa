@@ -1,8 +1,8 @@
 import Debug from "debug";
 
 import { Album, AlbumKind } from "../../../shared/types/types";
-import { albumEventEmitter } from "../../walker";
 import { getPicasaEntries, readPersons } from "../rpcFunctions/picasa-ini";
+import { events } from "../../events/server-events";
 const persons = new Set<string>();
 
 const debug = Debug("app:persons");
@@ -19,8 +19,8 @@ export async function buildPersonsList() {
       }
     }
   };
-  albumEventEmitter.on("added", updatePersons);
-  albumEventEmitter.on("updated", updatePersons);
+  events.on("albumAdded", updatePersons);
+  events.on("albumUpdated", updatePersons);
 
   debug(`Person list built : ${persons.size} persons`);
 }
