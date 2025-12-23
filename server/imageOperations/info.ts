@@ -8,7 +8,7 @@ import {
   Filetype,
   idFromKey,
 } from "../../shared/types/types";
-import { exifDataAndStats } from "../rpc/rpcFunctions/exif";
+import { getExifData, getFileStats } from "../rpc/rpcFunctions/exif";
 import {
   getPicasaEntry,
   updatePicasaEntry,
@@ -38,14 +38,14 @@ export async function imageInfo(
   } else if (isPicture(entry)) {
     res.meta.type = Filetype.Picture;
 
-    const exif = await exifDataAndStats(entry);
-    if (exif) {
+    const [exifData, stats] = await Promise.all([getExifData(entry), getFileStats(entry)]);
+    if (exifData) {
       // Fix dateTaken from exif, if available
       let dateTaken =
-        exif.tags.DateTimeOriginal ||
-        exif.tags.CreateDate ||
-        exif.tags.ModifyDate ||
-        (exif.stats && exif.stats.mtime);
+        exifData.DateTimeOriginal ||
+        exifData.CreateDate ||
+        exifData.ModifyDate ||
+        (stats && stats.mtime);
       if (dateTaken && dateTaken instanceof Date) {
         dateTaken = dateTaken.toISOString();
       }

@@ -3,6 +3,7 @@ import debug from "debug";
 import { join } from "path";
 import { AlbumEntry } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
+import { getExifData } from "../../rpc/rpcFunctions/exif";
 
 const debugLogger = debug("app:geolocate-db");
 
@@ -179,7 +180,7 @@ export class GeolocateDatabaseAccess {
         `SELECT geo_poi FROM geo_poi_data WHERE album_key = ? AND entry_name = ?`
       )
       .get(entry.album.key ?? "", entry.name ?? "") as { geo_poi: string | null } | undefined;
-    
+
     return result?.geo_poi ?? null;
   }
 
@@ -192,8 +193,63 @@ export class GeolocateDatabaseAccess {
         `SELECT has_geo_poi FROM geo_poi_data WHERE album_key = ? AND entry_name = ?`
       )
       .get(entry.album.key ?? "", entry.name ?? "") as { has_geo_poi: number } | undefined;
-    
+
     return (result?.has_geo_poi ?? 0) === 1;
+  }
+
+  /**
+   * Check if an entry has been processed (regardless of whether it has geo POI data)
+   */
+  isProcessed(entry: AlbumEntry): boolean {
+    const result = this.getDatabase()
+      .prepare(
+        `SELECT processed_at FROM geo_poi_data WHERE album_key = ? AND entry_name = ?`
+      )
+      .get(entry.album.key ?? "", entry.name ?? "") as { processed_at: string | null } | undefined;
+
+    return result !== undefined && result.processed_at !== null;
+  }
+
+  /**
+   * Get GPS coordinates (latitude, longitude) from EXIF data for an entry
+   */
+  getCoordinates(entry: AlbumEntry): { latitude: number; longitude: number } | null {
+    // Use the RPC function which handles processed/not processed distinction
+    const exif = getExifData(entry);
+
+    // If null, EXIF hasn't been processed yet
+    if (exif === null) {
+      return null;
+    }
+
+    // If empty object, EXIF was processed but has no data
+    if (Object.keys(exif).length === 0) {
+      return null;
+    }
+
+    try {
+      const { GPSLatitude, GPSLatitudeRef, GPSLongitudeRef, GPSLongitude } = exif;
+
+      if (
+        GPSLatitude &&
+        GPSLatitudeRef &&
+        GPSLongitudeRef &&
+        GPSLongitude
+      ) {
+        const latitude =
+          (GPSLatitudeRef === "N" ? 1 : -1) *
+          (GPSLatitude[0] + GPSLatitude[1] / 60 + GPSLatitude[2] / 3600);
+        const longitude =
+          (GPSLongitudeRef === "E" ? 1 : -1) *
+          (GPSLongitude[0] + GPSLongitude[1] / 60 + GPSLongitude[2] / 3600);
+
+        return { latitude, longitude };
+      }
+    } catch (e) {
+      // If parsing fails, return null
+    }
+
+    return null;
   }
 
   /**
@@ -208,7 +264,7 @@ export class GeolocateDatabaseAccess {
          ORDER BY created_at ASC`
       )
       .all() as Array<{ album_key: string; album_name: string; entry_name: string }>;
-    
+
     return results;
   }
 

@@ -5,6 +5,7 @@ import { Album, AlbumEntry, AlbumKind, AlbumWithData, Filters } from "../../../s
 import { getPicasaEntry } from "../../rpc/rpcFunctions/picasa-ini";
 import { isPicture, isVideo } from "../../../shared/lib/utils";
 import { imagesRoot } from "../../utils/constants";
+import { getGeoPOI } from "../geolocate/queries";
 
 const debugLogger = debug("app:indexing-db");
 
@@ -687,7 +688,6 @@ export class IndexingDatabaseAccess {
     // Get geo POI from geolocate service (may be null if not processed yet)
     let geoPOI = '';
     try {
-      const { getGeoPOI } = await import("../geolocate/queries");
       const geoPOIData = getGeoPOI(entry);
       geoPOI = geoPOIData || '';
     } catch (error) {
@@ -830,7 +830,6 @@ export class IndexingDatabaseAccess {
     const db = this.getDatabase();
     try {
       // Get geo POI from geolocate service
-      const { getGeoPOI } = await import("../geolocate/queries");
       const geoPOI = getGeoPOI(entry) || '';
 
       const updateStmt = db.prepare(`
@@ -870,10 +869,19 @@ export class IndexingDatabaseAccess {
       // Extract metadata from picasa entry
       const persons = metadata.persons || '';
       const starCount = metadata.starCount || '';
-      const geoPOI = metadata.geoPOI || '';
       const photostar = metadata.photostar || false;
       const textContent = metadata.text || '';
       const caption = metadata.caption || '';
+
+      // Get geo POI from geolocate service (geoPOI is no longer in metadata)
+      let geoPOI = '';
+      try {
+        const geoPOIData = getGeoPOI(entry);
+        geoPOI = geoPOIData || '';
+      } catch (error) {
+        // If geolocate service is not available, use empty string
+        debugLogger(`Could not get geo POI for ${entry.name}:`, error);
+      }
 
       // Determine entry type
       let entryType = 'unknown';

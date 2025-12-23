@@ -1,6 +1,7 @@
 import { createReadStream } from "fs";
 import { createInterface } from "readline";
-import { getPoiDb } from "./sqlite-client";
+import { stat } from "fs/promises";
+import { getProcessedFileInfo, insertPoiBatch, markFileAsProcessed } from "./poi-database";
 import { imagesRoot } from "../../../utils/constants";
 import { join } from "path";
 import { readdir } from "fs/promises";
@@ -21,28 +22,32 @@ export async function initPOIDB() {
 }
 
 async function ingestFiles(filesToIngest: string[]) {
-  const db = getPoiDb();
   let idx = 0;
   const timer = setInterval(() => {
     console.info(`Processed ${idx} positions`);
   }, 5000);
 
-  const insertStmt = db.prepare(
-    "INSERT INTO poi (type, lat, lon, label) VALUES (?, ?, ?, ?)"
-  );
-
-  const checkFileStmt = db.prepare(
-    "SELECT 1 FROM processed_files WHERE filename = ?"
-  );
-
-  const markFileStmt = db.prepare(
-    "INSERT OR REPLACE INTO processed_files (filename) VALUES (?)"
-  );
-
   for (const file of filesToIngest) {
-    const isProcessed = checkFileStmt.get(file);
+    // Get file modification time
+    let fileMtime: string;
+    try {
+      const stats = await stat(file);
+      fileMtime = stats.mtime.getTime().toString();
+    } catch (e) {
+      console.error(`Error getting file stats for ${file}:`, e);
+      continue;
+    }
 
-    if (!isProcessed) {
+    // Check if file has been processed and if modification time matches
+    const processedRecord = getProcessedFileInfo(file);
+    const isProcessed = processedRecord !== null;
+    const mtimeMatches = processedRecord?.last_modified === fileMtime;
+
+    // Only ingest if not processed or if modification time has changed
+    if (!isProcessed || !mtimeMatches) {
+      if (isProcessed && !mtimeMatches) {
+        console.info(`File ${file} has been modified, re-processing...`);
+      }
       console.info("Processing file", file);
       const inStream = createReadStream(file);
 
@@ -51,17 +56,12 @@ async function ingestFiles(filesToIngest: string[]) {
       });
 
       const batchSize = 1000;
-      let batch: any[] = [];
+      let batch: Array<{ type: number; lat: number; lon: number; label: string }> = [];
 
       const flushBatch = () => {
         if (batch.length === 0) return;
-        const transaction = db.transaction((items) => {
-          for (const item of items) {
-            insertStmt.run(item.type, item.lat, item.lon, item.label);
-          }
-        });
-        transaction(batch);
-        idx += batch.length;
+        const inserted = insertPoiBatch(batch);
+        idx += inserted;
         batch = [];
       };
 
@@ -86,7 +86,8 @@ async function ingestFiles(filesToIngest: string[]) {
 
       flushBatch(); // Flush remaining items
 
-      markFileStmt.run(file);
+      // Mark file as processed with current modification time
+      markFileAsProcessed(file, fileMtime);
       console.info(`File ${file} complete - ${idx} lines processed`);
     }
   }

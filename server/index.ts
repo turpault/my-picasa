@@ -13,9 +13,6 @@ try {
 }
 
 async function start() {
-  info(
-    `Starting server on port ${port} in folder ${rootPath}. Photos root is ${imagesRoot}`,
-  );
   await startServer(port);
   await startServices();
 }

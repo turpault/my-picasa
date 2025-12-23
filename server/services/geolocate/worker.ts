@@ -2,7 +2,7 @@ import { parentPort, workerData } from "worker_threads";
 import { AlbumEntry, AlbumKind } from "../../../shared/types/types";
 import { getExifData } from "../../rpc/rpcFunctions/exif";
 import { getAllFolders, getAlbumEntries } from "../search/queries";
-import { getLocations } from "./poi/get-poi";
+import { getLocations } from "./poi/poi-database";
 import { initPOIDB } from "./poi/ingest";
 import { getGeolocateDatabaseReadWrite } from "./database";
 import { events } from "../../events/server-events";

@@ -6,7 +6,7 @@ import { lockedLocks, startLockMonitor } from "../shared/lib/mutex";
 import { RPCAdaptorInterface } from "../shared/rpc-transport/rpc-adaptor-interface";
 import { WsAdaptor } from "../shared/rpc-transport/ws-adaptor";
 import { startWorker } from "./worker-manager";
-import { closePoiDb } from "./services/geolocate/poi/sqlite-client";
+import { closePoiDb } from "./services/geolocate/poi/poi-database";
 // import { getIndexingService } from "../worker/background/bg-indexing"; // This causes DB initialization on main thread
 import { parseLUTs } from "./imageOperations/image-filters";
 import { encode } from "./imageOperations/sharp-processor";
@@ -26,6 +26,7 @@ import { info } from "console";
 import { initUndo } from "./utils/undo";
 import { buildPersonsList } from "./rpc/albumTypes/persons";
 import { imagesRoot, rootPath } from "./utils/constants";
+import { initializeWorkerListeners } from "./services/walker/worker";
 // import { startBackgroundTasksOnStart } from "../worker/background/bg-services-on-start";
 
 /** */
@@ -198,7 +199,6 @@ export async function startServices() {
   await initUndo();
   info("Starting services...");
   // startWorker(); // Moved to walker.ts -> startWorker() which now calls startWorkers()
-  const { initializeWorkerListeners } = await import("./services/walker/worker");
   initializeWorkerListeners();
   // updateLastWalkLoop();
   info("Measuring CPU load...");

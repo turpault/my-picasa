@@ -54,15 +54,3 @@ export async function getFileStats(entry: AlbumEntry): Promise<Stats> {
   const path = entryFilePath(entry);
   return stat(path);
 }
-
-export async function exifDataAndStats(
-  entry: AlbumEntry,
-): Promise<{ stats: Stats; tags: any }> {
-  const [s, t] = await Promise.all([getFileStats(entry), getExifData(entry)]);
-  const tags = t || {};
-
-  return {
-    stats: s,
-    tags: { ...tags.image, ...tags.gps, ...tags.exif, ...tags },
-  };
-}

@@ -1,9 +1,102 @@
+import Database from "better-sqlite3";
+import { join } from "path";
+import { imagesRoot } from "../../../utils/constants";
+import { info } from "console";
 import { GeoPOI } from "../../../../shared/types/types";
 import { POI_TYPE } from "./poi-types";
-import { getPoiDb } from "./sqlite-client";
-// import ts-2d-geometry for distance calculation if needed, 
-// but implementing simple Haversine formula is sufficient and lighter.
 
+let dbInstance: Database.Database | null = null;
+
+/**
+ * Get the POI database instance (singleton)
+ */
+export function getPoiDb(): Database.Database {
+  if (!dbInstance) {
+    const dbPath = join(imagesRoot, "poi.db");
+    dbInstance = new Database(dbPath);
+
+    // Initialize POI table
+    dbInstance.exec(`
+      CREATE TABLE IF NOT EXISTS poi (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type INTEGER NOT NULL,
+        lat REAL NOT NULL,
+        lon REAL NOT NULL,
+        label TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_poi_type ON poi(type);
+      CREATE INDEX IF NOT EXISTS idx_poi_coords ON poi(lat, lon);
+    `);
+
+    // Initialize processed files table
+    dbInstance.exec(`
+      CREATE TABLE IF NOT EXISTS processed_files (
+        filename TEXT PRIMARY KEY,
+        last_modified TEXT NOT NULL,
+        processed_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    info(`POI Database initialized at ${dbPath}`);
+  }
+  return dbInstance;
+}
+
+/**
+ * Close the POI database connection
+ */
+export function closePoiDb() {
+  if (dbInstance) {
+    dbInstance.close();
+    dbInstance = null;
+  }
+}
+
+/**
+ * Get processed file information (last modification time)
+ * Returns null if file has not been processed
+ */
+export function getProcessedFileInfo(filename: string): { last_modified: string } | null {
+  const db = getPoiDb();
+  const result = db
+    .prepare("SELECT last_modified FROM processed_files WHERE filename = ?")
+    .get(filename) as { last_modified: string } | undefined;
+
+  return result || null;
+}
+
+/**
+ * Insert a batch of POI entries
+ * Returns the number of entries inserted
+ */
+export function insertPoiBatch(items: Array<{ type: number; lat: number; lon: number; label: string }>): number {
+  if (items.length === 0) return 0;
+
+  const db = getPoiDb();
+  const insertStmt = db.prepare("INSERT INTO poi (type, lat, lon, label) VALUES (?, ?, ?, ?)");
+
+  const transaction = db.transaction((items: Array<{ type: number; lat: number; lon: number; label: string }>) => {
+    for (const item of items) {
+      insertStmt.run(item.type, item.lat, item.lon, item.label);
+    }
+  });
+
+  transaction(items);
+  return items.length;
+}
+
+/**
+ * Mark a file as processed with its modification time
+ */
+export function markFileAsProcessed(filename: string, lastModified: string): void {
+  const db = getPoiDb();
+  db.prepare("INSERT OR REPLACE INTO processed_files (filename, last_modified) VALUES (?, ?)")
+    .run(filename, lastModified);
+}
+
+/**
+ * Get locations (points of interest) near the given latitude and longitude
+ */
 export async function getLocations(
   lat: number,
   long: number,
@@ -80,14 +173,7 @@ export async function getLocations(
 
   const sortedRes = Object.values(uniqueRes).sort((a, b) => a.distance - b.distance);
 
-  // If we want only the closest one per category type (optional, based on previous logic seems like we returned closest per query batch)
-  // The previous logic returned `res.push(l[0])` for each type/dist pair query.
-  // Here we collected all, so we might want to filter similar logic.
-
-  // Group by category and pick closest?
-  // The previous implementation did `res.push(l[0])` inside the map loop over `all`.
-  // This means for each (type, dist) tuple, it found closest locations and took the very closest one.
-
+  // We need to match the "closest per requested type/area" behavior
   const finalRes: typeof res = [];
   const processedTypes = new Set<number>();
 
@@ -122,6 +208,9 @@ export async function getLocations(
   return finalRes;
 }
 
+/**
+ * Calculate distance between two points using Haversine formula
+ */
 function getDistanceFromLatLonInM(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371000; // Radius of the earth in m
   const dLat = deg2rad(lat2 - lat1);
@@ -135,10 +224,16 @@ function getDistanceFromLatLonInM(lat1: number, lon1: number, lat2: number, lon2
   return d;
 }
 
+/**
+ * Convert degrees to radians
+ */
 function deg2rad(deg: number) {
   return deg * (Math.PI / 180);
 }
 
+/**
+ * Get interesting location types (tourist attractions)
+ */
 function interestingLocationTypes() {
   const types: [number, string][] = [];
   for (const name in POI_TYPE) {
@@ -148,6 +243,10 @@ function interestingLocationTypes() {
   }
   return types;
 }
+
+/**
+ * Get interesting location areas (cities, towns, villages, hamlets)
+ */
 function interestingLocationAreas() {
   return [
     [POI_TYPE.POI_CITY, "3000"],
@@ -156,3 +255,4 @@ function interestingLocationAreas() {
     [POI_TYPE.POI_VILLAGE, "1000"],
   ] as [number, string][];
 }
+

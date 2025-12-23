@@ -15,7 +15,7 @@ import { albumEntryFromId, namifyAlbumEntry, removeExtension } from "../../../sh
 import { RESIZE_ON_EXPORT_SIZE } from "../../../shared/lib/shared-constants";
 import { walkAbsolutePath } from "../../rpc/rpcFunctions/fs";
 import { getPicasaEntry } from "../../rpc/rpcFunctions/picasa-ini";
-import { exifDataAndStats } from "../../rpc/rpcFunctions/exif";
+import { getExifData } from "../exif/queries";
 const debugLogger = debug("app:bg-icloud-export");
 
 export async function buildExportsFolder() {
@@ -67,8 +67,17 @@ async function exportAllMissing() {
 
 async function shouldExport(entry: AlbumEntry) {
   const meta = await getPicasaEntry(entry);
-  const exif = await exifDataAndStats(entry);
-  return !meta.star || exif.tags.Make?.toLowerCase() === "apple";
+  const exifJson = getExifData(entry);
+  if (!exifJson || exifJson === "{}") {
+    return !meta.star;
+  }
+  try {
+    const exif = JSON.parse(exifJson);
+    const make = exif.Make || exif.make;
+    return !meta.star || make?.toLowerCase() === "apple";
+  } catch (e) {
+    return !meta.star;
+  }
 }
 
 async function exportToICloudFolder(entry: AlbumEntry, overwrite: boolean) {
