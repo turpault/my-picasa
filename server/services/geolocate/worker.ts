@@ -208,8 +208,25 @@ export async function startWorker(): Promise<void> {
 if (parentPort && workerData?.serviceName === 'geolocate') {
   const serviceName = workerData.serviceName;
   console.info(`Worker thread started for service: ${serviceName}`);
-  startWorker().catch((error) => {
-    console.error(`Error starting worker ${serviceName}:`, error);
+  startWorker()
+    .then(() => {
+      console.info(`Worker ${serviceName} completed successfully`);
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error(`Worker ${serviceName} exited with error:`, error);
+      process.exit(1);
+    });
+
+  // Handle uncaught exceptions
+  process.on('uncaughtException', (error) => {
+    console.error(`Worker ${serviceName} uncaught exception:`, error);
+    process.exit(1);
+  });
+
+  // Handle unhandled promise rejections
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error(`Worker ${serviceName} unhandled rejection at:`, promise, 'reason:', reason);
     process.exit(1);
   });
 }
