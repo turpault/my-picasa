@@ -1,15 +1,15 @@
-import { ServiceMap } from "../../rpc/rpc-handler";
+import { ServiceMap } from "../../../rpc/rpc-handler";
 import {
   updateEntryMetadata,
-  updatePicasaEntry,
   setCaption,
   setFilters,
   setRotate,
   toggleStar,
   rotate,
-  setPicasaAlbumShortcut,
+  updateAlbumShortcut,
   touchPicasaEntry,
 } from "./mutations";
+import { refreshAlbumKeys, refreshAlbums, onRenamedAlbums, reindexAlbums } from "./worker-thread";
 
 /**
  * WalkerWorkerClient RPC Service Definition
@@ -28,11 +28,7 @@ export const WalkerWorkerClient: ServiceMap = {
   functions: {
     updateEntryMetadata: {
       handler: updateEntryMetadata,
-      arguments: ["entry:object", "metadata:object"],
-    },
-    updatePicasaEntry: {
-      handler: updatePicasaEntry,
-      arguments: ["entry:object", "field:string", "value:any"],
+      arguments: ["entry:object", "fieldOrMetadata:any", "value?:any"],
     },
     setCaption: {
       handler: setCaption,
@@ -54,13 +50,29 @@ export const WalkerWorkerClient: ServiceMap = {
       handler: rotate,
       arguments: ["entries:object", "direction:string"],
     },
-    setPicasaAlbumShortcut: {
-      handler: setPicasaAlbumShortcut,
+    updateAlbumShortcut: {
+      handler: updateAlbumShortcut,
       arguments: ["album:object", "shortcut:string"],
     },
     touchPicasaEntry: {
       handler: touchPicasaEntry,
       arguments: ["entry:object"],
+    },
+    refreshAlbumKeys: {
+      handler: refreshAlbumKeys,
+      arguments: ["albumKeys:object"],
+    },
+    refreshAlbums: {
+      handler: refreshAlbums,
+      arguments: ["albums:object"],
+    },
+    onRenamedAlbums: {
+      handler: onRenamedAlbums,
+      arguments: ["from:object", "to:object"],
+    },
+    reindexAlbums: {
+      handler: reindexAlbums,
+      arguments: ["albumIds:object"],
     },
   },
 };

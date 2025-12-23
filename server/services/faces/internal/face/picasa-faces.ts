@@ -26,7 +26,7 @@ import {
   updateContactInAlbum,
   updatePicasaEntry,
   writeCandidateFacesSection,
-} from "../../../services/walker/picasa-ini";
+} from "../../../services/walker/internal/picasa-ini";
 import { getFolderAlbums } from "../../../media";
 import { readReferencesOfEntry } from "../../../rpc/albumTypes/referenceFiles";
 

@@ -1,8 +1,8 @@
 import * as BetterSqlite3 from "better-sqlite3";
 import { join } from "path";
-import { imagesRoot } from "../../../utils/constants";
+import { imagesRoot } from "../../../../utils/constants";
 import { info } from "console";
-import { GeoPOI } from "../../../../shared/types/types";
+import { GeoPOI } from "../../../../../shared/types/types";
 import { POI_TYPE } from "./poi-types";
 
 // Handle both ES module and CommonJS exports

@@ -3,7 +3,7 @@ import { join } from "path";
 import {
   getContactsFromAlbum,
   getPicasaEntry,
-} from "../../../services/walker/picasa-ini";
+} from "../../../services/walker/internal/picasa-ini";
 import { getFaceImage } from "../../../rpc/rpcFunctions/thumbnail";
 import { facesFolder } from "../../../utils/constants";
 import { fileExists, safeWriteFile } from "../../../utils/serverUtils";

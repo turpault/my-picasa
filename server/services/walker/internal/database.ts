@@ -2,8 +2,8 @@ import Database from "better-sqlite3";
 import debug from "debug";
 import { join } from "path";
 import { workerData } from "worker_threads";
-import { Album, AlbumEntry, AlbumEntryMetaData, AlbumKind, AlbumWithData, extraFields } from "../../../shared/types/types";
-import { imagesRoot } from "../../utils/constants";
+import { Album, AlbumEntry, AlbumEntryMetaData, AlbumKind, AlbumMetaData, AlbumWithData, extraFields } from "../../../../shared/types/types";
+import { imagesRoot } from "../../../utils/constants";
 
 const debugLogger = debug("app:walker-db");
 
@@ -339,6 +339,105 @@ class WalkerDatabaseAccess {
     return metadata;
   }
 
+  /**
+   * Get all shortcuts (shortcut -> album key mapping)
+   */
+  getShortcuts(): { [shortcut: string]: Album } {
+    const rows = this.getDatabase().prepare(`
+      SELECT key, name, kind, shortcut FROM albums WHERE shortcut IS NOT NULL AND shortcut != ''
+    `).all() as Array<{ key: string; name: string; kind: string; shortcut: string }>;
+
+    const result: { [shortcut: string]: Album } = {};
+    for (const row of rows) {
+      result[row.shortcut] = {
+        key: row.key,
+        name: row.name,
+        kind: row.kind as AlbumKind,
+      };
+    }
+    return result;
+  }
+
+  /**
+   * Get shortcut for a specific album
+   */
+  getAlbumShortcut(albumKey: string): string | undefined {
+    const row = this.getDatabase().prepare(`
+      SELECT shortcut FROM albums WHERE key = ?
+    `).get(albumKey) as { shortcut: string | null } | undefined;
+
+    return row?.shortcut || undefined;
+  }
+
+  /**
+   * Get all entry metadata for an album (reconstructs AlbumMetaData)
+   */
+  getAlbumMetaData(album: Album): AlbumMetaData {
+    const rows = this.getDatabase().prepare(`
+      SELECT 
+        entry_name,
+        date_taken, photostar, star, star_count, caption, text, textactive,
+        dimensions, dimensions_from_filter, rank, rotate, faces, filters, stats, persons, extra_fields
+      FROM album_entries 
+      WHERE album_key = ?
+      ORDER BY entry_name
+    `).all(album.key) as Array<{
+      entry_name: string;
+      date_taken: string | null;
+      photostar: number | null;
+      star: number | null;
+      star_count: string | null;
+      caption: string | null;
+      text: string | null;
+      textactive: string | null;
+      dimensions: string | null;
+      dimensions_from_filter: string | null;
+      rank: string | null;
+      rotate: string | null;
+      faces: string | null;
+      filters: string | null;
+      stats: string | null;
+      persons: string | null;
+      extra_fields: string | null;
+    }>;
+
+    const metadata: AlbumMetaData = {};
+
+    for (const row of rows) {
+      const entryMetadata: AlbumEntryMetaData = {};
+
+      if (row.date_taken) entryMetadata.dateTaken = row.date_taken;
+      if (row.photostar !== null) entryMetadata.photostar = row.photostar === 1;
+      if (row.star !== null) entryMetadata.star = row.star === 1;
+      if (row.star_count) entryMetadata.starCount = row.star_count;
+      if (row.caption) entryMetadata.caption = row.caption;
+      if (row.text) entryMetadata.text = row.text;
+      if (row.textactive) entryMetadata.textactive = row.textactive;
+      if (row.dimensions) entryMetadata.dimensions = row.dimensions;
+      if (row.dimensions_from_filter) entryMetadata.dimensionsFromFilter = row.dimensions_from_filter;
+      if (row.rank) entryMetadata.rank = row.rank;
+      if (row.rotate) entryMetadata.rotate = row.rotate;
+      if (row.faces) entryMetadata.faces = row.faces;
+      if (row.filters) entryMetadata.filters = row.filters;
+      if (row.stats) entryMetadata.stats = row.stats;
+      if (row.persons) entryMetadata.persons = row.persons;
+
+      // Parse extra_fields JSON
+      if (row.extra_fields) {
+        try {
+          const extra = JSON.parse(row.extra_fields) as Partial<Record<extraFields, string>>;
+          Object.assign(entryMetadata, extra);
+        } catch (e) {
+          debugLogger(`Error parsing extra_fields for ${row.entry_name}:`, e);
+        }
+      }
+
+      metadata[row.entry_name] = entryMetadata;
+    }
+
+    return metadata;
+  }
+
   // ========== WRITE METHODS (Write operations - READWRITE only) ==========
 
   /**
@@ -397,6 +496,29 @@ class WalkerDatabaseAccess {
     });
 
     transaction();
+  }
+
+  /**
+   * Update shortcut for an album
+   */
+  updateAlbumShortcut(albumKey: string, shortcut: string | null): void {
+    if (!this.isWriter) {
+      throw new Error("updateAlbumShortcut can only be called on a READWRITE database instance");
+    }
+
+    // First, remove shortcut from any album that currently has it (to ensure uniqueness)
+    if (shortcut) {
+      const removeStmt = this.getDatabase().prepare(`
+        UPDATE albums SET shortcut = NULL, updated_at = CURRENT_TIMESTAMP WHERE shortcut = ? AND key != ?
+      `);
+      removeStmt.run(shortcut, albumKey);
+    }
+
+    // Now update the album's shortcut
+    const stmt = this.getDatabase().prepare(`
+      UPDATE albums SET shortcut = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?
+    `);
+    stmt.run(shortcut, albumKey);
   }
 
   /**

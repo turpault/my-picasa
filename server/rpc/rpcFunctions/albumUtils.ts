@@ -36,8 +36,7 @@ import {
   readFaceAlbumEntries,
 } from "./faces";
 import { getExifData } from "./exif";
-import { getEntryMetadata, getPicasaEntries, getAlbumMetaData } from "../../services/walker/queries";
-import { updatePicasaEntry } from "../../services/walker/mutations";
+import { getEntryMetadata, getAlbumEntries, getAlbumMetaData, getMutations } from "../../services/walker/queries";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
   const entries = (await media(entry.album)).entries;
@@ -74,7 +73,8 @@ async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {
     if (isPicture(entry) || isVideo(entry)) {
       let current = getEntryMetadata(entry).rank || "0";
       if (rank !== parseInt(current)) {
-        updatePicasaEntry(entry, "rank", rank);
+        const mutations = getMutations();
+        await mutations.updateEntryMetadata(entry, "rank", rank);
       }
       rank++;
     }
@@ -142,7 +142,7 @@ export async function mediaCount(album: Album, filters?: Filters): Promise<{ cou
     const assets = await assetsInFolderAlbum(album);
     return { count: assets.entries.length };
   } else if (album.kind === AlbumKind.FACE) {
-    const entries = await getPicasaEntries(album);
+    const entries = getAlbumEntries(album);
     return { count: entries.length };
   } else throw new Error(`Unknown kind ${album.kind}`);
 }
@@ -217,13 +217,13 @@ export async function albumWithData(
 export async function getAlbumMetadata(album: Album) {
   switch (album.kind) {
     case AlbumKind.FOLDER: {
-      const ini = await getAlbumMetaData(album);
+      const ini = getAlbumMetaData(album);
       return ini;
     }
     case AlbumKind.PROJECT:
       return {};
     case AlbumKind.FACE: {
-      const ini = await getAlbumMetaData(album);
+      const ini = getAlbumMetaData(album);
       await Promise.all(
         Object.keys(ini).map(async (name) => {
           const faceData = await getFaceData({ album, name });

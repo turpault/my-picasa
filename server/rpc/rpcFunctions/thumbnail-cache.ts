@@ -18,8 +18,8 @@ import {
   rotateFilterKey,
 } from "../../services/walker/queries";
 import {
-  updatePicasaEntry,
-} from "../../services/walker/mutations";
+  getMutations,
+} from "../../services/walker/queries";
 
 import Debug from "debug";
 const debug = Debug("thumbnail");
@@ -115,10 +115,12 @@ export async function updateCacheData(
   const picasaSizeLabel = dimensionsFilterKey[size];
   const picasaRotateLabel = rotateFilterKey[size];
 
+  const mutations = getMutations();
   await Promise.all([
-    updatePicasaEntry(entry, picasaFilterLabel, transform),
-    updatePicasaEntry(entry, picasaSizeLabel, dimensions),
-    updatePicasaEntry(entry, picasaRotateLabel, rotate),
+    mutations.updateEntryMetadata(entry, {
+      [picasaFilterLabel]: transform, [picasaSizeLabel]: dimensions,
+      [picasaRotateLabel]: rotate
+    }),
   ]);
 }
 

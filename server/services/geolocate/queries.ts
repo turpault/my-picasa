@@ -1,5 +1,5 @@
 import { AlbumEntry } from "../../../shared/types/types";
-import { getGeolocateDatabaseReadOnly } from "./database";
+import { getGeolocateDatabaseReadOnly } from "./internal/database";
 
 /**
  * Geolocate Database Queries (Read-Only)

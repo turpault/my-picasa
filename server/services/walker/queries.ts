@@ -1,5 +1,8 @@
 import { Album, AlbumEntry, AlbumEntryMetaData, AlbumKind, AlbumMetaData, AlbumWithData, ContactByHash, extraFields, ThumbnailSize } from "../../../shared/types/types";
-import { getWalkerDatabase } from "./database";
+import { getWalkerDatabase } from "./internal/database";
+import { getWorker } from "../../worker-manager";
+import { WorkerAdaptor } from "../../../shared/rpc-transport/worker-adaptor";
+import { WalkerWorkerClient } from "../../../client/rpc/generated-rpc/WalkerWorkerClient";
 
 // Re-export from picasa-ini for compatibility
 export {
@@ -7,15 +10,15 @@ export {
   dimensionsFilterKey,
   rotateFilterKey,
   albumFromNameAndKind
-} from "./picasa-ini";
+} from "./internal/picasa-ini";
 
 /**
- * Walker Database Queries and Writes
+ * Walker Database Queries (Read-only)
  * 
- * This module provides access to the walker database.
- * Each function gets the database singleton and calls the appropriate method.
+ * This module provides read-only access to the walker database.
  * Can be used in the main thread or any service.
  */
+
 export function getAllAlbums(): AlbumWithData[] {
   const db = getWalkerDatabase();
   return db.getAllAlbums();
@@ -32,24 +35,6 @@ export function getAlbumEntries(album: Album): AlbumEntry[] {
 }
 
 /**
- * Write operations - can only be used by the walker worker
- */
-export function upsertAlbum(album: AlbumWithData): void {
-  const db = getWalkerDatabase();
-  db.upsertAlbum(album);
-}
-
-export function deleteAlbum(albumKey: string): void {
-  const db = getWalkerDatabase();
-  db.deleteAlbum(albumKey);
-}
-
-export function replaceAlbumEntries(album: Album, entries: AlbumEntry[]): void {
-  const db = getWalkerDatabase();
-  db.replaceAlbumEntries(album, entries);
-}
-
-/**
  * Get metadata for an entry (read-only operation)
  * This reads directly from the database. No worker delegation needed.
  * If metadata is empty in DB, returns empty object - metadata will be synced from picasa-ini by worker.
@@ -60,64 +45,60 @@ export function getEntryMetadata(entry: AlbumEntry): AlbumEntryMetaData {
 }
 
 /**
- * Get shortcuts map
- * Note: This needs to be implemented by reading from picasa-ini files or caching in worker
+ * Get shortcuts map (read-only operation)
+ * Reads directly from the database.
  */
 export function getShortcuts(): { [shortcut: string]: Album } {
-  // Shortcuts are managed in picasa-ini and cached in the worker
-  // For now, return empty - this should be exposed via worker communication if needed
-  // or read from a cache maintained by the worker
-  return {};
+  const db = getWalkerDatabase();
+  return db.getShortcuts();
 }
 
 /**
- * Read shortcut for an album
+ * Read shortcut for an album (read-only operation)
+ * Reads directly from the database.
  */
-export async function readShortcut(album: Album): Promise<string | undefined> {
-  const { isMainThread } = await import("worker_threads");
-  if (!isMainThread) {
-    const picasaIni = await import("./picasa-ini");
-    return await picasaIni.readShortcut(album);
-  }
-  // Main thread: would need to query worker or read from DB if we store shortcuts there
-  // For now, return undefined if in main thread
-  return undefined;
+export function readShortcut(album: Album): string | undefined {
+  const db = getWalkerDatabase();
+  return db.getAlbumShortcut(album.key);
 }
 
 /**
  * Read persons from entry metadata
  */
-export async function readPersons(entry: AlbumEntry): Promise<string[]> {
-  const metadata = await getEntryMetadata(entry);
+export function readPersons(entry: AlbumEntry): string[] {
+  const metadata = getEntryMetadata(entry);
   const persons = metadata.persons || "";
   return persons.split(",").map((p) => p.trim());
 }
 
 /**
- * Get picasa entries for an album (internal - may need picasa-ini access)
+ * Get album metadata (read-only operation)
+ * Reads directly from the database by reconstructing from entry metadata.
  */
-export async function getPicasaEntries(album: Album): Promise<AlbumEntry[]> {
-  const { isMainThread } = await import("worker_threads");
-  if (!isMainThread) {
-    const picasaIni = await import("./picasa-ini");
-    return await picasaIni.getPicasaEntries(album);
-  }
-  // Main thread: return entries from walker database
-  return getAlbumEntries(album);
+export function getAlbumMetaData(album: Album): AlbumMetaData {
+  const db = getWalkerDatabase();
+  return db.getAlbumMetaData(album);
 }
 
 /**
- * Get album metadata (full picasa-ini structure)
- * Note: This should only be used when full metadata structure is needed
+ * Get mutations client (for write operations)
+ * Returns a WalkerWorkerClient instance connected to the walker worker.
+ * This is a singleton - the same instance is returned on each call.
  */
-export async function getAlbumMetaData(album: Album): Promise<AlbumMetaData> {
-  const { isMainThread } = await import("worker_threads");
-  if (!isMainThread) {
-    const picasaIni = await import("./picasa-ini");
-    return await picasaIni.getAlbumMetaData(album);
-  }
-  // Main thread: return empty for now - this requires picasa-ini access
-  // In future, could reconstruct from database entries
-  return {};
-}
+let mutationsClient: WalkerWorkerClient | null = null;
 
+export function getMutations(): WalkerWorkerClient {
+  if (mutationsClient) {
+    return mutationsClient;
+  }
+
+  const worker = getWorker('walker');
+  if (!worker) {
+    throw new Error("Walker worker not available");
+  }
+
+  const adaptor = new WorkerAdaptor(worker);
+  mutationsClient = new WalkerWorkerClient();
+  mutationsClient.initialize(adaptor);
+  return mutationsClient;
+}

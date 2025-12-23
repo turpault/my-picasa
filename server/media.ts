@@ -18,9 +18,7 @@ import {
 import {
   readFaceAlbumEntries,
 } from "./rpc/rpcFunctions/faces";
-import { getEntryMetadata } from "./services/walker/queries";
-import { updatePicasaEntry } from "./services/walker/mutations";
-import { getShortcuts } from "./services/walker/queries";
+import { getEntryMetadata, getMutations, getShortcuts } from "./services/walker/queries";
 import { isPicture, isVideo } from "../shared/lib/utils";
 
 /**
@@ -69,11 +67,12 @@ async function sortAssetsByRank(entries: AlbumEntry[]) {
 
 async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {
   let rank = 0;
+  const mutations = getMutations();
   for (const entry of filesInFolder) {
     if (isPicture(entry) || isVideo(entry)) {
       let current = getEntryMetadata(entry).rank || "0";
       if (rank !== parseInt(current)) {
-        updatePicasaEntry(entry, "rank", rank);
+        await mutations.updateEntryMetadata(entry, "rank", rank);
       }
       rank++;
     }

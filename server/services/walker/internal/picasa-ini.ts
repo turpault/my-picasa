@@ -1,15 +1,15 @@
 import { mkdir, readFile, readdir } from "fs/promises";
 import { basename, join } from "path";
-import ini from "../../../shared/lib/ini";
-import { lock } from "../../../shared/lib/mutex";
-import { MAX_STAR } from "../../../shared/lib/shared-constants";
+import ini from "../../../../shared/lib/ini";
+import { lock } from "../../../../shared/lib/mutex";
+import { MAX_STAR } from "../../../../shared/lib/shared-constants";
 import {
   decodeFaces,
   decodeRotate,
   encodeFaces,
   removeDiacritics,
   sleep,
-} from "../../../shared/lib/utils";
+} from "../../../../shared/lib/utils";
 import {
   Album,
   AlbumEntry,
@@ -25,25 +25,22 @@ import {
   extraFields,
   idFromKey,
   keyFromID,
-} from "../../../shared/types/types";
-import { events } from "../../events/server-events";
+} from "../../../../shared/types/types";
 import {
   PICASA,
   facesFolder,
   imagesRoot,
   projectFolder,
-} from "../../utils/constants";
+} from "../../../utils/constants";
 import {
   fileExists,
   pathForAlbum,
   safeWriteFile,
-} from "../../utils/serverUtils";
-import { broadcast } from "../../utils/socketList";
-import { rate } from "../../utils/stats";
+} from "../../../utils/serverUtils";
+import { rate } from "../../../utils/stats";
 // Note: normalizeName is imported from faces service when needed
 // This import is used in readContacts function
-import { normalizeName } from "../../rpc/rpcFunctions/faces";
-import { imageInfo } from "../../imageOperations/info";
+import { normalizeName } from "../../../rpc/rpcFunctions/faces";
 
 export const cachedFilterKey: Record<ThumbnailSize, extraFields> = {
   "th-small": "cached:filters:th-small",
@@ -208,7 +205,6 @@ async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
       !shortcuts[i[PicasaBaseKeys.Picasa].shortcut]
     ) {
       shortcuts[i[PicasaBaseKeys.Picasa].shortcut] = album;
-      broadcast("shortcutsUpdated", {});
     }
 
     picasaMap.set(album.key, i);
@@ -229,12 +225,6 @@ function writePicasaIni(album: Album, data: AlbumMetaData): void {
   picasaMap.set(album.key, data);
 }
 
-function entryWithMeta(entry: AlbumEntry, metadata: AlbumEntryMetaData) {
-  return {
-    ...entry,
-    metadata,
-  };
-}
 export async function getPicasaEntry(
   entry: AlbumEntry,
 ): Promise<AlbumEntryMetaData> {
@@ -359,23 +349,14 @@ export async function rotate(entries: AlbumEntry[], direction: string) {
 export async function setRotate(entry: AlbumEntry, rotate?: string) {
   if (!rotate) updatePicasaEntry(entry, "rotate", undefined);
   else updatePicasaEntry(entry, "rotate", `rotate(${rotate})`);
-  events.emit("rotateChanged", {
-    entry: entryWithMeta(entry, await getPicasaEntry(entry)),
-  });
 }
 
 export async function setFilters(entry: AlbumEntry, filters: string) {
   await updatePicasaEntry(entry, "filters", filters);
-  events.emit("filtersChanged", {
-    entry: entryWithMeta(entry, await getPicasaEntry(entry)),
-  });
 }
 
 export async function setCaption(entry: AlbumEntry, caption: string) {
   await updatePicasaEntry(entry, "caption", caption);
-  events.emit("captionChanged", {
-    entry: entryWithMeta(entry, await getPicasaEntry(entry)),
-  });
 }
 
 export async function toggleStar(entries: AlbumEntry[]) {
@@ -397,9 +378,6 @@ export async function toggleStar(entries: AlbumEntry[]) {
       updatePicasaEntry(entry, "star", star),
       updatePicasaEntry(entry, "starCount", starCount),
     ]);
-    events.emit("favoriteChanged", {
-      entry: entryWithMeta(entry, await getPicasaEntry(entry)),
-    });
   }
 }
 
@@ -467,29 +445,9 @@ export async function updatePicasaEntry(
     } else {
       delete picasa[entry.name][field as keyof AlbumEntryMetaData];
     }
-    events.emit("albumEntryUpdated",
-      await imageInfo(entry, picasa[entry.name]),
-    );
   }
 
   if (hasChanged) {
-    if (["filters", "caption", "rotate", "star", "starCount"].includes(field)) {
-      broadcast("albumEntryAspectChanged", {
-        ...entry,
-        metadata: picasa[entry.name],
-      });
-    }
-
-    // Emit event for picasa entry updates
-    events.emit("picasaEntryUpdated", {
-      entry: {
-        ...entry,
-        metadata: picasa[entry.name],
-      },
-      field: field as string,
-      value: value,
-    });
-
     writePicasaIni(entry.album, picasa);
   }
 }

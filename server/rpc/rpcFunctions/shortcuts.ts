@@ -2,8 +2,7 @@ import { Album } from "../../../shared/types/types";
 import { events } from "../../events/server-events";
 import { broadcast } from "../../utils/socketList";
 import { albumWithData } from "./albumUtils";
-import { getShortcuts } from "../../services/walker/queries";
-import { setPicasaAlbumShortcut } from "../../services/walker/mutations";
+import { getShortcuts, getMutations } from "../../services/walker/queries";
 
 export async function setAlbumShortcut(album: Album, shortcut: string) {
   const a = albumWithData(album);
@@ -11,7 +10,8 @@ export async function setAlbumShortcut(album: Album, shortcut: string) {
     throw new Error("Unknown album");
   }
   const previous = getShortcuts()[shortcut];
-  await setPicasaAlbumShortcut(album, shortcut);
+  const mutations = getMutations();
+  await mutations.updateAlbumShortcut(album, shortcut);
 
   const albumsToReindex: Album[] = [];
   if (previous) {

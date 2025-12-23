@@ -30,8 +30,8 @@ import {
   getEntryMetadata,
 } from "../../services/walker/queries";
 import {
-  updatePicasaEntry,
-} from "../../services/walker/mutations";
+  getMutations,
+} from "../../services/walker/queries";
 import { PhotoLibraryPath, favoritesFolder, imagesRoot } from "../../utils/constants";
 import {
   entryFilePath,
@@ -177,6 +177,7 @@ export async function syncFavoritesFromPhotoApp(
   }
 
   const MAX_DISTANCE = 1000 * 60 * 60 * 24;
+  const mutations = getMutations();
   await getOsxPhotosDump(async (photo, index, total) => {
     await fullListPromise;
     console.info(
@@ -218,7 +219,7 @@ export async function syncFavoritesFromPhotoApp(
     }
     if (photo.persons) {
       filteredCandidates.forEach((candidate) => {
-        promises.push(updatePicasaEntry(candidate, "persons", photo.persons));
+        promises.push(mutations.updateEntryMetadata(candidate, "persons", photo.persons));
       });
     }
     if (photo.favorite) {
@@ -227,7 +228,7 @@ export async function syncFavoritesFromPhotoApp(
         if (alreadyStarred.includes(candidate)) {
           // do nothing
         } else {
-          promises.push(updatePicasaEntry(candidate, "photostar", 1));
+          promises.push(mutations.updateEntryMetadata(candidate, "photostar", 1));
         }
       });
     }
@@ -236,7 +237,7 @@ export async function syncFavoritesFromPhotoApp(
     if (newStarred.includes(photo.metadata)) {
       // do nothing
     } else {
-      promises.push(updatePicasaEntry(photo.metadata, "photostar", undefined));
+      promises.push(mutations.updateEntryMetadata(photo.metadata, "photostar", undefined));
     }
   }
   await Promise.all(promises);

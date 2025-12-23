@@ -1,12 +1,11 @@
 import Database from "better-sqlite3";
 import debug from "debug";
 import { join } from "path";
-import { AlbumEntry } from "../../../shared/types/types";
-import { imagesRoot } from "../../utils/constants";
-import { getExifData } from "../../rpc/rpcFunctions/exif";
-import { getWalkerDatabase } from "../walker/database";
+import { AlbumEntry } from "../../../../shared/types/types";
+import { imagesRoot } from "../../../utils/constants";
+import { getWalkerDatabase } from "../../walker/internal/database";
 
-const debugLogger = debug("app:geolocate-db");
+const debugLogger = debug("app:exif-db");
 
 // Database version constant - increment this when schema changes
 const DATABASE_VERSION = 1;
@@ -14,13 +13,13 @@ const DATABASE_VERSION = 1;
 export type OpenMode = 'READ' | 'READWRITE';
 
 /**
- * Shared Geolocate Database Access
+ * Shared EXIF Database Access
  * 
- * This module provides access to the picasa_geolocate.db database with enforced single-writer pattern.
+ * This module provides access to the picisa_exif.db database with enforced single-writer pattern.
  * Only instances opened with READWRITE mode can write to the database.
  * All other instances must use READ mode.
  */
-export class GeolocateDatabaseAccess {
+export class ExifDatabaseAccess {
   private db: Database.Database | null = null;
   private dbPath: string;
   private readonly: boolean;
@@ -28,15 +27,15 @@ export class GeolocateDatabaseAccess {
   private openMode: OpenMode;
 
   constructor(openMode: OpenMode = 'READ') {
-    this.dbPath = join(imagesRoot, "picasa_geolocate.db");
+    this.dbPath = join(imagesRoot, "picisa_exif.db");
     this.openMode = openMode;
     this.isWriter = openMode === 'READWRITE';
     this.readonly = !this.isWriter;
 
     if (this.isWriter) {
-      debugLogger("Opening Geolocate database in READ-WRITE mode");
+      debugLogger("Opening EXIF database in READ-WRITE mode");
     } else {
-      debugLogger("Opening Geolocate database in READ-ONLY mode");
+      debugLogger("Opening EXIF database in READ-ONLY mode");
     }
   }
 
@@ -54,7 +53,7 @@ export class GeolocateDatabaseAccess {
         this.db = new Database(this.dbPath, { readonly: this.readonly });
       }
 
-      // Attach walker database as read-only (always read-only in Geolocate service)
+      // Attach walker database as read-only (always read-only in EXIF service)
       try {
         const walkerDb = getWalkerDatabase();
         const walkerDbPath = walkerDb.getDatabasePath();
@@ -138,15 +137,15 @@ export class GeolocateDatabaseAccess {
   private initDatabase(): void {
     if (!this.isWriter || !this.db) return;
 
-    // Create geo_poi_data table
+    // Create exif_data table
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS geo_poi_data (
+      CREATE TABLE IF NOT EXISTS exif_data (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         album_key TEXT NOT NULL,
         album_name TEXT NOT NULL,
         entry_name TEXT NOT NULL,
-        geo_poi TEXT,
-        has_geo_poi BOOLEAN NOT NULL DEFAULT 0,
+        exif_data TEXT,
+        has_exif BOOLEAN NOT NULL DEFAULT 0,
         processed_at TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -155,12 +154,12 @@ export class GeolocateDatabaseAccess {
 
     // Create indexes for better query performance
     this.db.exec(`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_geo_entry ON geo_poi_data(album_key, entry_name);
-      CREATE INDEX IF NOT EXISTS idx_album_key ON geo_poi_data(album_key);
-      CREATE INDEX IF NOT EXISTS idx_album_name ON geo_poi_data(album_name);
-      CREATE INDEX IF NOT EXISTS idx_entry_name ON geo_poi_data(entry_name);
-      CREATE INDEX IF NOT EXISTS idx_has_geo_poi ON geo_poi_data(has_geo_poi);
-      CREATE INDEX IF NOT EXISTS idx_processed_at ON geo_poi_data(processed_at);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_exif_entry ON exif_data(album_key, entry_name);
+      CREATE INDEX IF NOT EXISTS idx_album_key ON exif_data(album_key);
+      CREATE INDEX IF NOT EXISTS idx_album_name ON exif_data(album_name);
+      CREATE INDEX IF NOT EXISTS idx_entry_name ON exif_data(entry_name);
+      CREATE INDEX IF NOT EXISTS idx_has_exif ON exif_data(has_exif);
+      CREATE INDEX IF NOT EXISTS idx_processed_at ON exif_data(processed_at);
     `);
 
     debugLogger("Database initialized at:", this.dbPath);
@@ -186,94 +185,52 @@ export class GeolocateDatabaseAccess {
   // ========== QUERY METHODS (Read-only operations) ==========
 
   /**
-   * Get geo POI data for a specific entry
+   * Get EXIF data for a specific entry
    */
-  getGeoPOI(entry: AlbumEntry): string | null {
+  getExifData(entry: AlbumEntry): string | null {
     const result = this.getDatabase()
       .prepare(
-        `SELECT geo_poi FROM geo_poi_data WHERE album_key = ? AND entry_name = ?`
+        `SELECT exif_data FROM exif_data WHERE album_key = ? AND entry_name = ?`
       )
-      .get(entry.album.key ?? "", entry.name ?? "") as { geo_poi: string | null } | undefined;
+      .get(entry.album.key ?? "", entry.name ?? "") as { exif_data: string | null } | undefined;
 
-    return result?.geo_poi ?? null;
+    return result?.exif_data ?? null;
   }
 
   /**
-   * Check if an entry has geo POI data
+   * Check if an entry has EXIF data
    */
-  hasGeoPOI(entry: AlbumEntry): boolean {
+  hasExifData(entry: AlbumEntry): boolean {
     const result = this.getDatabase()
       .prepare(
-        `SELECT has_geo_poi FROM geo_poi_data WHERE album_key = ? AND entry_name = ?`
+        `SELECT has_exif FROM exif_data WHERE album_key = ? AND entry_name = ?`
       )
-      .get(entry.album.key ?? "", entry.name ?? "") as { has_geo_poi: number } | undefined;
+      .get(entry.album.key ?? "", entry.name ?? "") as { has_exif: number } | undefined;
 
-    return (result?.has_geo_poi ?? 0) === 1;
+    return (result?.has_exif ?? 0) === 1;
   }
 
   /**
-   * Check if an entry has been processed (regardless of whether it has geo POI data)
+   * Check if an entry has been processed (regardless of whether it has EXIF data)
    * Join with album_entries to check if entry exists in walker database
    */
   isProcessed(entry: AlbumEntry): boolean {
     const result = this.getDatabase()
       .prepare(
-        `SELECT g.processed_at 
+        `SELECT e.processed_at 
          FROM walker.album_entries ae
-         LEFT JOIN geo_poi_data g ON ae.album_key = g.album_key AND ae.entry_name = g.entry_name
+         LEFT JOIN exif_data e ON ae.album_key = e.album_key AND ae.entry_name = e.entry_name
          WHERE ae.album_key = ? AND ae.entry_name = ?`
       )
       .get(entry.album.key ?? "", entry.name ?? "") as { processed_at: string | null } | undefined;
 
-    // Entry is processed if it exists in album_entries and has a processed_at value in geo_poi_data
+    // Entry is processed if it exists in album_entries and has a processed_at value in exif_data
     return result !== undefined && result.processed_at !== null;
   }
 
   /**
-   * Get GPS coordinates (latitude, longitude) from EXIF data for an entry
-   */
-  getCoordinates(entry: AlbumEntry): { latitude: number; longitude: number } | null {
-    // Use the RPC function which handles processed/not processed distinction
-    const exif = getExifData(entry);
-
-    // If null, EXIF hasn't been processed yet
-    if (exif === null) {
-      return null;
-    }
-
-    // If empty object, EXIF was processed but has no data
-    if (Object.keys(exif).length === 0) {
-      return null;
-    }
-
-    try {
-      const { GPSLatitude, GPSLatitudeRef, GPSLongitudeRef, GPSLongitude } = exif;
-
-      if (
-        GPSLatitude &&
-        GPSLatitudeRef &&
-        GPSLongitudeRef &&
-        GPSLongitude
-      ) {
-        const latitude =
-          (GPSLatitudeRef === "N" ? 1 : -1) *
-          (GPSLatitude[0] + GPSLatitude[1] / 60 + GPSLatitude[2] / 3600);
-        const longitude =
-          (GPSLongitudeRef === "E" ? 1 : -1) *
-          (GPSLongitude[0] + GPSLongitude[1] / 60 + GPSLongitude[2] / 3600);
-
-        return { latitude, longitude };
-      }
-    } catch (e) {
-      // If parsing fails, return null
-    }
-
-    return null;
-  }
-
-  /**
-   * Get all entries that need geo POI processing
-   * An unprocessed entry exists in album_entries but has no data in geo_poi_data
+   * Get all entries that need EXIF processing
+   * An unprocessed entry exists in album_entries but has no data in exif_data
    */
   getUnprocessedEntries(): Array<{ album_key: string; album_name: string; entry_name: string }> {
     const results = this.getDatabase()
@@ -284,9 +241,9 @@ export class GeolocateDatabaseAccess {
           walker.album_entries.entry_name
          FROM walker.album_entries
          LEFT JOIN walker.albums ON walker.album_entries.album_key = walker.albums.key
-         LEFT JOIN geo_poi_data ON walker.album_entries.album_key = geo_poi_data.album_key 
-           AND walker.album_entries.entry_name = geo_poi_data.entry_name
-         WHERE geo_poi_data.album_key IS NULL
+         LEFT JOIN exif_data ON walker.album_entries.album_key = exif_data.album_key 
+           AND walker.album_entries.entry_name = exif_data.entry_name
+         WHERE exif_data.album_key IS NULL
          ORDER BY walker.album_entries.created_at ASC`
       )
       .all() as Array<{ album_key: string; album_name: string; entry_name: string }>;
@@ -294,10 +251,36 @@ export class GeolocateDatabaseAccess {
     return results;
   }
 
+  /**
+   * Get statistics about the EXIF database
+   */
+  getStats(): { totalEntries: number; processedEntries: number; unprocessedEntries: number; lastProcessed: string } {
+    const db = this.getDatabase();
+    // Total entries: count of all entries in album_entries
+    const totalEntries = db.prepare("SELECT COUNT(*) as count FROM walker.album_entries").get() as { count: number };
+    // Processed entries: count of entries that have been processed (have processed_at)
+    const processedEntries = db.prepare("SELECT COUNT(*) as count FROM exif_data WHERE processed_at IS NOT NULL").get() as { count: number };
+    // Unprocessed entries: entries in album_entries that don't exist in exif_data
+    const unprocessedEntries = db.prepare(`
+      SELECT COUNT(*) as count 
+      FROM walker.album_entries ae
+      LEFT JOIN exif_data e ON ae.album_key = e.album_key AND ae.entry_name = e.entry_name
+      WHERE e.album_key IS NULL
+    `).get() as { count: number };
+    const lastProcessed = db.prepare("SELECT MAX(processed_at) as last_processed FROM exif_data WHERE processed_at IS NOT NULL").get() as { last_processed: string | null };
+
+    return {
+      totalEntries: totalEntries.count,
+      processedEntries: processedEntries.count,
+      unprocessedEntries: unprocessedEntries.count,
+      lastProcessed: lastProcessed.last_processed || 'Never'
+    };
+  }
+
   // ========== WRITE METHODS (Write operations - READWRITE only) ==========
 
   /**
-   * Create or update an entry in the database (without geo POI data initially)
+   * Create or update an entry in the database (without EXIF data initially)
    */
   upsertEntry(entry: AlbumEntry): void {
     if (!this.isWriter) {
@@ -312,8 +295,8 @@ export class GeolocateDatabaseAccess {
       }
 
       const upsertStmt = db.prepare(`
-        INSERT INTO geo_poi_data (
-          album_key, album_name, entry_name, geo_poi, has_geo_poi, updated_at
+        INSERT INTO exif_data (
+          album_key, album_name, entry_name, exif_data, has_exif, updated_at
         ) VALUES (?, ?, ?, NULL, 0, CURRENT_TIMESTAMP)
         ON CONFLICT(album_key, entry_name) DO UPDATE SET
           album_name = excluded.album_name,
@@ -333,34 +316,34 @@ export class GeolocateDatabaseAccess {
   }
 
   /**
-   * Update geo POI data for an entry
+   * Update EXIF data for an entry
    */
-  updateGeoPOI(entry: AlbumEntry, geoPOI: string | null): void {
+  updateExifData(entry: AlbumEntry, exifData: string | null): void {
     if (!this.isWriter) {
-      throw new Error("updateGeoPOI can only be called on a READWRITE database instance");
+      throw new Error("updateExifData can only be called on a READWRITE database instance");
     }
 
     const db = this.getDatabase();
     try {
       if (entry.album.key === undefined || entry.name === undefined) {
-        debugLogger(`Error updating geo POI for ${entry.name}: album.key or name is undefined`);
+        debugLogger(`Error updating EXIF data for ${entry.name}: album.key or name is undefined`);
         return;
       }
 
-      const hasGeoPOI = geoPOI !== null && geoPOI.trim().length > 0 && geoPOI !== '{}' && geoPOI !== '[]';
+      const hasExif = exifData !== null && exifData.trim().length > 0;
 
       const updateStmt = db.prepare(`
-        UPDATE geo_poi_data SET
-          geo_poi = ?,
-          has_geo_poi = ?,
+        UPDATE exif_data SET
+          exif_data = ?,
+          has_exif = ?,
           processed_at = CURRENT_TIMESTAMP,
           updated_at = CURRENT_TIMESTAMP
         WHERE album_key = ? AND entry_name = ?
       `);
 
       const result = updateStmt.run(
-        geoPOI,
-        hasGeoPOI ? 1 : 0,
+        exifData,
+        hasExif ? 1 : 0,
         entry.album.key ?? '',
         entry.name ?? ''
       );
@@ -368,21 +351,22 @@ export class GeolocateDatabaseAccess {
       if (result.changes === 0) {
         // Entry doesn't exist, create it
         const insertStmt = db.prepare(`
-          INSERT INTO geo_poi_data (
-            album_key, album_name, entry_name, geo_poi, has_geo_poi, processed_at, updated_at
+          INSERT INTO exif_data (
+            album_key, album_name, entry_name, exif_data, has_exif, processed_at, updated_at
           ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `);
         insertStmt.run(
           entry.album.key ?? '',
           entry.album.name ?? '',
           entry.name ?? '',
-          geoPOI,
-          hasGeoPOI ? 1 : 0
+          exifData,
+          hasExif ? 1 : 0
         );
       }
 
-    } catch (error: any) {
-      debugLogger(`Error updating geo POI for ${entry.name}:`, error);
+      debugLogger(`Updated EXIF data for entry ${entry.name}`);
+    } catch (error) {
+      debugLogger(`Error updating EXIF data for entry ${entry.name}:`, error);
       throw error;
     }
   }
@@ -396,41 +380,50 @@ export class GeolocateDatabaseAccess {
     }
 
     const db = this.getDatabase();
-    try {
-      const deleteStmt = db.prepare(
-        `DELETE FROM geo_poi_data WHERE album_key = ? AND entry_name = ?`
-      );
-
-      deleteStmt.run(entry.album.key ?? '', entry.name ?? '');
-    } catch (error: any) {
-      debugLogger(`Error removing entry ${entry.name}:`, error);
-      throw error;
-    }
+    const removeStmt = db.prepare(`
+      DELETE FROM exif_data WHERE album_key = ? AND entry_name = ?
+    `);
+    removeStmt.run(entry.album.key || '', entry.name || '');
+    debugLogger(`Removed entry ${entry.name} from EXIF database`);
   }
 }
 
-// Singleton instances
-let geolocateDatabaseReadOnly: GeolocateDatabaseAccess | null = null;
-let geolocateDatabaseReadWrite: GeolocateDatabaseAccess | null = null;
+// Singleton instances per process/worker
+let readOnlyDbAccess: ExifDatabaseAccess | null = null;
+let readWriteDbAccess: ExifDatabaseAccess | null = null;
 
 /**
- * Get the read-only singleton instance of the Geolocate database
+ * Get a read-only EXIF database access instance
  */
-export function getGeolocateDatabaseReadOnly(): GeolocateDatabaseAccess {
-  if (!geolocateDatabaseReadOnly) {
-    geolocateDatabaseReadOnly = new GeolocateDatabaseAccess('READ');
+export function getExifDatabaseReadOnly(): ExifDatabaseAccess {
+  if (!readOnlyDbAccess) {
+    readOnlyDbAccess = new ExifDatabaseAccess('READ');
   }
-  return geolocateDatabaseReadOnly;
+  return readOnlyDbAccess;
 }
 
 /**
- * Get the read-write singleton instance of the Geolocate database
- * Only one instance should exist, typically in the geolocate worker
+ * Get a read-write EXIF database access instance
+ * Only the EXIF worker should use this
  */
-export function getGeolocateDatabaseReadWrite(): GeolocateDatabaseAccess {
-  if (!geolocateDatabaseReadWrite) {
-    geolocateDatabaseReadWrite = new GeolocateDatabaseAccess('READWRITE');
+export function getExifDatabaseReadWrite(): ExifDatabaseAccess {
+  if (!readWriteDbAccess) {
+    readWriteDbAccess = new ExifDatabaseAccess('READWRITE');
   }
-  return geolocateDatabaseReadWrite;
+  return readWriteDbAccess;
+}
+
+/**
+ * Close the database connections (for cleanup)
+ */
+export function closeExifDatabase(): void {
+  if (readOnlyDbAccess) {
+    readOnlyDbAccess.close();
+    readOnlyDbAccess = null;
+  }
+  if (readWriteDbAccess) {
+    readWriteDbAccess.close();
+    readWriteDbAccess = null;
+  }
 }
 

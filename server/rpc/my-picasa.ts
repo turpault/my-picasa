@@ -57,13 +57,8 @@ import {
 import {
   getEntryMetadata,
   getShortcuts,
+  getMutations,
 } from "../services/walker/queries";
-import {
-  rotate,
-  setCaption,
-  setFilters,
-  toggleStar,
-} from "../services/walker/mutations";
 import { clientReady } from "./rpcFunctions/ready";
 import { setAlbumShortcut } from "./rpcFunctions/shortcuts";
 
@@ -186,11 +181,17 @@ export const PicisaClient: ServiceMap = {
       arguments: ["entry:object"],
     },
     setFilters: {
-      handler: setFilters,
+      handler: async (entry: any, filters: string) => {
+        const mutations = getMutations();
+        return await mutations.setFilters(entry, filters);
+      },
       arguments: ["entry:object", "filters:string"],
     },
     setCaption: {
-      handler: setCaption,
+      handler: async (entry: any, caption: string) => {
+        const mutations = getMutations();
+        return await mutations.setCaption(entry, caption);
+      },
       arguments: ["entry:object", "caption:string"],
     },
     makeAlbum: {
@@ -264,11 +265,17 @@ export const PicisaClient: ServiceMap = {
       arguments: ["entry:object"],
     },
     rotate: {
-      handler: rotate,
+      handler: async (entries: any, direction: string) => {
+        const mutations = getMutations();
+        return await mutations.rotate(entries, direction);
+      },
       arguments: ["entries:object", "direction:string"],
     },
     toggleStar: {
-      handler: toggleStar,
+      handler: async (entries: any) => {
+        const mutations = getMutations();
+        return await mutations.toggleStar(entries);
+      },
       arguments: ["entries:object"],
     },
     getProjects: {

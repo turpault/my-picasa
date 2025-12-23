@@ -1,7 +1,7 @@
 import { writeFileSync } from "fs";
 import { join } from "path";
 import { PicisaClient } from "./my-picasa";
-import { WalkerWorkerClient } from "../services/walker/walker-worker-rpc";
+import { WalkerWorkerClient } from "../services/walker/internal/walker-worker-rpc";
 import { generateCode } from "./rpc-compiler";
 
 const location =

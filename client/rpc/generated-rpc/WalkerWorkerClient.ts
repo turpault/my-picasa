@@ -7,8 +7,8 @@ import { AlbumEntry } from "../../../shared/types/types";
 
 export class WalkerWorkerClient {
   private transport_?: any;
-  async initialize(socket: any): Promise<void> {
-    this.transport_ = socket;
+  initialize(transport: any): void {
+    this.transport_ = transport;
   }
 
   public on(event: string, cb: Function): Function {
@@ -32,14 +32,9 @@ export class WalkerWorkerClient {
     );
   }
 
-  async updateEntryMetadata(entry:object, metadata:object):Promise<any> {
+  async updateEntryMetadata(entry:object, fieldOrMetadata:any, value?:any):Promise<any> {
     return this.emit('WalkerWorkerClient:updateEntryMetadata', {
-      'args': { entry, metadata } 
-    });
-  }
-  async updatePicasaEntry(entry:object, field:string, value:any):Promise<any> {
-    return this.emit('WalkerWorkerClient:updatePicasaEntry', {
-      'args': { entry, field, value } 
+      'args': { entry, fieldOrMetadata, value } 
     });
   }
   async setCaption(entry:object, caption:string):Promise<any> {
@@ -67,14 +62,34 @@ export class WalkerWorkerClient {
       'args': { entries, direction } 
     });
   }
-  async setPicasaAlbumShortcut(album:object, shortcut:string):Promise<any> {
-    return this.emit('WalkerWorkerClient:setPicasaAlbumShortcut', {
+  async updateAlbumShortcut(album:object, shortcut:string):Promise<any> {
+    return this.emit('WalkerWorkerClient:updateAlbumShortcut', {
       'args': { album, shortcut } 
     });
   }
   async touchPicasaEntry(entry:object):Promise<any> {
     return this.emit('WalkerWorkerClient:touchPicasaEntry', {
       'args': { entry } 
+    });
+  }
+  async refreshAlbumKeys(albumKeys:object):Promise<any> {
+    return this.emit('WalkerWorkerClient:refreshAlbumKeys', {
+      'args': { albumKeys } 
+    });
+  }
+  async refreshAlbums(albums:object):Promise<any> {
+    return this.emit('WalkerWorkerClient:refreshAlbums', {
+      'args': { albums } 
+    });
+  }
+  async onRenamedAlbums(from:object, to:object):Promise<any> {
+    return this.emit('WalkerWorkerClient:onRenamedAlbums', {
+      'args': { from, to } 
+    });
+  }
+  async reindexAlbums(albumIds:object):Promise<any> {
+    return this.emit('WalkerWorkerClient:reindexAlbums', {
+      'args': { albumIds } 
     });
   }
 }

@@ -4,8 +4,8 @@ export const TSCodeTemplate = `
 <<CONSTANTS>>
 export class <<CLASS>> {
   private transport_?: any;
-  async initialize(socket: any): Promise<void> {
-    this.transport_ = socket;
+  initialize(transport: any): void {
+    this.transport_ = transport;
   }
 
   public on(event: string, cb: Function): Function {

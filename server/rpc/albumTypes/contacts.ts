@@ -12,7 +12,7 @@ import { Contact } from "../../../shared/types/types";
 import {
   getContactsFromAlbum,
   updateContactInAlbum,
-} from "../../services/walker/picasa-ini";
+} from "../../services/walker/internal/picasa-ini";
 import { getFolderAlbums } from "../../media";
 const contacts = new Map<string, Contact>();
 const contactsByContactKey = new Map<string, Contact>();

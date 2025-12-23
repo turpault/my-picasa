@@ -19,8 +19,8 @@ import {
   listAlbumsOfKind,
   writeFaceAlbumContact,
   writeFaceAlbumEntry,
-} from "../../services/walker/picasa-ini";
-import { getPicasaEntries } from "../../services/walker/queries";
+} from "../../services/walker/internal/picasa-ini";
+import { getAlbumEntries } from "../../services/walker/queries";
 
 export async function eraseFace(entry: AlbumEntry) {
   throw "Not implemented";
@@ -52,7 +52,7 @@ export async function getFaceData(entry: AlbumEntry): Promise<FaceData> {
 export async function readFaceAlbumEntries(
   album: Album,
 ): Promise<AlbumEntry[]> {
-  return await getPicasaEntries(album);
+  return getAlbumEntries(album);
 }
 
 /**
@@ -99,7 +99,7 @@ export async function addReferenceToFaceAlbum(
 ) {
   const faceAlbum = getFaceAlbum(contact);
   writeFaceAlbumEntry(faceAlbum, referenceId, face);
-  faceAlbum.count = (await getPicasaEntries(faceAlbum)).length;
+  faceAlbum.count = getAlbumEntries(faceAlbum).length;
 }
 
 export async function removeReferenceToFaceAlbum(
@@ -108,14 +108,14 @@ export async function removeReferenceToFaceAlbum(
 ) {
   const faceAlbum = getFaceAlbum(contact);
   deletePicasaSection(faceAlbum, referenceId);
-  faceAlbum.count = (await getPicasaEntries(faceAlbum)).length;
+  faceAlbum.count = getAlbumEntries(faceAlbum).length;
 }
 
 const faceAlbums: AlbumWithData[] = [];
 export async function loadFaceAlbums() {
   const l = await listAlbumsOfKind(AlbumKind.FACE);
   for (const album of l) {
-    const entries = await getPicasaEntries(album);
+    const entries = getAlbumEntries(album);
     faceAlbums.push({ ...album, count: entries.length });
   }
 }

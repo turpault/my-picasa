@@ -6,7 +6,7 @@ import { lockedLocks, startLockMonitor } from "../shared/lib/mutex";
 import { RPCAdaptorInterface } from "../shared/rpc-transport/rpc-adaptor-interface";
 import { WsAdaptor } from "../shared/rpc-transport/ws-adaptor";
 import { startWorker } from "./worker-manager";
-import { closePoiDb } from "./services/geolocate/poi/poi-database";
+import { closePoiDb } from "./services/geolocate/internal/poi/poi-database";
 // import { getIndexingService } from "../worker/background/bg-indexing"; // This causes DB initialization on main thread
 import { parseLUTs } from "./imageOperations/image-filters";
 import { encode } from "./imageOperations/sharp-processor";
@@ -26,7 +26,8 @@ import { info } from "console";
 import { initUndo } from "./utils/undo";
 import { buildPersonsList } from "./rpc/albumTypes/persons";
 import { imagesRoot, rootPath } from "./utils/constants";
-import { initializeWorkerListeners } from "./services/walker/worker";
+import { startWorkers, broadcast, getAllWorkers } from "./worker-manager";
+import { queueNotification } from "./rpc/albumTypes/fileAndFolders";
 // import { startBackgroundTasksOnStart } from "../worker/background/bg-services-on-start";
 
 /** */
@@ -198,8 +199,23 @@ process.on('exit', () => {
 export async function startServices() {
   await initUndo();
   info("Starting services...");
-  // startWorker(); // Moved to walker.ts -> startWorker() which now calls startWorkers()
-  initializeWorkerListeners();
+
+  // Start all workers
+  info("Starting workers...");
+  startWorkers();
+
+  // Set up worker message listeners
+  const workers = getAllWorkers();
+  for (const worker of workers) {
+    worker.on("message", (msg) => {
+      if (msg.type === "ready") {
+        // Relay ready to other workers
+        broadcast(msg, 'walker');
+      } else if (msg.type === "notification") {
+        queueNotification(msg.event);
+      }
+    });
+  }
   // updateLastWalkLoop();
   info("Measuring CPU load...");
   measureCPULoad();

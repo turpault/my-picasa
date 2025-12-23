@@ -22,7 +22,7 @@ import { entryFilePath, fileExists } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { addToUndo, registerUndoProvider } from "../../utils/undo";
 import { events } from "../../events/server-events";
-import { onRenamedAlbums, refreshAlbumKeys } from "../../services/walker/worker";
+import { getMutations as getWalkerMutations } from "../../services/walker/queries";
 import { buildPersonsList } from "../albumTypes/persons";
 import { buildProject, eraseProject } from "../albumTypes/projects";
 import { setRank } from "./albumUtils";
@@ -32,9 +32,6 @@ import { openWithFinder } from "./osascripts";
 import {
   albumFromNameAndKind,
 } from "../../services/walker/queries";
-import {
-  updatePicasaEntry,
-} from "../../services/walker/mutations";
 import {
   getEntryMetadata,
 } from "../../services/walker/queries";
@@ -104,7 +101,8 @@ export async function createFSJob(
     .then(async (updatedAlbums: Album[]) => {
       broadcast("jobFinished", job);
       if (updatedAlbums.length) {
-        refreshAlbumKeys(updatedAlbums.map((a) => a.key));
+        const mutations = getWalkerMutations();
+        await mutations.refreshAlbumKeys(updatedAlbums.map((a) => a.key));
       }
     })
     .catch((err: Error) => {
@@ -325,7 +323,8 @@ async function renameAlbumJob(job: Job): Promise<Album[]> {
       join(imagesRoot, pathForAlbum(targetAlbum)),
     );
     undoDeleteAlbumPayload.source = targetAlbum;
-    onRenamedAlbums(source, targetAlbum);
+    const mutations = getWalkerMutations();
+    await mutations.onRenamedAlbums(source, targetAlbum);
   } catch (e: any) {
     job.errors.push(e.message as string);
   } finally {
@@ -756,10 +755,11 @@ async function copyMetadata(
 ) {
   const sourceMetadata = getEntryMetadata(source);
   if (sourceMetadata) {
-    updatePicasaEntry(dest, "*", sourceMetadata);
+    const mutations = getWalkerMutations();
+    await mutations.updateEntryMetadata(dest, "*", sourceMetadata);
 
     if (deleteSource) {
-      updatePicasaEntry(source, "*", undefined);
+      await mutations.updateEntryMetadata(source, "*", undefined);
     }
   }
 

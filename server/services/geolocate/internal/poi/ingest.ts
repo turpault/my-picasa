@@ -2,7 +2,7 @@ import { createReadStream } from "fs";
 import { createInterface } from "readline";
 import { stat } from "fs/promises";
 import { getProcessedFileInfo, insertPoiBatch, markFileAsProcessed } from "./poi-database";
-import { imagesRoot } from "../../../utils/constants";
+import { imagesRoot } from "../../../../utils/constants";
 import { join } from "path";
 import { readdir } from "fs/promises";
 

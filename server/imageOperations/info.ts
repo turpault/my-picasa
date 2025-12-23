@@ -10,12 +10,8 @@ import {
 } from "../../shared/types/types";
 import { getExifData, getFileStats } from "../rpc/rpcFunctions/exif";
 import {
-} from "../services/walker/queries";
-import {
-  updatePicasaEntry,
-} from "../services/walker/mutations";
-import {
   getEntryMetadata,
+  getMutations,
 } from "../services/walker/queries";
 import { pathForAlbumEntry, safeWriteFile } from "../utils/serverUtils";
 import { TagValues, dump, insert, load } from "./piexif/index";
@@ -55,7 +51,8 @@ export async function imageInfo(
       }
 
       if (dateTaken && dateTaken !== metadata.dateTaken) {
-        updatePicasaEntry(entry, "dateTaken", dateTaken);
+        const mutations = getMutations();
+        await mutations.updateEntryMetadata(entry, { dateTaken: dateTaken });
         metadata.dateTaken = dateTaken;
       }
     }
@@ -76,9 +73,9 @@ export async function imageInfo(
         const encoded = await encode(context);
         res.meta.width = encoded.width;
         res.meta.height = encoded.height;
+        const mutations = getMutations();
         await Promise.all([
-          updatePicasaEntry(entry, "dimensions", `${encoded.width}x${encoded.height}`),
-          updatePicasaEntry(entry, "dimensionsFromFilter", options.filters),
+          mutations.updateEntryMetadata(entry, { "dimensions": `${encoded.width}x${encoded.height}`, "dimensionsFromFilter": options.filters }, undefined),
         ]);
       } catch (e) {
         console.error(

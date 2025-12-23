@@ -1,7 +1,7 @@
 import Debug from "debug";
 
 import { Album, AlbumKind } from "../../../shared/types/types";
-import { getPicasaEntries, readPersons } from "../../services/walker/queries";
+import { getAlbumEntries, readPersons } from "../../services/walker/queries";
 import { events } from "../../events/server-events";
 const persons = new Set<string>();
 
@@ -10,9 +10,9 @@ const debug = Debug("app:persons");
 export async function buildPersonsList() {
   const updatePersons = async (album: Album) => {
     if (album.kind === AlbumKind.FOLDER) {
-      const entries = await getPicasaEntries(album);
+      const entries = getAlbumEntries(album);
       for (const entry of entries) {
-        const newPersons = await readPersons(entry);
+        const newPersons = readPersons(entry);
         for (const person of newPersons) {
           persons.add(person);
         }

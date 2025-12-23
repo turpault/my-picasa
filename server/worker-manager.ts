@@ -1,5 +1,6 @@
 import { join } from "path";
 import { isMainThread, Worker } from "worker_threads";
+import { events } from "./events/server-events";
 
 const workers: Map<string, Worker> = new Map();
 
@@ -19,6 +20,9 @@ export function startWorkers() {
   for (const service of services) {
     startWorker(service);
   }
+
+  // Subscribe to all server events and forward them to worker threads
+  setupEventForwarding();
 }
 
 export function startWorker(serviceName: string): Worker | null {
@@ -70,4 +74,35 @@ export function broadcast(msg: any, excludeService?: string) {
       worker.postMessage(msg);
     }
   }
+}
+
+/**
+ * Set up event forwarding between main thread and worker threads
+ */
+function setupEventForwarding() {
+  if (!isMainThread) return;
+
+  // Handle events sent FROM worker threads (worker -> main)
+  // These messages are sent via parentPort.postMessage in server-events.ts
+  for (const [name, worker] of workers) {
+    worker.on("message", (msg) => {
+      if (msg.type === "serverEvent" && msg.eventType) {
+        // Emit on global events object (will be forwarded to all workers via subscription below)
+        // Use originalEmit to avoid infinite loop (don't want to forward back to the worker that sent it)
+        const originalEmit = (events as any).__originalEmit || events.emit;
+        originalEmit.call(events, msg.eventType, msg.data);
+      }
+    });
+  }
+
+  // Subscribe to all server events using wildcard and forward them TO worker threads (main -> workers)
+  events.on("*", (eventType: string, data: any) => {
+    for (const [name, worker] of workers) {
+      worker.postMessage({
+        type: "serverEvent",
+        eventType,
+        data,
+      });
+    }
+  });
 }
