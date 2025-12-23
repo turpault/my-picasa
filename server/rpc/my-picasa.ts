@@ -42,7 +42,8 @@ import {
 } from "./rpcFunctions/albumUtils";
 import { addBug, getBugs } from "./rpcFunctions/bugs";
 import { clientException, clientLog } from "./rpcFunctions/clientLog";
-import { exifData } from "./rpcFunctions/exif";
+import { getExifData, getFileStats } from "./rpcFunctions/exif";
+import { geoPOI, getExifCoordinates } from "./rpcFunctions/geolocate";
 import { getFeatureFlags, updateFeatureFlags } from "./rpcFunctions/featureFlags";
 import { createFSJob, getJob, waitJob } from "./rpcFunctions/fileJobs";
 import {
@@ -162,8 +163,20 @@ export const PicisaClient: ServiceMap = {
       handler: getAlbumEntryMetadata,
       arguments: ["albumEntry:object"],
     },
-    exifData: {
-      handler: exifData,
+    getExifData: {
+      handler: getExifData,
+      arguments: ["entry:object"],
+    },
+    getFileStats: {
+      handler: getFileStats,
+      arguments: ["entry:object"],
+    },
+    geoPOI: {
+      handler: geoPOI,
+      arguments: ["entry:object"],
+    },
+    getExifCoordinates: {
+      handler: getExifCoordinates,
       arguments: ["entry:object"],
     },
     getPicasaEntry: {

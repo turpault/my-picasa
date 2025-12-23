@@ -14,7 +14,6 @@ import {
   AlbumKind,
   AlbumWithData,
   Filters,
-  GeoPOI,
   idFromKey,
   ProjectType,
 } from "../../../shared/types/types";
@@ -36,7 +35,7 @@ import {
   getFaceData,
   readFaceAlbumEntries,
 } from "./faces";
-import { exifData } from "./exif";
+import { getExifData } from "./exif";
 import { getAlbumMetaData, getPicasaEntries, getPicasaEntry, updatePicasaEntry } from "./picasa-ini";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
@@ -161,15 +160,8 @@ function inFilter(entry: AlbumEntry, meta: AlbumEntryMetaData, filter: string) {
     (meta.caption &&
       removeDiacritics(meta.caption).toLowerCase().includes(filter)) ||
     removeDiacritics(entry.album.name).toLowerCase().includes(filter) ||
-    (meta.text && removeDiacritics(meta.text).toLowerCase().includes(filter)) ||
-    (meta.geoPOI &&
-      removeDiacritics(
-        JSON.parse(meta.geoPOI)
-          .map((g: GeoPOI) => g.loc)
-          .join("|"),
-      )
-        .toLowerCase()
-        .includes(filter))
+    (meta.text && removeDiacritics(meta.text).toLowerCase().includes(filter))
+    // Note: geoPOI filtering is now handled by the search service at the database level
   );
 }
 
@@ -296,7 +288,7 @@ export async function albumEntriesWithMetadataAndExif(
     entries.map(async (entry) => {
       const [metadata, exif] = await Promise.all([
         getPicasaEntry(entry),
-        exifData(entry),
+        getExifData(entry),
       ]);
       return {
         ...entry,

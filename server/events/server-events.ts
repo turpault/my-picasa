@@ -28,6 +28,8 @@ type ServerEvents = {
   albumRemoved: Album;
   albumUpdated: AlbumWithData;
   reindex: Album[];
+  exifDataProcessed: AlbumEntry;
+  geoDataFound: AlbumEntry;
 };
 
 export const events = buildEmitter<ServerEvents>();

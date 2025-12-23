@@ -2,8 +2,7 @@ import { Stats } from "fs";
 import { stat } from "fs/promises";
 import { AlbumEntry } from "../../../shared/types/types";
 import { entryFilePath } from "../../utils/serverUtils";
-import { getExifData } from "../../services/exif/queries";
-import { getPicasaEntry } from "./picasa-ini";
+import { getExifData as getExifDataFromService, isExifProcessed } from "../../services/exif/queries";
 
 export function toExifDate(isoDate: string) {
   // exif is YYYY:MM:DD HH:MM:SS
@@ -19,53 +18,47 @@ export function toExifDate(isoDate: string) {
 
 /**
  * Get EXIF data for an entry from the EXIF service database
- * Falls back to parsing from picasa entry if not in database
+ * Returns null if the entry has not been processed yet
+ * Returns an empty object {} if the entry has been processed but has no EXIF data
+ * Returns the parsed EXIF data object if available
  */
-export async function exifData(
-  entry: AlbumEntry,
-  withStats = true,
-): Promise<any> {
-  // Try to get from EXIF service database first
-  const exifJson = getExifData(entry);
-  let exif: any = null;
-
-  if (exifJson) {
-    try {
-      exif = JSON.parse(exifJson);
-    } catch (e) {
-      // If parsing fails, continue to fallback
-    }
+export function getExifData(entry: AlbumEntry): any {
+  // Check if the entry has been processed
+  if (!isExifProcessed(entry)) {
+    // Not processed yet - return null
+    return null;
   }
 
-  // Fallback: try to get from picasa entry
-  if (!exif) {
-    const picasaEntry = await getPicasaEntry(entry);
-    if (picasaEntry.exif) {
-      try {
-        exif = JSON.parse(picasaEntry.exif);
-      } catch (e) {
-        // If parsing fails, return empty object
-        exif = {};
-      }
-    } else {
-      exif = {};
-    }
+  // Entry has been processed - get the data
+  const exifJson = getExifDataFromService(entry);
+
+  if (!exifJson || exifJson === "{}" || exifJson.trim() === "") {
+    // Processed but no EXIF data - return empty object
+    return {};
   }
 
-  if (withStats) {
-    const path = entryFilePath(entry);
-    const stats = await stat(path);
-    exif = { ...exif, ...stats };
+  try {
+    const exif = JSON.parse(exifJson);
+    // If parsing results in an empty object, return it
+    return exif;
+  } catch (e) {
+    // If parsing fails, return empty object
+    return {};
   }
+}
 
-  return exif;
+/**
+ * Get file stats for an entry
+ */
+export async function getFileStats(entry: AlbumEntry): Promise<Stats> {
+  const path = entryFilePath(entry);
+  return stat(path);
 }
 
 export async function exifDataAndStats(
   entry: AlbumEntry,
 ): Promise<{ stats: Stats; tags: any }> {
-  const path = entryFilePath(entry);
-  const [s, t] = await Promise.all([stat(path), exifData(entry)]);
+  const [s, t] = await Promise.all([getFileStats(entry), getExifData(entry)]);
   const tags = t || {};
 
   return {

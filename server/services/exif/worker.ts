@@ -14,7 +14,6 @@ import { isPicture, isVideo } from "../../../shared/lib/utils";
 import { AlbumEntry, AlbumKind, ExifData, ExifTag } from "../../../shared/types/types";
 import { dimensionsFromFileBuffer } from "../../imageOperations/sharp-processor";
 import { entryFilePath } from "../../utils/serverUtils";
-import { getPicasaEntry, updatePicasaEntry } from "../../rpc/rpcFunctions/picasa-ini";
 import { getExifDatabaseReadWrite } from "./database";
 
 const debugLogger = debug("app:bg-exif");
@@ -84,39 +83,25 @@ function filterExifTags(tags: any): any {
  * Extract EXIF data from a file
  */
 async function extractExifDataFromFile(entry: AlbumEntry, withStats = false): Promise<any> {
-  const picasaEntry = await getPicasaEntry(entry);
   let exif: any;
 
   if (isPicture(entry)) {
     const path = entryFilePath(entry);
     const r = await lock(`exifData/${path}`);
     try {
-      // Check if EXIF data is already cached in picasa entry
-      if (picasaEntry.exif) {
-        try {
-          exif = JSON.parse(picasaEntry.exif);
-        } catch (e) {
-          debugLogger(`Exception while parsing exif for ${path}: ${e}, will get exif data from file`);
-        }
-      }
-
-      // If not cached, extract from file
-      if (!exif) {
-        const fileData = await readFile(path);
-        const tags = await exifr.parse(fileData).catch((e: any) => {
-          debugLogger(`Exception while reading exif for ${path}: ${e}`);
-          return {};
-        });
-        const dimensions = dimensionsFromFileBuffer(fileData);
-        const filtered: ExifData = {
-          ...filterExifTags(tags || {}),
-          imageWidth: dimensions.width,
-          imageHeight: dimensions.height,
-        };
-        exif = filtered;
-        // Cache in picasa entry
-        updatePicasaEntry(entry, "exif", JSON.stringify(filtered));
-      }
+      // Extract from file
+      const fileData = await readFile(path);
+      const tags = await exifr.parse(fileData).catch((e: any) => {
+        debugLogger(`Exception while reading exif for ${path}: ${e}`);
+        return {};
+      });
+      const dimensions = dimensionsFromFileBuffer(fileData);
+      const filtered: ExifData = {
+        ...filterExifTags(tags || {}),
+        imageWidth: dimensions.width,
+        imageHeight: dimensions.height,
+      };
+      exif = filtered;
     } finally {
       r();
     }
@@ -141,12 +126,17 @@ async function extractExifData(entry: AlbumEntry): Promise<void> {
   try {
     debugLogger(`Extracting EXIF data for ${entry.name}`);
     const exif = await extractExifDataFromFile(entry, false);
-    const exifJson = exif ? JSON.stringify(exif) : null;
+    // Always store as JSON string - use "{}" for empty EXIF data, not null
+    const exifJson = exif && Object.keys(exif).length > 0 ? JSON.stringify(exif) : "{}";
     db.updateExifData(entry, exifJson);
+    // Emit event that EXIF data has been processed
+    events.emit("exifDataProcessed", entry);
   } catch (error) {
     debugLogger(`Error extracting EXIF data for ${entry.name}:`, error);
-    // Mark as processed even if it failed (empty EXIF data)
-    db.updateExifData(entry, null);
+    // Mark as processed even if it failed - store empty JSON object
+    db.updateExifData(entry, "{}");
+    // Still emit event even if processing failed (entry is marked as processed)
+    events.emit("exifDataProcessed", entry);
   }
 }
 

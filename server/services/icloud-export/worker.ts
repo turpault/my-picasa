@@ -64,6 +64,7 @@ async function exportAllMissing() {
   }
   await Promise.all(promises);
 }
+
 async function shouldExport(entry: AlbumEntry) {
   const meta = await getPicasaEntry(entry);
   const exif = await exifDataAndStats(entry);

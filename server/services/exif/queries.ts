@@ -26,6 +26,14 @@ export function hasExifData(entry: AlbumEntry): boolean {
 }
 
 /**
+ * Check if an entry has been processed (regardless of whether it has EXIF data)
+ */
+export function isExifProcessed(entry: AlbumEntry): boolean {
+  const db = getExifDatabaseReadOnly();
+  return db.isProcessed(entry);
+}
+
+/**
  * Get statistics about the EXIF database
  */
 export function getStats(): { totalEntries: number; processedEntries: number; unprocessedEntries: number; lastProcessed: string } {

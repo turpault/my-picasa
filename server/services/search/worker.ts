@@ -56,14 +56,25 @@ function setupEventListeners(): void {
     try {
       const { entry, field } = event;
 
-      // Only update if the field is one we care about
-      const relevantFields = ['starCount', 'geoPOI', 'photostar', 'text', 'caption', 'persons'];
+      // Only update if the field is one we care about (geoPOI is now handled via geoDataFound event)
+      const relevantFields = ['starCount', 'photostar', 'text', 'caption', 'persons'];
       if (relevantFields.includes(field)) {
         debugLogger(`Updating database for entry ${entry.name}, field: ${field}`);
         await db.updateEntry(entry, entry.metadata);
       }
     } catch (error) {
       debugLogger("Error handling picasaEntryUpdated event:", error);
+    }
+  });
+
+  // Handle geoDataFound - update geo POI in search index when geo data becomes available
+  events.on("geoDataFound", async (entry: AlbumEntry) => {
+    try {
+      await waitUntilIdle();
+      debugLogger(`Updating geo POI in search index for entry: ${entry.name}`);
+      await db.updateGeoPOI(entry);
+    } catch (error) {
+      debugLogger(`Error updating geo POI for ${entry.name} in search index:`, error);
     }
   });
 

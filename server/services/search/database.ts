@@ -680,10 +680,20 @@ export class IndexingDatabaseAccess {
     // Extract metadata from picasa entry
     const persons = picasaEntry.persons || '';
     const starCount = picasaEntry.starCount || '';
-    const geoPOI = picasaEntry.geoPOI || '';
     const photostar = picasaEntry.photostar || false;
     const textContent = picasaEntry.text || '';
     const caption = picasaEntry.caption || '';
+
+    // Get geo POI from geolocate service (may be null if not processed yet)
+    let geoPOI = '';
+    try {
+      const { getGeoPOI } = await import("../geolocate/queries");
+      const geoPOIData = getGeoPOI(entry);
+      geoPOI = geoPOIData || '';
+    } catch (error) {
+      // If geolocate service is not available, use empty string
+      debugLogger(`Could not get geo POI for ${entry.name}:`, error);
+    }
 
     // Determine entry type
     let entryType = 'unknown';
@@ -807,6 +817,44 @@ export class IndexingDatabaseAccess {
     `);
     ftsRemoveStmt.run(entry.album.key || '', entry.name || '');
     debugLogger(`Removed FTS entry ${entry.name} from database`);
+  }
+
+  /**
+   * Update geo POI data for an entry
+   */
+  async updateGeoPOI(entry: AlbumEntry): Promise<void> {
+    if (!this.isWriter) {
+      throw new Error("updateGeoPOI can only be called on a READWRITE database instance");
+    }
+
+    const db = this.getDatabase();
+    try {
+      // Get geo POI from geolocate service
+      const { getGeoPOI } = await import("../geolocate/queries");
+      const geoPOI = getGeoPOI(entry) || '';
+
+      const updateStmt = db.prepare(`
+        UPDATE pictures SET
+          geo_poi = ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE album_key = ? AND entry_name = ?
+      `);
+
+      const result = updateStmt.run(
+        geoPOI,
+        entry.album.key || '',
+        entry.name || ''
+      );
+
+      if (result.changes > 0) {
+        debugLogger(`Updated geo POI for entry ${entry.name} in search database`);
+      } else {
+        debugLogger(`Entry ${entry.name} not found in search database, skipping geo POI update`);
+      }
+    } catch (error) {
+      debugLogger(`Error updating geo POI for entry ${entry.name}:`, error);
+      throw error;
+    }
   }
 
   /**

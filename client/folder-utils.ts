@@ -42,7 +42,7 @@ export async function getAlbumContents(
 
 export async function getFileExifData(entry: AlbumEntry): Promise<any> {
   const service = await getService();
-  const exif = await service.exifData(entry);
+  const exif = await service.getExifData(entry);
   return exif;
 }
 
