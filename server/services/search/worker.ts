@@ -45,12 +45,16 @@ function setupEventListeners(): void {
 
   // Handle albumEntryRemoved - remove deleted files
   events.on("albumEntryRemoved", async (entry: AlbumEntry) => {
-    try {
-      debugLogger(`Removing deleted file from index: ${entry.name}`);
-      await db.removePicture(entry);
-    } catch (error) {
-      debugLogger(`Error removing ${entry.name} from index:`, error);
-    }
+    debugLogger(`Queueing removal of deleted file from index: ${entry.name}`);
+    indexingQueue.add(async () => {
+      await waitUntilIdle();
+      const db = getIndexingDatabaseReadWrite();
+      try {
+        await db.removePicture(entry);
+      } catch (error) {
+        debugLogger(`Error removing ${entry.name} from index:`, error);
+      }
+    });
   });
 
   // Handle captionChanged - update entry when caption changes
