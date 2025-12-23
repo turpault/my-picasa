@@ -14,7 +14,7 @@ import debug from "debug";
 import { albumEntryFromId, namifyAlbumEntry, removeExtension } from "../../../shared/lib/utils";
 import { RESIZE_ON_EXPORT_SIZE } from "../../../shared/lib/shared-constants";
 import { walkAbsolutePath } from "../../rpc/rpcFunctions/fs";
-import { getPicasaEntry } from "../../rpc/rpcFunctions/picasa-ini";
+import { getPicasaEntry } from "../../services/walker/picasa-ini";
 import { getExifData } from "../exif/queries";
 const debugLogger = debug("app:bg-icloud-export");
 

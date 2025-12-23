@@ -16,7 +16,7 @@ import { RPCInit } from "./rpc/index";
 import { asset } from "./rpc/routes/asset";
 import { albumThumbnail, thumbnail } from "./rpc/routes/thumbnail";
 import { albumWithData } from "./rpc/rpcFunctions/albumUtils";
-import { initializePicasaIniCache } from "./rpc/rpcFunctions/picasa-ini";
+// initializePicasaIniCache is now called in the walker worker
 import { startSentry } from "./sentry";
 import { busy, measureCPULoad } from "./utils/busy";
 import { addSocket, removeSocket } from "./utils/socketList";
@@ -203,8 +203,7 @@ export async function startServices() {
   // updateLastWalkLoop();
   info("Measuring CPU load...");
   measureCPULoad();
-  info("Starting picasa ini cache writer...");
-  initializePicasaIniCache();
+  // Picasa ini cache writer is initialized in walker worker
   info("Starting lock monitor...");
   startLockMonitor();
   info("Starting album update notification...");

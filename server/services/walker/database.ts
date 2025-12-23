@@ -2,13 +2,13 @@ import Database from "better-sqlite3";
 import debug from "debug";
 import { join } from "path";
 import { workerData } from "worker_threads";
-import { Album, AlbumEntry, AlbumKind, AlbumWithData } from "../../../shared/types/types";
+import { Album, AlbumEntry, AlbumEntryMetaData, AlbumKind, AlbumWithData, extraFields } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 
 const debugLogger = debug("app:walker-db");
 
 // Database version constant - increment this when schema changes
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 
 /**
  * Shared Walker Database Access
@@ -109,6 +109,31 @@ class WalkerDatabaseAccess {
 
     debugLogger(`Migrating database from version ${fromVersion} to ${DATABASE_VERSION}`);
     try {
+      // Migration from version 1 to 2: Add metadata columns to album_entries
+      if (fromVersion < 2) {
+        debugLogger("Migrating to version 2: Adding metadata columns to album_entries");
+        this.db.exec(`
+          ALTER TABLE album_entries ADD COLUMN date_taken TEXT;
+          ALTER TABLE album_entries ADD COLUMN photostar INTEGER DEFAULT 0;
+          ALTER TABLE album_entries ADD COLUMN star INTEGER DEFAULT 0;
+          ALTER TABLE album_entries ADD COLUMN star_count TEXT;
+          ALTER TABLE album_entries ADD COLUMN caption TEXT;
+          ALTER TABLE album_entries ADD COLUMN text TEXT;
+          ALTER TABLE album_entries ADD COLUMN textactive TEXT;
+          ALTER TABLE album_entries ADD COLUMN dimensions TEXT;
+          ALTER TABLE album_entries ADD COLUMN dimensions_from_filter TEXT;
+          ALTER TABLE album_entries ADD COLUMN rank TEXT;
+          ALTER TABLE album_entries ADD COLUMN rotate TEXT;
+          ALTER TABLE album_entries ADD COLUMN faces TEXT;
+          ALTER TABLE album_entries ADD COLUMN filters TEXT;
+          ALTER TABLE album_entries ADD COLUMN stats TEXT;
+          ALTER TABLE album_entries ADD COLUMN persons TEXT;
+          ALTER TABLE album_entries ADD COLUMN extra_fields TEXT;
+          ALTER TABLE album_entries ADD COLUMN updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP;
+        `);
+        debugLogger("Migration to version 2 completed");
+      }
+
       this.db.exec(`UPDATE db_version SET version = ${DATABASE_VERSION} WHERE version = ${fromVersion}`);
       debugLogger(`Database migration completed to version ${DATABASE_VERSION}`);
     } catch (error) {
@@ -136,13 +161,30 @@ class WalkerDatabaseAccess {
       )
     `);
 
-    // Create album_entries table
+    // Create album_entries table with metadata fields
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS album_entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         album_key TEXT NOT NULL,
         entry_name TEXT NOT NULL,
+        date_taken TEXT,
+        photostar INTEGER DEFAULT 0,
+        star INTEGER DEFAULT 0,
+        star_count TEXT,
+        caption TEXT,
+        text TEXT,
+        textactive TEXT,
+        dimensions TEXT,
+        dimensions_from_filter TEXT,
+        rank TEXT,
+        rotate TEXT,
+        faces TEXT,
+        filters TEXT,
+        stats TEXT,
+        persons TEXT,
+        extra_fields TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (album_key) REFERENCES albums(key) ON DELETE CASCADE,
         UNIQUE(album_key, entry_name)
       )
@@ -233,6 +275,70 @@ class WalkerDatabaseAccess {
     }));
   }
 
+  /**
+   * Get metadata for a specific entry
+   */
+  getEntryMetadata(entry: AlbumEntry): AlbumEntryMetaData {
+    const row = this.getDatabase().prepare(`
+      SELECT 
+        date_taken, photostar, star, star_count, caption, text, textactive,
+        dimensions, dimensions_from_filter, rank, rotate, faces, filters, stats, persons, extra_fields
+      FROM album_entries 
+      WHERE album_key = ? AND entry_name = ?
+    `).get(entry.album.key ?? "", entry.name ?? "") as {
+      date_taken: string | null;
+      photostar: number | null;
+      star: number | null;
+      star_count: string | null;
+      caption: string | null;
+      text: string | null;
+      textactive: string | null;
+      dimensions: string | null;
+      dimensions_from_filter: string | null;
+      rank: string | null;
+      rotate: string | null;
+      faces: string | null;
+      filters: string | null;
+      stats: string | null;
+      persons: string | null;
+      extra_fields: string | null;
+    } | undefined;
+
+    if (!row) {
+      return {};
+    }
+
+    const metadata: AlbumEntryMetaData = {};
+
+    if (row.date_taken) metadata.dateTaken = row.date_taken;
+    if (row.photostar !== null) metadata.photostar = row.photostar === 1;
+    if (row.star !== null) metadata.star = row.star === 1;
+    if (row.star_count) metadata.starCount = row.star_count;
+    if (row.caption) metadata.caption = row.caption;
+    if (row.text) metadata.text = row.text;
+    if (row.textactive) metadata.textactive = row.textactive;
+    if (row.dimensions) metadata.dimensions = row.dimensions;
+    if (row.dimensions_from_filter) metadata.dimensionsFromFilter = row.dimensions_from_filter;
+    if (row.rank) metadata.rank = row.rank;
+    if (row.rotate) metadata.rotate = row.rotate;
+    if (row.faces) metadata.faces = row.faces;
+    if (row.filters) metadata.filters = row.filters;
+    if (row.stats) metadata.stats = row.stats;
+    if (row.persons) metadata.persons = row.persons;
+
+    // Parse extra_fields JSON
+    if (row.extra_fields) {
+      try {
+        const extra = JSON.parse(row.extra_fields) as Partial<Record<extraFields, string>>;
+        Object.assign(metadata, extra);
+      } catch (e) {
+        debugLogger(`Error parsing extra_fields for ${entry.name}:`, e);
+      }
+    }
+
+    return metadata;
+  }
+
   // ========== WRITE METHODS (Write operations - READWRITE only) ==========
 
   /**
@@ -291,6 +397,78 @@ class WalkerDatabaseAccess {
     });
 
     transaction();
+  }
+
+  /**
+   * Update metadata for an entry
+   */
+  updateEntryMetadata(entry: AlbumEntry, metadata: AlbumEntryMetaData): void {
+    if (!this.isWriter) {
+      throw new Error("updateEntryMetadata can only be called on a READWRITE database instance");
+    }
+
+    const db = this.getDatabase();
+
+    // Extract extra_fields (all keys that are not standard fields)
+    const standardFields = new Set([
+      'dateTaken', 'photostar', 'star', 'starCount', 'caption', 'text', 'textactive',
+      'dimensions', 'dimensionsFromFilter', 'rank', 'rotate', 'faces', 'filters', 'stats', 'persons'
+    ]);
+    const extra: Partial<Record<extraFields, string>> = {};
+    let extraFieldsJson: string | null = null;
+
+    for (const key in metadata) {
+      if (!standardFields.has(key)) {
+        extra[key as extraFields] = metadata[key as keyof AlbumEntryMetaData] as string;
+      }
+    }
+
+    if (Object.keys(extra).length > 0) {
+      extraFieldsJson = JSON.stringify(extra);
+    }
+
+    const stmt = db.prepare(`
+      UPDATE album_entries SET
+        date_taken = ?,
+        photostar = ?,
+        star = ?,
+        star_count = ?,
+        caption = ?,
+        text = ?,
+        textactive = ?,
+        dimensions = ?,
+        dimensions_from_filter = ?,
+        rank = ?,
+        rotate = ?,
+        faces = ?,
+        filters = ?,
+        stats = ?,
+        persons = ?,
+        extra_fields = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE album_key = ? AND entry_name = ?
+    `);
+
+    stmt.run(
+      metadata.dateTaken || null,
+      metadata.photostar ? 1 : 0,
+      metadata.star ? 1 : 0,
+      metadata.starCount || null,
+      metadata.caption || null,
+      metadata.text || null,
+      metadata.textactive || null,
+      metadata.dimensions || null,
+      metadata.dimensionsFromFilter || null,
+      metadata.rank || null,
+      metadata.rotate || null,
+      metadata.faces || null,
+      metadata.filters || null,
+      metadata.stats || null,
+      metadata.persons || null,
+      extraFieldsJson,
+      entry.album.key ?? '',
+      entry.name ?? ''
+    );
   }
 }
 

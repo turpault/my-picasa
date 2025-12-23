@@ -27,9 +27,11 @@ import {
   getPhotoFavorites,
 } from "../../rpc/rpcFunctions/osascripts";
 import {
-  getPicasaEntry,
+  getEntryMetadata,
+} from "../../services/walker/queries";
+import {
   updatePicasaEntry,
-} from "../../rpc/rpcFunctions/picasa-ini";
+} from "../../services/walker/mutations";
 import { PhotoLibraryPath, favoritesFolder, imagesRoot } from "../../utils/constants";
 import {
   entryFilePath,
@@ -119,10 +121,8 @@ export async function syncFavoritesFromPhotoApp(
 
         for (const entry of m.entries) {
           try {
-            const [imageMetadata, picasaMetadata] = await Promise.all([
-              imageInfo(entry),
-              getPicasaEntry(entry),
-            ]);
+            const imageMetadata = await imageInfo(entry);
+            const picasaMetadata = getEntryMetadata(entry);
             allPhotos.push({
               metadata: imageMetadata,
               name: removeExtension(entry.name).toLowerCase(),

@@ -46,7 +46,7 @@ export function getPoiDb(): BetterSqlite3.Database {
       const columnInfo = db.prepare(`
         SELECT name FROM pragma_table_info('processed_files') WHERE name = 'last_modified'
       `).get() as { name: string } | undefined;
-      
+
       if (!columnInfo) {
         info("Migrating processed_files table: adding last_modified column");
         // First add as nullable

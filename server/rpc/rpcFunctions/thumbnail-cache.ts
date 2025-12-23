@@ -14,10 +14,12 @@ import { fileExists, pathForAlbum, safeWriteFile } from "../../utils/serverUtils
 import {
   cachedFilterKey,
   dimensionsFilterKey,
-  getPicasaEntry,
+  getEntryMetadata,
   rotateFilterKey,
+} from "../../services/walker/queries";
+import {
   updatePicasaEntry,
-} from "./picasa-ini";
+} from "../../services/walker/mutations";
 
 import Debug from "debug";
 const debug = Debug("thumbnail");
@@ -153,7 +155,7 @@ export async function shouldMakeThumbnail(
   size: ThumbnailSize,
   animated: boolean,
 ): Promise<boolean> {
-  const picasa = await getPicasaEntry(entry);
+  const picasa = getEntryMetadata(entry);
   const sourceStat = await stat(
     join(imagesRoot, entryRelativePath(entry)),
   ).catch((): undefined => undefined);

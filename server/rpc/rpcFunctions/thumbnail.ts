@@ -26,7 +26,7 @@ import { dec, inc } from "../../utils/stats";
 import { createGif } from "../../videoOperations/gif";
 import { makeProjectThumbnail } from "../albumTypes/projects";
 import { decodeReferenceId } from "../albumTypes/referenceFiles";
-import { getPicasaEntry } from "./picasa-ini";
+import { getEntryMetadata } from "../../services/walker/queries";
 import {
   readThumbnailBufferFromCache,
   shouldMakeThumbnail,
@@ -91,7 +91,7 @@ async function makeImageThumbnail(
   const release = await lock(lockLabel);
   inc("thumbnail");
   try {
-    const picasaEntry = await getPicasaEntry(entry);
+    const picasaEntry = getEntryMetadata(entry);
 
     const transform = picasaEntry.filters || "";
     const rotate = picasaEntry.rotate || "";
@@ -154,7 +154,7 @@ async function makeVideoThumbnail(
   size: ThumbnailSize = "th-medium",
   animated: boolean,
 ): Promise<undefined | Buffer> {
-  const picasa = await getPicasaEntry(entry);
+  const picasa = getEntryMetadata(entry);
   const transform = picasa.filters || "";
   const rotate = picasa.rotate || "";
   const data = await createGif(entry, ThumbnailSizes[size], animated, {

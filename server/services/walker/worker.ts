@@ -27,7 +27,7 @@ import {
 import { mediaCount } from "../../rpc/rpcFunctions/albumUtils";
 import {
   readShortcut,
-} from "../../rpc/rpcFunctions/picasa-ini";
+} from "./picasa-ini";
 import { imagesRoot, specialFolders } from "../../utils/constants";
 import { pathForAlbum } from "../../utils/serverUtils";
 import { events } from "../../events/server-events";
@@ -70,6 +70,9 @@ export function initializeWorkerListeners() {
   }
 }
 
+// Mutation messages are now handled via RPC service registration above
+// The old message-based handler is removed in favor of RPC
+
 /**
  * Main entry point for walker worker
  */
@@ -81,6 +84,21 @@ async function walkFilesystem(): Promise<void> {
 
   // Initialize database (will be read-write in walker worker)
   getWalkerDatabase();
+
+  // Initialize RPC service for walker worker
+  const { WorkerAdaptor } = await import("../../../shared/rpc-transport/worker-adaptor");
+  const { registerServices } = await import("../../rpc/rpc-handler");
+  const { WalkerWorkerClient } = await import("./walker-worker-rpc");
+
+  const workerAdaptor = new WorkerAdaptor(); // No worker parameter = worker thread mode
+  registerServices(workerAdaptor, [WalkerWorkerClient], {});
+
+  // Initialize picasa-ini cache writer (only in worker thread)
+  const { initializePicasaIniCache } = await import("./picasa-ini");
+  // Start the cache writer in background (it runs forever)
+  initializePicasaIniCache().catch((error) => {
+    debugLogger("Error in picasa-ini cache writer:", error);
+  });
 
   // Set up event listener for reindex events
   events.on("reindex", async (albums: Album[]) => {

@@ -10,9 +10,13 @@ import {
 } from "../../shared/types/types";
 import { getExifData, getFileStats } from "../rpc/rpcFunctions/exif";
 import {
-  getPicasaEntry,
+} from "../services/walker/queries";
+import {
   updatePicasaEntry,
-} from "../rpc/rpcFunctions/picasa-ini";
+} from "../services/walker/mutations";
+import {
+  getEntryMetadata,
+} from "../services/walker/queries";
 import { pathForAlbumEntry, safeWriteFile } from "../utils/serverUtils";
 import { TagValues, dump, insert, load } from "./piexif/index";
 import {
@@ -27,7 +31,7 @@ export async function imageInfo(
   entry: AlbumEntry,
   metadata?: AlbumEntryMetaData,
 ): Promise<AlbumEntryWithMetadata> {
-  metadata ||= await getPicasaEntry(entry);
+  metadata ||= getEntryMetadata(entry);
   const options = metadata;
   const res: AlbumEntryWithMetadata = {
     ...entry,

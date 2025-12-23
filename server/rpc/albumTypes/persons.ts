@@ -1,7 +1,7 @@
 import Debug from "debug";
 
 import { Album, AlbumKind } from "../../../shared/types/types";
-import { getPicasaEntries, readPersons } from "../rpcFunctions/picasa-ini";
+import { getPicasaEntries, readPersons } from "../../services/walker/queries";
 import { events } from "../../events/server-events";
 const persons = new Set<string>();
 

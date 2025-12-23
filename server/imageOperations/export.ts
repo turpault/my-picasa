@@ -3,7 +3,7 @@ import { extname, join } from "path";
 import { RESIZE_ON_EXPORT_SIZE } from "../../shared/lib/shared-constants";
 import { isPicture, isVideo, namifyAlbumEntry } from "../../shared/lib/utils";
 import { AlbumEntry } from "../../shared/types/types";
-import { getPicasaEntry } from "../rpc/rpcFunctions/picasa-ini";
+import { getEntryMetadata } from "../services/walker/queries";
 import { entryFilePath, fileExists, mediaName, safeWriteFile } from "../utils/serverUtils";
 import { addImageInfo } from "./info";
 import {
@@ -61,7 +61,7 @@ export async function exportToFolder(entry: AlbumEntry, targetFolder: string, ex
     return targetFile;
   } else if (isPicture(entry)) {
     const imageLabel = mediaName(entry);
-    const [entryMeta] = await Promise.all([getPicasaEntry(entry)]);
+    const entryMeta = getEntryMetadata(entry);
     const transform = entryMeta.filters || "";
     // Build transformation string with proper conditional concatenation
     const parts: string[] = [];

@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import debug from "debug";
 import { join } from "path";
 import { Album, AlbumEntry, AlbumKind, AlbumWithData, Filters } from "../../../shared/types/types";
-import { getPicasaEntry } from "../../rpc/rpcFunctions/picasa-ini";
+import { getPicasaEntry } from "../../services/walker/picasa-ini";
 import { isPicture, isVideo } from "../../../shared/lib/utils";
 import { imagesRoot } from "../../utils/constants";
 import { getGeoPOI } from "../geolocate/queries";

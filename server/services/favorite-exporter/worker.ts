@@ -1,7 +1,7 @@
 import { mkdir } from "fs/promises";
 import { parentPort, workerData } from "worker_threads";
 import { exportToFolder } from "../../imageOperations/export";
-import { getPicasaEntry } from "../../rpc/rpcFunctions/picasa-ini";
+import { getPicasaEntry } from "../../services/walker/picasa-ini";
 import { waitUntilIdle } from "../../utils/busy";
 import { favoritesFolder } from "../../utils/constants";
 import { fileExists } from "../../utils/serverUtils";

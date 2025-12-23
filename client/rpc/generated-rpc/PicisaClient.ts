@@ -5,13 +5,13 @@ import { Filters } from "../../../shared/types/types";
 export enum Exceptions {}
 
 export class PicisaClient {
-  private socket_?: any;
+  private transport_?: any;
   async initialize(socket: any): Promise<void> {
-    this.socket_ = socket;
+    this.transport_ = socket;
   }
 
   public on(event: string, cb: Function): Function {
-    return this.socket_.on(event, cb);
+    return this.transport_.on(event, cb);
   }
 
   // @ts-ignore
@@ -21,7 +21,7 @@ export class PicisaClient {
 
   private async emit(command: string, payload: any): Promise<any> {
     return new Promise((resolve, reject) =>
-      this.socket_.emit(command, payload, (error:string, response:string) => {
+      this.transport_.emit(command, payload, (error:string, response:string) => {
         if (error) {
           reject(error);
         } else {
@@ -141,8 +141,23 @@ export class PicisaClient {
       'args': { albumEntry } 
     });
   }
-  async exifData(entry:object):Promise<any> {
-    return this.emit('PicisaClient:exifData', {
+  async getExifData(entry:object):Promise<any> {
+    return this.emit('PicisaClient:getExifData', {
+      'args': { entry } 
+    });
+  }
+  async getFileStats(entry:object):Promise<any> {
+    return this.emit('PicisaClient:getFileStats', {
+      'args': { entry } 
+    });
+  }
+  async geoPOI(entry:object):Promise<any> {
+    return this.emit('PicisaClient:geoPOI', {
+      'args': { entry } 
+    });
+  }
+  async getExifCoordinates(entry:object):Promise<any> {
+    return this.emit('PicisaClient:getExifCoordinates', {
       'args': { entry } 
     });
   }

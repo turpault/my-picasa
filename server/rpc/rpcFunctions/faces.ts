@@ -17,10 +17,10 @@ import {
   albumFromNameAndKind,
   deletePicasaSection,
   listAlbumsOfKind,
-  getPicasaEntries,
   writeFaceAlbumContact,
   writeFaceAlbumEntry,
-} from "./picasa-ini";
+} from "../../services/walker/picasa-ini";
+import { getPicasaEntries } from "../../services/walker/queries";
 
 export async function eraseFace(entry: AlbumEntry) {
   throw "Not implemented";

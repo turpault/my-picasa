@@ -10,7 +10,7 @@ import {
   setOptions,
   transform,
 } from "../../imageOperations/sharp-processor";
-import { getPicasaEntry } from "../rpcFunctions/picasa-ini";
+import { getEntryMetadata } from "../../services/walker/queries";
 
 export async function asset(entry: AlbumEntry): Promise<string> {
   if (isVideo(entry)) {
@@ -19,7 +19,7 @@ export async function asset(entry: AlbumEntry): Promise<string> {
     return path;
   }
 
-  const options = await getPicasaEntry(entry);
+  const options = getEntryMetadata(entry);
 
   const context = await buildContext(entry);
   if (options) {

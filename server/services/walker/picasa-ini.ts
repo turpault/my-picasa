@@ -40,8 +40,9 @@ import {
 } from "../../utils/serverUtils";
 import { broadcast } from "../../utils/socketList";
 import { rate } from "../../utils/stats";
-import { media } from "./albumUtils";
-import { normalizeName } from "./faces";
+// Note: normalizeName is imported from faces service when needed
+// This import is used in readContacts function
+import { normalizeName } from "../../rpc/rpcFunctions/faces";
 import { imageInfo } from "../../imageOperations/info";
 
 export const cachedFilterKey: Record<ThumbnailSize, extraFields> = {

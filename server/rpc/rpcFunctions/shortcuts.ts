@@ -2,7 +2,8 @@ import { Album } from "../../../shared/types/types";
 import { events } from "../../events/server-events";
 import { broadcast } from "../../utils/socketList";
 import { albumWithData } from "./albumUtils";
-import { getShortcuts, setPicasaAlbumShortcut } from "./picasa-ini";
+import { getShortcuts } from "../../services/walker/queries";
+import { setPicasaAlbumShortcut } from "../../services/walker/mutations";
 
 export async function setAlbumShortcut(album: Album, shortcut: string) {
   const a = albumWithData(album);

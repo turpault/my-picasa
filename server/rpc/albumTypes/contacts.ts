@@ -6,10 +6,13 @@ import {
   setReady,
 } from "../../../shared/lib/utils";
 import { Contact } from "../../../shared/types/types";
+// Note: getContactsFromAlbum and updateContactInAlbum are picasa-ini specific
+// For now, these remain in picasa-ini and are only used in worker threads
+// If needed from main thread, they should be added to queries/mutations
 import {
   getContactsFromAlbum,
   updateContactInAlbum,
-} from "../rpcFunctions/picasa-ini";
+} from "../../services/walker/picasa-ini";
 import { getFolderAlbums } from "../../media";
 const contacts = new Map<string, Contact>();
 const contactsByContactKey = new Map<string, Contact>();

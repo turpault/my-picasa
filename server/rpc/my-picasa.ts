@@ -55,13 +55,15 @@ import {
   writeFileContents,
 } from "./rpcFunctions/fs";
 import {
-  getPicasaEntry,
+  getEntryMetadata,
   getShortcuts,
+} from "../services/walker/queries";
+import {
   rotate,
   setCaption,
   setFilters,
   toggleStar,
-} from "./rpcFunctions/picasa-ini";
+} from "../services/walker/mutations";
 import { clientReady } from "./rpcFunctions/ready";
 import { setAlbumShortcut } from "./rpcFunctions/shortcuts";
 
@@ -180,7 +182,7 @@ export const PicisaClient: ServiceMap = {
       arguments: ["entry:object"],
     },
     getPicasaEntry: {
-      handler: getPicasaEntry,
+      handler: getEntryMetadata, // Uses getEntryMetadata internally (backward compatible API name)
       arguments: ["entry:object"],
     },
     setFilters: {

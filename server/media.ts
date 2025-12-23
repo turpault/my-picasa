@@ -18,8 +18,9 @@ import {
 import {
   readFaceAlbumEntries,
 } from "./rpc/rpcFunctions/faces";
-import { getPicasaEntry, updatePicasaEntry } from "./rpc/rpcFunctions/picasa-ini";
-import { getShortcuts } from "./rpc/rpcFunctions/picasa-ini";
+import { getEntryMetadata } from "./services/walker/queries";
+import { updatePicasaEntry } from "./services/walker/mutations";
+import { getShortcuts } from "./services/walker/queries";
 import { isPicture, isVideo } from "../shared/lib/utils";
 
 /**
@@ -58,12 +59,10 @@ export async function media(
 }
 
 async function sortAssetsByRank(entries: AlbumEntry[]) {
-  await Promise.all(
-    entries.map(async (entry) => {
-      const meta = await getPicasaEntry(entry);
-      Object.assign(entry, { rank: meta.rank });
-    }),
-  );
+  entries.forEach((entry) => {
+    const meta = getEntryMetadata(entry);
+    Object.assign(entry, { rank: meta.rank });
+  });
 
   sortByKey(entries as (AlbumEntry & { rank: any })[], ["rank"], ["numeric"]);
 }
@@ -72,7 +71,7 @@ async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {
   let rank = 0;
   for (const entry of filesInFolder) {
     if (isPicture(entry) || isVideo(entry)) {
-      let current = (await getPicasaEntry(entry)).rank || "0";
+      let current = getEntryMetadata(entry).rank || "0";
       if (rank !== parseInt(current)) {
         updatePicasaEntry(entry, "rank", rank);
       }

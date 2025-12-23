@@ -36,7 +36,8 @@ import {
   readFaceAlbumEntries,
 } from "./faces";
 import { getExifData } from "./exif";
-import { getAlbumMetaData, getPicasaEntries, getPicasaEntry, updatePicasaEntry } from "./picasa-ini";
+import { getEntryMetadata, getPicasaEntries, getAlbumMetaData } from "../../services/walker/queries";
+import { updatePicasaEntry } from "../../services/walker/mutations";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
   const entries = (await media(entry.album)).entries;
@@ -71,7 +72,7 @@ async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {
   let rank = 0;
   for (const entry of filesInFolder) {
     if (isPicture(entry) || isVideo(entry)) {
-      let current = (await getPicasaEntry(entry)).rank || "0";
+      let current = getEntryMetadata(entry).rank || "0";
       if (rank !== parseInt(current)) {
         updatePicasaEntry(entry, "rank", rank);
       }
@@ -108,7 +109,7 @@ export async function sortAlbum(album: Album, order: string): Promise<void> {
         const entriesWithDates = await Promise.all(
           entries.map(async (entry) => ({
             entry,
-            metadata: await getPicasaEntry(entry),
+            metadata: getEntryMetadata(entry),
           })),
         );
         const sorted = entriesWithDates.sort((e1, e2) => {
@@ -191,7 +192,7 @@ export async function media(
 async function sortAssetsByRank(entries: AlbumEntry[]) {
   await Promise.all(
     entries.map(async (entry) => {
-      const meta = await getPicasaEntry(entry);
+      const meta = getEntryMetadata(entry);
       Object.assign(entry, { rank: meta.rank });
     }),
   );
@@ -227,7 +228,7 @@ export async function getAlbumMetadata(album: Album) {
         Object.keys(ini).map(async (name) => {
           const faceData = await getFaceData({ album, name });
 
-          const originalEntry = await getPicasaEntry(faceData.originalEntry);
+          const originalEntry = getEntryMetadata(faceData.originalEntry);
           if (originalEntry) {
             if (originalEntry.dateTaken)
               ini[name].dateTaken = originalEntry.dateTaken;
@@ -287,7 +288,7 @@ export async function albumEntriesWithMetadataAndExif(
   return Promise.all(
     entries.map(async (entry) => {
       const [metadata, exif] = await Promise.all([
-        getPicasaEntry(entry),
+        getEntryMetadata(entry),
         getExifData(entry),
       ]);
       return {

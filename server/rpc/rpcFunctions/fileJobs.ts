@@ -31,9 +31,13 @@ import { syncFavoritesFromPhotoApp } from "./favorites";
 import { openWithFinder } from "./osascripts";
 import {
   albumFromNameAndKind,
-  getPicasaEntry,
+} from "../../services/walker/queries";
+import {
   updatePicasaEntry,
-} from "./picasa-ini";
+} from "../../services/walker/mutations";
+import {
+  getEntryMetadata,
+} from "../../services/walker/queries";
 import { copyThumbnails } from "./thumbnail-cache";
 
 const jobs: Job[] = [];
@@ -477,7 +481,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
   for (const s of source) {
     try {
       let targetName = s.source.name;
-      const sourceRank = parseInt((await getPicasaEntry(s.source)).rank || "0");
+      const sourceRank = parseInt(getEntryMetadata(s.source).rank || "0");
       if (s.destination.key !== s.source.album.key) {
         let found = false;
         let destPath = join(
@@ -750,7 +754,7 @@ async function copyMetadata(
   dest: AlbumEntry,
   deleteSource: boolean = false,
 ) {
-  const sourceMetadata = await getPicasaEntry(source);
+  const sourceMetadata = getEntryMetadata(source);
   if (sourceMetadata) {
     updatePicasaEntry(dest, "*", sourceMetadata);
 

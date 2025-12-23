@@ -1,8 +1,41 @@
 import { readFile } from "fs/promises";
-import imageSize from "image-size";
-import { extname, join, sep } from "path";
-import sharp, { CreateRaw, Metadata, OverlayOptions, Sharp, Stats } from "sharp";
 import decode from "heic-decode";
+import imageSize from "image-size";
+import { extname, join } from "path";
+import sharp, { CreateRaw, Metadata, OverlayOptions, Sharp, Stats } from "sharp";
+import { rotateRectangle } from "../../shared/lib/geometry";
+import { Queue } from "../../shared/lib/queue";
+import {
+  clipColor,
+  decodeOperations,
+  decodeRect,
+  decodeRotate,
+  fromBase64,
+  fromHex,
+  namify,
+  noop,
+  safeHtml,
+  toHex2,
+  uuid
+} from "../../shared/lib/utils";
+import {
+  AlbumEntry,
+  AlbumEntryMetaData,
+  extensionToMime,
+  ImageEncoding,
+  ImageMimeType,
+  Reference
+} from "../../shared/types/types";
+import {
+  decodeReferenceId,
+  readReferenceFromReferenceId,
+} from "../rpc/albumTypes/referenceFiles";
+import { getFaceRect } from "../rpc/rpcFunctions/faces";
+import { rectOfReference } from "../services/faces/face/face-utils";
+import {
+  getEntryMetadata
+} from "../services/walker/queries";
+import { imagesRoot } from "../utils/constants";
 import {
   applyAllFilters,
   applyFilter,
@@ -12,46 +45,6 @@ import {
   solarize,
 } from "./image-filters";
 import { entryRelativePath } from "./info";
-import {
-  AlbumEntry,
-  AlbumEntryMetaData,
-  extensionToMime,
-  FaceData,
-  ImageEncoding,
-  ImageMimeType,
-  Reference,
-} from "../../shared/types/types";
-import {
-  clipColor,
-  decodeOperations,
-  decodeRect,
-  decodeRotate,
-  encodeOperations,
-  fromBase64,
-  fromHex,
-  namify,
-  noop,
-  safeHtml,
-  toHex2,
-  uuid,
-} from "../../shared/lib/utils";
-import { imagesRoot } from "../utils/constants";
-import { rotateRectangle } from "../../shared/lib/geometry";
-import { Queue } from "../../shared/lib/queue";
-import {
-  getPicasaEntry,
-  setFilters,
-  setRotate,
-  updatePicasaEntry,
-} from "../rpc/rpcFunctions/picasa-ini";
-import { getFaceRect } from "../rpc/rpcFunctions/faces";
-import {
-  decodeReferenceId,
-  readReferenceFromReferenceId,
-} from "../rpc/albumTypes/referenceFiles";
-import { rectOfReference } from "../services/faces/face/face-utils";
-import { ChildProcess, spawn } from "child_process";
-import { fileExists } from "../utils/serverUtils";
 
 const contexts = new Map<string, Sharp>();
 const contextOptions = new Map<string, AlbumEntryMetaData>();
@@ -146,10 +139,8 @@ function getMimeFromExtension(extension: string) {
 export async function buildRawContext(entry: AlbumEntry) {
   const relPath = entryRelativePath(entry);
 
-  let [picasaData, fileData] = await Promise.all([
-    getPicasaEntry(entry),
-    readFile(join(imagesRoot, relPath)),
-  ]);
+  let picasaData = getEntryMetadata(entry);
+  let fileData = await readFile(join(imagesRoot, relPath));
 
   const contextId = namify(relPath) + "-" + uuid();
   let extraMetadata: CreateRaw | undefined = undefined;
@@ -203,8 +194,9 @@ export async function buildContext(entry: AlbumEntry): Promise<string> {
   const { contextId, picasaData } = await buildRawContext(entry);
   let s = getContext(contextId);
   try {
-    // Extract filters with rotate=1,x and transform to rotate=rotate(x)
     let rotate = decodeRotate(picasaData.rotate);
+    /*
+    // Extract filters with rotate=1,x and transform to rotate=rotate(x)
     if (picasaData.filters) {
       const filters = decodeOperations(picasaData.filters);
       const filterRotate = filters.find((f) => f.name === "rotate");
@@ -219,6 +211,7 @@ export async function buildContext(entry: AlbumEntry): Promise<string> {
         setRotate(entry, picasaData.rotate);
       }
     }
+    */
     // rotate=rotate(3), in 90 increments
     if (rotate !== 0) {
       // rotation increment
