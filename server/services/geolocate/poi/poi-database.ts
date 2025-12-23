@@ -1,22 +1,26 @@
-import Database from "better-sqlite3";
+import * as BetterSqlite3 from "better-sqlite3";
 import { join } from "path";
 import { imagesRoot } from "../../../utils/constants";
 import { info } from "console";
 import { GeoPOI } from "../../../../shared/types/types";
 import { POI_TYPE } from "./poi-types";
 
-let dbInstance: Database.Database | null = null;
+// Handle both ES module and CommonJS exports
+const Database = (BetterSqlite3 as any).default || BetterSqlite3;
+
+let dbInstance: BetterSqlite3.Database | null = null;
 
 /**
  * Get the POI database instance (singleton)
  */
-export function getPoiDb(): Database.Database {
+export function getPoiDb(): BetterSqlite3.Database {
   if (!dbInstance) {
     const dbPath = join(imagesRoot, "poi.db");
-    dbInstance = new Database(dbPath);
+    const db = new Database(dbPath);
+    dbInstance = db;
 
     // Initialize POI table
-    dbInstance.exec(`
+    db.exec(`
       CREATE TABLE IF NOT EXISTS poi (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         type INTEGER NOT NULL,
@@ -29,7 +33,7 @@ export function getPoiDb(): Database.Database {
     `);
 
     // Initialize processed files table
-    dbInstance.exec(`
+    db.exec(`
       CREATE TABLE IF NOT EXISTS processed_files (
         filename TEXT PRIMARY KEY,
         last_modified TEXT NOT NULL,
@@ -39,7 +43,8 @@ export function getPoiDb(): Database.Database {
 
     info(`POI Database initialized at ${dbPath}`);
   }
-  return dbInstance;
+  // At this point, dbInstance is guaranteed to be non-null
+  return dbInstance!;
 }
 
 /**

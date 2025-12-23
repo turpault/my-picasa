@@ -27,12 +27,13 @@ function setupEventListeners(): void {
   debugLogger("Setting up event listeners for forwarded ServerEvents");
   const db = getExifDatabaseReadWrite();
 
-  // Handle albumEntryAdded - add new files to database and queue EXIF extraction
+  // Handle albumEntryAdded - queue EXIF extraction for new files
+  // Entry already exists in walker.album_entries, no need to create it in exif_data
+  // Entry will be created in exif_data when EXIF is processed
   events.on("albumEntryAdded", async (entry: AlbumEntry) => {
     try {
       await waitUntilIdle();
-      debugLogger(`Adding new file to EXIF database: ${entry.name}`);
-      db.upsertEntry(entry);
+      debugLogger(`New file added, queueing EXIF extraction: ${entry.name}`);
       // Queue EXIF data extraction
       queueExifExtraction(entry);
     } catch (error) {
@@ -141,41 +142,14 @@ async function extractExifData(entry: AlbumEntry): Promise<void> {
 }
 
 /**
- * Initialize EXIF database with all album entries
+ * Initialize EXIF database
+ * No longer needed to manually create entries - they come from walker database
+ * This function is kept for compatibility but does nothing since entries are sourced from walker.album_entries
  */
 async function initializeExifDatabase(): Promise<void> {
-  debugLogger("Initializing EXIF database with all album entries...");
-  const l = await lock("initializeExifDatabase");
-  const db = getExifDatabaseReadWrite();
-
-  const albums = await getFolderAlbums();
-  debugLogger(`Total albums to process: ${albums.length}`);
-
-  let processedEntries = 0;
-  for (const album of albums) {
-    let m: { entries: AlbumEntry[] };
-    try {
-      m = await media(album);
-    } catch (e) {
-      debugLogger(`Album ${album.name} is gone, skipping...`);
-      continue;
-    }
-
-    for (const entry of m.entries) {
-      try {
-        db.upsertEntry(entry);
-        processedEntries++;
-        if (processedEntries % 100 === 0) {
-          debugLogger(`Initialized ${processedEntries} entries (${albums.length} albums)`);
-        }
-      } catch (error) {
-        debugLogger(`Error initializing entry ${entry.name}:`, error);
-      }
-    }
-  }
-
-  debugLogger(`EXIF database initialization completed. Initialized ${processedEntries} entries.`);
-  l();
+  debugLogger("EXIF database initialization - entries are sourced from walker database");
+  // Entries are now sourced from walker.album_entries via joins
+  // No manual entry creation needed
 }
 
 /**

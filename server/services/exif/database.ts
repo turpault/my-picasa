@@ -3,6 +3,7 @@ import debug from "debug";
 import { join } from "path";
 import { AlbumEntry } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
+import { getWalkerDatabase } from "../walker/database";
 
 const debugLogger = debug("app:exif-db");
 
@@ -50,6 +51,19 @@ export class ExifDatabaseAccess {
         });
       } else {
         this.db = new Database(this.dbPath, { readonly: this.readonly });
+      }
+
+      // Attach walker database as read-only (always read-only in EXIF service)
+      try {
+        const walkerDb = getWalkerDatabase();
+        const walkerDbPath = walkerDb.getDatabasePath();
+        // Escape single quotes in path for SQL
+        const escapedPath = walkerDbPath.replace(/'/g, "''");
+        this.db.exec(`ATTACH DATABASE '${escapedPath}' AS walker READONLY`);
+        debugLogger("Attached walker database as read-only");
+      } catch (error) {
+        debugLogger("Warning: Could not attach walker database:", error);
+        // Continue without attachment - queries will need to work without it
       }
 
       if (this.isWriter) {
@@ -198,27 +212,39 @@ export class ExifDatabaseAccess {
 
   /**
    * Check if an entry has been processed (regardless of whether it has EXIF data)
+   * Join with album_entries to check if entry exists in walker database
    */
   isProcessed(entry: AlbumEntry): boolean {
     const result = this.getDatabase()
       .prepare(
-        `SELECT processed_at FROM exif_data WHERE album_key = ? AND entry_name = ?`
+        `SELECT e.processed_at 
+         FROM walker.album_entries ae
+         LEFT JOIN exif_data e ON ae.album_key = e.album_key AND ae.entry_name = e.entry_name
+         WHERE ae.album_key = ? AND ae.entry_name = ?`
       )
       .get(entry.album.key ?? "", entry.name ?? "") as { processed_at: string | null } | undefined;
 
+    // Entry is processed if it exists in album_entries and has a processed_at value in exif_data
     return result !== undefined && result.processed_at !== null;
   }
 
   /**
-   * Get all entries that need EXIF processing (no EXIF data yet)
+   * Get all entries that need EXIF processing
+   * An unprocessed entry exists in album_entries but has no data in exif_data
    */
   getUnprocessedEntries(): Array<{ album_key: string; album_name: string; entry_name: string }> {
     const results = this.getDatabase()
       .prepare(
-        `SELECT album_key, album_name, entry_name 
-         FROM exif_data 
-         WHERE has_exif = 0 OR exif_data IS NULL
-         ORDER BY created_at ASC`
+        `SELECT 
+          walker.album_entries.album_key,
+          walker.albums.name AS album_name,
+          walker.album_entries.entry_name
+         FROM walker.album_entries
+         LEFT JOIN walker.albums ON walker.album_entries.album_key = walker.albums.key
+         LEFT JOIN exif_data ON walker.album_entries.album_key = exif_data.album_key 
+           AND walker.album_entries.entry_name = exif_data.entry_name
+         WHERE exif_data.album_key IS NULL
+         ORDER BY walker.album_entries.created_at ASC`
       )
       .all() as Array<{ album_key: string; album_name: string; entry_name: string }>;
 
@@ -230,9 +256,17 @@ export class ExifDatabaseAccess {
    */
   getStats(): { totalEntries: number; processedEntries: number; unprocessedEntries: number; lastProcessed: string } {
     const db = this.getDatabase();
-    const totalEntries = db.prepare("SELECT COUNT(*) as count FROM exif_data").get() as { count: number };
-    const processedEntries = db.prepare("SELECT COUNT(*) as count FROM exif_data WHERE has_exif = 1").get() as { count: number };
-    const unprocessedEntries = db.prepare("SELECT COUNT(*) as count FROM exif_data WHERE has_exif = 0 OR exif_data IS NULL").get() as { count: number };
+    // Total entries: count of all entries in album_entries
+    const totalEntries = db.prepare("SELECT COUNT(*) as count FROM walker.album_entries").get() as { count: number };
+    // Processed entries: count of entries that have been processed (have processed_at)
+    const processedEntries = db.prepare("SELECT COUNT(*) as count FROM exif_data WHERE processed_at IS NOT NULL").get() as { count: number };
+    // Unprocessed entries: entries in album_entries that don't exist in exif_data
+    const unprocessedEntries = db.prepare(`
+      SELECT COUNT(*) as count 
+      FROM walker.album_entries ae
+      LEFT JOIN exif_data e ON ae.album_key = e.album_key AND ae.entry_name = e.entry_name
+      WHERE e.album_key IS NULL
+    `).get() as { count: number };
     const lastProcessed = db.prepare("SELECT MAX(processed_at) as last_processed FROM exif_data WHERE processed_at IS NOT NULL").get() as { last_processed: string | null };
 
     return {

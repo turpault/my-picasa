@@ -174,6 +174,13 @@ class WalkerDatabaseAccess {
     return this.isWriter;
   }
 
+  /**
+   * Get the database file path (for attaching to other databases)
+   */
+  getDatabasePath(): string {
+    return this.dbPath;
+  }
+
   // ========== QUERY METHODS (Read-only operations) ==========
 
   /**
