@@ -1,7 +1,6 @@
 import { parentPort, workerData } from "worker_threads";
 import { AlbumEntry, AlbumKind } from "../../../shared/types/types";
 import { getExifData } from "../../rpc/rpcFunctions/exif";
-import { getAllFolders, getAlbumEntries } from "../search/queries";
 import { getLocations } from "./poi/poi-database";
 import { initPOIDB } from "./poi/ingest";
 import { getGeolocateDatabaseReadWrite } from "./database";
@@ -19,12 +18,13 @@ function setupEventListeners(): void {
   debugLogger("Setting up event listeners for forwarded ServerEvents");
   const db = getGeolocateDatabaseReadWrite();
 
-  // Handle albumEntryAdded - add new files to database
+  // Handle albumEntryAdded - entries come from walker database
+  // Entry already exists in walker.album_entries, no need to create it in geo_poi_data
+  // Entry will be created in geo_poi_data when geo POI is processed
   events.on("albumEntryAdded", async (entry: AlbumEntry) => {
     try {
       await waitUntilIdle();
-      debugLogger(`Adding new file to geolocate database: ${entry.name}`);
-      db.upsertEntry(entry);
+      debugLogger(`New file added, will process geo POI when EXIF data is available: ${entry.name}`);
       // Don't queue processing here - wait for exifDataProcessed event
     } catch (error) {
       debugLogger(`Error handling albumEntryAdded for ${entry.name}:`, error);
@@ -124,39 +124,14 @@ async function processGeoPOI(entry: AlbumEntry): Promise<void> {
 }
 
 /**
- * Initialize geolocate database with all album entries
+ * Initialize geolocate database
+ * No longer needed to manually create entries - they come from walker database
+ * This function is kept for compatibility but does nothing since entries are sourced from walker.album_entries
  */
 async function initializeGeolocateDatabase(): Promise<void> {
-  debugLogger("Initializing geolocate database with all album entries...");
-  const db = getGeolocateDatabaseReadWrite();
-
-  const albums = getAllFolders();
-  debugLogger(`Total albums to process: ${albums.length}`);
-
-  let processedEntries = 0;
-  for (const album of albums) {
-    let entries: AlbumEntry[];
-    try {
-      entries = await getAlbumEntries(album);
-    } catch (e) {
-      debugLogger(`Album ${album.name} is gone, skipping...`);
-      continue;
-    }
-
-    for (const entry of entries) {
-      try {
-        db.upsertEntry(entry);
-        processedEntries++;
-        if (processedEntries % 100 === 0) {
-          debugLogger(`Initialized ${processedEntries} entries (${albums.length} albums)`);
-        }
-      } catch (error) {
-        debugLogger(`Error initializing entry ${entry.name}:`, error);
-      }
-    }
-  }
-
-  debugLogger(`Geolocate database initialization completed. Initialized ${processedEntries} entries.`);
+  debugLogger("Geolocate database initialization - entries are sourced from walker database");
+  // Entries are now sourced from walker.album_entries via joins
+  // No manual entry creation needed
 }
 
 /**

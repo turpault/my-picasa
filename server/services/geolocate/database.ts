@@ -4,6 +4,7 @@ import { join } from "path";
 import { AlbumEntry } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
 import { getExifData } from "../../rpc/rpcFunctions/exif";
+import { getWalkerDatabase } from "../walker/database";
 
 const debugLogger = debug("app:geolocate-db");
 
@@ -51,6 +52,19 @@ export class GeolocateDatabaseAccess {
         });
       } else {
         this.db = new Database(this.dbPath, { readonly: this.readonly });
+      }
+
+      // Attach walker database as read-only (always read-only in Geolocate service)
+      try {
+        const walkerDb = getWalkerDatabase();
+        const walkerDbPath = walkerDb.getDatabasePath();
+        // Escape single quotes in path for SQL
+        const escapedPath = walkerDbPath.replace(/'/g, "''");
+        this.db.exec(`ATTACH DATABASE '${escapedPath}' AS walker READONLY`);
+        debugLogger("Attached walker database as read-only");
+      } catch (error) {
+        debugLogger("Warning: Could not attach walker database:", error);
+        // Continue without attachment - queries will need to work without it
       }
 
       if (this.isWriter) {
@@ -199,14 +213,19 @@ export class GeolocateDatabaseAccess {
 
   /**
    * Check if an entry has been processed (regardless of whether it has geo POI data)
+   * Join with album_entries to check if entry exists in walker database
    */
   isProcessed(entry: AlbumEntry): boolean {
     const result = this.getDatabase()
       .prepare(
-        `SELECT processed_at FROM geo_poi_data WHERE album_key = ? AND entry_name = ?`
+        `SELECT g.processed_at 
+         FROM walker.album_entries ae
+         LEFT JOIN geo_poi_data g ON ae.album_key = g.album_key AND ae.entry_name = g.entry_name
+         WHERE ae.album_key = ? AND ae.entry_name = ?`
       )
       .get(entry.album.key ?? "", entry.name ?? "") as { processed_at: string | null } | undefined;
 
+    // Entry is processed if it exists in album_entries and has a processed_at value in geo_poi_data
     return result !== undefined && result.processed_at !== null;
   }
 
@@ -253,15 +272,22 @@ export class GeolocateDatabaseAccess {
   }
 
   /**
-   * Get all entries that need geo POI processing (no geo POI data yet)
+   * Get all entries that need geo POI processing
+   * An unprocessed entry exists in album_entries but has no data in geo_poi_data
    */
   getUnprocessedEntries(): Array<{ album_key: string; album_name: string; entry_name: string }> {
     const results = this.getDatabase()
       .prepare(
-        `SELECT album_key, album_name, entry_name 
-         FROM geo_poi_data 
-         WHERE has_geo_poi = 0 OR geo_poi IS NULL
-         ORDER BY created_at ASC`
+        `SELECT 
+          walker.album_entries.album_key,
+          walker.albums.name AS album_name,
+          walker.album_entries.entry_name
+         FROM walker.album_entries
+         LEFT JOIN walker.albums ON walker.album_entries.album_key = walker.albums.key
+         LEFT JOIN geo_poi_data ON walker.album_entries.album_key = geo_poi_data.album_key 
+           AND walker.album_entries.entry_name = geo_poi_data.entry_name
+         WHERE geo_poi_data.album_key IS NULL
+         ORDER BY walker.album_entries.created_at ASC`
       )
       .all() as Array<{ album_key: string; album_name: string; entry_name: string }>;
 
@@ -341,13 +367,17 @@ export class GeolocateDatabaseAccess {
 
       if (result.changes === 0) {
         // Entry doesn't exist, create it
-        this.upsertEntry(entry);
-        // Try update again
-        updateStmt.run(
-          geoPOI,
-          hasGeoPOI ? 1 : 0,
+        const insertStmt = db.prepare(`
+          INSERT INTO geo_poi_data (
+            album_key, album_name, entry_name, geo_poi, has_geo_poi, processed_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `);
+        insertStmt.run(
           entry.album.key ?? '',
-          entry.name ?? ''
+          entry.album.name ?? '',
+          entry.name ?? '',
+          geoPOI,
+          hasGeoPOI ? 1 : 0
         );
       }
 
