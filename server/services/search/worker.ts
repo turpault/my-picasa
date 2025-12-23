@@ -11,23 +11,36 @@ import { getIndexingDatabaseReadWrite } from "./database";
 
 const debugLogger = debug("app:bg-indexing");
 
+// Queue for processing indexing operations
+const indexingQueue = new Queue(3);
+
+/**
+ * Queue indexing for an entry
+ */
+function queueIndexing(entry: AlbumEntry): void {
+  indexingQueue.add(async () => {
+    await waitUntilIdle();
+    const db = getIndexingDatabaseReadWrite();
+    try {
+      debugLogger(`Indexing file: ${entry.name}`);
+      await db.indexPicture(entry);
+    } catch (error) {
+      debugLogger(`Error indexing ${entry.name}:`, error);
+    }
+  });
+}
+
 /**
  * Set up event listeners for forwarded ServerEvents
  * Updates the search index (including FTS) when files are added, removed, or metadata changes
  */
 function setupEventListeners(): void {
   debugLogger("Setting up event listeners for search index updates");
-  const db = getIndexingDatabaseReadWrite();
 
   // Handle albumEntryAdded - index new files
   events.on("albumEntryAdded", async (entry: AlbumEntry) => {
-    try {
-      await waitUntilIdle();
-      debugLogger(`Indexing new file: ${entry.name}`);
-      await db.indexPicture(entry);
-    } catch (error) {
-      debugLogger(`Error indexing ${entry.name}:`, error);
-    }
+    debugLogger(`Queueing indexing for new file: ${entry.name}`);
+    queueIndexing(entry);
   });
 
   // Handle albumEntryRemoved - remove deleted files
@@ -42,40 +55,51 @@ function setupEventListeners(): void {
 
   // Handle captionChanged - update entry when caption changes
   events.on("captionChanged", async (event: { entry: any }) => {
-    try {
-      const { entry } = event;
-      debugLogger(`Updating database for entry ${entry.name} (caption changed)`);
-      await db.updateEntry(entry, entry.metadata);
-    } catch (error) {
-      debugLogger("Error handling captionChanged event:", error);
-    }
+    const { entry } = event;
+    debugLogger(`Queueing update for entry ${entry.name} (caption changed)`);
+    indexingQueue.add(async () => {
+      await waitUntilIdle();
+      const db = getIndexingDatabaseReadWrite();
+      try {
+        await db.updateEntry(entry, entry.metadata);
+      } catch (error) {
+        debugLogger("Error handling captionChanged event:", error);
+      }
+    });
   });
 
   // Handle picasaEntryUpdated - update entry when metadata changes
   events.on("picasaEntryUpdated", async (event: { entry: any; field: string; value: any }) => {
-    try {
-      const { entry, field } = event;
+    const { entry, field } = event;
 
-      // Only update if the field is one we care about (geoPOI is now handled via geoDataFound event)
-      const relevantFields = ['starCount', 'photostar', 'text', 'caption', 'persons'];
-      if (relevantFields.includes(field)) {
-        debugLogger(`Updating database for entry ${entry.name}, field: ${field}`);
-        await db.updateEntry(entry, entry.metadata);
-      }
-    } catch (error) {
-      debugLogger("Error handling picasaEntryUpdated event:", error);
+    // Only update if the field is one we care about (geoPOI is now handled via geoDataFound event)
+    const relevantFields = ['starCount', 'photostar', 'text', 'caption', 'persons'];
+    if (relevantFields.includes(field)) {
+      debugLogger(`Queueing update for entry ${entry.name}, field: ${field}`);
+      indexingQueue.add(async () => {
+        await waitUntilIdle();
+        const db = getIndexingDatabaseReadWrite();
+        try {
+          await db.updateEntry(entry, entry.metadata);
+        } catch (error) {
+          debugLogger("Error handling picasaEntryUpdated event:", error);
+        }
+      });
     }
   });
 
   // Handle geoDataFound - update geo POI in search index when geo data becomes available
   events.on("geoDataFound", async (entry: AlbumEntry) => {
-    try {
+    debugLogger(`Queueing geo POI update for entry: ${entry.name}`);
+    indexingQueue.add(async () => {
       await waitUntilIdle();
-      debugLogger(`Updating geo POI in search index for entry: ${entry.name}`);
-      await db.updateGeoPOI(entry);
-    } catch (error) {
-      debugLogger(`Error updating geo POI for ${entry.name} in search index:`, error);
-    }
+      const db = getIndexingDatabaseReadWrite();
+      try {
+        await db.updateGeoPOI(entry);
+      } catch (error) {
+        debugLogger(`Error updating geo POI for ${entry.name} in search index:`, error);
+      }
+    });
   });
 
   debugLogger("Event listeners set up successfully");
@@ -153,13 +177,8 @@ export async function indexPictures(): Promise<void> {
   // Initialize database (read-write in indexing worker)
   const db = getIndexingDatabaseReadWrite();
 
-  // From now on, we are ready to index
-  for (const album of await getFolderAlbums()) {
-    const m = await media(album);
-    for (const entry of m.entries) {
-      await db.indexPicture(entry);
-    }
-  }
+  // Use indexAllPictures which uses a queue for all indexing operations
+  await indexAllPictures();
 
   // Set up event listeners for forwarded ServerEvents
   setupEventListeners();
