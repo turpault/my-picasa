@@ -6,6 +6,7 @@ import { getPicasaEntry } from "../../rpc/rpcFunctions/picasa-ini";
 import { isPicture, isVideo } from "../../../shared/lib/utils";
 import { imagesRoot } from "../../utils/constants";
 import { getGeoPOI } from "../geolocate/queries";
+import { getWalkerDatabase } from "../walker/database";
 
 const debugLogger = debug("app:indexing-db");
 
@@ -72,6 +73,19 @@ export class IndexingDatabaseAccess {
         });
       } else {
         this.db = new Database(this.dbPath, { readonly: this.readonly });
+      }
+
+      // Attach walker database as read-only (always read-only in Search service)
+      try {
+        const walkerDb = getWalkerDatabase();
+        const walkerDbPath = walkerDb.getDatabasePath();
+        // Escape single quotes in path for SQL
+        const escapedPath = walkerDbPath.replace(/'/g, "''");
+        this.db.exec(`ATTACH DATABASE '${escapedPath}' AS walker READONLY`);
+        debugLogger("Attached walker database as read-only");
+      } catch (error) {
+        debugLogger("Warning: Could not attach walker database:", error);
+        // Continue without attachment - queries will need to work without it
       }
 
       if (this.isWriter) {
