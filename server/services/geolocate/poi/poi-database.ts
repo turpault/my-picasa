@@ -36,10 +36,28 @@ export function getPoiDb(): BetterSqlite3.Database {
     db.exec(`
       CREATE TABLE IF NOT EXISTS processed_files (
         filename TEXT PRIMARY KEY,
-        last_modified TEXT NOT NULL,
         processed_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // Migrate: add last_modified column if it doesn't exist
+    try {
+      const columnInfo = db.prepare(`
+        SELECT name FROM pragma_table_info('processed_files') WHERE name = 'last_modified'
+      `).get() as { name: string } | undefined;
+      
+      if (!columnInfo) {
+        info("Migrating processed_files table: adding last_modified column");
+        db.exec(`
+          ALTER TABLE processed_files ADD COLUMN last_modified TEXT;
+          UPDATE processed_files SET last_modified = processed_at WHERE last_modified IS NULL;
+        `);
+        info("Migration completed: last_modified column added");
+      }
+    } catch (error) {
+      // If migration fails, log but continue (table might not exist yet)
+      info(`Migration check failed (this is OK if table doesn't exist yet): ${error}`);
+    }
 
     info(`POI Database initialized at ${dbPath}`);
   }
