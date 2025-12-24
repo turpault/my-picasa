@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
 import debug from "debug";
 import { join } from "path";
 import { workerData } from "worker_threads";
@@ -18,7 +18,7 @@ const DATABASE_VERSION = 2;
  * All other workers and the main thread must use read-only mode.
  */
 class WalkerDatabaseAccess {
-  private db: Database.Database | null = null;
+  private db: DatabaseSync | null = null;
   private dbPath: string;
   private readonly: boolean;
   private isWriter: boolean;
@@ -42,15 +42,27 @@ class WalkerDatabaseAccess {
   /**
    * Get the database connection, initializing if necessary
    */
-  getDatabase(): Database.Database {
+  getDatabase(): DatabaseSync {
     if (!this.db) {
+      const dbOptions: any = {
+        mode: this.readonly ? "readonly" : "readwrite",
+      };
+      this.db = new DatabaseSync(this.dbPath, dbOptions);
+
+      // Wrap prepare and exec for SQL logging if DEBUG_SQL is set
       if (process.env.DEBUG_SQL) {
-        this.db = new Database(this.dbPath, {
-          verbose: (sql) => debugLogger(`SQL: ${sql}`),
-          readonly: this.readonly
-        });
-      } else {
-        this.db = new Database(this.dbPath, { readonly: this.readonly });
+        const originalPrepare = this.db.prepare.bind(this.db);
+        const originalExec = this.db.exec.bind(this.db);
+
+        this.db.prepare = (sql: string) => {
+          debugLogger(`SQL: ${sql}`);
+          return originalPrepare(sql);
+        };
+
+        this.db.exec = (sql: string) => {
+          debugLogger(`SQL: ${sql}`);
+          return originalExec(sql);
+        };
       }
 
       if (this.isWriter) {
@@ -473,30 +485,30 @@ class WalkerDatabaseAccess {
     stmt.run(albumKey);
   }
 
+
   /**
-   * Replace all entries for an album (used during reindex)
+   * Add an entry to the database
    */
-  replaceAlbumEntries(album: Album, entries: AlbumEntry[]): void {
+  upsertEntry(entry: AlbumEntry): void {
     if (!this.isWriter) {
-      throw new Error("replaceAlbumEntries can only be called on a READWRITE database instance");
+      throw new Error("upsertEntry can only be called on a READWRITE database instance");
     }
 
-    const transaction = this.getDatabase().transaction(() => {
-      // Delete existing entries
-      const deleteStmt = this.getDatabase().prepare(`DELETE FROM album_entries WHERE album_key = ?`);
-      deleteStmt.run(album.key);
-
-      // Insert new entries
-      const insertStmt = this.getDatabase().prepare(`
-        INSERT INTO album_entries (album_key, entry_name) VALUES (?, ?)
-      `);
-      for (const entry of entries) {
-        insertStmt.run(album.key, entry.name);
-      }
-    });
-
-    transaction();
+    const stmt = this.getDatabase().prepare(`
+      INSERT OR REPLACE INTO album_entries (album_key, entry_name, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+    `);
+    stmt.run(entry.album.key, entry.name);
   }
+
+  deleteEntry(entry: AlbumEntry): void {
+    if (!this.isWriter) {
+      throw new Error("deleteEntry can only be called on a READWRITE database instance");
+    }
+
+    const stmt = this.getDatabase().prepare(`DELETE FROM album_entries WHERE album_key = ? AND entry_name = ?`);
+    stmt.run(entry.album.key, entry.name);
+  }
+
 
   /**
    * Update shortcut for an album

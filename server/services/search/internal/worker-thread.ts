@@ -120,7 +120,7 @@ async function indexAllPictures(): Promise<void> {
   db.clearAllMarks();
 
   const q = new Queue(3);
-  const albums = await getAlbums();
+  const albums = await getAllAlbums();
   // Sort album by name in reverse (most recent first)
   albums.sort((a, b) => b.name.localeCompare(a.name));
 

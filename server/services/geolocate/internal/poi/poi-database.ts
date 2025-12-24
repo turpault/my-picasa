@@ -1,22 +1,22 @@
-import * as BetterSqlite3 from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
 import { join } from "path";
 import { imagesRoot } from "../../../../utils/constants";
 import { info } from "console";
 import { GeoPOI } from "../../../../../shared/types/types";
 import { POI_TYPE } from "./poi-types";
 
-// Handle both ES module and CommonJS exports
-const Database = (BetterSqlite3 as any).default || BetterSqlite3;
-
-let dbInstance: BetterSqlite3.Database | null = null;
+let dbInstance: DatabaseSync | null = null;
 
 /**
  * Get the POI database instance (singleton)
  */
-export function getPoiDb(): BetterSqlite3.Database {
+export function getPoiDb(): DatabaseSync {
   if (!dbInstance) {
     const dbPath = join(imagesRoot, "poi.db");
-    const db = new Database(dbPath);
+    const dbOptions: any = {
+      mode: "readwrite",
+    };
+    const db = new DatabaseSync(dbPath, dbOptions);
     dbInstance = db;
 
     // Initialize POI table
@@ -99,13 +99,17 @@ export function insertPoiBatch(items: Array<{ type: number; lat: number; lon: nu
   const db = getPoiDb();
   const insertStmt = db.prepare("INSERT INTO poi (type, lat, lon, label) VALUES (?, ?, ?, ?)");
 
-  const transaction = db.transaction((items: Array<{ type: number; lat: number; lon: number; label: string }>) => {
+  try {
+    db.exec("BEGIN");
     for (const item of items) {
       insertStmt.run(item.type, item.lat, item.lon, item.label);
     }
-  });
-
-  transaction(items);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  
   return items.length;
 }
 

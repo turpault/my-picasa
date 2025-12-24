@@ -7,44 +7,18 @@
     {
       "name": "Launch server via npm",
       "request": "launch",
+      "env": {
+        "PICISA_PICTURE_FOLDER": "/Volumes/1TB USB/Photos"
+      },
       "runtimeArgs": [
-        "start"
+        "run-script",
+        "start:server"
       ],
       "runtimeExecutable": "npm",
       "skipFiles": [
         "<node_internals>/**"
       ],
       "type": "node"
-    },
-    {
-      "name": "Launch Worker",
-      "cwd": "${workspaceFolder}/worker",
-      "request": "launch",
-      "runtimeArgs": [
-        "run-script",
-        "start-worker"
-      ],
-      "env": {
-        "DEBUG": "*,-redis:*,-ioredis:*"
-      },
-      "runtimeExecutable": "npm",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
-      "type": "node",
-      "console": "integratedTerminal"
-    },
-    {
-      "name": "Run Current TS file",
-      "program": "${file}",
-      "request": "launch",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
-      "cwd": "${fileDirname}",
-      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/ts-node",
-      "type": "node",
-      "console": "integratedTerminal"
     },
     {
       "name": "Start favorite to iPhoto",
@@ -53,23 +27,10 @@
         "run-script",
         "start-fav"
       ],
-      "runtimeExecutable": "npm",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
-      "type": "node"
-    },
-    {
-      "name": "Start server",
-      "program": "${workspaceFolder}/server/index.ts",
-      "request": "launch",
-      "args": [
-        "-r",
-        "ts-node/register"
-      ],
       "env": {
         "PICISA_PICTURE_FOLDER": "/Volumes/1TB USB/Photos"
       },
+      "runtimeExecutable": "npm",
       "skipFiles": [
         "<node_internals>/**"
       ],

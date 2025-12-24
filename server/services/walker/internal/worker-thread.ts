@@ -138,36 +138,14 @@ async function walk(
   if (specialFolders.includes(path)) {
     return;
   }
+
   const album: Album = {
     name,
     key: keyFromID(relative(imagesRoot, path)),
   };
   const m = await assetsInFolderAlbum(album);
+  await reindexAlbumsFromList([album]);
 
-  // Get existing entries from database
-  const existingEntries = getWalkerAlbumEntries(album);
-  const existingEntryNames = new Set(existingEntries.map(e => e.name));
-  const newEntryNames = new Set(m.entries.map(e => e.name));
-
-  // Emit events for added entries
-  for (const entry of m.entries) {
-    if (!existingEntryNames.has(entry.name)) {
-      events.emit("albumEntryAdded", entry);
-    }
-  }
-
-  // Emit events for removed entries
-  for (const entry of existingEntries) {
-    if (!newEntryNames.has(entry.name)) {
-      events.emit("albumEntryRemoved", entry);
-    }
-  }
-
-  // Update entries in database
-  if (m.entries.length > 0 || existingEntries.length > 0) {
-    const db = getWalkerDatabase();
-    db.replaceAlbumEntries(album, m.entries);
-  }
 
   // depth down first
   for (const child of m.folders.sort(alphaSorter()).reverse()) {
@@ -202,19 +180,6 @@ async function reindexAlbumsFromList(albums: Album[]): Promise<void> {
         const { entries } = await assetsInFolderAlbum(album);
         const newEntryNames = new Set(entries.map(e => e.name));
 
-        // Emit events for added entries
-        for (const entry of entries) {
-          if (!existingEntryNames.has(entry.name)) {
-            events.emit("albumEntryAdded", entry);
-          }
-        }
-
-        // Emit events for removed entries
-        for (const entry of existingEntries) {
-          if (!newEntryNames.has(entry.name)) {
-            events.emit("albumEntryRemoved", entry);
-          }
-        }
 
         // Update album count
         const existing = getAlbum(album.key);
@@ -242,9 +207,25 @@ async function reindexAlbumsFromList(albums: Album[]): Promise<void> {
           events.emit("albumAdded", newAlbum);
         }
 
-        // Replace all entries for this album
-        const db = getWalkerDatabase();
-        db.replaceAlbumEntries(album, entries);
+        // Emit events for added entries
+        for (const entry of entries) {
+          if (!existingEntryNames.has(entry.name)) {
+            events.emit("albumEntryAdded", entry);
+            const db = getWalkerDatabase();
+            db.upsertEntry(entry);
+          }
+        }
+
+        // Emit events for removed entries
+        for (const entry of existingEntries) {
+          if (!newEntryNames.has(entry.name)) {
+            events.emit("albumEntryRemoved", entry);
+            const db = getWalkerDatabase();
+            db.deleteEntry(entry);
+          }
+        }
+
+
 
         debugLogger(`Reindexed album ${album.key}: ${entries.length} entries`);
       } catch (error) {

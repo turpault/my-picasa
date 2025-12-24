@@ -4,7 +4,7 @@ import { events } from "../shared/server-events";
 
 const workers: Map<string, Worker> = new Map();
 
-export function startWorkers() {
+export async function startWorkers() {
 
   const services = [
     'walker',
@@ -17,14 +17,14 @@ export function startWorkers() {
   ];
 
   for (const service of services) {
-    startWorker(service);
+    await startWorker(service);
   }
 
   // Subscribe to all server events and forward them to worker threads
   setupEventForwarding();
 }
 
-export function startWorker(serviceName: string): Worker | null {
+export async function startWorker(serviceName: string): Promise<Worker | null> {
   if (workers.has(serviceName)) return workers.get(serviceName)!;
 
   console.info(`Starting background worker: ${serviceName}...`);
@@ -33,7 +33,7 @@ export function startWorker(serviceName: string): Worker | null {
 
   const worker = new Worker(workerFile, {
     workerData: { serviceName },
-    execArgv: isTs ? ["-r", "ts-node/register"] : undefined
+    execArgv: isTs ? ["--experimental-sqlite", "-r", "ts-node/register"] : ["--experimental-sqlite"]
   });
 
   worker.on("error", (err) => {
@@ -53,6 +53,9 @@ export function startWorker(serviceName: string): Worker | null {
       events.emit(msg.eventType, msg.data);
     }
   });
+
+  await new Promise((resolve) => worker.once("online", resolve));
+
   return worker;
 }
 

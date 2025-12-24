@@ -199,7 +199,7 @@ export async function startServices() {
 
   // Start all workers
   info("Starting workers...");
-  startWorkers();
+  await startWorkers();
 
   info("Measuring CPU load...");
   measureCPULoad();

@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
 import debug from "debug";
 import { join } from "path";
 import { Album, AlbumEntry, AlbumWithData, Filters } from "../../../shared/types/types";
@@ -42,7 +42,7 @@ export type OpenMode = 'READ' | 'READWRITE';
  * All other instances must use READ mode.
  */
 export class IndexingDatabaseAccess {
-  private db: Database.Database | null = null;
+  private db: DatabaseSync | null = null;
   private dbPath: string;
   private readonly: boolean;
   private isWriter: boolean;
@@ -64,15 +64,27 @@ export class IndexingDatabaseAccess {
   /**
    * Get the database connection, initializing if necessary
    */
-  getDatabase(): Database.Database {
+  getDatabase(): DatabaseSync {
     if (!this.db) {
+      const dbOptions: any = {
+        mode: this.readonly ? "readonly" : "readwrite",
+      };
+      this.db = new DatabaseSync(this.dbPath, dbOptions);
+
+      // Wrap prepare and exec for SQL logging if DEBUG_SQL is set
       if (process.env.DEBUG_SQL) {
-        this.db = new Database(this.dbPath, {
-          verbose: (sql) => debugLogger(`SQL: ${sql}`),
-          readonly: this.readonly
-        });
-      } else {
-        this.db = new Database(this.dbPath, { readonly: this.readonly });
+        const originalPrepare = this.db.prepare.bind(this.db);
+        const originalExec = this.db.exec.bind(this.db);
+
+        this.db.prepare = (sql: string) => {
+          debugLogger(`SQL: ${sql}`);
+          return originalPrepare(sql);
+        };
+
+        this.db.exec = (sql: string) => {
+          debugLogger(`SQL: ${sql}`);
+          return originalExec(sql);
+        };
       }
 
       // Attach walker database as read-only (always read-only in Search service)
