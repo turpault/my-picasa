@@ -91,11 +91,6 @@ export class PicisaClient {
       'args': { filters } 
     });
   }
-  async monitorAlbums(filters?:Filters):Promise<any> {
-    return this.emit('PicisaClient:monitorAlbums', {
-      'args': { filters } 
-    });
-  }
   async media(album:object, filters?:Filters):Promise<any> {
     return this.emit('PicisaClient:media', {
       'args': { album, filters } 
@@ -271,9 +266,19 @@ export class PicisaClient {
       'args': { type } 
     });
   }
-  async getProject(entry:object):Promise<any> {
+  async getContactAlbums():Promise<any> {
+    return this.emit('PicisaClient:getContactAlbums', {
+      'args': {  } 
+    });
+  }
+  async getProject(project:object):Promise<any> {
     return this.emit('PicisaClient:getProject', {
-      'args': { entry } 
+      'args': { project } 
+    });
+  }
+  async getProjectsCount(type:string):Promise<any> {
+    return this.emit('PicisaClient:getProjectsCount', {
+      'args': { type } 
     });
   }
   async writeProject(data:object, changeType:string):Promise<any> {
@@ -306,8 +311,8 @@ export class PicisaClient {
       'args': {  } 
     });
   }
-  async getPersons():Promise<any> {
-    return this.emit('PicisaClient:getPersons', {
+  async getContacts():Promise<any> {
+    return this.emit('PicisaClient:getContacts', {
       'args': {  } 
     });
   }

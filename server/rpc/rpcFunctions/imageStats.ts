@@ -14,7 +14,7 @@ import {
   safeWriteFile,
 } from "../../utils/serverUtils";
 import { dec, inc } from "../../utils/stats";
-import { decodeReferenceId } from "../albumTypes/referenceFiles";
+import { decodeReferenceId } from "../referenceFiles";
 import { getFaceImage } from "./thumbnail";
 
 export function referenceStatsPath(referenceId: string) {

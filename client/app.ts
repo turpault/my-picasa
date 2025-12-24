@@ -2,7 +2,6 @@ import { $ } from "../client/lib/dom";
 import { buildEmitter } from "../shared/lib/event";
 import { isPicture } from "../shared/lib/utils";
 import { AlbumEntry, ProjectType } from "../shared/types/types";
-import { AlbumIndexedDataSource } from "./album-data-source";
 import { makeButtons } from "./components/bottom-selection-buttons";
 import { makeBrowser } from "./components/browser";
 import { makeBugWidget } from "./components/bug-widget";
@@ -52,7 +51,6 @@ async function init(port: number) {
   featureFlagService.setClient(s);
 
   await consoleOverload();
-  const dataSource = new AlbumIndexedDataSource();
 
   let ready = 0;
   const state = new State<ApplicationSharedStateDef>();
@@ -122,10 +120,10 @@ async function init(port: number) {
     const placeholder = t("Please enter a name");
     let name = await question(t("Mosaic Name"), placeholder);
     if (!name) return;
-    const projectId = await newMosaicProject(name, list);
+    const project = await newMosaicProject(name, list);
     const { win, tab, selectionManager } = await makeMosaicPage(
       emitter,
-      projectId,
+      project,
       state,
     );
     makeTab(win, tab, { kind: "Mosaic", selectionManager });
@@ -150,15 +148,26 @@ async function init(port: number) {
     makeTab(win, tab, { kind: "Slideshow", selectionManager });
   }
   async function newBrowserPage() {
+    // Initialize all caches before creating browser
+    const { getAlbumCache } = await import("./lib/caches/album-cache");
+    const { getShortcutCache } = await import("./lib/caches/shortcut-cache");
+    const { getContactCache } = await import("./lib/caches/contact-cache");
+    const { getProjectCache } = await import("./lib/caches/project-cache");
+
+    await Promise.all([
+      getAlbumCache().init(),
+      getShortcutCache().init(),
+      getContactCache().init(),
+      getProjectCache().init(),
+    ]);
+
     const { win, tab, selectionManager } = await makeBrowser(
       emitter,
-      dataSource,
       state,
     );
     makeTab(win, tab, { kind: "Browser", selectionManager });
 
     selectTab(tab);
-    await dataSource.init();
     return tab;
   }
   const browserTab = await newBrowserPage();

@@ -9,8 +9,8 @@ import { closePoiDb } from "./services/geolocate/internal/poi/poi-database";
 // import { getIndexingService } from "../worker/background/bg-indexing"; // This causes DB initialization on main thread
 import { parseLUTs } from "./imageOperations/image-filters";
 import { encode } from "./imageOperations/sharp-processor";
-import { startAlbumUpdateNotification } from "./rpc/albumTypes/fileAndFolders";
-import { initProjects } from "./rpc/albumTypes/projects";
+import { startAlbumUpdateNotification } from "./rpc/fileAndFolders";
+import { initProjects } from "./rpc/projects";
 import { RPCInit } from "./rpc/index";
 import { asset } from "./rpc/routes/asset";
 import { albumThumbnail, thumbnail } from "./rpc/routes/thumbnail";
@@ -18,7 +18,6 @@ import { albumWithData } from "./rpc/rpcFunctions/albumUtils";
 // initializePicasaIniCache is now called in the walker worker
 import { info } from "console";
 import { loadFaceAlbums } from "./operations/faces/faces";
-import { buildPersonsList } from "./rpc/albumTypes/persons";
 import { startSentry } from "./sentry";
 import { busy, measureCPULoad } from "./utils/busy";
 import { imagesRoot, rootPath } from "./utils/constants";
@@ -209,8 +208,7 @@ export async function startServices() {
   startLockMonitor();
   info("Starting album update notification...");
   startAlbumUpdateNotification();
-  info("Fetch persons list...");
-  buildPersonsList();
+  // Persons are now fetched from faces service queries, no need to build a list
   info("Starting background tasks...");
   // startBackgroundTasksOnStart();
   info("Parsing LUTs...");

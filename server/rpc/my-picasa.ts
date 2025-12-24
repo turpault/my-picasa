@@ -19,17 +19,17 @@ import {
   transform,
 } from "../imageOperations/sharp-processor";
 import { undo, undoList } from "../utils/undo";
-import { folders } from "../media";
+import { getAlbums } from "../media";
 import { Filters, AlbumWithData } from "../../shared/types/types";
-import { getPersons } from "./albumTypes/persons";
+import { getContacts } from "../services/faces/queries";
 import {
   createProject,
   getProject,
-  getProjectAlbums,
   getProjects,
+  getProjectsCount,
   writeProject,
-} from "./albumTypes/projects";
-import { getPersonAlbums } from "./rpcFunctions/albumUtils";
+} from "./projects";
+import { getContactAlbums } from "./rpcFunctions/albumUtils";
 import { ServiceMap } from "./rpc-handler";
 import {
   albumEntriesWithMetadataAndExif,
@@ -118,7 +118,7 @@ export const PicisaClient: ServiceMap = {
       arguments: ["jobName:string", "jobData:object"],
     },
     folders: {
-      handler: folders,
+      handler: getAlbums,
       arguments: ["filters?:Filters"],
     },
     media: {
@@ -279,17 +279,17 @@ export const PicisaClient: ServiceMap = {
       handler: getProjects,
       arguments: ["type:string"],
     },
-    getProjectAlbums: {
-      handler: getProjectAlbums,
-      arguments: [],
-    },
-    getPersonAlbums: {
-      handler: getPersonAlbums,
+    getContactAlbums: {
+      handler: getContactAlbums,
       arguments: [],
     },
     getProject: {
       handler: getProject,
-      arguments: ["entry:object"],
+      arguments: ["project:object"],
+    },
+    getProjectsCount: {
+      handler: getProjectsCount,
+      arguments: ["type:string"],
     },
     writeProject: {
       handler: writeProject,
@@ -315,8 +315,8 @@ export const PicisaClient: ServiceMap = {
       handler: getBugs,
       arguments: [],
     },
-    getPersons: {
-      handler: getPersons,
+    getContacts: {
+      handler: getContacts,
       arguments: [],
     },
     getFeatureFlags: {

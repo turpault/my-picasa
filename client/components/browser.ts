@@ -1,6 +1,5 @@
 import { idFromAlbumEntry } from "../../shared/lib/utils";
 import { AlbumEntry, JOBNAMES } from "../../shared/types/types";
-import { AlbumIndexedDataSource } from "../album-data-source";
 import { $ } from "../lib/dom";
 import { State } from "../lib/state";
 import { getService } from "../rpc/connect";
@@ -26,7 +25,6 @@ const tabHtml = `<div class="tab-button browser-tab">
 
 export async function makeBrowser(
   emitter: AppEventSource,
-  albumDataSource: AlbumIndexedDataSource,
   state: ApplicationState,
 ) {
   const win = $(html);
@@ -39,7 +37,6 @@ export async function makeBrowser(
   win.append(
     await makeBrowserNavigator(
       emitter,
-      albumDataSource,
       selectionManager,
       state,
     ),
@@ -50,8 +47,12 @@ export async function makeBrowser(
   emitter.on("keyDown", async (e) => {
     if (e.win === win) {
       if (e.ctrl) {
-        if (albumDataSource.shortcuts[e.key]) {
-          const target = albumDataSource.shortcuts[e.key];
+        const { getShortcutCache } = await import("../lib/caches/shortcut-cache");
+        const shortcutCache = getShortcutCache();
+        const shortcuts = shortcutCache.getShortcuts();
+        const shortcut = shortcuts.find((s) => s.shortcut === e.key);
+        if (shortcut) {
+          const target = shortcut.album;
           if (
             Button.Ok ===
             (await message(

@@ -6,46 +6,35 @@ import {
   removeDiacritics,
   sortByKey
 } from "../../../shared/lib/utils";
+import { events } from "../../../shared/server-events";
 import {
   Album,
   AlbumEntry,
   AlbumEntryMetaData,
   AlbumEntryWithMetadataAndExif,
   AlbumWithData,
-  Filters,
-  idFromKey,
-  ProjectType,
+  Filters
 } from "../../../shared/types/types";
-import { searchFoldersByFilters, searchPicturesByFilters } from "../../services/search/queries";
-import { getFolderAlbums, getFolderAlbumData } from "../../media";
-import { media as getMedia } from "../../media";
+import { getFolderAlbumData, media as getMedia } from "../../media";
+import {
+  getContactAlbums as getContactAlbumsFromFaces
+} from "../../operations/faces/faces";
+import { searchPicturesByFilters } from "../../services/search/queries";
+import { getAlbumMetaData, getEntryMetadata, getMutations } from "../../services/walker/queries";
 import {
   assetsInFolderAlbum,
-} from "../albumTypes/fileAndFolders";
-import { events } from "../../../shared/server-events";
-import {
-  getProjectAlbumFromKey,
-  getProjectAlbums,
-  getProjects,
-} from "../albumTypes/projects";
-import {
-  getFaceAlbum,
-  getPersonsAlbums,
-  getFaceData,
-  readFaceAlbumEntries,
-} from "../../operations/faces/faces";
+} from "../fileAndFolders";
+import { getExifData } from "./exif";
 
 /**
- * Get all person (face) albums
+ * Get all contact (face) albums
  */
-export async function getPersonAlbums(): Promise<AlbumWithData[]> {
-  return getPersonsAlbums();
+export async function getContactAlbums(): Promise<AlbumWithData[]> {
+  return getContactAlbumsFromFaces();
 }
-import { getExifData } from "./exif";
-import { getEntryMetadata, getAlbumEntries, getAlbumMetaData, getMutations } from "../../services/walker/queries";
 
 export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
-  const entries = (await media(entry.album)).entries;
+  const entries = (await getMedia(entry.album)).entries;
   const entryIndex = entries.findIndex(
     (e) => idFromAlbumEntry(e, "") === idFromAlbumEntry(entry, ""),
   );
@@ -86,7 +75,7 @@ async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {
 }
 
 export async function sortAlbum(album: Album, order: string): Promise<void> {
-  const entries = (await media(album)).entries;
+  const entries = (await getMedia(album)).entries;
 
   switch (order) {
     case "reverse":

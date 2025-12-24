@@ -11,7 +11,7 @@ import { rectOfReference } from "./face-utils";
 import {
   decodeReferenceId,
   readReferenceFromReferenceId,
-} from "../../rpc/albumTypes/referenceFiles";
+} from "../../rpc/referenceFiles";
 import {
   albumFromName,
   deletePicasaSection,
@@ -65,7 +65,7 @@ export async function mergeFaces(face: string, withFace: string) {
 }
 
 export function getFaceAlbum(contact: Contact | string): AlbumWithData {
-  const name = typeof contact === "string" ? contact : contact.originalName;
+  const name = typeof contact === "string" ? contact : contact.name;
   const album: Album = {
     name,
     key: personKeyFromName(name),
@@ -119,14 +119,14 @@ export async function loadFaceAlbums() {
   const { join, basename } = await import("path");
   const { facesFolder } = await import("../../utils/constants");
   const { fileExists } = await import("../../utils/serverUtils");
-  
+
   if (!(await fileExists(facesFolder))) {
     return;
   }
-  
+
   const files = await readdir(facesFolder);
   const iniFiles = files.filter((file) => file.endsWith(".ini") && !file.startsWith("."));
-  
+
   for (const iniFile of iniFiles) {
     const name = basename(iniFile, ".ini");
     const album: Album = {
@@ -139,9 +139,9 @@ export async function loadFaceAlbums() {
 }
 
 /**
- * Get all person (face) albums
+ * Get all contact (face) albums
  */
-export function getPersonsAlbums(): AlbumWithData[] {
+export function getContactAlbums(): AlbumWithData[] {
   return faceAlbums;
 }
 

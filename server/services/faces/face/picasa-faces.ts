@@ -29,8 +29,8 @@ import {
   updateContactInAlbum,
   writeCandidateFacesSection,
 } from "../../../services/walker/internal/picasa-ini";
-import { getFolderAlbums } from "../../../media";
-import { readReferencesOfEntry } from "../../../rpc/albumTypes/referenceFiles";
+import { getAlbums } from "../../../media";
+import { readReferencesOfEntry } from "../../../rpc/referenceFiles";
 
 type PicasaFeatures = {
   contacts: ContactByHash;
@@ -49,7 +49,7 @@ export async function getPicasaFeatures(): Promise<PicasaFeatures> {
     facesByEntry: {},
   } as PicasaFeatures;
   // Scan all the contacts
-  const albums = await getFolderAlbums();
+  const albums = await getAlbums();
   await Promise.all(
     albums.map(async (album) => {
       const m = await media(album);

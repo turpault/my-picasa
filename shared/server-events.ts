@@ -1,5 +1,5 @@
 import { buildEmitter } from "./lib/event";
-import { Album, AlbumChangeEvent, AlbumEntry, AlbumEntryPicasa, AlbumEntryWithMetadata, AlbumWithData, Job, UndoStep } from "./types/types";
+import { Album, AlbumChangeEvent, AlbumEntry, AlbumEntryPicasa, AlbumEntryWithMetadata, AlbumWithData, Contact, Job, Project, UndoStep } from "./types/types";
 
 export type ServerEvents = {
   favoriteChanged: {
@@ -30,11 +30,12 @@ export type ServerEvents = {
   geoDataFound: AlbumEntry;
   shortcutsUpdated: {};
   projectsUpdated: {
-    project: AlbumEntry;
+    project: Project;
     changeType: string;
   };
   albumEntryAspectChanged: AlbumEntryPicasa;
   albumEvent: AlbumChangeEvent[];
+  personImagesChanged: { person: Contact };
   jobDeleted: Job;
   jobChanged: Job;
   jobFinished: Job;

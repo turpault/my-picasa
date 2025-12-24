@@ -1,15 +1,13 @@
-import exifr from "exifr";
-import { Stats } from "fs";
-import { readFile, stat } from "fs/promises";
 import debug from "debug";
-import { events } from "../../../events/server-events";
-import { waitUntilIdle } from "../../../utils/busy";
+import exifr from "exifr";
+import { readFile, stat } from "fs/promises";
 import { lock } from "../../../../shared/lib/mutex";
 import { Queue } from "../../../../shared/lib/queue";
-import { buildReadySemaphore, setReady } from "../../../../shared/lib/utils";
-import { isPicture, isVideo } from "../../../../shared/lib/utils";
+import { buildReadySemaphore, isPicture, isVideo, setReady } from "../../../../shared/lib/utils";
+import { events } from "../../../../shared/server-events";
 import { AlbumEntry, ExifData, ExifTag } from "../../../../shared/types/types";
 import { dimensionsFromFileBuffer } from "../../../imageOperations/sharp-processor";
+import { waitUntilIdle } from "../../../utils/busy";
 import { entryFilePath } from "../../../utils/serverUtils";
 import { getExifDatabaseReadWrite } from "./database";
 

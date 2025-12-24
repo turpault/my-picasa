@@ -1,4 +1,4 @@
-import { Album, AlbumEntry, AlbumEntryMetaData, AlbumMetaData, AlbumWithData, Contact, ContactByHash, extraFields, PicasaSection, ThumbnailSize } from "../../../shared/types/types";
+import { Album, AlbumEntry, AlbumEntryMetaData, AlbumMetaData, AlbumWithData, Contact, ContactByHash, extraFields, PicasaSection, Shortcut, ThumbnailSize } from "../../../shared/types/types";
 import { getWalkerDatabase } from "./internal/database";
 import { getWorker } from "../../worker-manager";
 import { WorkerAdaptor } from "../../../shared/rpc-transport/worker-adaptor";
@@ -49,7 +49,7 @@ export function getEntryMetadata(entry: AlbumEntry): AlbumEntryMetaData {
  * Get shortcuts map (read-only operation)
  * Reads directly from the database.
  */
-export function getShortcuts(): { [shortcut: string]: Album } {
+export function getShortcuts(): Shortcut[] {
   const db = getWalkerDatabase();
   return db.getShortcuts();
 }

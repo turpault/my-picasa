@@ -12,7 +12,7 @@ import {
   encode,
   transform,
 } from "../imageOperations/sharp-processor";
-import { getProject } from "../rpc/albumTypes/projects";
+import { getProject } from "../rpc/projects";
 import { getEntryMetadata } from "../services/walker/queries";
 import { imagesRoot } from "../utils/constants";
 import {
@@ -23,12 +23,11 @@ import {
 import { ffmpeg } from "../videoOperations/ffmpeg";
 
 export async function generateSlideshowFile(
-  projectEntry: AlbumEntry,
+  project: SlideshowProject,
   outAlbum: Album,
   outResolutionX: number,
   outResolutionY: number | undefined,
 ): Promise<AlbumEntry> {
-  const project = (await getProject(projectEntry)) as SlideshowProject;
   const tmpFolder = join(tmpdir(), "slideshow" + uuid());
   console.warn(`Generating slideshow in ${tmpFolder}`);
   await mkdir(tmpFolder, { recursive: true });

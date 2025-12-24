@@ -3,30 +3,24 @@ import * as faceapi from "@vladmandic/face-api";
 import Debug from "debug";
 import { readFile } from "fs/promises";
 import { join } from "path";
-import {
-  readReferencesOfEntry,
-  referencePath,
-  writeReferencesOfEntry,
-} from "../../../rpc/albumTypes/referenceFiles";
-import { media } from "../../../rpc/rpcFunctions/albumUtils";
-import { entryFilePath, fileExists } from "../../../utils/serverUtils";
-import { getFolderAlbums } from "../../../media";
-import { lock } from "../../../../shared/lib/mutex";
-import { Queue } from "../../../../shared/lib/queue";
-import {
-  idFromAlbumEntry,
-  isAnimated,
-  isPicture,
-  jsonifyObject,
-} from "../../../../shared/lib/utils";
+import { lock } from "../../../../../shared/lib/mutex";
+import { Queue } from "../../../../../shared/lib/queue";
 import {
   Album,
   AlbumEntry,
   Reference,
   ReferenceData,
-} from "../../../../shared/types/types";
-import { isUsefulReference } from "./face-utils";
-import { FaceLandmarkData } from "./types";
+} from "../../../../../shared/types/types";
+import { isUsefulReference } from "../../../../operations/faces/face-utils";
+import {
+  readReferencesOfEntry,
+  referencePath,
+  writeReferencesOfEntry,
+} from "../../../../rpc/referenceFiles";
+import { media } from "../../../../rpc/rpcFunctions/albumUtils";
+import { entryFilePath, fileExists } from "../../../../utils/serverUtils";
+import { getAllAlbums } from "../../../walker/queries";
+import { idFromAlbumEntry, isAnimated, isPicture, jsonifyObject } from "../../../../../shared/lib/utils";
 const debug = Debug("app:faces");
 
 let optionsSSDMobileNet: faceapi.SsdMobilenetv1Options;
@@ -54,7 +48,7 @@ export async function setupFaceAPI() {
 }
 
 export async function populateAllReferences() {
-  const albums = await getFolderAlbums();
+  const albums = await getAllAlbums();
 
   const inProgress = new Set<Album>();
   for (const album of albums) {
@@ -119,7 +113,7 @@ async function createReferenceFileIfNeeded(entry: AlbumEntry) {
             // Load image
             const tensor = tf.tidy(() =>
               tf.node
-                .decodeImage(buffer, 3, undefined, true)
+                .decodeImage(buffer as unknown as Uint8Array<ArrayBufferLike>, 3, undefined, true)
                 .toFloat()
                 .expandDims(),
             );

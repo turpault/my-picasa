@@ -1,12 +1,12 @@
 import { mkdir, readFile } from "fs/promises";
 import { join } from "path";
-import { albumEntryFromId } from "../../../shared/lib/utils";
-import { AlbumEntry, Reference } from "../../../shared/types/types";
-import { facesFolder } from "../../utils/constants";
+import { albumEntryFromId } from "../../shared/lib/utils";
+import { AlbumEntry, Reference } from "../../shared/types/types";
+import { facesFolder } from "../utils/constants";
 import {
   pathAndFileForAlbumEntry,
   safeWriteFile,
-} from "../../utils/serverUtils";
+} from "../utils/serverUtils";
 
 export function referencePath(entry: AlbumEntry) {
   const path = pathAndFileForAlbumEntry(entry);
@@ -38,12 +38,12 @@ export async function readReferencesOfEntry(
     return JSON.parse(buf, (key, value) =>
       key === "descriptor"
         ? new Float32Array(
-            value instanceof Array
-              ? value
-              : Object.entries(value)
-                  .filter(([k]) => !isNaN(parseInt(k)))
-                  .map(([k, v]) => v),
-          )
+          value instanceof Array
+            ? value
+            : Object.entries(value)
+              .filter(([k]) => !isNaN(parseInt(k)))
+              .map(([k, v]) => v),
+        )
         : value,
     ) as Reference[];
   } catch (e) {

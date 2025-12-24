@@ -5,7 +5,7 @@ import { media } from "../../../rpc/rpcFunctions/albumUtils";
 import { waitUntilIdle } from "../../../utils/busy";
 import { iCloudPhotosFolder, ThumbnailSizes } from "../../../utils/constants";
 import { fileExists, pathForAlbum, pathForAlbumEntry } from "../../../utils/serverUtils";
-import { folders } from "../../../media";
+import { folders, getAlbums } from "../../../media";
 import { Queue } from "../../../../shared/lib/queue";
 import { AlbumEntry } from "../../../../shared/types/types";
 import { events } from "../../../events/server-events";
@@ -37,7 +37,7 @@ async function exportAllMissing() {
     allFilesInICloudFolder.push(path);
   });
   const allFilesToExport: string[] = [];
-  const albums = await folders();
+  const albums = await getAlbums();
   for (const album of albums) {
     const m = await media(album);
     for (const entry of m.entries) {

@@ -1,6 +1,6 @@
 import { workerData } from "worker_threads";
 import { processExifData } from "./internal/worker-thread";
-import { events } from "../../events/server-events";
+import { events } from "../../../shared/server-events";
 
 /**
  * Start the EXIF worker

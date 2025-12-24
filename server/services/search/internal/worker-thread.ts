@@ -1,8 +1,8 @@
 import debug from "debug";
-import { events } from "../../../events/server-events";
+import { events } from "../../../../shared/server-events";
 import { media } from "../../../rpc/rpcFunctions/albumUtils";
 import { waitUntilIdle } from "../../../utils/busy";
-import { getFolderAlbums } from "../../../media";
+import { getAllAlbums } from "../../walker/queries";
 import { lock } from "../../../../shared/lib/mutex";
 import { Queue } from "../../../../shared/lib/queue";
 import { AlbumEntry } from "../../../../shared/types/types";
@@ -120,7 +120,7 @@ async function indexAllPictures(): Promise<void> {
   db.clearAllMarks();
 
   const q = new Queue(3);
-  const albums = await getFolderAlbums();
+  const albums = await getAlbums();
   // Sort album by name in reverse (most recent first)
   albums.sort((a, b) => b.name.localeCompare(a.name));
 

@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, writeFileSync } from "fs";
+import { readFileSync, existsSync, writeFileSync, statSync } from "fs";
 import { join } from "path";
 import { imagesRoot } from "../../utils/constants";
 import { FeatureFlags } from "../../../shared/types/feature-flags";
@@ -8,14 +8,14 @@ let lastModified: number = 0;
 
 function loadFeatureFlags(): FeatureFlags {
   const featureFlagsPath = join(imagesRoot, "feature-flags.json");
-  
+
   try {
     if (!existsSync(featureFlagsPath)) {
       console.warn(`Feature flags file not found at ${featureFlagsPath}, using default configuration`);
       return getDefaultFeatureFlags();
     }
 
-    const stats = require("fs").statSync(featureFlagsPath);
+    const stats = statSync(featureFlagsPath);
     const currentModified = stats.mtime.getTime();
 
     // Return cached version if file hasn't changed
@@ -25,7 +25,7 @@ function loadFeatureFlags(): FeatureFlags {
 
     const fileContent = readFileSync(featureFlagsPath, "utf8");
     const featureFlags: FeatureFlags = JSON.parse(fileContent);
-    
+
     // Validate the structure
     if (!featureFlags.version || !featureFlags.flags) {
       throw new Error("Invalid feature flags structure");
@@ -82,7 +82,7 @@ export async function isFeatureEnabled(flagName: string): Promise<boolean> {
 
 export async function updateFeatureFlags(flags: FeatureFlags): Promise<void> {
   const featureFlagsPath = join(imagesRoot, "feature-flags.json");
-  
+
   try {
     // Validate the structure
     if (!flags.version || !flags.flags) {
@@ -92,11 +92,11 @@ export async function updateFeatureFlags(flags: FeatureFlags): Promise<void> {
     // Write the updated flags to file
     const flagsJson = JSON.stringify(flags, null, 2);
     writeFileSync(featureFlagsPath, flagsJson, "utf8");
-    
+
     // Clear cache to force reload
     cachedFeatureFlags = null;
     lastModified = 0;
-    
+
     console.info(`Updated feature flags at ${featureFlagsPath}`);
   } catch (error) {
     console.error(`Error updating feature flags: ${error}`);

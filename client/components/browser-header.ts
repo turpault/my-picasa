@@ -12,6 +12,7 @@ import {
 } from "../lib/settings";
 import { getService } from "../rpc/connect";
 import { AlbumEntrySelectionManager } from "../selection/selection-manager";
+import { Contact } from "../types/types";
 import { MultiSelect } from "./controls/multi-dropdown";
 import { PicasaMultiButton } from "./controls/multibutton";
 import { makeNewAlbum } from "./global-actions";
@@ -70,20 +71,20 @@ export async function makeBrowserHeader(
   $(".new-album", container).on("click", makeNewAlbum);
 
   getService().then(async (s) => {
-    const persons = (await s.getPersons()) as string[];
+    const contacts: Contact[] = await s.getContacts();
 
     const personContainer = $(".filter-by-person-container-list", container);
     personContainer.empty();
     const settings = getSettings();
     const initialList = settings.filters.persons;
     new MultiSelect(personContainer.get(), {
-      data: persons
-        .filter((p) => p && p !== "_UNKNOWN_")
-        .sort()
-        .map((p) => ({
-          value: p,
-          text: p,
-          selected: initialList.includes(p),
+      data: contacts
+        .filter((c) => c.name && c.name !== "_UNKNOWN_")
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((c) => ({
+          value: c.name,
+          text: c.name,
+          selected: initialList.includes(c.name),
           html: null as null | string,
         })),
       placeholder: t("Filter by person"),

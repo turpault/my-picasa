@@ -251,7 +251,7 @@ function writePicasaSection(
  */
 export function writeFaceAlbumContact(album: Album, contact: Contact): void {
   const contactSection: PicasaSection = {
-    originalName: contact.originalName,
+    originalName: contact.name,
     email: contact.email,
     something: contact.something,
   };
@@ -496,10 +496,10 @@ export async function updateContactInAlbum(
   const picasa = await readAlbumIni(album);
   const contacts2 = (picasa[PicasaBaseKeys.Contacts2] =
     picasa[PicasaBaseKeys.Contacts2] || {});
-  const value = `${contact.originalName};${contact.email};${contact.something}`;
+  const value = `${contact.name};${contact.email};${contact.something}`;
   if ((contacts2 as any)[hash] !== value) {
     (contacts2 as any)[hash] =
-      `${contact.originalName};${contact.email};${contact.something}`;
+      `${contact.name};${contact.email};${contact.something}`;
     writePicasaIni(album, picasa);
   }
 }

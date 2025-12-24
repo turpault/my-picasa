@@ -1,8 +1,8 @@
 import Debug from "debug";
-import { AlbumEntry, ThumbnailSizeVals } from "../../../../shared/types/types";
+import { events } from "../../../../shared/server-events";
+import { ThumbnailSizeVals } from "../../../../shared/types/types";
 import { imageInfo } from "../../../imageOperations/info";
 import { makeThumbnailIfNeeded } from "../../../rpc/rpcFunctions/thumbnail";
-import { events } from "../../../events/server-events";
 import { getAlbumEntries, getAllFolders } from "../../search/queries";
 const debug = Debug("app:bg-thumbgen");
 

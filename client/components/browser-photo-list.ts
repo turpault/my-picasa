@@ -10,12 +10,11 @@ import {
   Album,
   AlbumEntry,
   AlbumEntryMetaData,
-  AlbumEntryPicasa,
   AlbumWithData,
-  JOBNAMES,
+  JOBNAMES
 } from "../../shared/types/types";
-import { AlbumIndexedDataSource } from "../album-data-source";
 import { getAlbumContents } from "../folder-utils";
+import { getAlbumCache } from "../lib/caches/album-cache";
 import {
   $,
   _$,
@@ -59,8 +58,8 @@ const initialVerticalPosition = 10000;
 
 export async function makePhotoList(
   appEvents: AppEventSource,
-  dataSource: AlbumIndexedDataSource,
   selectionManager: AlbumEntrySelectionManager,
+  albumListEvents: AlbumListEventSource,
 ): Promise<_$> {
   let tabIsActive = false;
   let topIndex: number = -1;
@@ -82,7 +81,50 @@ export async function makePhotoList(
   const REFLOW_TRIGGER = 1;
 
   let running = false;
-  const events = dataSource.emitter;
+  const events = albumListEvents;
+
+  // Use the shared album cache
+  const albumCache = getAlbumCache();
+  // Cache should already be initialized by app.ts, but ensure it's ready
+  if (!albumCache.length()) {
+    await albumCache.init();
+  }
+
+  function albumAtIndex(index: number): AlbumWithData {
+    return albumCache.albumAtIndex(index);
+  }
+
+  function albumIndexFromKey(key: string): number {
+    return albumCache.albumIndexFromKey(key);
+  }
+
+  function length(): number {
+    return albumCache.length();
+  }
+
+  // Listen for cache updates
+  const unregs: (() => void)[] = [];
+  unregs.push(albumCache.emitter.on("albumsChanged", () => {
+    events.emit("reset", {});
+  }));
+
+  unregs.push(albumCache.emitter.on("albumUpdated", ({ album }) => {
+    try {
+      const idx = albumCache.albumIndexFromKey(album.key);
+      events.emit("invalidateAt", { index: idx });
+    } catch (e) {
+      // Album might not be in the list yet
+      events.emit("reset", {});
+    }
+  }));
+
+  unregs.push(albumCache.emitter.on("albumAdded", () => {
+    events.emit("reset", {});
+  }));
+
+  unregs.push(albumCache.emitter.on("albumRemoved", () => {
+    events.emit("reset", {});
+  }));
   // UI State events
   const off = [
     appEvents.on("tabChanged", ({ win }) => {
@@ -156,8 +198,8 @@ export async function makePhotoList(
         if (from.album.key !== to.album.key) {
           // Multi album range selection
           // Which one is the first ?
-          let fromAlbumIndex = dataSource.albumIndexFromKey(from.album.key);
-          let toAlbumIndex = dataSource.albumIndexFromKey(to.album.key);
+          let fromAlbumIndex = albumIndexFromKey(from.album.key);
+          let toAlbumIndex = albumIndexFromKey(to.album.key);
 
           if (fromAlbumIndex > toAlbumIndex) {
             [fromAlbumIndex, toAlbumIndex] = [toAlbumIndex, fromAlbumIndex];
@@ -165,7 +207,7 @@ export async function makePhotoList(
           }
 
           for (const idx of range(fromAlbumIndex, toAlbumIndex)) {
-            const album = dataSource.albumAtIndex(idx);
+            const album = albumAtIndex(idx);
             getAlbumContents(album, true).then((data) => {
               const sels = data.entries;
               if (idx === fromAlbumIndex) {
@@ -310,7 +352,7 @@ export async function makePhotoList(
         if (element) {
           console.info("photo-list - invalidateAt", event.index);
           const { hasChanged } = await populateElement(
-            dataSource.albumAtIndex(event.index),
+            albumAtIndex(event.index),
             element,
           );
           console.info("photo-list - invalidateAt / after", event.index);
@@ -347,7 +389,7 @@ export async function makePhotoList(
         if (indexOf(d) >= index && indexOf(d) <= to) {
           if (indexOf(d) === visible) {
             await populateElement(
-              dataSource.albumAtIndex(index),
+              albumAtIndex(index),
               visibleElement()!,
             );
           } else {
@@ -465,11 +507,11 @@ export async function makePhotoList(
     }
     // Nothing to display, start at topIndex
     if (displayed.length === 0) {
-      if (dataSource.length() > 0) {
+      if (length() > 0) {
         let albumElement: _$ | undefined;
-        while (albumElement === undefined && topIndex < dataSource.length()) {
+        while (albumElement === undefined && topIndex < length()) {
           showWorker();
-          const album = dataSource.albumAtIndex(topIndex);
+          const album = albumAtIndex(topIndex);
           const { element } = await populateElement(album);
           if (element) {
             albumElement = element;
@@ -916,7 +958,7 @@ export async function makePhotoList(
     if (topIndex > 0) {
       showWorker();
       topIndex--;
-      const album = dataSource.albumAtIndex(topIndex);
+      const album = albumAtIndex(topIndex);
       const { element: albumElement } = await populateElement(album);
       if (!albumElement) {
         console.info(`Album ${album.name} is empty, skipping`);
@@ -938,10 +980,10 @@ export async function makePhotoList(
   }
 
   async function addAtBottom(): Promise<boolean> {
-    if (bottomIndex < dataSource.length() - 1) {
+    if (bottomIndex < length() - 1) {
       showWorker();
       bottomIndex++;
-      const album = dataSource.albumAtIndex(bottomIndex);
+      const album = albumAtIndex(bottomIndex);
       const { element: albumElement } = await populateElement(album);
       if (!albumElement) {
         console.info(`Album ${album.name} is empty, skipping`);
@@ -968,7 +1010,7 @@ export async function makePhotoList(
     for (const e of [...displayed]) {
       moveToPool(e);
     }
-    const index = dataSource.albumIndexFromKey(album.key);
+    const index = albumIndexFromKey(album.key);
     topIndex = bottomIndex = index;
 
     doReflow |= REFLOW_FULL;
@@ -976,11 +1018,15 @@ export async function makePhotoList(
     l();
   }
 
+  // Listen to album selection from album list
+  const selectedUnreg = events.on("selected", ({ album }) => {
+    rebuildViewStartingFrom(album);
+  });
+
   container.attachData({
     events: [
-      events.on("selected", ({ album }) => {
-        rebuildViewStartingFrom(album);
-      }),
+      selectedUnreg,
+      ...unregs,
     ],
   });
 
@@ -1094,7 +1140,7 @@ export async function makeThumbnailManager(
   elementPrefix: string,
   selectionManager: AlbumEntrySelectionManager,
 ) {
-  events.on("albumEntryAspectChanged", async (e) => {
+  events.on("albumEntryAspectChanged", async (e: any) => {
     // Is there a thumbnail with that data ?
     const elem = elementFromEntry(e, elementPrefix);
     if (elem.exists()) {

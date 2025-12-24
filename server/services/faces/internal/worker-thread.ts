@@ -1,22 +1,15 @@
 import * as tf from "@tensorflow/tfjs-node";
 import Debug from "debug";
 import { Queue } from "../../../../shared/lib/queue";
-import { getFaceAlbums } from "../../../rpc/rpcFunctions/faces";
-import { media } from "../../../rpc/rpcFunctions/albumUtils";
 import { getFaceImage } from "../../../rpc/rpcFunctions/thumbnail";
-import { runClusterStrategy } from "../face/identify-cluster-strategy";
-// import { runFaceMatcherStrategy } from "../face/identify-facematcher-strategy";
-// import { startRedis, stopRedis } from "./redis-process";
-import { buildContactList } from "../../../rpc/albumTypes/contacts";
-import { populateAllReferences, setupFaceAPI } from "../face/references";
+import { getEntriesForContact, getContacts } from "../queries";
+import { runClusterStrategy } from "./face/identify-cluster-strategy";
+import { populateAllReferences, setupFaceAPI } from "./face/references";
 const debug = Debug("app:faces");
 
 export async function buildFaceScan() {
   await tf.ready;
 
-  debug("Building face scan");
-  debug("Building identified contact list");
-  await buildContactList();
   debug("Build references");
   await setupFaceAPI();
   await populateAllReferences();
@@ -37,17 +30,17 @@ export async function buildFaceScan() {
 async function exportAllFaces() {
   const getFaceImageQueue = new Queue(10, { fifo: false });
 
-  const albums = await getFaceAlbums();
+  const contacts = await getContacts();
   const interval = setInterval(() => {
     debug(
       `Exporting faces. Remaining ${getFaceImageQueue.done()}/${getFaceImageQueue.total()} (${Math.floor((100 * getFaceImageQueue.done()) / getFaceImageQueue.total())}%)`,
     );
   }, 2000);
   await Promise.all(
-    albums.map(async (album) => {
-      const entries = await media(album);
+    contacts.map(async (contact) => {
+      const entries = await getEntriesForContact(contact);
       await Promise.all(
-        entries.entries.map(async (entry) =>
+        entries.map(async (entry) =>
           getFaceImageQueue.add(() => getFaceImage(entry.name, true)),
         ),
       );

@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import debug from "debug";
 import { join } from "path";
 import { workerData } from "worker_threads";
-import { Album, AlbumEntry, AlbumEntryMetaData, AlbumMetaData, AlbumWithData, extraFields } from "../../../../shared/types/types";
+import { Album, AlbumEntry, AlbumEntryMetaData, AlbumMetaData, AlbumWithData, extraFields, Shortcut } from "../../../../shared/types/types";
 import { imagesRoot } from "../../../utils/constants";
 
 const debugLogger = debug("app:walker-db");
@@ -340,17 +340,20 @@ class WalkerDatabaseAccess {
   /**
    * Get all shortcuts (shortcut -> album key mapping)
    */
-  getShortcuts(): { [shortcut: string]: Album } {
+  getShortcuts(): Shortcut[] {
     const rows = this.getDatabase().prepare(`
       SELECT key, name, kind, shortcut FROM albums WHERE shortcut IS NOT NULL AND shortcut != ''
     `).all() as Array<{ key: string; name: string; kind?: string; shortcut: string }>;
 
-    const result: { [shortcut: string]: Album } = {};
+    const result: Shortcut[] = [];
     for (const row of rows) {
-      result[row.shortcut] = {
-        key: row.key,
-        name: row.name,
-      };
+      result.push({
+        shortcut: row.shortcut,
+        album: {
+          key: row.key,
+          name: row.name,
+        },
+      });
     }
     return result;
   }

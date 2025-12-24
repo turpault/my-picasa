@@ -7,22 +7,21 @@ import {
   decodeReferenceId,
   readReferenceFromReferenceId,
   readReferencesOfEntry,
-} from "../../../rpc/albumTypes/referenceFiles";
-import { media } from "../../../rpc/rpcFunctions/albumUtils";
-import { readOrReferenceImageStats } from "../../../rpc/rpcFunctions/imageStats";
-import { facesFolder } from "../../../utils/constants";
-import { fileExists, safeWriteFile } from "../../../utils/serverUtils";
-import { getFolderAlbums } from "../../../media";
-import { lock } from "../../../../shared/lib/mutex";
-import { filenameify, hash, uuid } from "../../../../shared/lib/utils";
-import { AlbumEntry, Contact, Reference } from "../../../../shared/types/types";
+} from "../../../../rpc/referenceFiles";
+import { lock } from "../../../../../shared/lib/mutex";
+import { filenameify, hash, uuid } from "../../../../../shared/lib/utils";
+import { AlbumEntry, Contact, Reference } from "../../../../../shared/types/types";
+import { readOrReferenceImageStats } from "../../../../rpc/rpcFunctions/imageStats";
+import { facesFolder } from "../../../../utils/constants";
+import { fileExists, safeWriteFile } from "../../../../utils/serverUtils";
+import { getAlbumEntries, getAllAlbums } from "../../../walker/queries";
 import {
   createCandidateThumbnail,
   findFaceInRect,
   getPicasaIdentifiedReferences,
   isUsefulReference,
   rectOfReference,
-} from "./face-utils";
+} from "../../../../operations/faces/face-utils";
 import { addCandidateFaceRectToEntry } from "./picasa-faces";
 const debug = Debug("app:face-db");
 
@@ -112,8 +111,8 @@ async function createContactsFromUnmatchedClusters() {
   const unmatchedClusters = clusters.filter((c) => !c.contact);
   for (const cluster of unmatchedClusters) {
     const contact: Contact = {
-      key: uuid(),
-      originalName: `Cluster ${cluster.id}`,
+      id: uuid(),
+      name: `Cluster ${cluster.id}`,
       email: "",
       something: "",
     };
@@ -262,16 +261,16 @@ async function pruneOrphanClusters() {
 }
 async function groupReferencesIntoClusters(clusterReferencesOnly = false) {
   const CLUSTER_MAX_DISTANCE = 0.5;
-  const albums = await getFolderAlbums();
+  const albums = await getAllAlbums();
   const promises: Promise<void>[] = [];
   for (const album of albums) {
-    const medias = await media(album);
+    const entries = await getAlbumEntries(album);
     debug(
       `populateClusters: Processing album ${album.name} - found ${clusters.length} clusters`,
     );
     if (clusterReferencesOnly) await pruneOrphanClusters();
-    for (const media of medias.entries) {
-      const references = await readReferencesOfEntry(media);
+    for (const entry of entries) {
+      const references = await readReferencesOfEntry(entry);
       if (!references) continue;
       for (const reference of references) {
         if (!isUsefulReference(reference, "child")) {
@@ -310,7 +309,7 @@ async function groupReferencesIntoClusters(clusterReferencesOnly = false) {
             id: hash(reference.id),
             reference,
             faceCount: 1,
-            entry: media,
+            entry: entry,
             creationIndex: clusters.length,
           };
           await saveClusterFile(cluster);

@@ -18,14 +18,14 @@ import {
 import {
   assetsInFolderAlbum,
   queueNotification,
-} from "../../../rpc/albumTypes/fileAndFolders";
+} from "../../../rpc/fileAndFolders";
 import { mediaCount } from "../../../rpc/rpcFunctions/albumUtils";
 import {
   readShortcut,
 } from "./picasa-ini";
 import { imagesRoot, specialFolders } from "../../../utils/constants";
 import { pathForAlbum } from "../../../utils/serverUtils";
-import { events } from "../../../events/server-events";
+import { events } from "../../../../shared/server-events";
 import { getAllAlbums, getAlbum, getAlbumEntries as getWalkerAlbumEntries } from "../queries";
 import { getWalkerDatabase } from "./database";
 

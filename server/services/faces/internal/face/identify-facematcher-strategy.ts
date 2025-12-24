@@ -16,12 +16,12 @@ import {
 import {
   getContactByContactKey,
   getContacts,
-} from "../../../../rpc/albumTypes/contacts";
+} from "../../../../rpc/contacts";
 import {
   addCandidateFaceRectToEntry,
   removeFaceFromEntry,
 } from "./picasa-faces";
-import { readReferencesOfEntry } from "../../../../rpc/albumTypes/referenceFiles";
+import { readReferencesOfEntry } from "../../../../rpc/referenceFiles";
 import { join } from "path";
 
 let identifiedReferenceContactKeyMap = new Map<string, Reference[]>(); //  contact.Key -> reference[]

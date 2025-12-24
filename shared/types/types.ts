@@ -276,6 +276,11 @@ export type AlbumWithData = Album & {
   shortcut?: string;
 };
 
+export type Shortcut = {
+  shortcut: string;
+  album: Album;
+};
+
 const sep = "»";
 
 /**
@@ -421,11 +426,18 @@ export type Cell = {
   };
 };
 
-export type MosaicProject = AlbumEntry & {
+export type Project = {
+  name: string;
+  type: ProjectType;
+};
+
+export type MosaicProject = Project & {
+  type: ProjectType.MOSAIC;
   payload: Mosaic;
 };
 
-export type SlideshowProject = AlbumEntry & {
+export type SlideshowProject = Project & {
+  type: ProjectType.SLIDESHOW;
   payload: Slideshow;
 };
 
@@ -484,10 +496,10 @@ export enum ProjectType {
 }
 
 export type Contact = {
-  originalName: string;
+  id: string;
+  name: string;
   email: string;
   something: string;
-  key: string;
 };
 
 export type ContactByHash = {

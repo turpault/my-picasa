@@ -4,6 +4,7 @@ import {
   AlbumEntry,
   AlbumEntryMetaData,
   JOBNAMES,
+  Project,
   ProjectType,
   Slideshow,
   SlideShowBorderType,
@@ -56,31 +57,32 @@ const ProjectOutAlbumName = () => {
 export async function newSlideshowProject(
   name: string,
   images: AlbumEntry[],
-): Promise<AlbumEntry> {
+): Promise<Project> {
   const s = await getService();
-  const project = (await s.createProject(
-    ProjectType.SLIDESHOW,
-    name,
-  )) as SlideshowProject;
-  project.payload = {
-    pages: [
-      {
-        id: uuid(),
-        type: "text",
-        text: name,
-        delay: 5,
-        transition: "fade",
-        border: "none",
-      },
-      ...images.map((img) => ({
-        id: uuid(),
-        type: "image" as const,
-        entry: img,
-        delay: 5 as SlideShowDelays,
-        transition: "fade" as const,
-        border: "none" as const,
-      })),
-    ],
+  const projectBase = await s.createProject(ProjectType.SLIDESHOW, name);
+  const project: SlideshowProject = {
+    name: projectBase.name,
+    type: ProjectType.SLIDESHOW,
+    payload: {
+      pages: [
+        {
+          id: uuid(),
+          type: "text",
+          text: name,
+          delay: 5,
+          transition: "fade",
+          border: "none",
+        },
+        ...images.map((img) => ({
+          id: uuid(),
+          type: "image" as const,
+          entry: img,
+          delay: 5 as SlideShowDelays,
+          transition: "fade" as const,
+          border: "none" as const,
+        })),
+      ],
+    },
   };
 
   await s.writeProject(project, name);
@@ -200,11 +202,14 @@ function displayProject(project: SlideshowProject, parent: _$) {
   });
 }
 export async function loadSlideshowProject(
-  entry: AlbumEntry,
+  project: Project,
 ): Promise<SlideshowProject> {
   const s = await getService();
-  const project = (await s.getProject(entry)) as SlideshowProject;
-  return project;
+  const projectData = await s.getProject(project);
+  if (!projectData || projectData.type !== ProjectType.SLIDESHOW) {
+    throw new Error("Invalid project type");
+  }
+  return projectData as SlideshowProject;
 }
 
 export async function saveSlideshowProject(
@@ -217,18 +222,18 @@ export async function saveSlideshowProject(
 
 export async function makeSlideshowPage(
   appEvents: AppEventSource,
-  entry: AlbumEntry,
+  project: Project,
   state: ApplicationState,
 ) {
   const e = $(editHTML);
 
-  const project = await loadSlideshowProject(entry);
+  const slideshowProject = await loadSlideshowProject(project);
   const selectionManager = new SelectionManager<AlbumEntry>(
-    project.payload.pages.map((e) => e.entry).filter((e) => e),
+    slideshowProject.payload.pages.map((e) => e.entry).filter((e) => e),
     idFromAlbumEntry,
   );
 
-  displayProject(project, e);
+  displayProject(slideshowProject, e);
   const s = await getService();
   s.on(
     "projectChanged",
@@ -362,45 +367,45 @@ export async function makeSlideshowPage(
 
   const off = [
     formState.events.on("transition", (value) => {
-      project.payload.pages.forEach((entry) => {
+      slideshowProject.payload.pages.forEach((entry) => {
         entry.transition = value as SlideShowTransitions;
       });
-      saveSlideshowProject(project, "updateTransition");
-      displayProject(project, e);
+      saveSlideshowProject(slideshowProject, "updateTransition");
+      displayProject(slideshowProject, e);
     }),
     formState.events.on("delay", (value) => {
-      project.payload.pages.forEach((entry) => {
+      slideshowProject.payload.pages.forEach((entry) => {
         entry.delay = value;
       });
-      displayProject(project, e);
-      saveSlideshowProject(project, "updateDelay");
+      displayProject(slideshowProject, e);
+      saveSlideshowProject(slideshowProject, "updateDelay");
     }),
     formState.events.on("textColor", (value) => {
-      project.payload.pages.forEach((entry) => {
+      slideshowProject.payload.pages.forEach((entry) => {
         entry.textColor = value;
       });
-      displayProject(project, e);
-      saveSlideshowProject(project, "updateTextColor");
+      displayProject(slideshowProject, e);
+      saveSlideshowProject(slideshowProject, "updateTextColor");
     }),
 
     formState.events.on("border", (value) => {
-      project.payload.pages.forEach((entry) => {
+      slideshowProject.payload.pages.forEach((entry) => {
         entry.border = value as SlideShowBorderType;
       });
-      displayProject(project, e);
-      saveSlideshowProject(project, "updateBorder");
+      displayProject(slideshowProject, e);
+      saveSlideshowProject(slideshowProject, "updateBorder");
     }),
 
     formState.events.on("bgTextColor", (value) => {
-      project.payload.pages.forEach((entry) => {
+      slideshowProject.payload.pages.forEach((entry) => {
         entry.bgTextColor = value;
       });
-      displayProject(project, e);
-      saveSlideshowProject(project, "updateTextColor");
+      displayProject(slideshowProject, e);
+      saveSlideshowProject(slideshowProject, "updateTextColor");
     }),
     formState.events.on("addTitle", (value) => {
       if (value) return; // only react on button up
-      project.payload.pages.unshift({
+      slideshowProject.payload.pages.unshift({
         id: uuid(),
         type: "text",
         text: "",
@@ -408,13 +413,13 @@ export async function makeSlideshowPage(
         transition: "fade",
         border: "none",
       });
-      displayProject(project, e);
-      saveSlideshowProject(project, "addTitle");
+      displayProject(slideshowProject, e);
+      saveSlideshowProject(slideshowProject, "addTitle");
     }),
     formState.events.on("throughTheYears", async (value) => {
       if (value) return; // only react on button up
       // clear "text pages"
-      let pages = project.payload.pages.filter((p) => p.type === "image");
+      let pages = slideshowProject.payload.pages.filter((p) => p.type === "image");
       const meta = (await Promise.all(
         pages.map(async (p) => s.getAlbumEntryMetadata(p.entry)),
       )) as AlbumEntryMetaData[];
@@ -432,25 +437,25 @@ export async function makeSlideshowPage(
       pages.unshift({
         id: uuid(),
         type: "text",
-        text: project.name + t(" through the years"),
+        text: slideshowProject.name + t(" through the years"),
         delay: 5,
         transition: "fade",
         border: "none",
       });
-      project.payload.pages = pages;
+      slideshowProject.payload.pages = pages;
 
-      displayProject(project, e);
-      saveSlideshowProject(project, "through the years");
+      displayProject(slideshowProject, e);
+      saveSlideshowProject(slideshowProject, "through the years");
     }),
     formState.events.on("pile", async (value) => {
       if (value) return; // only react on button up
-      let pages = project.payload.pages;
+      let pages = slideshowProject.payload.pages;
       pages.forEach((p) => {
         p.delay = 5;
         p.transition = "pile";
       });
-      displayProject(project, e);
-      saveSlideshowProject(project, "pile");
+      displayProject(slideshowProject, e);
+      saveSlideshowProject(slideshowProject, "pile");
     }),
     formState.events.on("generateSlideshow", async (value) => {
       if (value) return; // only react on button up
@@ -461,7 +466,7 @@ export async function makeSlideshowPage(
       let height =
         videoResolutions[resolution as keyof typeof videoResolutions].y;
       const jobId = await s.createJob(JOBNAMES.BUILD_PROJECT, {
-        source: [project],
+        source: [slideshowProject],
         destination: ProjectOutAlbumName(),
         argument: { width, height },
       });
@@ -502,6 +507,6 @@ export async function makeSlideshowPage(
 
   const tabEvent = buildEmitter<TabEvent>();
   const tab = makeGenericTab(tabEvent);
-  tabEvent.emit("rename", { name: project.name });
+  tabEvent.emit("rename", { name: slideshowProject.name });
   return { win: e, tab, selectionManager };
 }

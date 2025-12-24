@@ -3,7 +3,7 @@ import { getExifData } from "../../../rpc/rpcFunctions/exif";
 import { getLocations } from "./poi/poi-database";
 import { initPOIDB } from "./poi/ingest";
 import { getGeolocateDatabaseReadWrite } from "./database";
-import { events } from "../../../events/server-events";
+import { events } from "../../../../shared/server-events";
 import { waitUntilIdle } from "../../../utils/busy";
 import { Queue } from "../../../../shared/lib/queue";
 import debug from "debug";

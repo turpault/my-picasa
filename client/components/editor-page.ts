@@ -1,7 +1,8 @@
+import { events } from "../../shared/server-events";
 import {
   AlbumEntry,
-  AlbumEntryPicasa,
   JOBNAMES,
+  Shortcut
 } from "../../shared/types/types";
 import { setupAutocolor } from "../features/autocolor";
 import { setupBW } from "../features/bw";
@@ -13,16 +14,16 @@ import { $ } from "../lib/dom";
 import { toggleStar } from "../lib/handles";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
-import { events } from "../../shared/server-events";
 import { AppEventSource, ApplicationState } from "../uiTypes";
 import { ImageController } from "./image-controller";
 import { t } from "./strings";
 import { makeTools } from "./tools";
 
+import { buildEmitter } from "../../shared/lib/event";
 import {
-  PicasaFilter,
   compareAlbumEntry,
   idFromAlbumEntry,
+  PicasaFilter,
 } from "../../shared/lib/utils";
 import { setupBlur } from "../features/blur";
 import { setupBrightness } from "../features/brightness";
@@ -36,11 +37,10 @@ import { setupSharpen } from "../features/sharpen";
 import { setupSolarize } from "../features/solarize";
 import { setupTilt } from "../features/tilt";
 import { getAlbumContents } from "../folder-utils";
-import { buildEmitter } from "../../shared/lib/event";
 import { State } from "../lib/state";
 import { makeEditorHeader } from "./editor-header";
 import { makeHistogram } from "./histogram";
-import { makeGenericTab, makeTab, TabEvent } from "./tabs";
+import { makeGenericTab, TabEvent } from "./tabs";
 import { ToolEditor } from "./tool-editor";
 
 const editHTML = `
@@ -224,13 +224,13 @@ export async function makeEditorPage(
       //refreshMetadataFct(entry, [entry], info);
     }),
     tabBar.onWithOff("click", refreshTab),
-    imageController.events.on("beforeupdate", async ({}) => {
+    imageController.events.on("beforeupdate", async ({ }) => {
       localState.setValue(
         lastOperationStack,
         imageController.operations().slice().reverse(),
       );
     }),
-    imageController.events.on("updated", async ({}) => {
+    imageController.events.on("updated", async ({ }) => {
       refreshHistogramFct(await imageController.getLiveThumbnailContext());
     }),
     localState.events.on(lastOperationStack, updateLastOperation),
@@ -295,9 +295,10 @@ export async function makeEditorPage(
       if (ctrl) {
         preventDefault();
         getService().then(async (s) => {
-          const shortcuts = await s.getShortcuts();
-          if (shortcuts[key]) {
-            const target = shortcuts[key];
+          const shortcuts: Shortcut[] = await s.getShortcuts();
+          const shortcut = shortcuts.find((s) => s.shortcut === key);
+          if (shortcut) {
+            const target = shortcut.album;
             s.createJob(JOBNAMES.EXPORT, {
               source: editorSelectionManager.selected(),
               destination: target,

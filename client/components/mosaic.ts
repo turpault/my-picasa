@@ -19,6 +19,7 @@ import {
   MosaicProject,
   MosaicSizes,
   Orientation,
+  Project,
   ProjectType,
 } from "../../shared/types/types";
 import { albumEntriesWithMetadata, thumbnailUrl } from "../imageProcess/client";
@@ -306,38 +307,40 @@ async function installHandlers(
 export async function newMosaicProject(
   name: string,
   images: AlbumEntry[],
-): Promise<AlbumEntry> {
+): Promise<Project> {
   const s = await getService();
-  const project = (await s.createProject(
-    ProjectType.MOSAIC,
-    name,
-  )) as MosaicProject;
-  project.payload = {
-    pool: images,
-    images,
-    gutter: GutterSizes.Small,
-    layout: Layout.MOSAIC,
-    orientation: Orientation.PAYSAGE,
-    format: Format.F10x8,
-    size: MosaicSizes.HD,
-    seed: Math.random(),
+  const projectBase = await s.createProject(ProjectType.MOSAIC, name);
+  const project: MosaicProject = {
+    name: projectBase.name,
+    type: ProjectType.MOSAIC,
+    payload: {
+      pool: images,
+      images,
+      gutter: GutterSizes.Small,
+      layout: Layout.MOSAIC,
+      orientation: Orientation.PAYSAGE,
+      format: Format.F10x8,
+      size: MosaicSizes.HD,
+      seed: Math.random(),
+    },
   };
   await s.writeProject(project, "new");
   return project;
 }
 
-async function loadMosaicProject(entry: AlbumEntry): Promise<MosaicProject> {
+async function loadMosaicProject(project: Project): Promise<MosaicProject> {
   const s = await getService();
-  const project = (await s.getProject(entry)) as MosaicProject;
-  if (project.album.name !== ProjectType.MOSAIC) {
+  const projectData = await s.getProject(project);
+  if (!projectData || projectData.type !== ProjectType.MOSAIC) {
     throw new Error("Invalid project type");
   }
+  const mosaicProject = projectData as MosaicProject;
   const m = new Map<string, AlbumEntry>();
-  project.payload.pool.forEach((img) => m.set(idFromAlbumEntry(img), img));
-  project.payload.images = project.payload.images.map(
+  mosaicProject.payload.pool.forEach((img) => m.set(idFromAlbumEntry(img), img));
+  mosaicProject.payload.images = mosaicProject.payload.images.map(
     (img) => m.get(idFromAlbumEntry(img))!,
   );
-  return project;
+  return mosaicProject;
 }
 
 function sanitizeTree(root: Cell) {
@@ -361,7 +364,7 @@ function sanitizeTree(root: Cell) {
 
 export async function makeMosaicPage(
   appEvents: AppEventSource,
-  entry: AlbumEntry,
+  project: Project,
   state: ApplicationState,
 ) {
   const e = $(editHTML);
@@ -369,10 +372,10 @@ export async function makeMosaicPage(
   const mosaicContainer = $(".mosaic-container", e);
   let reflow: Function;
 
-  const project = await loadMosaicProject(entry);
+  const mosaicProject = await loadMosaicProject(project);
 
   const selectionManager = new SelectionManager<AlbumEntry>(
-    project.payload.images,
+    mosaicProject.payload.images,
     idFromAlbumEntry,
   );
   const parameters = $(".mosaic-parameters", e);
@@ -384,7 +387,7 @@ export async function makeMosaicPage(
   ) {
     const s = await getService();
     await s.writeProject(
-      { ...project, images: selectionManager.selected() },
+      { ...mosaicProject, payload: { ...mosaicProject.payload, images: selectionManager.selected() } },
       reason,
     );
 
@@ -396,9 +399,9 @@ export async function makeMosaicPage(
   async function redraw(rebuildTree = true) {
     const width = mosaicContainer.width;
     const height = mosaicContainer.height;
-    let ratio = project.payload.format;
+    let ratio = mosaicProject.payload.format;
 
-    if (project.payload.orientation === Orientation.PORTRAIT) {
+    if (mosaicProject.payload.orientation === Orientation.PORTRAIT) {
       ratio = 1 / ratio;
     }
 
@@ -416,7 +419,7 @@ export async function makeMosaicPage(
       mosaic,
       updatedW,
       updatedH,
-      project.payload,
+      mosaicProject.payload,
       rebuildTree,
       pictures,
       selectionManager,
@@ -432,7 +435,7 @@ export async function makeMosaicPage(
       label: t(OrientationLabels[k as Orientation]),
       key: k,
     })),
-    project.payload.orientation,
+    mosaicProject.payload.orientation,
     "dropdown",
   );
   parameters.append(orientationDropdown.element);
@@ -443,11 +446,11 @@ export async function makeMosaicPage(
       label: MosaicSizes[k],
       key: k,
     })),
-    project.payload.size,
+    mosaicProject.payload.size,
     "dropdown",
   );
   sizeDropdown.emitter.on("select", ({ key }) => {
-    project.payload.size = key;
+    mosaicProject.payload.size = key;
     projectUpdated("updateSize");
   });
   parameters.append(sizeDropdown.element);
@@ -458,7 +461,7 @@ export async function makeMosaicPage(
       label: t(GutterLabels[k as GutterSizes]),
       key: k,
     })),
-    project.payload.gutter,
+    mosaicProject.payload.gutter,
     "dropdown",
   );
   parameters.append(gutterDropdown.element);
@@ -469,7 +472,7 @@ export async function makeMosaicPage(
       label: LayoutLabels[k as Layout],
       key: k,
     })),
-    project.payload.layout,
+    mosaicProject.payload.layout,
     "dropdown",
   );
   parameters.append(layoutDropdown.element);
@@ -480,14 +483,14 @@ export async function makeMosaicPage(
       label: FormatLabels[k as Format],
       key: k,
     })),
-    project.payload.format,
+    mosaicProject.payload.format,
     "dropdown",
   );
   parameters.append(formatDropdown.element);
 
   const imageControl = makeMultiselectImageList(
     t("Pictures"),
-    project.payload.pool,
+    mosaicProject.payload.pool,
     selectionManager,
     "th-small",
     "mosaic-image-control",
@@ -497,26 +500,26 @@ export async function makeMosaicPage(
 
   const off = [
     orientationDropdown.emitter.on("select", ({ key }) => {
-      project.payload.orientation = key;
+      mosaicProject.payload.orientation = key;
       projectUpdated("updateOrientation", true);
     }),
     gutterDropdown.emitter.on("select", ({ key }) => {
-      project.payload.gutter = key;
+      mosaicProject.payload.gutter = key;
       projectUpdated("updateGutter", true, false);
     }),
     formatDropdown.emitter.on("select", ({ key }) => {
-      project.payload.format = key;
+      mosaicProject.payload.format = key;
       projectUpdated("updateFormat", true, true);
     }),
     layoutDropdown.emitter.on("select", ({ key }) => {
-      project.payload.layout = key;
+      mosaicProject.payload.layout = key;
       projectUpdated("updateLayout", true, true);
     }),
 
     $(".mosaic-make", e).onWithOff("click", async () => {
       const s = await getService();
       const jobId = await s.createJob(JOBNAMES.BUILD_PROJECT, {
-        source: [project],
+        source: [mosaicProject],
         destination: ProjectOutAlbumName(),
         argument: {},
       });
@@ -538,7 +541,7 @@ export async function makeMosaicPage(
       }
     }),
     $(".mosaic-shuffle", e).onWithOff("click", async () => {
-      project.payload.seed = Math.random();
+      mosaicProject.payload.seed = Math.random();
       projectUpdated("updateSeed", true, true);
     }),
     $(".mosaic-import-selection", e).onWithOff("click", async () => {
@@ -547,7 +550,7 @@ export async function makeMosaicPage(
         .selected();
       const newPics = browserSelection.filter(
         (img) =>
-          !project.payload.pool
+          !mosaicProject.payload.pool
             .map((i) => idFromAlbumEntry(i))
             .includes(idFromAlbumEntry(img)) &&
           true, // Albums are now only folders
@@ -555,11 +558,11 @@ export async function makeMosaicPage(
       if (newPics.length === 0) return;
 
       const newImages = await albumEntriesWithMetadata(newPics);
-      project.payload.pool.push(...newImages);
+      mosaicProject.payload.pool.push(...newImages);
 
       const imageControl = makeMultiselectImageList(
         t("Images"),
-        project.payload.pool,
+        mosaicProject.payload.pool,
         selectionManager,
         "th-small",
         "mosaic-image-control",
@@ -568,7 +571,7 @@ export async function makeMosaicPage(
       $(".mosaic-images", e).empty().append(imageControl);
       projectUpdated("updatePool");
     }),
-    ...(await installHandlers(e, project.payload, projectUpdated)),
+    ...(await installHandlers(e, mosaicProject.payload, projectUpdated)),
     appEvents.on("tabDeleted", ({ win }) => {
       if (win.get() === e.get()) {
         off.forEach((o) => o());
@@ -597,7 +600,7 @@ export async function makeMosaicPage(
 
       const newPics = selection.filter(
         (img) =>
-          !project.payload.pool
+          !mosaicProject.payload.pool
             .map((i) => idFromAlbumEntry(i))
             .includes(idFromAlbumEntry(img)) &&
           true, // Albums are now only folders
@@ -620,6 +623,6 @@ export async function makeMosaicPage(
 
   const tabEvent = buildEmitter<TabEvent>();
   const tab = makeGenericTab(tabEvent);
-  tabEvent.emit("rename", { name: project.name });
+  tabEvent.emit("rename", { name: mosaicProject.name });
   return { win: e, tab, selectionManager };
 }

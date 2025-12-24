@@ -1,6 +1,6 @@
 import { workerData } from "worker_threads";
 import { walkFilesystem } from "./internal/worker-thread";
-import { events } from "../../events/server-events";
+import { events } from "../../../shared/server-events";
 
 /**
  * Start the walker worker

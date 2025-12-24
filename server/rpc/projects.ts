@@ -1,61 +1,35 @@
 import { mkdir, readFile, readdir, unlink } from "fs/promises";
 import { extname, join } from "path";
-import { lock } from "../../../shared/lib/mutex";
-import { debounce, idFromAlbumEntry } from "../../../shared/lib/utils";
-import { events } from "../../../shared/server-events";
+import { lock } from "../../shared/lib/mutex";
+import { debounce, idFromAlbumEntry } from "../../shared/lib/utils";
+import { events } from "../../shared/server-events";
 import {
   Album,
   AlbumEntry,
   AlbumWithData,
   MosaicProject,
+  Project,
   ProjectType,
   SlideshowProject,
   ThumbnailSize,
   ThumbnailSizeVals,
   idFromKey,
   projectKeyFromType,
-} from "../../../shared/types/types";
-import { generateMosaicFile, makeMosaic } from "../../projects/mosaic";
-import { generateSlideshowFile } from "../../projects/slideshow";
-import { ThumbnailSizes, projectFolder } from "../../utils/constants";
+} from "../../shared/types/types";
+import { generateMosaicFile, makeMosaic } from "../projects/mosaic";
+import { generateSlideshowFile } from "../projects/slideshow";
+import { ThumbnailSizes, projectFolder } from "../utils/constants";
 import {
   fileExists,
   safeWriteFile
-} from "../../utils/serverUtils";
+} from "../utils/serverUtils";
 import {
   readOrMakeThumbnail
-} from "../rpcFunctions/thumbnail";
+} from "./rpcFunctions/thumbnail";
 
 export async function initProjects() {
   // Create project types
   await mkdir(projectFolder, { recursive: true });
-}
-
-export async function getProjectAlbums(): Promise<AlbumWithData[]> {
-  return Promise.all(
-    [ProjectType.MOSAIC, ProjectType.SLIDESHOW].map(async (f) => {
-      return {
-        name: f,
-        key: projectKeyFromType(f),
-        count: (await getProjects(f)).length,
-      };
-    }),
-  );
-}
-
-export async function getProjectAlbumFromKey(
-  projectKey: string,
-): Promise<AlbumWithData> {
-  const type = idFromKey(projectKey); // Extract ID from key
-  return getProjectAlbumFromType(type as ProjectType);
-}
-
-export async function getProjectAlbumFromType(
-  type: ProjectType,
-): Promise<AlbumWithData> {
-  const res = (await getProjectAlbums()).find((a) => a.name === type)!;
-  if (!res) debugger;
-  return res;
 }
 
 function projectIdToFileName(id: string, type: ProjectType) {
@@ -72,7 +46,7 @@ function fileNameToProjectIdAndType(name: string) {
 
 export async function getProjects(
   projectType: ProjectType,
-): Promise<AlbumEntry[]> {
+): Promise<Project[]> {
   const projectIds = (await readdir(projectFolder))
     .filter((f) => extname(f).toLowerCase() === ".json")
     .filter((file) => fileNameToProjectIdAndType(file).type === projectType)
@@ -80,91 +54,122 @@ export async function getProjects(
 
   return projectIds.map((id) => ({
     name: id,
-    album: {
-      name: projectType,
-      key: projectKeyFromType(projectType),
-    },
+    type: projectType,
   }));
 }
 
+export async function getProjectsCount(
+  projectType: ProjectType,
+): Promise<number> {
+  const projects = await getProjects(projectType);
+  return projects.length;
+}
+
 export async function getProject(
-  entry: AlbumEntry,
-): Promise<AlbumEntry | undefined> {
-  const file = projectIdToFileName(entry.name, entry.album.name as ProjectType);
+  project: Project,
+): Promise<MosaicProject | SlideshowProject | undefined> {
+  const file = projectIdToFileName(project.name, project.type);
   const data = await readFile(join(projectFolder, file), { encoding: "utf-8" });
-  const entryWithProjectData = JSON.parse(data) as AlbumEntry;
-  return entryWithProjectData;
+  const parsed = JSON.parse(data) as AlbumEntry & { payload: any };
+
+  if (project.type === ProjectType.MOSAIC) {
+    return {
+      name: project.name,
+      type: ProjectType.MOSAIC,
+      payload: parsed.payload,
+    } as MosaicProject;
+  } else if (project.type === ProjectType.SLIDESHOW) {
+    return {
+      name: project.name,
+      type: ProjectType.SLIDESHOW,
+      payload: parsed.payload,
+    } as SlideshowProject;
+  }
+
+  return undefined;
 }
 
-export async function createProject(type: ProjectType, name: string) {
-  const project: AlbumEntry = {
+export async function createProject(type: ProjectType, name: string): Promise<Project> {
+  return {
     name,
-    album: {
-      name: type,
-      key: projectKeyFromType(type),
-    },
+    type,
   };
-  return project;
 }
 
-export async function eraseProject(entry: AlbumEntry): Promise<void> {
-  const p = projectIdToFileName(entry.name, entry.album.name as ProjectType);
+export async function eraseProject(project: Project): Promise<void> {
+  const p = projectIdToFileName(project.name, project.type);
   await unlink(join(projectFolder, p));
-  const album = await getProjectAlbumFromKey(entry.album.key);
-  events.emit("albumUpdated",
-    album);
+  events.emit("projectsUpdated", { project, changeType: "deleted" });
 }
 
 export async function writeProject(
-  project: AlbumEntry,
+  project: MosaicProject | SlideshowProject,
   changeType: string,
 ): Promise<void> {
-  const p = projectIdToFileName(
-    project.name,
-    project.album.name as ProjectType,
-  );
+  const p = projectIdToFileName(project.name, project.type);
   const unlock = await lock(p);
   try {
+    // Save as AlbumEntry format for backward compatibility with file format
+    const entryFormat: AlbumEntry = {
+      name: project.name,
+      album: {
+        name: project.type,
+        key: projectKeyFromType(project.type),
+      },
+    };
+    const dataToSave = {
+      ...entryFormat,
+      payload: project.payload,
+    };
     await safeWriteFile(
       join(projectFolder, p),
-      JSON.stringify(project, null, 2),
+      JSON.stringify(dataToSave, null, 2),
     );
   } finally {
     unlock();
   }
+  // Clear thumbnails
   clearProjectThumbnails(project);
-  const album = await getProjectAlbumFromKey(project.album.key);
+
   debounce(
     () => {
       events.emit("projectsUpdated", { project, changeType });
-
-      events.emit("albumEntryAspectChanged", {
-        ...project,
-        metadata: {},
-      });
     },
     1000,
-    "writeProject/" + idFromAlbumEntry(project, ""),
+    "writeProject/" + project.name,
     false,
   );
 }
 export async function buildProject(
-  project: AlbumEntry,
+  project: Project,
   outAlbum: Album,
   outResolutionX: number,
   outResolutionY?: number,
 ): Promise<AlbumEntry> {
   const source = await getProject(project);
   if (!source) throw new Error("Project not found");
-  const projectType = source.album.name as ProjectType;
+
+  // Convert Project to AlbumEntry format for generate functions
+  const entryFormat: AlbumEntry = {
+    name: source.name,
+    album: {
+      name: source.type,
+      key: projectKeyFromType(source.type),
+    },
+  };
+  const sourceWithPayload = {
+    ...entryFormat,
+    payload: source.payload,
+  } as AlbumEntry & { payload: any };
+
   let newEntry: AlbumEntry;
-  switch (projectType) {
+  switch (source.type) {
     case ProjectType.MOSAIC:
-      newEntry = await generateMosaicFile(source, outAlbum, outResolutionX);
+      newEntry = await generateMosaicFile(source as MosaicProject, outAlbum, outResolutionX);
       break;
     case ProjectType.SLIDESHOW:
       newEntry = await generateSlideshowFile(
-        source,
+        source as SlideshowProject,
         outAlbum,
         outResolutionX,
         outResolutionY,
@@ -177,14 +182,14 @@ export async function buildProject(
 }
 
 export async function makeProjectThumbnail(
-  entry: AlbumEntry,
+  project: Project,
   size: ThumbnailSize = "th-medium",
 ): Promise<Buffer> {
-  const projectData = await getProject(entry);
+  const projectData = await getProject(project);
   if (!projectData) throw new Error("Project not found");
   const p = join(
     projectFolder,
-    `${projectData.album.key}-${projectData.name}-${size}.jpg`,
+    `${projectKeyFromType(projectData.type)}-${projectData.name}-${size}.jpg`,
   );
   const unlock = await lock(p);
   try {
@@ -193,17 +198,16 @@ export async function makeProjectThumbnail(
       const iconData = await readFile(p);
       return iconData;
     }
-    if (projectData.album.name === ProjectType.MOSAIC) {
-      const proj = projectData as MosaicProject;
+    if (projectData.type === ProjectType.MOSAIC) {
       const res = await makeMosaic(
-        proj,
+        project,
         ThumbnailSizes[size],
         "image/jpeg",
         "Buffer",
       );
       await safeWriteFile(p, res.data);
       return res.data as Buffer;
-    } else if (projectData.album.name === ProjectType.SLIDESHOW) {
+    } else if (projectData.type === ProjectType.SLIDESHOW) {
       // get first image from slideshow
       const proj = projectData as SlideshowProject;
       const first = proj.payload.pages.find((p) => p.type === "image");
@@ -213,18 +217,18 @@ export async function makeProjectThumbnail(
       return thumb.data;
     }
   } catch (e) {
-    console.error(`Error making project thumbnail for ${entry.name}: ${e}`);
+    console.error(`Error making project thumbnail for ${project.name}: ${e}`);
   } finally {
     unlock();
   }
   return Buffer.from("");
 }
 
-async function clearProjectThumbnails(entry: AlbumEntry): Promise<void> {
+async function clearProjectThumbnails(project: Project): Promise<void> {
   for (const size of ThumbnailSizeVals) {
     const p = join(
       projectFolder,
-      `${entry.album.key}-${entry.name}-${size}.jpg`,
+      `${projectKeyFromType(project.type)}-${project.name}-${size}.jpg`,
     );
     const unlock = await lock(p);
     try {

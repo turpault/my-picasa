@@ -1,6 +1,5 @@
 import { uuid } from "../../shared/lib/utils";
-import { Album, AlbumWithData, JOBNAMES, Node } from "../../shared/types/types";
-import { AlbumIndexedDataSource } from "../album-data-source";
+import { Album, AlbumWithData, Contact, JOBNAMES, Project, Shortcut } from "../../shared/types/types";
 import { getAlbumContents } from "../folder-utils";
 import {
   $,
@@ -12,6 +11,13 @@ import {
 import { getService } from "../rpc/connect";
 import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { AppEventSource } from "../uiTypes";
+import { getAlbumCache } from "../lib/caches/album-cache";
+import { getShortcutCache } from "../lib/caches/shortcut-cache";
+import { getContactCache } from "../lib/caches/contact-cache";
+import { getProjectCache } from "../lib/caches/project-cache";
+import { ProjectType, projectKeyFromType, personKeyFromName } from "../../shared/types/types";
+import { t } from "./strings";
+import { AlbumListEventSource } from "../uiTypes";
 
 const elementPrefix = "albumlist:";
 const html = `<div class="w3-theme fill folder-pane">
@@ -19,133 +25,208 @@ const html = `<div class="w3-theme fill folder-pane">
 </div>
 `;
 
+type ListItem = {
+  album?: Album;
+  project?: Project;
+  contact?: Contact;
+  shortcut?: Shortcut;
+  name: string;
+  count?: number;
+};
+
 export async function makeAlbumList(
   appEvents: AppEventSource,
-  albumDataSource: AlbumIndexedDataSource,
   selectionManager: AlbumEntrySelectionManager,
+  albumListEvents: AlbumListEventSource,
 ) {
   const container = $(html);
-
-  let lastHighlight: any;
-  let filter = "";
   const folders = $(".folders", container);
-  const events = albumDataSource.emitter;
-  let lastSelectedAlbum: Album | undefined;
   const id = uuid();
+  let shortcutItems: ListItem[] = [];
+  let folderItems: ListItem[] = [];
+  let projectItems: ListItem[] = [];
+  let personItems: ListItem[] = [];
+  let foldersByYear: Map<string, ListItem[]> = new Map();
+  let collapsed: { [key: string]: boolean } = {};
 
-  function setElementNodeId(node: Node, elem: _$) {
-    elem.id(`${node.name}|${id}`);
-  }
-  function getElementFromNode(node: Node) {
-    return $(`#${node.name}|${id}`);
+  const albumCache = getAlbumCache();
+  const shortcutCache = getShortcutCache();
+  const contactCache = getContactCache();
+  const projectCache = getProjectCache();
+
+  // Caches should already be initialized by app.ts, but ensure they're ready
+  if (!albumCache.getAlbums().length) {
+    await Promise.all([
+      albumCache.init(),
+      shortcutCache.init(),
+      contactCache.init(),
+      projectCache.init(),
+    ]);
   }
 
-  function renderNodeCollapsed(node: Node) {
-    if (!node) debugger;
-    const element = getElementFromNode(node);
-    element.addRemoveClass("folder-collapsed", node.collapsed);
-    node.childs.forEach((child) => {
-      renderNodeCollapsed(child);
-    });
-  }
+  function buildItemsFromCache() {
+    const albums = albumCache.getAlbums();
+    const shortcuts = shortcutCache.getShortcuts();
+    const contacts = contactCache.getContacts();
 
-  function renderNode(node: Node, indent: number = 0) {
-    if (!node) debugger;
-    const e = $(
-      `
-      <div class="folder-row ${node.collapsed ? "folder-collapsed" : ""}">
-        <div class="browser-list-head browser-list-head-${indent}">${node.name
-      }</div>
-        <div class="browser-list-albums"></div>
-      </div>`,
-    );
-    setElementNodeId(node, e);
-    $(".browser-list-head", e).attachData({ node });
-    $(e).attachData({ indent });
-    const container = $(".browser-list-albums", e);
-    for (const album of node.albums) {
-      const renderedAlbum = renderAlbum(album);
-      container.append(renderedAlbum);
+    // Build shortcut items
+    shortcutItems = shortcuts.map((shortcut) => ({
+      album: shortcut.album,
+      shortcut: shortcut,
+      name: shortcut.album.name,
+      count: 0, // FIXME - get count from album
+    }));
+
+    // Separate albums into folders only (projects and persons come from their respective caches)
+    folderItems = [];
+
+    for (const album of albums) {
+      if (album.shortcut) {
+        // This is a shortcut album (already in shortcutItems)
+        continue;
+      }
+      folderItems.push({
+        album,
+        name: album.name,
+        count: album.count,
+      });
     }
-    if (node.childs.length > 0) renderNodes(node.childs, e, indent + 1);
-    return e;
+
+    // Build project items from ProjectCache
+    projectItems = [
+      {
+        project: { name: ProjectType.MOSAIC, type: ProjectType.MOSAIC },
+        name: ProjectType.MOSAIC,
+        count: projectCache.getProjectsCount(ProjectType.MOSAIC),
+      },
+      {
+        project: { name: ProjectType.SLIDESHOW, type: ProjectType.SLIDESHOW },
+        name: ProjectType.SLIDESHOW,
+        count: projectCache.getProjectsCount(ProjectType.SLIDESHOW),
+      },
+    ];
+
+    // Build person items from ContactCache
+    personItems = contacts.map((contact) => ({
+      contact,
+      name: contact.name,
+      count: 0, // FIXME - get count
+    }));
+
+    // Organize folders by year
+    foldersByYear = new Map<string, ListItem[]>();
+    for (const folder of folderItems) {
+      const year = folder.name.slice(0, 4);
+      if (!foldersByYear.has(year)) {
+        foldersByYear.set(year, []);
+      }
+      foldersByYear.get(year)!.push(folder);
+    }
   }
-  function renderAlbum(album: AlbumWithData): _$ {
-    const label = `${album.shortcut
-      ? String.fromCharCode(0x245f + parseInt(album.shortcut)) + " "
-      : ""
-      }${album.name}`;
+
+  function renderItem(item: ListItem): _$ {
+    const label = item.shortcut
+      ? String.fromCharCode(0x245f + parseInt(item.shortcut.shortcut)) + " " + item.name
+      : item.name;
     const r = $(
       `
       <div class="browser-list-text">
-      <span class="browser-list-count"/>${album.count}</span>
+      <span class="browser-list-count"/>${item.count ?? ""}</span>
       <div class="browser-list-label">${label}</div>
       </div>`,
     );
-    setIdForAlbum(r, album, elementPrefix);
+    setIdForAlbum(r, item.album, elementPrefix);
+    r.attachData({ item });
     return r;
   }
 
-  function renderNodes(nodes: Node[], folders: _$, indent: number = 0): _$ {
-    for (const node of nodes) {
-      const item = renderNode(node, indent);
-      folders.append(item);
+  function renderSection(title: string, sectionItems: ListItem[], sectionKey: string): _$ {
+    const isCollapsed = collapsed[sectionKey] ?? false;
+    const sectionDiv = $(
+      `
+      <div class="folder-row ${isCollapsed ? "folder-collapsed" : ""}">
+        <div class="browser-list-head browser-list-head-0">${title}</div>
+        <div class="browser-list-albums"></div>
+      </div>`,
+    );
+    sectionDiv.attachData({ sectionKey });
+    const albumsContainer = $(".browser-list-albums", sectionDiv);
+
+    if (!isCollapsed) {
+      for (const item of sectionItems) {
+        albumsContainer.append(renderItem(item));
+      }
     }
-    return folders;
+
+    return sectionDiv;
   }
-  addListeners(container);
 
-  container.attachData({
-    events: [
-      events.on("scrolled", ({ album }) => {
-        lastSelectedAlbum = album;
-        if (lastHighlight && lastHighlight.exists()) {
-          lastHighlight.removeClass("highlight-list");
-        }
-        lastHighlight = elementFromAlbum(album, elementPrefix);
-        if (lastHighlight.exists()) {
-          lastHighlight.addClass("highlight-list");
-          lastHighlight.get().scrollIntoViewIfNeeded(false);
-        }
-      }),
+  async function render() {
+    folders.empty();
 
-      events.on("reset", (_event) => {
-        folders.empty();
-        renderNodes(albumDataSource.getHierarchy().childs, folders);
-      }),
-      events.on("invalidateFrom", (event) => {
-        folders.empty();
-        renderNodes(albumDataSource.getHierarchy().childs, folders);
-      }),
-      events.on("renamed", (event) => {
-        if (!event.album) debugger;
-        const e = elementFromAlbum(event.oldAlbum, elementPrefix);
-        if (!e.exists()) return;
-        const n = renderAlbum(event.album);
-        e.replaceWith(n);
-      }),
-      events.on("invalidateAt", (event) => {
-        const album = albumDataSource.albumAtIndex(event.index);
-        if (!album) debugger;
-        const e = elementFromAlbum(album, elementPrefix);
-        if (!e.exists()) return;
-        const n = renderAlbum(album);
-        e.replaceWith(n);
-      }),
-      events.on("nodeCollapsed", (event) => {
-        const node = event.node;
-        renderNodeCollapsed(node);
-      }),
-      events.on("nodeChanged", (event) => {
-        const node = event.node;
-        const original = getElementFromNode(node);
-        if (!original) return;
-        const indent = original.getData().indent;
-        const n = renderNode(node, indent);
-        original.replaceWith(n);
-      }),
-    ],
-  });
+
+    // Render shortcuts section
+    if (shortcutItems.length > 0) {
+      folders.append(renderSection(t("shortcuts"), shortcutItems, "shortcuts"));
+    }
+
+    // Render folders by year
+    for (const [year, yearFolders] of Array.from(foldersByYear.entries()).sort()) {
+      folders.append(renderSection(year, yearFolders, `folders-${year}`));
+    }
+
+    // Render projects section
+    if (projectItems.length > 0) {
+      folders.append(renderSection(t("Projects"), projectItems, "projects"));
+    }
+
+    // Render persons section
+    if (personItems.length > 0) {
+      folders.append(renderSection(t("Persons"), personItems, "persons"));
+    }
+  }
+
+  // Initial render
+  buildItemsFromCache();
+  await render();
+
+  // Listen for cache updates
+  const unregs: (() => void)[] = [];
+
+  unregs.push(albumCache.emitter.on("albumsChanged", async () => {
+    buildItemsFromCache();
+    await render();
+  }));
+
+  unregs.push(shortcutCache.emitter.on("shortcutsChanged", async () => {
+    buildItemsFromCache();
+    await render();
+  }));
+
+  unregs.push(contactCache.emitter.on("contactsChanged", async () => {
+    buildItemsFromCache();
+    await render();
+  }));
+
+  unregs.push(projectCache.emitter.on("projectsChanged", async () => {
+    buildItemsFromCache();
+    await render();
+  }));
+
+  unregs.push(albumCache.emitter.on("albumUpdated", async ({ album }) => {
+    buildItemsFromCache();
+    await render();
+  }));
+
+  unregs.push(albumCache.emitter.on("albumAdded", async ({ album }) => {
+    buildItemsFromCache();
+    await render();
+  }));
+
+  unregs.push(albumCache.emitter.on("albumRemoved", async ({ album }) => {
+    buildItemsFromCache();
+    await render();
+  }));
 
   function addListeners(container: _$) {
     const img = new Image();
@@ -156,22 +237,29 @@ export async function makeAlbumList(
         console.info("click");
         const item = $(ev.target as HTMLElement);
         if (item.hasClass("browser-list-head")) {
-          const node = $(ev.target as HTMLElement).getData().node as Node;
-          albumDataSource.toggleCollapse(node);
+          const sectionKey = item.parent().getData().sectionKey;
+          if (sectionKey) {
+            collapsed[sectionKey] = !collapsed[sectionKey];
+            render();
+          }
           return true;
         }
-        const album = albumFromElement(item, elementPrefix)!;
-        if (!album) return true;
-        lastSelectedAlbum = album;
-        events.emit("selected", { album });
+        const listItem = $(item.get().closest(".browser-list-text"));
+        if (!listItem.exists()) return true;
+        const itemData = listItem.getData().item as ListItem;
+        if (!itemData) return true;
+        albumListEvents.emit("selected", itemData);
         return true;
       })
       .on("dblclick", async function (ev) {
         console.info("dblclick");
         const item = $(ev.target as HTMLElement);
-        const album = albumFromElement(item, elementPrefix)!;
+        const listItem = $(item.get().closest(".browser-list-text"));
+        if (!listItem.exists()) return;
+        const itemData = listItem.getData().item as ListItem;
+        if (!itemData) return;
+        const album = itemData.album;
         if (!album) return;
-        const s = await getService();
         const media = await getAlbumContents(album);
         selectionManager.setSelection(media.entries);
       })
@@ -215,23 +303,32 @@ export async function makeAlbumList(
           $(dropTarget).removeClass("drop-area");
           const item = $(dropTarget);
           const selection = selectionManager.selected();
-          const album = albumFromElement(item, elementPrefix)!;
-          if (!album) return;
-          const s = await getService();
+          const listItem = $(item.get().closest(".browser-list-text"));
+          if (!listItem.exists()) return;
+          const itemData = listItem.getData().item as ListItem;
+          if (!itemData) return;
+          const album = itemData.album;
+          if (album) {
+            const s = await getService();
 
-          if (selection.length === 0) {
-            throw new Error("No selection");
+            if (selection.length === 0) {
+              throw new Error("No selection");
+            }
+            console.info("Moving selection to album", selection, album);
+
+            s.createJob(JOBNAMES.MOVE, {
+              source: selection,
+              destination: { album },
+            });
           }
-          console.info("Moving selection to album", selection, album);
-
-          s.createJob(JOBNAMES.MOVE, {
-            source: selection,
-            destination: { album },
-          });
           selectionManager.clear();
         }
       });
   }
+
+  addListeners(container);
+
+  container.attachData({ unregs });
 
   return container;
 }

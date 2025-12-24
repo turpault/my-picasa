@@ -1,17 +1,21 @@
 import { readdir, stat } from "fs/promises";
 import { join } from "path";
 import { isMainThread, parentPort } from "worker_threads";
-import { isPicture, isVideo, sleep } from "../../../shared/lib/utils";
+import { isPicture, isVideo, sleep } from "../../shared/lib/utils";
 import {
   Album,
   AlbumChangeEvent,
   AlbumEntry,
-} from "../../../shared/types/types";
-import { imagesRoot } from "../../utils/constants";
-import { events } from "../../../shared/server-events";
-import { pathForAlbum } from "../../utils/serverUtils";
+} from "../../shared/types/types";
+import { imagesRoot } from "../utils/constants";
+import { events } from "../../shared/server-events";
+import { pathForAlbum } from "../utils/serverUtils";
 
 const notificationQueue: AlbumChangeEvent[] = [];
+
+export function queueNotification(event: AlbumChangeEvent) {
+  notificationQueue.push(event);
+}
 
 export async function startAlbumUpdateNotification() {
   while (true) {

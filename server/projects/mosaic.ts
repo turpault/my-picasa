@@ -9,6 +9,7 @@ import {
   ImageMimeType,
   MosaicProject,
   Orientation,
+  Project,
 } from "../../shared/types/types";
 import {
   blitMultiple,
@@ -18,32 +19,36 @@ import {
   encode,
   transform,
 } from "../imageOperations/sharp-processor";
-import { getProject } from "../rpc/albumTypes/projects";
+import { getProject } from "../rpc/projects";
 import { imagesRoot } from "../utils/constants";
 import { pathForAlbum, safeWriteFile } from "../utils/serverUtils";
 
 export async function makeMosaic(
-  entry: AlbumEntry,
+  project: Project,
   width: number | undefined,
   mime: ImageMimeType = "image/jpeg",
   format: ImageEncoding = "Buffer",
 ): Promise<{ width: number; height: number; data: Buffer | string }> {
-  const project = (await getProject(entry)) as MosaicProject;
-  width = Math.floor(width || project.payload.size);
+  const projectData = await getProject(project);
+  if (!projectData || projectData.type !== "Mosaic") {
+    throw new Error("Invalid mosaic project");
+  }
+  const mosaicProject = projectData as MosaicProject;
+  width = Math.floor(width || mosaicProject.payload.size);
   const height = Math.floor(
     width *
-      Math.pow(
-        project.payload.format,
-        project.payload.orientation === Orientation.PAYSAGE ? -1 : 1,
-      ),
+    Math.pow(
+      mosaicProject.payload.format,
+      mosaicProject.payload.orientation === Orientation.PAYSAGE ? -1 : 1,
+    ),
   );
   const gutter =
-    (project.payload.gutter / 100) * (Orientation.PAYSAGE ? width : height);
+    (mosaicProject.payload.gutter / 100) * (Orientation.PAYSAGE ? width : height);
 
   const targetContext = await buildNewContext(width, height);
-  if (project.payload.root) {
+  if (mosaicProject.payload.root) {
     const positions = calculateImagePositions(
-      project.payload.root,
+      mosaicProject.payload.root,
       gutter,
       gutter / 2,
       gutter / 2,
@@ -75,18 +80,17 @@ export async function makeMosaic(
 }
 
 export async function generateMosaicFile(
-  entry: AlbumEntry,
+  project: MosaicProject,
   outAlbum: Album,
   width: number,
 ): Promise<AlbumEntry> {
-  const res = await makeMosaic(entry, width);
+  const res = await makeMosaic(project, width);
 
   const targetFolder = join(imagesRoot, pathForAlbum(outAlbum));
   await mkdir(targetFolder, { recursive: true });
   const targetFile =
     namify(
-      `${
-        entry.name
+      `${project.name
       } ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
     ) + ".jpeg";
   await safeWriteFile(join(targetFolder, targetFile), res.data);

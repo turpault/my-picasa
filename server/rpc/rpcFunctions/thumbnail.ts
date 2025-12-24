@@ -23,8 +23,8 @@ import {
 } from "../../utils/serverUtils";
 import { dec, inc } from "../../utils/stats";
 import { createGif } from "../../videoOperations/gif";
-import { makeProjectThumbnail } from "../albumTypes/projects";
-import { decodeReferenceId } from "../albumTypes/referenceFiles";
+import { makeProjectThumbnail } from "../projects";
+import { decodeReferenceId } from "../referenceFiles";
 import { getEntryMetadata } from "../../services/walker/queries";
 import {
   readThumbnailBufferFromCache,

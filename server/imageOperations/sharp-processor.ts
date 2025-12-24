@@ -29,7 +29,7 @@ import {
 import {
   decodeReferenceId,
   readReferenceFromReferenceId,
-} from "../rpc/albumTypes/referenceFiles";
+} from "../rpc/referenceFiles";
 import { getFaceRect } from "../operations/faces/faces";
 import { rectOfReference } from "../operations/faces/face-utils";
 import {

@@ -13,7 +13,7 @@ import { searchPicturesByFilters, searchFoldersByFilters } from "./services/sear
 import { getAllAlbums, getAlbum, getAlbumEntries as getWalkerAlbumEntries } from "./services/walker/queries";
 import {
   getProjects,
-} from "./rpc/albumTypes/projects";
+} from "./rpc/projects";
 import {
   readFaceAlbumEntries,
 } from "./operations/faces/faces";
@@ -69,26 +69,19 @@ async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {
 }
 
 /**
- * Get all folder albums from the walker database
- */
-export async function getFolderAlbums(): Promise<AlbumWithData[]> {
-  return getAllAlbums();
-}
-
-/**
  * Get folder albums, optionally filtered by search criteria
  */
-export async function folders(filters?: Filters): Promise<AlbumWithData[]> {
+export async function getAlbums(filters?: Filters): Promise<AlbumWithData[]> {
   if (filters) {
     // Use database-level filtering for better performance
     const matchedAlbums = await searchFoldersByFilters(filters);
 
     // Complete with shortcuts
-    const shortcuts = Object.values(getShortcuts());
+    const shortcuts = getShortcuts();
     for (const album of matchedAlbums) {
-      const shortcut = shortcuts.find((s) => s.key === album.key);
+      const shortcut = shortcuts.find((s) => s.album.key === album.key);
       if (shortcut) {
-        album.shortcut = shortcut.name;
+        album.shortcut = shortcut.shortcut;
       }
     }
     return matchedAlbums;

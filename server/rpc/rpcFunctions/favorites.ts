@@ -40,7 +40,7 @@ import {
   removeExtension,
   safeWriteFile,
 } from "../../utils/serverUtils";
-import { folders } from "../../media";
+import { getAlbums } from "../../media";
 import { exportToFolder } from "../../imageOperations/export";
 
 const readyLabelKey = "favorites";
@@ -104,7 +104,7 @@ async function exportFavorite(entry: AlbumEntry): Promise<void> {
 export async function syncFavoritesFromPhotoApp(
   progress: (progress: number, total: number) => void,
 ) {
-  const albums = await folders(undefined);
+  const albums = await getAlbums(undefined);
   const alreadyStarred: AlbumEntryWithMetadata[] = [];
   const allPhotos: {
     metadata: AlbumEntryWithMetadata;

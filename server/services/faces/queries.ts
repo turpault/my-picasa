@@ -1,22 +1,48 @@
-import { Album, AlbumEntry, Face, FaceList } from "../../../shared/types/types";
+import { createHash } from "crypto";
 import { decodeFaces } from "../../../shared/lib/utils";
-import { decodeReferenceId } from "../../../rpc/albumTypes/referenceFiles";
-import { getAllAlbums, getAlbumEntries, getEntryMetadata } from "../../services/walker/queries";
+import { Album, AlbumEntry, AlbumWithData, Contact, FaceList, idFromKey } from "../../../shared/types/types";
+import { getFaceAlbums } from "../../operations/faces/faces";
+import { getAlbumEntries, getEntryMetadata } from "../../services/walker/queries";
 
 /**
  * Faces Service Queries (Read-Only)
  * 
- * This module provides read-only query access to face/person data.
+ * This module provides read-only query access to face/contact data.
  * Queries are executed directly against the walker database and face album structures.
  */
 
 /**
- * Get a list of all persons (face albums)
- * Returns face albums as Album objects
+ * Generate a unique ID for a contact based on their name
+ * Uses a hash to ensure consistency across sessions
  */
-export function getPersons(): Album[] {
-  const { getFaceAlbums } = require("../../operations/faces/faces");
-  return getFaceAlbums();
+function generateContactId(name: string): string {
+  return createHash("sha256").update(`person:${name}`).digest("hex").substring(0, 16);
+}
+
+/**
+ * Get a list of all contacts with their entry counts
+ * Returns Contact objects with id, name, and count
+ */
+export function getContacts(): Contact[] {
+  const faceAlbums = getFaceAlbums();
+
+  return faceAlbums.map((album: AlbumWithData) => {
+    // Extract contact name from the album key (format: "person»name")
+    const contactName = idFromKey(album.key);
+    const id = generateContactId(contactName);
+    // Count entries in the face album
+    const entries = getAlbumEntries(album);
+
+    return {
+      id,
+      originalName: contactName,
+      name: contactName,
+      email: "",
+      something: "",
+      key: album.key,
+      count: entries.length,
+    };
+  });
 }
 
 /**
@@ -30,28 +56,12 @@ export function getFacesForEntry(entry: AlbumEntry): FaceList {
 }
 
 /**
- * Get all album entries where a given person (face album) appears
+ * Get all album entries where a given contact (face album) appears
  * Face albums contain entries where the entry name is a reference ID
  * that encodes the original album entry
  */
-export function getEntriesForPerson(person: Album): AlbumEntry[] {
-  // Get all entries from the face album
-  const faceAlbumEntries = getAlbumEntries(person);
-  
-  // Decode each reference ID to get the original entry
-  const entries: AlbumEntry[] = [];
-  for (const faceEntry of faceAlbumEntries) {
-    try {
-      // The entry name in a face album is a reference ID
-      // Decode it to get the original album entry
-      const { entry } = decodeReferenceId(faceEntry.name);
-      entries.push(entry);
-    } catch (error) {
-      // Skip invalid reference IDs
-      console.warn(`Invalid reference ID in face album ${person.key}: ${faceEntry.name}`, error);
-    }
-  }
-  
-  return entries;
-}
+export function getEntriesForContact(contact: Contact): AlbumEntry[] {
+  // TODO: Execute query to get entries for contact
 
+  return [];
+}

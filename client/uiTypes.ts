@@ -8,7 +8,9 @@ import {
   Album,
   AlbumEntry,
   AlbumWithData,
+  Contact,
   Node,
+  Project,
   UndoStep,
 } from "./types/types";
 
@@ -91,8 +93,8 @@ export type AppEvent = {
 export type AppEventSource = Emitter<AppEvent>;
 
 export type AlbumListEvent = {
-  selected: { album: Album };
-  scrolled: { album: Album };
+  selected: { album?: Album, project?: Project, contact?: Contact };
+  scrolled: { album?: Album, project?: Project, contact?: Contact };
   invalidateFrom: {
     index: number;
     to: number;

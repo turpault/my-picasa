@@ -4,29 +4,30 @@ import {
   idFromAlbumEntry,
 } from "../../../../../shared/lib/utils";
 import {
-  FaceList,
   Album,
   AlbumEntry,
+  AlbumEntryMetaData,
   Contact,
   ContactByHash,
   Face,
-  AlbumEntryMetaData,
+  FaceList,
   Reference,
 } from "../../../../../shared/types/types";
 import {
   addReferenceToFaceAlbum,
   removeReferenceToFaceAlbum,
 } from "../../../../operations/faces/faces";
+import { readReferencesOfEntry } from "../../../../rpc/referenceFiles";
 import { media } from "../../../../rpc/rpcFunctions/albumUtils";
 import {
+  getAlbumEntries,
+  getAllAlbums,
+  getContactByHash,
+  getContactsFromAlbum,
   getEntryMetadata,
   getMutations,
-  getContactsFromAlbum,
-  getContactByHash,
   getPicasaSection,
 } from "../../../walker/queries";
-import { getFolderAlbums } from "../../../../media";
-import { readReferencesOfEntry } from "../../../../rpc/albumTypes/referenceFiles";
 
 type PicasaFeatures = {
   contacts: ContactByHash;
@@ -45,16 +46,16 @@ export async function getPicasaFeatures(): Promise<PicasaFeatures> {
     facesByEntry: {},
   } as PicasaFeatures;
   // Scan all the contacts
-  const albums = await getFolderAlbums();
+  const albums = await getAllAlbums();
   await Promise.all(
     albums.map(async (album) => {
-      const m = await media(album);
+      const entries = await getAlbumEntries(album);
       const contacts = await getContactsFromAlbum(album);
       self._features.contacts = {
         ...self._features.contacts,
         ...contacts,
       };
-      for (const entry of m.entries) {
+      for (const entry of entries) {
         const entryMeta = getEntryMetadata(entry);
         const faceString = entryMeta.faces;
         const faces = faceString ? decodeFaces(faceString) : [];

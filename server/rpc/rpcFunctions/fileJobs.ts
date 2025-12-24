@@ -14,6 +14,9 @@ import {
   JobData,
   idFromKey,
   keyFromID,
+  Project,
+  ProjectType,
+  projectKeyFromType,
 } from "../../../shared/types/types";
 import { exportToFolder } from "../../imageOperations/export";
 import { exportsFolder, imagesRoot } from "../../utils/constants";
@@ -21,8 +24,7 @@ import { entryFilePath, fileExists } from "../../utils/serverUtils";
 import { addToUndo, registerUndoProvider } from "../../utils/undo";
 import { events } from "../../../shared/server-events";
 import { getMutations as getWalkerMutations } from "../../services/walker/queries";
-import { buildPersonsList } from "../albumTypes/persons";
-import { buildProject, eraseProject } from "../albumTypes/projects";
+import { buildProject, eraseProject } from "../projects";
 import { setRank } from "./albumUtils";
 import { eraseFace } from "../../operations/faces/faces";
 import { syncFavoritesFromPhotoApp } from "./favorites";
@@ -588,9 +590,19 @@ async function buildProjectJob(job: Job): Promise<Album[]> {
   for (const source of sources) {
     // Check if this is a project by checking if the album key starts with "project?"
     if (source.album.key.startsWith("project?")) {
+      // Extract project type and name from the album entry
+      const projectType = source.album.name as ProjectType;
+      const project: Project = {
+        name: source.name,
+        type: projectType,
+      };
+      const destinationAlbum: Album = {
+        name: destination,
+        key: keyFromID(destination),
+      };
       const newEntry = await buildProject(
-        source,
-        destination,
+        project,
+        destinationAlbum,
         job.data.argument.width,
       );
       job.out = job.out ? [...job.out, newEntry] : [newEntry];
@@ -771,7 +783,7 @@ async function populateIPhotoFavorites(job: Job): Promise<Album[]> {
   );
 
   await syncFavoritesFromPhotoApp(d);
-  await buildPersonsList();
+  // Persons are now fetched from faces service queries, no need to rebuild list
 
   job.status = "finished";
   job.changed();
