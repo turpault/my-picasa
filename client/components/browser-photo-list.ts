@@ -28,6 +28,7 @@ import { toggleStar } from "../lib/handles";
 import { getSettings, getSettingsEmitter } from "../lib/settings";
 import { getService } from "../rpc/connect";
 import { AlbumEntrySelectionManager } from "../selection/selection-manager";
+import { events } from "../../shared/server-events";
 import { AlbumListEventSource, AppEventSource } from "../uiTypes";
 import { Button, message, notImplemented } from "./question";
 import { t } from "./strings";
@@ -736,7 +737,7 @@ export async function makePhotoList(
         <div class="album">
           <div class="header w3-bar w3-bar-item">
             <div class="name-container">
-              <div class="name-container-folder-icon">📁</div>
+              <div class="name-container-folder-icon">??</div>
               <div class="name-container-name"/></div>
               <div class="name-container-date"/></div>
               <div class="name-container-buttons"/>
@@ -1093,15 +1094,14 @@ export async function makeThumbnailManager(
   elementPrefix: string,
   selectionManager: AlbumEntrySelectionManager,
 ) {
-  const s = await getService();
-  s.on("albumEntryAspectChanged", async (e: { payload: AlbumEntryPicasa }) => {
+  events.on("albumEntryAspectChanged", async (e) => {
     // Is there a thumbnail with that data ?
-    const elem = elementFromEntry(e.payload, elementPrefix);
+    const elem = elementFromEntry(e, elementPrefix);
     if (elem.exists()) {
       thumbnailData(
         elem,
-        e.payload,
-        e.payload.metadata,
+        e,
+        e.metadata,
         selectionManager,
         elementPrefix,
       );

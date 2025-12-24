@@ -8,7 +8,7 @@ import { lock } from "../../../../shared/lib/mutex";
 import { Queue } from "../../../../shared/lib/queue";
 import { buildReadySemaphore, setReady } from "../../../../shared/lib/utils";
 import { isPicture, isVideo } from "../../../../shared/lib/utils";
-import { AlbumEntry, AlbumKind, ExifData, ExifTag } from "../../../../shared/types/types";
+import { AlbumEntry, ExifData, ExifTag } from "../../../../shared/types/types";
 import { dimensionsFromFileBuffer } from "../../../imageOperations/sharp-processor";
 import { entryFilePath } from "../../../utils/serverUtils";
 import { getExifDatabaseReadWrite } from "./database";
@@ -181,8 +181,7 @@ async function processUnprocessedEntries(): Promise<void> {
         name: entry_name,
         album: {
           key: album_key,
-          name: album_name,
-          kind: AlbumKind.FOLDER
+          name: album_name
         }
       };
       await extractExifData(entry);

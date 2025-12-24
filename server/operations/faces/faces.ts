@@ -1,22 +1,21 @@
 import {
   Album,
   AlbumEntry,
-  AlbumKind,
   AlbumWithData,
   Contact,
   Face,
   FaceData,
-  keyFromID,
+  personKeyFromName,
 } from "../../../shared/types/types";
-import { rectOfReference } from "../../services/faces/face/face-utils";
+import { rectOfReference } from "./face-utils";
 import {
   decodeReferenceId,
   readReferenceFromReferenceId,
-} from "../albumTypes/referenceFiles";
+} from "../../rpc/albumTypes/referenceFiles";
 import {
-  albumFromNameAndKind,
+  albumFromName,
   deletePicasaSection,
-  listAlbumsOfKind,
+  listFolders,
   writeFaceAlbumContact,
   writeFaceAlbumEntry,
 } from "../../services/walker/internal/picasa-ini";
@@ -66,10 +65,11 @@ export async function mergeFaces(face: string, withFace: string) {
 }
 
 export function getFaceAlbum(contact: Contact | string): AlbumWithData {
-  const album = albumFromNameAndKind(
-    typeof contact === "string" ? contact : contact.originalName,
-    AlbumKind.FACE,
-  );
+  const name = typeof contact === "string" ? contact : contact.originalName;
+  const album: Album = {
+    name,
+    key: personKeyFromName(name),
+  };
   if (typeof contact !== "string") {
     writeFaceAlbumContact(album, contact);
   }
@@ -113,11 +113,36 @@ export async function removeReferenceToFaceAlbum(
 
 const faceAlbums: AlbumWithData[] = [];
 export async function loadFaceAlbums() {
-  const l = await listAlbumsOfKind(AlbumKind.FACE);
-  for (const album of l) {
+  // Face albums are stored in .faces folder
+  // List all .ini files in the faces folder
+  const { readdir } = await import("fs/promises");
+  const { join, basename } = await import("path");
+  const { facesFolder } = await import("../../utils/constants");
+  const { fileExists } = await import("../../utils/serverUtils");
+  
+  if (!(await fileExists(facesFolder))) {
+    return;
+  }
+  
+  const files = await readdir(facesFolder);
+  const iniFiles = files.filter((file) => file.endsWith(".ini") && !file.startsWith("."));
+  
+  for (const iniFile of iniFiles) {
+    const name = basename(iniFile, ".ini");
+    const album: Album = {
+      name,
+      key: personKeyFromName(name),
+    };
     const entries = getAlbumEntries(album);
     faceAlbums.push({ ...album, count: entries.length });
   }
+}
+
+/**
+ * Get all person (face) albums
+ */
+export function getPersonsAlbums(): AlbumWithData[] {
+  return faceAlbums;
 }
 
 export function getFaceAlbums() {

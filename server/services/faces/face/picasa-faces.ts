@@ -2,7 +2,7 @@ import {
   decodeFaces,
   encodeFaces,
   idFromAlbumEntry,
-} from "../../../../../shared/lib/utils";
+} from "../../../../shared/lib/utils";
 import {
   FaceList,
   Album,
@@ -12,21 +12,25 @@ import {
   Face,
   AlbumEntryMetaData,
   Reference,
-} from "../../../../../shared/types/types";
+} from "../../../../shared/types/types";
 import {
   addReferenceToFaceAlbum,
   removeReferenceToFaceAlbum,
-} from "../../../../operations/faces/faces";
-import { media } from "../../../../rpc/rpcFunctions/albumUtils";
+} from "../../../operations/faces/faces";
+import { media } from "../../../rpc/rpcFunctions/albumUtils";
 import {
   getEntryMetadata,
   getMutations,
+} from "../../../services/walker/queries";
+import {
   getContactsFromAlbum,
   getContactByHash,
   getPicasaSection,
-} from "../../../walker/queries";
-import { getFolderAlbums } from "../../../../media";
-import { readReferencesOfEntry } from "../../../../rpc/albumTypes/referenceFiles";
+  updateContactInAlbum,
+  writeCandidateFacesSection,
+} from "../../../services/walker/internal/picasa-ini";
+import { getFolderAlbums } from "../../../media";
+import { readReferencesOfEntry } from "../../../rpc/albumTypes/referenceFiles";
 
 type PicasaFeatures = {
   contacts: ContactByHash;
@@ -140,9 +144,6 @@ export async function addCandidateFaceRectToEntry(
   };
   faces.push(face);
   current[entry.name] = encodeFaces(faces);
-  // Write candidate faces section - this needs to be done via RPC to walker worker
-  // For now, import directly but this should be moved to RPC
-  const { writeCandidateFacesSection } = await import("../../../walker/internal/picasa-ini");
   writeCandidateFacesSection(entry.album, name, current);
   await Promise.all([
     addContact(entry.album, referenceId, contact),
@@ -173,9 +174,6 @@ export async function removeFaceFromEntry(
 }
 
 async function addContact(album: Album, hash: string, contact: Contact) {
-  // Update contact - this needs to be done via RPC to walker worker
-  // For now, import directly but this should be moved to RPC
-  const { updateContactInAlbum } = await import("../../../walker/internal/picasa-ini");
   await updateContactInAlbum(album, hash, contact);
 }
 

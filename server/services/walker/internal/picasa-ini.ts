@@ -15,7 +15,6 @@ import {
   AlbumEntry,
   AlbumEntryMetaData,
   AlbumEntryWithMetadata,
-  AlbumKind,
   AlbumMetaData,
   Contact,
   ContactByHash,
@@ -40,7 +39,7 @@ import {
 import { rate } from "../../../utils/stats";
 // Note: normalizeName is imported from faces service when needed
 // This import is used in readContacts function
-import { normalizeName } from "../../../rpc/rpcFunctions/faces";
+import { normalizeName } from "../../../operations/faces/faces";
 
 export const cachedFilterKey: Record<ThumbnailSize, extraFields> = {
   "th-small": "cached:filters:th-small",
@@ -66,41 +65,33 @@ let shortcuts: { [shotcut: string]: Album } = {};
 const DEFAULT_GRACE_DELAY = "120000";
 
 function albumPath(album: Album): string {
-  const { id } = idFromKey(album.key);
-  switch (album.kind) {
-    case AlbumKind.FOLDER:
-      return join(imagesRoot, pathForAlbum(album), PICASA);
-    case AlbumKind.FACE:
-      return join(facesFolder, id + ".ini");
-    case AlbumKind.PROJECT:
-      return join(projectFolder, id + ".ini");
-  }
+  const id = idFromKey(album.key);
+  return join(imagesRoot, id, PICASA);
 }
 
-export function albumFromNameAndKind(name: string, kind: AlbumKind): Album {
-  const path =
-    kind === AlbumKind.FOLDER
-      ? join(new Date().getFullYear().toString(), name)
-      : name;
+/**
+ * Create an album from a name (for folders)
+ */
+export function albumFromName(name: string): Album {
+  const path = join(new Date().getFullYear().toString(), name);
   return {
-    kind,
-    key: keyFromID(path, kind),
+    key: keyFromID(path),
     name,
   };
 }
 
+/**
+ * @deprecated Use albumFromName instead. This function is kept for backward compatibility.
+ */
+export function albumFromNameAndKind(name: string, kind: any): Album {
+  return albumFromName(name);
+}
+
 function albumFromPath(path: string): Album {
-  let kind: AlbumKind;
-  if (path.startsWith(facesFolder)) {
-    kind = AlbumKind.FACE;
-  } else if (path.startsWith(projectFolder)) {
-    kind = AlbumKind.PROJECT;
-  } else {
-    kind = AlbumKind.FOLDER;
-  }
   const fileName = basename(path);
   const name = fileName.split(".ini")[0];
-  return albumFromNameAndKind(name, kind);
+  // All albums are folders now - projects and faces are handled separately
+  return albumFromName(name);
 }
 
 export async function initializePicasaIniCache() {
@@ -151,16 +142,11 @@ export async function getPicasaEntries(album: Album): Promise<AlbumEntry[]> {
     }));
 }
 
-export async function listAlbumsOfKind(
-  kind: AlbumKind,
-  filter?: string,
-): Promise<Album[]> {
-  const d = {
-    [AlbumKind.FACE]: facesFolder,
-    [AlbumKind.PROJECT]: projectFolder,
-    [AlbumKind.FOLDER]: imagesRoot,
-  }[kind];
-
+/**
+ * List all folder albums
+ */
+export async function listFolders(filter?: string): Promise<Album[]> {
+  const d = imagesRoot;
   if (!(await fileExists(d))) {
     await mkdir(d, { recursive: true });
   }
@@ -174,6 +160,17 @@ export async function listAlbumsOfKind(
       return true;
     });
   return iniFiles.map((ini) => join(d, ini)).map(albumFromPath);
+}
+
+/**
+ * @deprecated Use listFolders instead
+ */
+export async function listAlbumsOfKind(
+  kind: any,
+  filter?: string,
+): Promise<Album[]> {
+  // For backward compatibility, only return folders
+  return listFolders(filter);
 }
 
 async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
@@ -195,10 +192,8 @@ async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
     });
     const i = ini.parse(iniData);
     // Read&fix data
-    if (album.kind === AlbumKind.FOLDER) {
-      if (dataFix(album, i)) {
-        writePicasaIni(album, i);
-      }
+    if (dataFix(album, i)) {
+      writePicasaIni(album, i);
     }
     if (
       i[PicasaBaseKeys.Picasa]?.shortcut !== undefined &&
@@ -469,7 +464,7 @@ export function readContacts(picasaIni: AlbumMetaData): ContactByHash {
           if (typeof value === "string" && value.includes(";")) {
             const [originalName, email, something] = value.split(";");
             const name = normalizeName(originalName);
-            const key = keyFromID(name, AlbumKind.FACE);
+            const key = keyFromID(name); // Note: face albums no longer use Album type
             return [hash, { originalName, email, something, name, key }];
           } else {
             return [hash, null];

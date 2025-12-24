@@ -4,6 +4,7 @@ import { $, _$, elementFromEntry, setIdForEntry } from "../../lib/dom";
 import { getService } from "../../rpc/connect";
 import { AlbumEntrySelectionManager } from "../../selection/selection-manager";
 import { AlbumEntry, AlbumEntryPicasa } from "../../types/types";
+import { events } from "../../../shared/server-events";
 
 class PicasaEntryCarouselElement extends HTMLElement {
   connectedCallback() {
@@ -50,17 +51,15 @@ export class PicasaEntryCarousel extends HTMLElement {
     this.classList.add("picasa-carousel");
     this.createElements();
     this.carouselId = uuid();
-    getService().then((s) => {
-      s.on(
-        "albumEntryAspectChanged",
-        async (e: { payload: AlbumEntryPicasa }) => {
-          const elem = elementFromEntry(e.payload, this.carouselId);
-          if (elem.exists()) {
-            (elem.get() as PicasaEntryCarouselElement).updateImage(e.payload);
-          }
+    events.on(
+      "albumEntryAspectChanged",
+      async (e) => {
+        const elem = elementFromEntry(e, this.carouselId);
+        if (elem.exists()) {
+          (elem.get() as PicasaEntryCarouselElement).updateImage(e);
         }
-      );
-    });
+      }
+    );
   }
   createElements() {
     const e = $(this);

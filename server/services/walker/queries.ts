@@ -1,4 +1,4 @@
-import { Album, AlbumEntry, AlbumEntryMetaData, AlbumKind, AlbumMetaData, AlbumWithData, ContactByHash, extraFields, ThumbnailSize } from "../../../shared/types/types";
+import { Album, AlbumEntry, AlbumEntryMetaData, AlbumMetaData, AlbumWithData, Contact, ContactByHash, extraFields, PicasaSection, ThumbnailSize } from "../../../shared/types/types";
 import { getWalkerDatabase } from "./internal/database";
 import { getWorker } from "../../worker-manager";
 import { WorkerAdaptor } from "../../../shared/rpc-transport/worker-adaptor";
@@ -9,6 +9,7 @@ export {
   cachedFilterKey,
   dimensionsFilterKey,
   rotateFilterKey,
+  albumFromName,
   albumFromNameAndKind
 } from "./internal/picasa-ini";
 
@@ -101,4 +102,35 @@ export function getMutations(): WalkerWorkerClient {
   mutationsClient = new WalkerWorkerClient();
   mutationsClient.initialize(adaptor);
   return mutationsClient;
+}
+
+/**
+ * Get contacts from an album (read-only operation)
+ * Reads from picasa-ini files via internal walker functions.
+ * Note: This is a read operation that can be safely called from main thread.
+ */
+export async function getContactsFromAlbum(album: Album): Promise<ContactByHash> {
+  // Import dynamically to avoid circular dependencies
+  const { getContactsFromAlbum: getContacts } = await import("./internal/picasa-ini");
+  return await getContacts(album);
+}
+
+/**
+ * Get contact by hash from an album (read-only operation)
+ * Reads from picasa-ini files via internal walker functions.
+ */
+export async function getContactByHash(album: Album, hash: string): Promise<Contact> {
+  // Import dynamically to avoid circular dependencies
+  const { getContactByHash: getContact } = await import("./internal/picasa-ini");
+  return await getContact(album, hash);
+}
+
+/**
+ * Get a Picasa section from album metadata (read-only operation)
+ * Reads from picasa-ini files via internal walker functions.
+ */
+export async function getPicasaSection(album: Album, section: string): Promise<PicasaSection> {
+  // Import dynamically to avoid circular dependencies
+  const { getPicasaSection: getSection } = await import("./internal/picasa-ini");
+  return await getSection(album, section);
 }

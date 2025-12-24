@@ -30,8 +30,8 @@ import {
   decodeReferenceId,
   readReferenceFromReferenceId,
 } from "../rpc/albumTypes/referenceFiles";
-import { getFaceRect } from "../rpc/rpcFunctions/faces";
-import { rectOfReference } from "../services/faces/face/face-utils";
+import { getFaceRect } from "../operations/faces/faces";
+import { rectOfReference } from "../operations/faces/face-utils";
 import {
   getEntryMetadata
 } from "../services/walker/queries";

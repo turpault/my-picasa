@@ -3,7 +3,6 @@ import { join } from "path";
 import {
   Album,
   AlbumEntry,
-  AlbumKind,
   idFromKey,
   keyFromID,
 } from "../../../shared/types/types";
@@ -14,7 +13,7 @@ import {
 } from "../../utils/constants";
 import { safeWriteFile } from "../../utils/serverUtils";
 import { openWithFinder } from "./osascripts";
-import { events } from "../../events/server-events";
+import { events } from "../../../shared/server-events";
 import { pathForAlbum, pathForAlbumEntry } from "../../utils/serverUtils";
 
 export async function getFileContents(file: string): Promise<string> {
@@ -53,9 +52,8 @@ export async function makeAlbum(name: string): Promise<Album> {
     .catch((e) => mkdir(p, { recursive: true }))
     .then(() => {
       const a: Album = {
-        key: keyFromID(join(defaultNewFolder, name), AlbumKind.FOLDER),
+        key: keyFromID(join(defaultNewFolder, name)),
         name,
-        kind: AlbumKind.FOLDER,
       };
       events.emit("reindex", [a]);
       return a;

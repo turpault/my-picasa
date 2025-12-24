@@ -11,8 +11,8 @@ import { Contact } from "../../../shared/types/types";
 // If needed from main thread, they should be added to queries/mutations
 import {
   getContactsFromAlbum,
-  updateContactInAlbum,
-} from "../../services/walker/internal/picasa-ini";
+  getMutations,
+} from "../../services/walker/queries";
 import { getFolderAlbums } from "../../media";
 const contacts = new Map<string, Contact>();
 const contactsByContactKey = new Map<string, Contact>();
@@ -32,8 +32,10 @@ export async function buildContactList() {
       );
       contactsByContactKey.set(contact.key, updatedContact);
       contacts.set(hash, updatedContact);
-      // Update the contact in the album
-      updateContactInAlbum(album, hash, contact);
+      // Update the contact in the album - this needs to be done via RPC to walker worker
+      // For now, import directly but this should be moved to RPC
+      const { updateContactInAlbum } = await import("../../services/walker/internal/picasa-ini");
+      await updateContactInAlbum(album, hash, contact);
     }
   }
   debug(`Contact list built : ${contacts.size} contacts`);

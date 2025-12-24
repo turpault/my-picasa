@@ -4,7 +4,7 @@ import {
   idFromAlbumEntry,
 } from "../../shared/lib/utils";
 import { t } from "../components/strings";
-import { Album, AlbumEntry, AlbumKind } from "../types/types";
+import { Album, AlbumEntry } from "../types/types";
 import { State, StateDef } from "./state";
 
 export function NodeListToFirstElem(
@@ -20,7 +20,7 @@ export function NodeListToArray(
   e: HTMLElement | NodeListOf<HTMLElement> | undefined,
 ): HTMLElement[] | undefined {
   if (e instanceof NodeList) {
-    return Array.from(e.values());
+    return Array.from(e);
   }
   return [e] as HTMLElement[];
 }
@@ -296,7 +296,7 @@ export class _$<T extends HTMLElement = HTMLElement> {
   }
 
   remove() {
-    if(this.get().parentElement)
+    if (this.get().parentElement)
       this.get().parentElement!.removeChild(this.get());
   }
 
@@ -404,7 +404,7 @@ export class _$<T extends HTMLElement = HTMLElement> {
     if (typeof e === "string" && !from) {
       try {
         return document.createElement(e) as T;
-      } catch (_e) {}
+      } catch (_e) { }
     }
     if (typeof e === "string" && e.trim().startsWith("<")) {
       const html = e.trim();
@@ -444,7 +444,7 @@ export class _$<T extends HTMLElement = HTMLElement> {
       if (bySelector) {
         return bySelector as T;
       }
-    } catch (err) {}
+    } catch (err) { }
     return null;
   }
   private _e: T | null;
@@ -471,7 +471,7 @@ export function preLoadImage(url: string): Promise<HTMLImageElement> {
     };
     i.src = url;
     i.decode()
-      .then(() => {})
+      .then(() => { })
       .catch((e) => {
         console.error(`While loading ${url}`, e);
       });
@@ -499,11 +499,15 @@ export function setIdForAlbum(e: _$, album: Album, qualifier: string) {
 }
 function albumFromId(id: string): Album | null {
   const [qualifier, valid, key, name, kind] = id.split("|");
-  if (valid === "album") return { key, name, kind: kind as AlbumKind };
+  if (valid === "album") {
+    // Note: kind is parsed for backward compatibility but not stored in Album type
+    return { key, name };
+  }
   return null;
 }
 function idFromAlbum(a: Album, qualifier: string): string {
-  return `${qualifier}|album|${a.key}|${a.name}|${a.kind}`;
+  // Note: using 'folder' as kind for backward compatibility with ID format
+  return `${qualifier}|album|${a.key}|${a.name}|folder`;
 }
 
 // Name HTML element from/to AlbumEntry

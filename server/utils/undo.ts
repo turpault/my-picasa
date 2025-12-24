@@ -5,7 +5,7 @@ import { createInterface } from "readline";
 import { uuid } from "../../shared/lib/utils";
 import { UndoStep } from "../../shared/types/types";
 import { imagesRoot } from "./constants";
-import { broadcast } from "./socketList";
+import { events } from "../../shared/server-events";
 import { fileExists } from "./serverUtils";
 
 let undoStream: WriteStream;
@@ -37,7 +37,7 @@ export async function addToUndo(
   };
   undoStream.write(`${JSON.stringify(item)}\n`);
   const undoSteps = await undoList();
-  broadcast("undoChanged", { undoSteps });
+  events.emit("undoChanged", { undoSteps });
 }
 
 export type doFunction = (operation: string, payload: any) => void;
@@ -61,7 +61,7 @@ export async function undo(id: string) {
         );
         undoneStream.write(`${id}\n`);
         const undoSteps = await undoList();
-        broadcast("undoChanged", { undoSteps });
+        events.emit("undoChanged", { undoSteps });
       }
     }
   }

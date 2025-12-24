@@ -4,7 +4,6 @@ import {
 import {
   Album,
   AlbumEntry,
-  AlbumKind,
   AlbumWithData,
   Filters,
   idFromKey,
@@ -17,7 +16,7 @@ import {
 } from "./rpc/albumTypes/projects";
 import {
   readFaceAlbumEntries,
-} from "./rpc/rpcFunctions/faces";
+} from "./operations/faces/faces";
 import { getEntryMetadata, getMutations, getShortcuts } from "./services/walker/queries";
 import { isPicture, isVideo } from "../shared/lib/utils";
 
@@ -32,28 +31,18 @@ export async function media(
   album: Album,
   filters?: Filters,
 ): Promise<{ entries: AlbumEntry[] }> {
-  if (album.kind === AlbumKind.FOLDER) {
-    if (filters) {
-      // Use search service queries for filtered results
-      const entries = searchPicturesByFilters(filters, undefined, album.key);
-      await sortAssetsByRank(entries);
-      return { entries };
-    }
-    // Use walker service queries when no filters (direct album entries)
-    const entries = getWalkerAlbumEntries(album);
+  if (filters) {
+    // Use search service queries for filtered results
+    const entries = searchPicturesByFilters(filters, undefined, album.key);
+    await sortAssetsByRank(entries);
+    return { entries };
+  }
+  // Use walker service queries when no filters (direct album entries)
+  const entries = getWalkerAlbumEntries(album);
 
-    await sortAssetsByRank(entries);
-    await assignRanks(entries);
-    return { entries };
-  } else if (album.kind === AlbumKind.FACE) {
-    const entries = await readFaceAlbumEntries(album);
-    await sortAssetsByRank(entries);
-    await assignRanks(entries);
-    return { entries };
-  } else if (album.kind === AlbumKind.PROJECT) {
-    const entries = await getProjects(idFromKey(album.key).id as ProjectType);
-    return { entries };
-  } else throw new Error(`Unknown kind ${album.kind}`);
+  await sortAssetsByRank(entries);
+  await assignRanks(entries);
+  return { entries };
 }
 
 async function sortAssetsByRank(entries: AlbumEntry[]) {

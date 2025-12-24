@@ -2,7 +2,7 @@ import Debug from "debug";
 import { AlbumEntry, ThumbnailSizeVals } from "../../../../shared/types/types";
 import { imageInfo } from "../../../imageOperations/info";
 import { makeThumbnailIfNeeded } from "../../../rpc/rpcFunctions/thumbnail";
-import { serverEvents } from "../events";
+import { events } from "../../../events/server-events";
 import { getAlbumEntries, getAllFolders } from "../../search/queries";
 const debug = Debug("app:bg-thumbgen");
 
@@ -40,7 +40,7 @@ function setupEventDrivenThumbnailGeneration(): void {
   debug("Setting up event-driven thumbnail generation");
 
   // Listen for files found during walk
-  serverEvents.on("fileFound", async (entry) => {
+  events.on("albumEntryAdded", async (entry) => {
     try {
       await imageInfo(entry);
       await Promise.all(

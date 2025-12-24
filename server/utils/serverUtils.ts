@@ -4,7 +4,6 @@ import { lock } from "../../shared/lib/mutex";
 import {
   Album,
   AlbumEntry,
-  AlbumKind,
   idFromKey,
 } from "../../shared/types/types";
 import { imagesRoot } from "./constants";
@@ -41,7 +40,7 @@ export async function safeWriteFile(fileName: string, data: any) {
 
 export function entryFilePath(entry: AlbumEntry) {
   let root = imagesRoot;
-  return join(root, idFromKey(entry.album.key).id, entry.name);
+  return join(root, idFromKey(entry.album.key), entry.name);
 }
 
 export function pathAndFileForAlbumEntry(entry: AlbumEntry) {
@@ -52,13 +51,10 @@ export function pathAndFileForAlbumEntry(entry: AlbumEntry) {
 }
 
 export function pathForAlbumEntry(entry: AlbumEntry) {
-  return join(pathForAlbum(entry.album), entry.name);
+  return join(imagesRoot, pathForAlbum(entry.album), entry.name);
 }
 
 export function pathForAlbum(album: Album) {
-  const { id, kind } = idFromKey(album.key);
-  if (kind === AlbumKind.FOLDER) {
-    return id;
-  } else throw new Error("Not a folder");
+  return idFromKey(album.key);
 }
 

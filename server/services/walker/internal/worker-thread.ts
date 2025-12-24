@@ -12,7 +12,6 @@ import {
 import {
   Album,
   AlbumEntry,
-  AlbumKind,
   AlbumWithData,
   keyFromID,
 } from "../../../../shared/types/types";
@@ -36,9 +35,6 @@ const walkQueue = new Queue(10);
 const ALLOW_EMPTY_ALBUM_CREATED_SINCE = 1000 * 60 * 60; // one hour
 
 async function folderAlbumExists(album: Album): Promise<boolean> {
-  if (album.kind !== AlbumKind.FOLDER) {
-    throw new Error("Not a folder album");
-  }
   const p = join(imagesRoot, pathForAlbum(album));
   const s = await stat(p).catch(() => false);
   if (s === false) {
@@ -144,8 +140,7 @@ async function walk(
   }
   const album: Album = {
     name,
-    key: keyFromID(relative(imagesRoot, path), AlbumKind.FOLDER),
-    kind: AlbumKind.FOLDER,
+    key: keyFromID(relative(imagesRoot, path)),
   };
   const m = await assetsInFolderAlbum(album);
 
@@ -199,11 +194,6 @@ async function reindexAlbumsFromList(albums: Album[]): Promise<void> {
 
   try {
     for (const album of albums) {
-      if (album.kind !== AlbumKind.FOLDER) {
-        debugLogger(`Skipping reindex for album ${album.key}: not a folder album`);
-        continue;
-      }
-
       try {
         // Get existing entries
         const existingEntries = getWalkerAlbumEntries(album);
@@ -390,8 +380,8 @@ export async function reindexAlbums(albumIds: string[]): Promise<void> {
   try {
     const albums = albumIds
       .map((key) => getAlbum(key))
-      .filter((album): album is AlbumWithData => album !== undefined && album.kind === AlbumKind.FOLDER)
-      .map(album => ({ key: album.key, name: album.name, kind: album.kind } as Album));
+      .filter((album): album is AlbumWithData => album !== undefined)
+      .map(album => ({ key: album.key, name: album.name }));
 
     await reindexAlbumsFromList(albums);
   } catch (error) {

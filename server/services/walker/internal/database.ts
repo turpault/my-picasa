@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import debug from "debug";
 import { join } from "path";
 import { workerData } from "worker_threads";
-import { Album, AlbumEntry, AlbumEntryMetaData, AlbumKind, AlbumMetaData, AlbumWithData, extraFields } from "../../../../shared/types/types";
+import { Album, AlbumEntry, AlbumEntryMetaData, AlbumMetaData, AlbumWithData, extraFields } from "../../../../shared/types/types";
 import { imagesRoot } from "../../../utils/constants";
 
 const debugLogger = debug("app:walker-db");
@@ -231,12 +231,11 @@ class WalkerDatabaseAccess {
   getAllAlbums(): AlbumWithData[] {
     const rows = this.getDatabase().prepare(`
       SELECT key, name, kind, count, shortcut FROM albums ORDER BY key
-    `).all() as Array<{ key: string; name: string; kind: string; count: number; shortcut: string | null }>;
+    `).all() as Array<{ key: string; name: string; kind?: string; count: number; shortcut: string | null }>;
 
     return rows.map(row => ({
       key: row.key,
       name: row.name,
-      kind: row.kind as AlbumKind,
       count: row.count,
       shortcut: row.shortcut || undefined,
     }));
@@ -248,14 +247,13 @@ class WalkerDatabaseAccess {
   getAlbum(albumKey: string): AlbumWithData | undefined {
     const row = this.getDatabase().prepare(`
       SELECT key, name, kind, count, shortcut FROM albums WHERE key = ?
-    `).get(albumKey) as { key: string; name: string; kind: string; count: number; shortcut: string | null } | undefined;
+    `).get(albumKey) as { key: string; name: string; kind?: string; count: number; shortcut: string | null } | undefined;
 
     if (!row) return undefined;
 
     return {
       key: row.key,
       name: row.name,
-      kind: row.kind as AlbumKind,
       count: row.count,
       shortcut: row.shortcut || undefined,
     };
@@ -345,14 +343,13 @@ class WalkerDatabaseAccess {
   getShortcuts(): { [shortcut: string]: Album } {
     const rows = this.getDatabase().prepare(`
       SELECT key, name, kind, shortcut FROM albums WHERE shortcut IS NOT NULL AND shortcut != ''
-    `).all() as Array<{ key: string; name: string; kind: string; shortcut: string }>;
+    `).all() as Array<{ key: string; name: string; kind?: string; shortcut: string }>;
 
     const result: { [shortcut: string]: Album } = {};
     for (const row of rows) {
       result[row.shortcut] = {
         key: row.key,
         name: row.name,
-        kind: row.kind as AlbumKind,
       };
     }
     return result;
@@ -455,7 +452,7 @@ class WalkerDatabaseAccess {
     stmt.run(
       album.key,
       album.name,
-      album.kind,
+      'folder', // Always 'folder' since albums are now only folders (kept for backward compatibility)
       album.count,
       album.shortcut || null
     );

@@ -9,7 +9,6 @@ import {
 } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
-  AlbumKind,
   ThumbnailSize
 } from "../../../shared/types/types";
 import { exportToFolder } from "../../imageOperations/export";
@@ -40,18 +39,6 @@ export async function readOrMakeThumbnail(
   size: ThumbnailSize = "th-medium",
   animated: boolean = true,
 ): Promise<{ width: number; height: number; data: Buffer; mime: string }> {
-  if (entry.album.kind == AlbumKind.FACE) {
-    // Extract a face thumbnail
-    return makeFaceThumbnail(entry);
-  }
-  if (entry.album.kind == AlbumKind.PROJECT) {
-    return {
-      width: 0,
-      height: 0,
-      data: await makeProjectThumbnail(entry, size),
-      mime: "image/jpeg",
-    };
-  }
   if (isVideo(entry)) {
     return readOrMakeVideoThumbnail(entry, size, animated);
   } else {

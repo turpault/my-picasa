@@ -14,7 +14,7 @@ import {
   AlbumEntryPicasa,
   AlbumEntryWithMetadata,
 } from "../../../shared/types/types";
-import { events } from "../../events/server-events";
+import { events } from "../../../shared/server-events";
 import {
   addImageInfo,
   imageInfo,

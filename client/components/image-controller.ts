@@ -34,6 +34,7 @@ import { ImagePanZoomController } from "../lib/panzoom";
 import { getService } from "../rpc/connect";
 import { AlbumEntrySelectionManager } from "../selection/selection-manager";
 import { ImageControllerEvent } from "../uiTypes";
+import { events } from "../../shared/server-events";
 
 export class ImageController {
   constructor(
@@ -79,26 +80,27 @@ export class ImageController {
       }
     });
 
-    s.on("albumEntryAspectChanged", (e: { payload: AlbumEntryPicasa }) => {
-      if (!this.entry) {
-        return;
-      }
-
-      if (e.payload.name === this.entry.name && this.shown) {
-        // Note ignore event for now, to support A/B edits
-        if (
-          encodeOperations(this.filters) !== (e.payload.metadata.filters || "")
-        ) {
-          this.filters = decodeOperations(e.payload.metadata.filters || "");
-          this.update();
-        } else if (this.rotate !== (e.payload.metadata.rotate || "")) {
-          // We have to reset the whole view, because the rotation is applied
-          // before any filter
-          // FIXME: It seems not that clean
-          this.display();
+    events.on("albumEntryAspectChanged", (e) => {
+        if (!this.entry) {
+          return;
         }
-      }
-    });
+
+        if (e.name === this.entry.name && this.shown) {
+          // Note ignore event for now, to support A/B edits
+          if (
+            encodeOperations(this.filters) !== (e.metadata.filters || "")
+          ) {
+            this.filters = decodeOperations(e.metadata.filters || "");
+            this.update();
+          } else if (this.rotate !== (e.metadata.rotate || "")) {
+            // We have to reset the whole view, because the rotation is applied
+            // before any filter
+            // FIXME: It seems not that clean
+            this.rotate = e.metadata.rotate || "";
+            this.display();
+          }
+        }
+      });
   }
 
   operationList(): PicasaFilter[] {

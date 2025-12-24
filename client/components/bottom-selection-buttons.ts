@@ -9,6 +9,7 @@ import {
 } from "../lib/settings";
 import { debounced } from "../../shared/lib/utils";
 import { getService } from "../rpc/connect";
+import { events } from "../../shared/server-events";
 import {
   Album,
   AlbumEntry,
@@ -571,20 +572,18 @@ export function makeButtons(
   selManager.events.on("*", debouncedRefresh);
   state.events.on("undo", debouncedRefresh);
   getSettingsEmitter().on("changed", debouncedRefresh);
-  getService().then((s) => {
-    s.on(
-      "albumEntryAspectChanged",
-      async (e: { payload: AlbumEntryPicasa }) => {
-        // Is there a thumbnail with that data ?
-        const elem = elementFromEntry(e.payload, elementPrefix);
-        if (elem.exists()) {
-          elem.css({
-            "background-image": `url(${thumbnailUrl(e.payload, "th-small")})`,
-          });
-        }
-      },
-    );
-  });
+  events.on(
+    "albumEntryAspectChanged",
+    async (e) => {
+      // Is there a thumbnail with that data ?
+      const elem = elementFromEntry(e, elementPrefix);
+      if (elem.exists()) {
+        elem.css({
+          "background-image": `url(${thumbnailUrl(e, "th-small")})`,
+        });
+      }
+    },
+  );
 
   debouncedRefresh();
   return container;

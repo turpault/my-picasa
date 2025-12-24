@@ -266,16 +266,9 @@ export type SliderEvent = {
   value: number;
 };
 
-export enum AlbumKind {
-  PROJECT = "project",
-  FOLDER = "folder",
-  FACE = "face",
-}
-
 export type Album = {
   name: string;
   key: string;
-  kind: AlbumKind;
 };
 
 export type AlbumWithData = Album & {
@@ -284,13 +277,35 @@ export type AlbumWithData = Album & {
 };
 
 const sep = "»";
-export function keyFromID(id: string, kind: AlbumKind) {
-  return `${kind}${sep}${id}`.normalize();
+
+/**
+ * Generate a folder album key from an ID
+ */
+export function keyFromID(id: string): string {
+  return `folder${sep}${id}`.normalize();
 }
 
-export function idFromKey(key: string): { id: string; kind: AlbumKind } {
-  const [kind, id] = key.split(sep);
-  return { id, kind: kind as AlbumKind };
+/**
+ * Generate a project album key from a project type
+ */
+export function projectKeyFromType(type: string): string {
+  return `project${sep}${type}`.normalize();
+}
+
+/**
+ * Generate a person/face album key from a name
+ */
+export function personKeyFromName(name: string): string {
+  return `person${sep}${name}`.normalize();
+}
+
+export function idFromKey(key: string): string {
+  // Extract ID from key format "prefix»id" or just "id" (backward compatibility)
+  const parts = key.split(sep);
+  if (parts.length > 1) {
+    return parts.slice(1).join(sep); // Return everything after the first separator
+  }
+  return key; // If no separator, assume it's already just the ID
 }
 
 export type AlbumChangeType =

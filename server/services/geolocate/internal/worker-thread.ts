@@ -1,4 +1,4 @@
-import { AlbumEntry, AlbumKind } from "../../../../shared/types/types";
+import { AlbumEntry } from "../../../../shared/types/types";
 import { getExifData } from "../../../rpc/rpcFunctions/exif";
 import { getLocations } from "./poi/poi-database";
 import { initPOIDB } from "./poi/ingest";
@@ -165,8 +165,7 @@ async function processUnprocessedEntries(): Promise<void> {
         name: entry_name,
         album: {
           key: album_key,
-          name: album_name,
-          kind: AlbumKind.FOLDER
+          name: album_name
         }
       };
       await processGeoPOI(entry);

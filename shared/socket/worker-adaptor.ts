@@ -1,7 +1,7 @@
 import { isMainThread, parentPort, Worker } from "worker_threads";
 import { sleep, uuid } from "../lib/utils";
 import { buildEmitter, Emitter, Handler } from "../lib/event";
-import { RPCAdaptorInterface } from "./rpc-adaptor-interface";
+import { RPCAdaptorInterface } from "../rpc-transport/rpc-adaptor-interface";
 
 const defaultTimeoutInSeconds = 180;
 const retryDelayInSeconds = 1;
@@ -282,7 +282,7 @@ export class WorkerAdaptor implements RPCAdaptorInterface {
   private async executeMiddleware(message: string): Promise<void> {
     await Promise.all(
       this.middleware.map((fn) => {
-        fn(message, () => {});
+        fn(message, () => { });
       }),
     );
   }

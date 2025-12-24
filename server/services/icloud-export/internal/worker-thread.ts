@@ -6,7 +6,6 @@ import { waitUntilIdle } from "../../../utils/busy";
 import { iCloudPhotosFolder, ThumbnailSizes } from "../../../utils/constants";
 import { fileExists, pathForAlbum, pathForAlbumEntry } from "../../../utils/serverUtils";
 import { folders } from "../../../media";
-import { serverEvents } from "../events";
 import { Queue } from "../../../../shared/lib/queue";
 import { AlbumEntry } from "../../../../shared/types/types";
 import { events } from "../../../events/server-events";
@@ -14,7 +13,7 @@ import debug from "debug";
 import { albumEntryFromId, namifyAlbumEntry, removeExtension } from "../../../../shared/lib/utils";
 import { RESIZE_ON_EXPORT_SIZE } from "../../../../shared/lib/shared-constants";
 import { walkAbsolutePath } from "../../../rpc/rpcFunctions/fs";
-import { getPicasaEntry } from "../../walker/internal/picasa-ini";
+import { getEntryMetadata } from "../../walker/queries";
 import { getExifData } from "../../exif/queries";
 const debugLogger = debug("app:bg-icloud-export");
 
@@ -22,7 +21,7 @@ export async function buildExportsFolder() {
   if (!(await fileExists(iCloudPhotosFolder))) {
     await mkdir(iCloudPhotosFolder, { recursive: true });
   }
-  serverEvents.on("fileFound", async (event) => {
+  events.on("albumEntryAdded", async (event) => {
     if (await shouldExport(event)) {
       await exportToICloudFolder(event, true);
     }
@@ -66,7 +65,7 @@ async function exportAllMissing() {
 }
 
 async function shouldExport(entry: AlbumEntry) {
-  const meta = await getPicasaEntry(entry);
+  const meta = getEntryMetadata(entry);
   const exifJson = getExifData(entry);
   if (!exifJson || exifJson === "{}") {
     return !meta.star;

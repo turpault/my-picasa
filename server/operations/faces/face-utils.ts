@@ -1,25 +1,22 @@
 import { mkdir } from "fs/promises";
 import { join } from "path";
-import {
-  getContactsFromAlbum,
-  getPicasaEntry,
-} from "../../../services/walker/internal/picasa-ini";
-import { getFaceImage } from "../../../rpc/rpcFunctions/thumbnail";
-import { facesFolder } from "../../../utils/constants";
-import { fileExists, safeWriteFile } from "../../../utils/serverUtils";
+import { getFaceImage } from "../../rpc/rpcFunctions/thumbnail";
+import { facesFolder } from "../../utils/constants";
+import { fileExists, safeWriteFile } from "../../utils/serverUtils";
 import {
   decodeFaces,
   decodeRect,
   encodeRect,
   hash,
-} from "../../../../shared/lib/utils";
+} from "../../../shared/lib/utils";
 import {
   AlbumEntry,
   Face,
   Reference,
   ReferenceData,
-} from "../../../../shared/types/types";
-import { IdentifiedContact } from "./types";
+} from "../../../shared/types/types";
+import { getEntryMetadata, getContactsFromAlbum } from "../../services/walker/queries";
+import { IdentifiedContact } from "../../services/faces/internal/face/types";
 
 export function rectOfReference(feature: ReferenceData) {
   const left = Math.max(
@@ -55,7 +52,7 @@ export async function getPicasaIdentifiedReferences(
   entry: AlbumEntry,
 ): Promise<IdentifiedContact[]> {
   const contacts = await getContactsFromAlbum(entry.album);
-  const entryMeta = await getPicasaEntry(entry);
+  const entryMeta = getEntryMetadata(entry);
   const iniFaces = entryMeta.faces;
   if (iniFaces) {
     const facesInEntry = decodeFaces(iniFaces);

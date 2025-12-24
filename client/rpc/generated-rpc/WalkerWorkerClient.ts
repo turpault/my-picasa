@@ -22,7 +22,7 @@ export class WalkerWorkerClient {
 
   private async emit(command: string, payload: any): Promise<any> {
     return new Promise((resolve, reject) =>
-      this.transport_.emit(command, payload, (error:string, response:string) => {
+      this.transport_.emit(command, payload, (error: string, response: string) => {
         if (error) {
           reject(error);
         } else {
@@ -32,64 +32,64 @@ export class WalkerWorkerClient {
     );
   }
 
-  async updateEntryMetadata(entry:object, fieldOrMetadata:any, value?:any):Promise<any> {
+  async updateEntryMetadata(entry: object, fieldOrMetadata: any, value?: any): Promise<any> {
     return this.emit('WalkerWorkerClient:updateEntryMetadata', {
-      'args': { entry, fieldOrMetadata, value } 
+      'args': { entry, fieldOrMetadata, value }
     });
   }
-  async setCaption(entry:object, caption:string):Promise<any> {
+  async setCaption(entry: object, caption: string): Promise<any> {
     return this.emit('WalkerWorkerClient:setCaption', {
-      'args': { entry, caption } 
+      'args': { entry, caption }
     });
   }
-  async setFilters(entry:object, filters:string):Promise<any> {
+  async setFilters(entry: object, filters: string): Promise<any> {
     return this.emit('WalkerWorkerClient:setFilters', {
-      'args': { entry, filters } 
+      'args': { entry, filters }
     });
   }
-  async setRotate(entry:object, rotate?:string):Promise<any> {
+  async setRotate(entry: object, rotate?: string): Promise<any> {
     return this.emit('WalkerWorkerClient:setRotate', {
-      'args': { entry, rotate } 
+      'args': { entry, rotate }
     });
   }
-  async toggleStar(entries:object):Promise<any> {
+  async toggleStar(entries: object): Promise<any> {
     return this.emit('WalkerWorkerClient:toggleStar', {
-      'args': { entries } 
+      'args': { entries }
     });
   }
-  async rotate(entries:object, direction:string):Promise<any> {
+  async rotate(entries: object, direction: string): Promise<any> {
     return this.emit('WalkerWorkerClient:rotate', {
-      'args': { entries, direction } 
+      'args': { entries, direction }
     });
   }
-  async updateAlbumShortcut(album:object, shortcut:string):Promise<any> {
+  async updateAlbumShortcut(album: object, shortcut: string): Promise<any> {
     return this.emit('WalkerWorkerClient:updateAlbumShortcut', {
-      'args': { album, shortcut } 
+      'args': { album, shortcut }
     });
   }
-  async touchPicasaEntry(entry:object):Promise<any> {
+  async touchPicasaEntry(entry: object): Promise<any> {
     return this.emit('WalkerWorkerClient:touchPicasaEntry', {
-      'args': { entry } 
+      'args': { entry }
     });
   }
-  async refreshAlbumKeys(albumKeys:object):Promise<any> {
+  async refreshAlbumKeys(albumKeys: object): Promise<any> {
     return this.emit('WalkerWorkerClient:refreshAlbumKeys', {
-      'args': { albumKeys } 
+      'args': { albumKeys }
     });
   }
-  async refreshAlbums(albums:object):Promise<any> {
+  async refreshAlbums(albums: object): Promise<any> {
     return this.emit('WalkerWorkerClient:refreshAlbums', {
-      'args': { albums } 
+      'args': { albums }
     });
   }
-  async onRenamedAlbums(from:object, to:object):Promise<any> {
+  async onRenamedAlbums(from: object, to: object): Promise<any> {
     return this.emit('WalkerWorkerClient:onRenamedAlbums', {
-      'args': { from, to } 
+      'args': { from, to }
     });
   }
-  async reindexAlbums(albumIds:object):Promise<any> {
+  async reindexAlbums(albumIds: object): Promise<any> {
     return this.emit('WalkerWorkerClient:reindexAlbums', {
-      'args': { albumIds } 
+      'args': { albumIds }
     });
   }
 }

@@ -1,6 +1,7 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
 import { sleep } from "../../shared/lib/utils";
 import { WsAdaptor } from "../../shared/rpc-transport/ws-adaptor";
+import { events, ServerEvents } from "../../shared/server-events";
 import { PicisaClient } from "./generated-rpc/PicisaClient";
 export type ConnectionEvent = {
   connected: { service: PicisaClient };
@@ -74,6 +75,9 @@ export async function getService(): Promise<PicisaClient> {
   if (!_connected) {
     return new Promise<PicisaClient>((resolve) => {
       ev.once("connected", ({ service }) => {
+        service.on("serverEvent", (serverEvent: { eventType: string; data: any }) => {
+          events.emit(serverEvent.eventType as keyof ServerEvents, serverEvent.data);
+        });
         _connected = true;
         resolve(service);
       });

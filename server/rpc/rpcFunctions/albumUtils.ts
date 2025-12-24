@@ -11,7 +11,6 @@ import {
   AlbumEntry,
   AlbumEntryMetaData,
   AlbumEntryWithMetadataAndExif,
-  AlbumKind,
   AlbumWithData,
   Filters,
   idFromKey,
@@ -22,8 +21,8 @@ import { getFolderAlbums, getFolderAlbumData } from "../../media";
 import { media as getMedia } from "../../media";
 import {
   assetsInFolderAlbum,
-  queueNotification,
 } from "../albumTypes/fileAndFolders";
+import { events } from "../../../shared/server-events";
 import {
   getProjectAlbumFromKey,
   getProjectAlbums,
@@ -31,10 +30,17 @@ import {
 } from "../albumTypes/projects";
 import {
   getFaceAlbum,
-  getFaceAlbums,
+  getPersonsAlbums,
   getFaceData,
   readFaceAlbumEntries,
-} from "./faces";
+} from "../../operations/faces/faces";
+
+/**
+ * Get all person (face) albums
+ */
+export async function getPersonAlbums(): Promise<AlbumWithData[]> {
+  return getPersonsAlbums();
+}
 import { getExifData } from "./exif";
 import { getEntryMetadata, getAlbumEntries, getAlbumMetaData, getMutations } from "../../services/walker/queries";
 
@@ -54,12 +60,10 @@ export async function setRank(entry: AlbumEntry, rank: number): Promise<void> {
 
 async function notifyAlbumOrderUpdated(album: Album) {
   const albumData = await albumWithData(album);
+  if (!albumData) return;
   debounce(
     () => {
-      queueNotification({
-        type: "albumOrderUpdated",
-        album: albumData,
-      });
+      events.emit("albumUpdated", albumData);
     },
     100,
     "setRank/" + album.name,
@@ -133,18 +137,13 @@ export async function sortAlbum(album: Album, order: string): Promise<void> {
 }
 
 export async function mediaCount(album: Album, filters?: Filters): Promise<{ count: number }> {
-  if (album.kind === AlbumKind.FOLDER) {
-    if (filters) {
-      // Use database-level filtering for better performance
-      const entries = await searchPicturesByFilters(filters, undefined, album.key);
-      return { count: entries.length };
-    }
-    const assets = await assetsInFolderAlbum(album);
-    return { count: assets.entries.length };
-  } else if (album.kind === AlbumKind.FACE) {
-    const entries = getAlbumEntries(album);
+  if (filters) {
+    // Use database-level filtering for better performance
+    const entries = await searchPicturesByFilters(filters, undefined, album.key);
     return { count: entries.length };
-  } else throw new Error(`Unknown kind ${album.kind}`);
+  }
+  const assets = await assetsInFolderAlbum(album);
+  return { count: assets.entries.length };
 }
 
 /**
@@ -175,18 +174,8 @@ export async function media(
   album: Album,
   filters?: Filters,
 ): Promise<{ entries: AlbumEntry[] }> {
-  if (album.kind === AlbumKind.FOLDER) {
-    // Use media function (calls search or walker queries based on filters)
-    return getMedia(album, filters);
-  } else if (album.kind === AlbumKind.FACE) {
-    const entries = await readFaceAlbumEntries(album);
-    await sortAssetsByRank(entries);
-    await assignRanks(entries);
-    return { entries };
-  } else if (album.kind === AlbumKind.PROJECT) {
-    const entries = await getProjects(idFromKey(album.key).id as ProjectType);
-    return { entries };
-  } else throw new Error(`Unknown kind ${album.kind}`);
+  // Use media function (calls search or walker queries based on filters)
+  return getMedia(album, filters);
 }
 
 async function sortAssetsByRank(entries: AlbumEntry[]) {
@@ -203,44 +192,13 @@ async function sortAssetsByRank(entries: AlbumEntry[]) {
 export async function albumWithData(
   album: Album | string,
 ): Promise<AlbumWithData | undefined> {
-  const kind = typeof album === "string" ? idFromKey(album).kind : album.kind;
   const key = typeof album === "string" ? album : album.key;
-  if (kind === AlbumKind.FOLDER) {
-    return getFolderAlbumData(key);
-  } else if (kind === AlbumKind.PROJECT) {
-    return await getProjectAlbumFromKey(key);
-  } else if (kind === AlbumKind.FACE) {
-    return getFaceAlbum(key);
-  } else throw new Error(`Unknown kind ${kind}`);
+  return getFolderAlbumData(key);
 }
 
 export async function getAlbumMetadata(album: Album) {
-  switch (album.kind) {
-    case AlbumKind.FOLDER: {
-      const ini = getAlbumMetaData(album);
-      return ini;
-    }
-    case AlbumKind.PROJECT:
-      return {};
-    case AlbumKind.FACE: {
-      const ini = getAlbumMetaData(album);
-      await Promise.all(
-        Object.keys(ini).map(async (name) => {
-          const faceData = await getFaceData({ album, name });
-
-          const originalEntry = getEntryMetadata(faceData.originalEntry);
-          if (originalEntry) {
-            if (originalEntry.dateTaken)
-              ini[name].dateTaken = originalEntry.dateTaken;
-            if (originalEntry.star) ini[name].star = originalEntry.star;
-          }
-        }),
-      );
-      return ini;
-    }
-    default:
-      throw new Error(`Unkown kind ${album.kind}`);
-  }
+  const ini = getAlbumMetaData(album);
+  return ini;
 }
 
 export async function getAlbumEntryMetadata(albumEntry: AlbumEntry) {
@@ -248,38 +206,10 @@ export async function getAlbumEntryMetadata(albumEntry: AlbumEntry) {
   return albumMetadata[albumEntry.name] as AlbumEntryMetaData;
 }
 
-export async function monitorAlbums(filters?: Filters): Promise<{}> {
-  const f = getFaceAlbums();
-  const p = await getProjectAlbums();
-
-  let albums: AlbumWithData[] = [];
-
-  if (filters) {
-    // Use database-level filtering for better performance
-    const matchedAlbums = await searchFoldersByFilters(filters);
-    albums = [...matchedAlbums, ...f, ...p];
-  } else {
-    const lastWalk = await getFolderAlbums();
-    albums = [...lastWalk, ...f, ...p];
-  }
-
-  // All filtering is now done at the database level in PictureIndexingService
-
-  queueNotification({ type: "albums", albums });
-  return {};
-}
 
 
 export async function getSourceEntry(entry: AlbumEntry) {
-  switch (entry.album.kind) {
-    case AlbumKind.FOLDER:
-      return entry;
-    case AlbumKind.FACE:
-      const faceData = await getFaceData(entry);
-      return faceData.originalEntry;
-    default:
-      throw new Error(`Unkown kind ${entry.album.kind}`);
-  }
+  return entry;
 }
 
 export async function albumEntriesWithMetadataAndExif(

@@ -6,27 +6,18 @@ import {
   Album,
   AlbumChangeEvent,
   AlbumEntry,
-  AlbumKind,
 } from "../../../shared/types/types";
 import { imagesRoot } from "../../utils/constants";
-import { broadcast } from "../../utils/socketList";
+import { events } from "../../../shared/server-events";
 import { pathForAlbum } from "../../utils/serverUtils";
 
 const notificationQueue: AlbumChangeEvent[] = [];
-
-export function queueNotification(event: AlbumChangeEvent) {
-  if (!isMainThread && parentPort) {
-    parentPort.postMessage({ type: "notification", event });
-    return;
-  }
-  notificationQueue.push(event);
-}
 
 export async function startAlbumUpdateNotification() {
   while (true) {
     await sleep(1);
     if (notificationQueue.length > 0) {
-      broadcast("albumEvent", notificationQueue);
+      events.emit("albumEvent", notificationQueue);
       notificationQueue.splice(0, notificationQueue.length);
     }
   }
@@ -35,9 +26,6 @@ export async function startAlbumUpdateNotification() {
 export async function assetsInFolderAlbum(
   album: Album,
 ): Promise<{ entries: AlbumEntry[]; folders: string[] }> {
-  if (album.kind !== AlbumKind.FOLDER) {
-    throw new Error("Can only scan folders");
-  }
   const items = await readdir(join(imagesRoot, pathForAlbum(album)));
   const entries: AlbumEntry[] = [];
   const folders: string[] = [];

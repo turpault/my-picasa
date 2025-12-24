@@ -2,10 +2,10 @@ import { mkdir, readFile, readdir, unlink } from "fs/promises";
 import { extname, join } from "path";
 import { lock } from "../../../shared/lib/mutex";
 import { debounce, idFromAlbumEntry } from "../../../shared/lib/utils";
+import { events } from "../../../shared/server-events";
 import {
   Album,
   AlbumEntry,
-  AlbumKind,
   AlbumWithData,
   MosaicProject,
   ProjectType,
@@ -13,23 +13,17 @@ import {
   ThumbnailSize,
   ThumbnailSizeVals,
   idFromKey,
-  keyFromID,
+  projectKeyFromType,
 } from "../../../shared/types/types";
 import { generateMosaicFile, makeMosaic } from "../../projects/mosaic";
 import { generateSlideshowFile } from "../../projects/slideshow";
-import { projectFolder, ThumbnailSizes } from "../../utils/constants";
+import { ThumbnailSizes, projectFolder } from "../../utils/constants";
 import {
-  entryFilePath,
   fileExists,
-  safeWriteFile,
+  safeWriteFile
 } from "../../utils/serverUtils";
-import { broadcast } from "../../utils/socketList";
-import { events } from "../../events/server-events";
-import { queueNotification } from "./fileAndFolders";
-import { thumbnailPathFromEntryAndSize } from "../rpcFunctions/thumbnail-cache";
 import {
-  makeThumbnailIfNeeded,
-  readOrMakeThumbnail,
+  readOrMakeThumbnail
 } from "../rpcFunctions/thumbnail";
 
 export async function initProjects() {
@@ -42,8 +36,7 @@ export async function getProjectAlbums(): Promise<AlbumWithData[]> {
     [ProjectType.MOSAIC, ProjectType.SLIDESHOW].map(async (f) => {
       return {
         name: f,
-        key: keyFromID(f, AlbumKind.PROJECT),
-        kind: AlbumKind.PROJECT,
+        key: projectKeyFromType(f),
         count: (await getProjects(f)).length,
       };
     }),
@@ -53,7 +46,7 @@ export async function getProjectAlbums(): Promise<AlbumWithData[]> {
 export async function getProjectAlbumFromKey(
   projectKey: string,
 ): Promise<AlbumWithData> {
-  const type = idFromKey(projectKey).id;
+  const type = idFromKey(projectKey); // Extract ID from key
   return getProjectAlbumFromType(type as ProjectType);
 }
 
@@ -89,8 +82,7 @@ export async function getProjects(
     name: id,
     album: {
       name: projectType,
-      key: keyFromID(projectType, AlbumKind.PROJECT),
-      kind: AlbumKind.PROJECT,
+      key: projectKeyFromType(projectType),
     },
   }));
 }
@@ -109,8 +101,7 @@ export async function createProject(type: ProjectType, name: string) {
     name,
     album: {
       name: type,
-      key: keyFromID(type, AlbumKind.PROJECT),
-      kind: AlbumKind.PROJECT,
+      key: projectKeyFromType(type),
     },
   };
   return project;
@@ -120,10 +111,8 @@ export async function eraseProject(entry: AlbumEntry): Promise<void> {
   const p = projectIdToFileName(entry.name, entry.album.name as ProjectType);
   await unlink(join(projectFolder, p));
   const album = await getProjectAlbumFromKey(entry.album.key);
-  queueNotification({
-    type: "albumInfoUpdated",
-    album,
-  });
+  events.emit("albumUpdated",
+    album);
 }
 
 export async function writeProject(
@@ -147,13 +136,9 @@ export async function writeProject(
   const album = await getProjectAlbumFromKey(project.album.key);
   debounce(
     () => {
-      broadcast("projectsUpdated", { project, changeType });
+      events.emit("projectsUpdated", { project, changeType });
 
-      queueNotification({
-        type: "albumInfoUpdated",
-        album,
-      });
-      broadcast("albumEntryAspectChanged", {
+      events.emit("albumEntryAspectChanged", {
         ...project,
         metadata: {},
       });

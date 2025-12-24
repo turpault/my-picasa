@@ -95,11 +95,12 @@ export function encodeToURL(context: string, mime: string): string {
   return `http://localhost:${getServicePort()}/encode/${context}/${fixedEncodeURIComponent(mime)}`;
 }
 
+import { events } from "../../shared/server-events";
+
 const busts: { [key: string]: number } = {};
 export async function initCacheBuster() {
-  const s = await getService();
-  s.on("albumEntryAspectChanged", async (e: { payload: AlbumEntryPicasa }) => {
-    const key = idFromAlbumEntry(e.payload, "");
+  events.on("albumEntryAspectChanged", async (e) => {
+    const key = idFromAlbumEntry(e, "");
     busts[key] = (busts[key] || 0) + 1;
   });
 }

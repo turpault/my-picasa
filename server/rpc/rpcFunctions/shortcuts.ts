@@ -1,6 +1,5 @@
 import { Album } from "../../../shared/types/types";
-import { events } from "../../events/server-events";
-import { broadcast } from "../../utils/socketList";
+import { events } from "../../../shared/server-events";
 import { albumWithData } from "./albumUtils";
 import { getShortcuts, getMutations } from "../../services/walker/queries";
 
@@ -24,6 +23,6 @@ export async function setAlbumShortcut(album: Album, shortcut: string) {
     events.emit("reindex", albumsToReindex);
   }
 
-  broadcast("shortcutsUpdated", {});
+  events.emit("shortcutsUpdated", {});
   return;
 }

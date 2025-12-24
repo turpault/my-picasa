@@ -5,7 +5,6 @@ import { join } from "path";
 import { lockedLocks, startLockMonitor } from "../shared/lib/mutex";
 import { RPCAdaptorInterface } from "../shared/rpc-transport/rpc-adaptor-interface";
 import { WsAdaptor } from "../shared/rpc-transport/ws-adaptor";
-import { startWorker } from "./worker-manager";
 import { closePoiDb } from "./services/geolocate/internal/poi/poi-database";
 // import { getIndexingService } from "../worker/background/bg-indexing"; // This causes DB initialization on main thread
 import { parseLUTs } from "./imageOperations/image-filters";
@@ -17,17 +16,16 @@ import { asset } from "./rpc/routes/asset";
 import { albumThumbnail, thumbnail } from "./rpc/routes/thumbnail";
 import { albumWithData } from "./rpc/rpcFunctions/albumUtils";
 // initializePicasaIniCache is now called in the walker worker
+import { info } from "console";
+import { loadFaceAlbums } from "./operations/faces/faces";
+import { buildPersonsList } from "./rpc/albumTypes/persons";
 import { startSentry } from "./sentry";
 import { busy, measureCPULoad } from "./utils/busy";
+import { imagesRoot, rootPath } from "./utils/constants";
 import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
-import { loadFaceAlbums } from "./rpc/rpcFunctions/faces";
-import { info } from "console";
 import { initUndo } from "./utils/undo";
-import { buildPersonsList } from "./rpc/albumTypes/persons";
-import { imagesRoot, rootPath } from "./utils/constants";
-import { startWorkers, broadcast, getAllWorkers } from "./worker-manager";
-import { queueNotification } from "./rpc/albumTypes/fileAndFolders";
+import { startWorkers } from "./worker-manager";
 // import { startBackgroundTasksOnStart } from "../worker/background/bg-services-on-start";
 
 /** */
@@ -204,19 +202,6 @@ export async function startServices() {
   info("Starting workers...");
   startWorkers();
 
-  // Set up worker message listeners
-  const workers = getAllWorkers();
-  for (const worker of workers) {
-    worker.on("message", (msg) => {
-      if (msg.type === "ready") {
-        // Relay ready to other workers
-        broadcast(msg, 'walker');
-      } else if (msg.type === "notification") {
-        queueNotification(msg.event);
-      }
-    });
-  }
-  // updateLastWalkLoop();
   info("Measuring CPU load...");
   measureCPULoad();
   // Picasa ini cache writer is initialized in walker worker

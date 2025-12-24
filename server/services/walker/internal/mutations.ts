@@ -2,8 +2,7 @@ import { isMainThread } from "worker_threads";
 import { Album, AlbumEntry, AlbumEntryMetaData, AlbumEntryPicasa, AlbumEntryWithMetadata } from "../../../../shared/types/types";
 import { getWalkerDatabase } from "./database";
 import * as picasaIni from "./picasa-ini";
-import { events } from "../../../events/server-events";
-import { broadcast } from "../../../utils/socketList";
+import { events } from "../../../../shared/server-events";
 import { imageInfo } from "../../../imageOperations/info";
 
 /**
@@ -88,7 +87,7 @@ export async function updateEntryMetadata(
 
     // Emit specific event based on field type
     if (["filters", "caption", "rotate", "star", "starCount"].includes(fieldStr)) {
-      broadcast("albumEntryAspectChanged", entryPicasa);
+      events.emit("albumEntryAspectChanged", entryPicasa);
     }
 
     // Emit general picasa entry update event
@@ -200,7 +199,7 @@ export async function updateAlbumShortcut(album: Album, shortcut: string): Promi
   db.updateAlbumShortcut(album.key, shortcut || null);
 
   // Emit event after successful mutation
-  broadcast("shortcutsUpdated", {});
+  events.emit("shortcutsUpdated", {});
 }
 
 /**

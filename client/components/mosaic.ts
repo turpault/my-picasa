@@ -9,7 +9,6 @@ import {
   AlbumEntry,
   AlbumEntryPicasa,
   AlbumEntryWithMetadata,
-  AlbumKind,
   Cell,
   Format,
   GutterSizes,
@@ -26,6 +25,7 @@ import { albumEntriesWithMetadata, thumbnailUrl } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
 import { resizable } from "../lib/resizable";
 import { getService } from "../rpc/connect";
+import { events } from "../../shared/server-events";
 import {
   AlbumEntrySelectionManager,
   SelectionManager,
@@ -49,25 +49,25 @@ const editHTML = `
   <div class="mosaic-sidebar w3-theme">
     <div class="w3-bar-block mosaic-parameter-block mosaic-parameters">
       <div class="gradient-sidebar-title mosaic-parameters-title">${t(
-        "Mosaic Parameters",
-      )}</div>
+  "Mosaic Parameters",
+)}</div>
     </div>
     <div class="w3-bar-block  mosaic-parameter-block mosaic-actions">
       <div class="gradient-sidebar-title w3-bar-block mosaic-parameters-title">${t(
-        "Actions",
-      )}</div>
+  "Actions",
+)}</div>
       <a class="mosaic-shuffle w3-bar-item w3-button">${t("Shuffle")}</a>
       <a class="mosaic-import-selection w3-bar-item w3-button">${t(
-        "Import Selection",
-      )}</a>
+  "Import Selection",
+)}</a>
       <a class="mosaic-make w3-bar-item w3-button w3-green">${t(
-        "Make Image",
-      )}</a>
+  "Make Image",
+)}</a>
     </div>
     <div class="w3-bar-block mosaic-parameter-block mosaic-images">
       <div class="gradient-sidebar-title mosaic-image-list w3-bar-item">${t(
-        "Image List",
-      )}</div>
+  "Image List",
+)}</div>
     </div>
   </div>
   <div class="mosaic-container centered">
@@ -85,32 +85,28 @@ const ProjectOutAlbumName = () => {
 function buildHTMLForNode(node: Cell): string {
   let res = "";
   if (node.childs && node.childs.left) {
-    res += `<div class="mosaic-element ${
-      node.childs!.left.image ? "mosaic-image" : ""
-    } " ${
-      node.childs!.left.image
+    res += `<div class="mosaic-element ${node.childs!.left.image ? "mosaic-image" : ""
+      } " ${node.childs!.left.image
         ? `draggable="true" style="background-image: url(${thumbnailUrl(
-            node.childs!.left.image!,
-            "th-large",
-          )});"`
+          node.childs!.left.image!,
+          "th-large",
+        )});"`
         : ""
-    } id="${node.childs!.left.id}">${buildHTMLForNode(
-      node.childs!.left,
-    )}</div>`;
+      } id="${node.childs!.left.id}">${buildHTMLForNode(
+        node.childs!.left,
+      )}</div>`;
   }
   if (node.childs && node.childs.right) {
-    res += `<div  class="mosaic-element ${
-      node.childs!.right.image ? "mosaic-image" : ""
-    }"  ${
-      node.childs!.right.image
+    res += `<div  class="mosaic-element ${node.childs!.right.image ? "mosaic-image" : ""
+      }"  ${node.childs!.right.image
         ? `draggable="true" style="background-image: url(${thumbnailUrl(
-            node.childs!.right.image,
-            "th-large",
-          )});"`
+          node.childs!.right.image,
+          "th-large",
+        )});"`
         : ""
-    } id="${node.childs!.right.id}">${buildHTMLForNode(
-      node.childs!.right,
-    )}</div>`;
+      } id="${node.childs!.right.id}">${buildHTMLForNode(
+        node.childs!.right,
+      )}</div>`;
   }
   if (!node.childs) {
     res = `
@@ -261,13 +257,12 @@ async function installHandlers(
       "background-image": `url(${thumbnailUrl(cell.image!, "th-large")})`,
     });
   }
-  const s = await getService();
   const eventHandlers = [
-    s.on(
+    events.on(
       "albumEntryAspectChanged",
-      async (e: { payload: AlbumEntryPicasa }) => {
+      async (e) => {
         const cell = leafs(projectData.root!).find(
-          (c) => c.image && compareAlbumEntry(c.image, e.payload) === 0,
+          (c) => c.image && compareAlbumEntry(c.image, e) === 0,
         );
         if (cell) {
           cellImageUpdated(cell);
@@ -555,7 +550,7 @@ export async function makeMosaicPage(
           !project.payload.pool
             .map((i) => idFromAlbumEntry(i))
             .includes(idFromAlbumEntry(img)) &&
-          img.album.kind === AlbumKind.FOLDER,
+          true, // Albums are now only folders
       );
       if (newPics.length === 0) return;
 
@@ -605,7 +600,7 @@ export async function makeMosaicPage(
           !project.payload.pool
             .map((i) => idFromAlbumEntry(i))
             .includes(idFromAlbumEntry(img)) &&
-          img.album.kind === AlbumKind.FOLDER,
+          true, // Albums are now only folders
       );
 
       const ctrl = $(".mosaic-import-selection", e);

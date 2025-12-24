@@ -1,6 +1,6 @@
 import { mkdir } from "fs/promises";
 import { exportToFolder } from "../../../imageOperations/export";
-import { getPicasaEntry } from "../../walker/internal/picasa-ini";
+import { getEntryMetadata } from "../../walker/queries";
 import { waitUntilIdle } from "../../../utils/busy";
 import { favoritesFolder } from "../../../utils/constants";
 import { fileExists } from "../../../utils/serverUtils";
@@ -28,7 +28,7 @@ async function exportAllMissing() {
         return;
       }
       for (const entry of entries) {
-        const withMetadata = await getPicasaEntry(entry);
+        const withMetadata = getEntryMetadata(entry);
         if (!withMetadata.star) {
           continue;
         }

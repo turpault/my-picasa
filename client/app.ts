@@ -1,7 +1,7 @@
 import { $ } from "../client/lib/dom";
 import { buildEmitter } from "../shared/lib/event";
 import { isPicture } from "../shared/lib/utils";
-import { AlbumEntry, AlbumKind, ProjectType } from "../shared/types/types";
+import { AlbumEntry, ProjectType } from "../shared/types/types";
 import { AlbumIndexedDataSource } from "./album-data-source";
 import { makeButtons } from "./components/bottom-selection-buttons";
 import { makeBrowser } from "./components/browser";
@@ -31,6 +31,7 @@ import { State } from "./lib/state";
 import { getService, setServicePort } from "./rpc/connect";
 import { featureFlagService } from "./lib/feature-flags";
 import { AppEvent, ApplicationSharedStateDef } from "./uiTypes";
+import { events } from "../shared/server-events";
 async function init(port: number) {
   initClientSentry();
   setServicePort(port);
@@ -55,8 +56,8 @@ async function init(port: number) {
 
   let ready = 0;
   const state = new State<ApplicationSharedStateDef>();
-  s.on("undoChanged", (event: any) => {
-    state.setValue("undo", event.payload.undoSteps);
+  events.on("undoChanged", (event) => {
+    state.setValue("undo", event.undoSteps);
   });
   state.setValue("undo", await s.undoList());
   emitter.on("ready", (event) => {
@@ -164,25 +165,8 @@ async function init(port: number) {
 
   async function edit(params: { entry: AlbumEntry }) {
     const entry = params.entry;
-    if (entry.album.kind === AlbumKind.PROJECT) {
-      const project = (await s.getProject(entry)) as AlbumEntry;
-      const type = project.album.name as ProjectType;
-      if (type === ProjectType.MOSAIC) {
-        const { win, tab, selectionManager } = await makeMosaicPage(
-          emitter,
-          entry,
-          state,
-        );
-        makeTab(win, tab, { kind: "Mosaic", selectionManager });
-      } else if (type === ProjectType.SLIDESHOW) {
-        const { win, tab, selectionManager } = await makeSlideshowPage(
-          emitter,
-          entry,
-          state,
-        );
-        makeTab(win, tab, { kind: "Slideshow", selectionManager });
-      }
-    } else if (entry.album.kind === AlbumKind.FOLDER) {
+    // Albums are now only folders - project handling removed
+    {
       const { win, tab, selectionManager } = await makeEditorPage(
         emitter,
         entry,

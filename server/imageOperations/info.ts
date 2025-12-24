@@ -93,7 +93,7 @@ export async function imageInfo(
 }
 
 export function entryRelativePath(entry: AlbumEntry): string {
-  return join(idFromKey(entry.album.key).id, entry.name);
+  return join(idFromKey(entry.album.key), entry.name);
 }
 
 export function addImageInfo(

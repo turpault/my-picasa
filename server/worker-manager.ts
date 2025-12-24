@@ -1,11 +1,10 @@
 import { join } from "path";
-import { isMainThread, Worker } from "worker_threads";
-import { events } from "./events/server-events";
+import { Worker } from "worker_threads";
+import { events } from "../shared/server-events";
 
 const workers: Map<string, Worker> = new Map();
 
 export function startWorkers() {
-  if (!isMainThread) return;
 
   const services = [
     'walker',
@@ -26,7 +25,6 @@ export function startWorkers() {
 }
 
 export function startWorker(serviceName: string): Worker | null {
-  if (!isMainThread) return null;
   if (workers.has(serviceName)) return workers.get(serviceName)!;
 
   console.info(`Starting background worker: ${serviceName}...`);
@@ -50,6 +48,11 @@ export function startWorker(serviceName: string): Worker | null {
   });
 
   workers.set(serviceName, worker);
+  worker.on("message", (msg) => {
+    if (msg.type === "serverEvent" && msg.eventType) {
+      events.emit(msg.eventType, msg.data);
+    }
+  });
   return worker;
 }
 
@@ -68,35 +71,12 @@ export function postMessageToWorker(serviceName: string, msg: any) {
   }
 }
 
-export function broadcast(msg: any, excludeService?: string) {
-  for (const [name, worker] of workers) {
-    if (name !== excludeService) {
-      worker.postMessage(msg);
-    }
-  }
-}
-
 /**
  * Set up event forwarding between main thread and worker threads
  */
 function setupEventForwarding() {
-  if (!isMainThread) return;
-
-  // Handle events sent FROM worker threads (worker -> main)
-  // These messages are sent via parentPort.postMessage in server-events.ts
-  for (const [name, worker] of workers) {
-    worker.on("message", (msg) => {
-      if (msg.type === "serverEvent" && msg.eventType) {
-        // Emit on global events object (will be forwarded to all workers via subscription below)
-        // Use originalEmit to avoid infinite loop (don't want to forward back to the worker that sent it)
-        const originalEmit = (events as any).__originalEmit || events.emit;
-        originalEmit.call(events, msg.eventType, msg.data);
-      }
-    });
-  }
-
-  // Subscribe to all server events using wildcard and forward them TO worker threads (main -> workers)
   events.on("*", (eventType: string, data: any) => {
+    console.log("Event received:", eventType, data);
     for (const [name, worker] of workers) {
       worker.postMessage({
         type: "serverEvent",

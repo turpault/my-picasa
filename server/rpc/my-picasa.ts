@@ -25,9 +25,11 @@ import { getPersons } from "./albumTypes/persons";
 import {
   createProject,
   getProject,
+  getProjectAlbums,
   getProjects,
   writeProject,
 } from "./albumTypes/projects";
+import { getPersonAlbums } from "./rpcFunctions/albumUtils";
 import { ServiceMap } from "./rpc-handler";
 import {
   albumEntriesWithMetadataAndExif,
@@ -36,7 +38,6 @@ import {
   getSourceEntry,
   media,
   mediaCount,
-  monitorAlbums,
   setRank,
   sortAlbum,
 } from "./rpcFunctions/albumUtils";
@@ -118,10 +119,6 @@ export const PicisaClient: ServiceMap = {
     },
     folders: {
       handler: folders,
-      arguments: ["filters?:Filters"],
-    },
-    monitorAlbums: {
-      handler: monitorAlbums,
       arguments: ["filters?:Filters"],
     },
     media: {
@@ -281,6 +278,14 @@ export const PicisaClient: ServiceMap = {
     getProjects: {
       handler: getProjects,
       arguments: ["type:string"],
+    },
+    getProjectAlbums: {
+      handler: getProjectAlbums,
+      arguments: [],
+    },
+    getPersonAlbums: {
+      handler: getPersonAlbums,
+      arguments: [],
     },
     getProject: {
       handler: getProject,

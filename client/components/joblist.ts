@@ -2,10 +2,10 @@ import { $ } from "../lib/dom";
 import { getService } from "../rpc/connect";
 import { Job } from "../../shared/types/types";
 import { t } from "./strings";
+import { events } from "../../shared/server-events";
 
 export async function makeJobList(e: HTMLElement) {
   const el = $(e);
-  const service = await getService();
   const jobs: { [id: string]: Job } = {};
   function refreshList() {
     el.empty();
@@ -26,23 +26,15 @@ export async function makeJobList(e: HTMLElement) {
       });
     }
   }
-  service.on("jobChanged", (e: any) => {
-    const job = e.payload as Job;
+  events.on("jobChanged", (job) => {
     jobs[job.id] = job;
     refreshList();
   });
-  service.on("jobAdded", (e: any) => {
-    const job = e.payload as Job;
+  events.on("jobFinished", (job) => {
     jobs[job.id] = job;
     refreshList();
   });
-  service.on("jobFinished", (e: any) => {
-    const job = e.payload as Job;
-    jobs[job.id] = job;
-    refreshList();
-  });
-  service.on("jobDeleted", (e: any) => {
-    const job = e.payload as Job;
+  events.on("jobDeleted", (job) => {
     setTimeout(() => {
       delete jobs[job.id];
       refreshList();

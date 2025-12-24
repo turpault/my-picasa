@@ -13,6 +13,7 @@ import { $ } from "../lib/dom";
 import { toggleStar } from "../lib/handles";
 import { getService } from "../rpc/connect";
 import { SelectionManager } from "../selection/selection-manager";
+import { events } from "../../shared/server-events";
 import { AppEventSource, ApplicationState } from "../uiTypes";
 import { ImageController } from "./image-controller";
 import { t } from "./strings";
@@ -308,16 +309,16 @@ export async function makeEditorPage(
 
       return false;
     }),
-    s.on(
+    events.on(
       "albumEntryAspectChanged",
-      async (e: { payload: AlbumEntryPicasa }) => {
+      async (e) => {
         if (!editorSelectionManager.active()) {
           return;
         }
         if (
-          compareAlbumEntry(e.payload, editorSelectionManager.active()) === 0
+          compareAlbumEntry(e, editorSelectionManager.active()) === 0
         ) {
-          updateStarCount(e.payload);
+          updateStarCount(e);
         }
       },
     ),

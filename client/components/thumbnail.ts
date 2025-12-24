@@ -9,7 +9,6 @@ import {
   AlbumEntry,
   AlbumEntryMetaData,
   AlbumEntryPicasa,
-  AlbumKind,
 } from "../../shared/types/types";
 import { thumbnailUrl } from "../imageProcess/client";
 import {
@@ -170,13 +169,7 @@ export function buildThumbnail(
     if (!entry) {
       return;
     }
-    if (entry.album.kind == AlbumKind.FACE) {
-      const s = await getService();
-      entry = await s.getSourceEntry(entry);
-      if (!entry) {
-        return;
-      }
-    }
+    // Face albums no longer use Album type
     e.get().dispatchEvent(
       new CustomEvent("entryDblClicked", { detail: { entry } }),
     );
@@ -237,10 +230,7 @@ export async function thumbnailData(
   }
 
   // could be improved
-  const label =
-    entry.album.kind === AlbumKind.FACE
-      ? JSON.parse(fromBase64(entry.name))[0]
-      : entry.name;
+  const label = entry.name;
 
   let dateTime = "";
   if (picasaData?.dateTaken) {

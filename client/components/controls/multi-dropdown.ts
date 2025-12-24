@@ -51,9 +51,9 @@ export class MultiSelect {
       dropdownWidth: "",
       dropdownHeight: "",
       data: [],
-      onChange: () => {},
-      onSelect: () => {},
-      onUnselect: () => {},
+      onChange: () => { },
+      onSelect: () => { },
+      onUnselect: () => { },
     };
     this._options = { ...defaults, ...options };
     this._selectElement =
@@ -195,9 +195,9 @@ export class MultiSelect {
             .querySelector(".multi-select-header-placeholder")!
             .remove();
         }
-        for (const e of headerElement.querySelectorAll(
+        for (const e of Array.from(headerElement.querySelectorAll(
           ".multi-select-header-option",
-        )) {
+        ))) {
           e.remove();
         }
         if (this.selectedValues.length > 0) {

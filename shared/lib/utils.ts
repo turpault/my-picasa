@@ -2,7 +2,6 @@ import { Base64 } from "js-base64";
 import {
   Album,
   AlbumEntry,
-  AlbumKind,
   FaceList,
   animatedPictureExtensions,
   pictureExtensions,
@@ -551,7 +550,8 @@ const sep = "~";
 export function albumEntryFromId(id: string): AlbumEntry | null {
   const [qualifier, valid, key, name, kind, entry] = id.split(sep);
   if (valid === "entry") {
-    return { album: { key, name, kind: kind as AlbumKind }, name: entry };
+    // Note: kind is parsed for backward compatibility but not stored in Album type
+    return { album: { key, name }, name: entry };
   }
   return null;
 }
@@ -560,7 +560,8 @@ export function idFromAlbumEntry(
   entry: AlbumEntry,
   qualifier: string = "",
 ): string {
-  return `${qualifier}${sep}entry${sep}${entry.album.key}${sep}${entry.album.name}${sep}${entry.album.kind}${sep}${entry.name}`;
+  // Note: using 'folder' as kind for backward compatibility with ID format
+  return `${qualifier}${sep}entry${sep}${entry.album.key}${sep}${entry.album.name}${sep}folder${sep}${entry.name}`;
 }
 
 export function hashString(b: string) {
