@@ -7,9 +7,6 @@
     {
       "name": "Launch server via npm",
       "request": "launch",
-      "env": {
-        "PICISA_PICTURE_FOLDER": "/Volumes/1TB USB/Photos"
-      },
       "runtimeArgs": [
         "run-script",
         "start:server"

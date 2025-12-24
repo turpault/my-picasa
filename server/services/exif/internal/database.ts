@@ -20,7 +20,7 @@ export type OpenMode = 'READ' | 'READWRITE';
  * All other instances must use READ mode.
  */
 export class ExifDatabaseAccess {
-  private db: DatabaseSync | null = null;
+  private db: DatabaseSync;
   private dbPath: string;
   private readonly: boolean;
   private isWriter: boolean;
@@ -37,51 +37,53 @@ export class ExifDatabaseAccess {
     } else {
       debugLogger("Opening EXIF database in READ-ONLY mode");
     }
+
+    // Open database
+    const dbOptions: any = {
+      mode: this.readonly ? "readonly" : "readwrite",
+    };
+    this.db = new DatabaseSync(this.dbPath, dbOptions);
+
+    // Wrap prepare and exec for SQL logging if DEBUG_SQL is set
+    if (process.env.DEBUG_SQL) {
+      const originalPrepare = this.db.prepare.bind(this.db);
+      const originalExec = this.db.exec.bind(this.db);
+
+      this.db.prepare = (sql: string) => {
+        debugLogger(`SQL: ${sql}`);
+        return originalPrepare(sql);
+      };
+
+      this.db.exec = (sql: string) => {
+        debugLogger(`SQL: ${sql}`);
+        return originalExec(sql);
+      };
+    }
+
+    // Migrate if writer
+    if (this.isWriter) {
+      this.checkAndMigrateDatabase();
+    }
+
+    // Attach walker database as read-only (always read-only in EXIF service)
+    try {
+      const walkerDb = getWalkerDatabase();
+      const walkerDbPath = walkerDb.getDatabasePath();
+      // Convert path to file: URI for SQLite ATTACH with mode=ro
+      // SQLite requires absolute paths, and we need to escape single quotes for SQL string
+      const fileUri = `file:${walkerDbPath.replace(/'/g, "''")}?mode=ro`;
+      this.db.exec(`ATTACH DATABASE '${fileUri}' AS walker`);
+      debugLogger("Attached walker database as read-only");
+    } catch (error) {
+      debugLogger("Warning: Could not attach walker database:", error);
+      // Continue without attachment - queries will need to work without it
+    }
   }
 
   /**
-   * Get the database connection, initializing if necessary
+   * Get the database connection
    */
   getDatabase(): DatabaseSync {
-    if (!this.db) {
-      const dbOptions: any = {
-        mode: this.readonly ? "readonly" : "readwrite",
-      };
-      this.db = new DatabaseSync(this.dbPath, dbOptions);
-
-      // Wrap prepare and exec for SQL logging if DEBUG_SQL is set
-      if (process.env.DEBUG_SQL) {
-        const originalPrepare = this.db.prepare.bind(this.db);
-        const originalExec = this.db.exec.bind(this.db);
-        
-        this.db.prepare = (sql: string) => {
-          debugLogger(`SQL: ${sql}`);
-          return originalPrepare(sql);
-        };
-        
-        this.db.exec = (sql: string) => {
-          debugLogger(`SQL: ${sql}`);
-          return originalExec(sql);
-        };
-      }
-
-      // Attach walker database as read-only (always read-only in EXIF service)
-      try {
-        const walkerDb = getWalkerDatabase();
-        const walkerDbPath = walkerDb.getDatabasePath();
-        // Escape single quotes in path for SQL
-        const escapedPath = walkerDbPath.replace(/'/g, "''");
-        this.db.exec(`ATTACH DATABASE '${escapedPath}' AS walker READONLY`);
-        debugLogger("Attached walker database as read-only");
-      } catch (error) {
-        debugLogger("Warning: Could not attach walker database:", error);
-        // Continue without attachment - queries will need to work without it
-      }
-
-      if (this.isWriter) {
-        this.checkAndMigrateDatabase();
-      }
-    }
     return this.db;
   }
 
@@ -89,7 +91,7 @@ export class ExifDatabaseAccess {
    * Check database version and migrate if necessary (writer only)
    */
   private checkAndMigrateDatabase(): void {
-    if (!this.isWriter || !this.db) return;
+    if (!this.isWriter) return;
 
     try {
       const versionTableExists = this.db.prepare(`
@@ -130,7 +132,7 @@ export class ExifDatabaseAccess {
    * Migrate database to new version (writer only)
    */
   private migrateDatabase(fromVersion: number): void {
-    if (!this.isWriter || !this.db) return;
+    if (!this.isWriter) return;
 
     debugLogger(`Migrating database from version ${fromVersion} to ${DATABASE_VERSION}`);
     try {
@@ -147,7 +149,7 @@ export class ExifDatabaseAccess {
    * Initialize database schema (writer only)
    */
   private initDatabase(): void {
-    if (!this.isWriter || !this.db) return;
+    if (!this.isWriter) return;
 
     // Create exif_data table
     this.db.exec(`
@@ -181,10 +183,7 @@ export class ExifDatabaseAccess {
    * Close the database connection
    */
   close(): void {
-    if (this.db) {
-      this.db.close();
-      this.db = null;
-    }
+    this.db.close();
   }
 
   /**

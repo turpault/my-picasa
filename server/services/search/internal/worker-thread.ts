@@ -1,4 +1,5 @@
 import debug from "debug";
+import { parentPort } from "worker_threads";
 import { events } from "../../../../shared/server-events";
 import { media } from "../../../rpc/rpcFunctions/albumUtils";
 import { waitUntilIdle } from "../../../utils/busy";
@@ -178,7 +179,13 @@ async function indexAllPictures(): Promise<void> {
 // Main entry point for indexing pictures
 export async function indexPictures(): Promise<void> {
   // Initialize database (read-write in indexing worker)
+  // This will trigger database creation and migration
   const db = getIndexingDatabaseReadWrite();
+
+  // Send ready message after database initialization
+  if (parentPort) {
+    parentPort.postMessage({ type: "ready" });
+  }
 
   // Use indexAllPictures which uses a queue for all indexing operations
   await indexAllPictures();

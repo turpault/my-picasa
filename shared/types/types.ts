@@ -274,6 +274,7 @@ export type Album = {
 export type AlbumWithData = Album & {
   count: number;
   shortcut?: string;
+  lastModified?: string;
 };
 
 export type Shortcut = {

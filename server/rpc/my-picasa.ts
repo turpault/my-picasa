@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/camelcase */
 import { Exceptions } from "../../shared/types/exceptions";
-import { getFaceDataFromAlbumEntry } from "../services/faces/face/picasa-faces";
+import { getFaceDataFromAlbumEntry } from "../services/faces/internal/face/face-db";
 import {
   getConvolutionKernelNames,
   getFilterGroups,

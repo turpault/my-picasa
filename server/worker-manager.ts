@@ -30,6 +30,12 @@ export async function startWorker(serviceName: string): Promise<Worker | null> {
   console.info(`Starting background worker: ${serviceName}...`);
   const isTs = __filename.endsWith('.ts');
   const workerFile = join(__dirname, 'services', serviceName, isTs ? 'worker.ts' : 'worker.js');
+  let resolveFct: (value: void | PromiseLike<void>) => void = () => { };
+  let rejectFct: (reason?: any) => void = () => { };
+  const readyPromise = new Promise((resolve, reject) => {
+    resolveFct = resolve;
+    rejectFct = reject;
+  });
 
   const worker = new Worker(workerFile, {
     workerData: { serviceName },
@@ -43,6 +49,7 @@ export async function startWorker(serviceName: string): Promise<Worker | null> {
   worker.on("exit", (code) => {
     if (code !== 0) {
       console.error(new Error(`Worker ${serviceName} stopped with exit code ${code}`));
+      rejectFct(code);
     }
     workers.delete(serviceName);
   });
@@ -52,9 +59,16 @@ export async function startWorker(serviceName: string): Promise<Worker | null> {
     if (msg.type === "serverEvent" && msg.eventType) {
       events.emit(msg.eventType, msg.data);
     }
+    if (msg.type === "ready") {
+      resolveFct();
+    }
   });
 
-  await new Promise((resolve) => worker.once("online", resolve));
+  await readyPromise.then(() => {
+    console.info(`Worker ${serviceName} is ready`);
+  }).catch((error) => {
+    console.error(`Worker ${serviceName} error:`, error);
+  });
 
   return worker;
 }

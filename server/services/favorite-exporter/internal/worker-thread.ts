@@ -1,4 +1,5 @@
 import { mkdir } from "fs/promises";
+import { parentPort } from "worker_threads";
 import { exportToFolder } from "../../../imageOperations/export";
 import { getEntryMetadata } from "../../walker/queries";
 import { waitUntilIdle } from "../../../utils/busy";
@@ -12,6 +13,16 @@ export async function buildFavoriteFolder() {
   if (!(await fileExists(favoritesFolder))) {
     await mkdir(favoritesFolder, { recursive: true });
   }
+  
+  // Access database to ensure it's initialized (lazy initialization via queries)
+  // The queries will trigger database initialization
+  getAllFolders(); // This will initialize databases if needed
+  
+  // Send ready message after database is initialized
+  if (parentPort) {
+    parentPort.postMessage({ type: "ready" });
+  }
+  
   await exportAllMissing();
 }
 

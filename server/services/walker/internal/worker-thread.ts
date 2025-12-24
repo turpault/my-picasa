@@ -2,8 +2,11 @@ import debug from "debug";
 import { Stats } from "fs";
 import { stat } from "fs/promises";
 import { join, relative } from "path";
-import { isMainThread, workerData } from "worker_threads";
+import { isMainThread, parentPort, workerData } from "worker_threads";
 import { Queue } from "../../../../shared/lib/queue";
+import { WorkerAdaptor } from "../../../../shared/rpc-transport/worker-adaptor";
+import { registerServices } from "../../../rpc/rpc-handler";
+import { WalkerWorkerClient } from "./walker-worker-rpc";
 import {
   alphaSorter,
   differs,
@@ -21,6 +24,7 @@ import {
 } from "../../../rpc/fileAndFolders";
 import { mediaCount } from "../../../rpc/rpcFunctions/albumUtils";
 import {
+  initializePicasaIniCache,
   readShortcut,
 } from "./picasa-ini";
 import { imagesRoot, specialFolders } from "../../../utils/constants";
@@ -33,6 +37,32 @@ const debugLogger = debug("app:walker-db");
 const walkQueue = new Queue(10);
 
 const ALLOW_EMPTY_ALBUM_CREATED_SINCE = 1000 * 60 * 60; // one hour
+
+/**
+ * Check if an album in the database is stale (folder has been modified since last check)
+ * Returns true if the album should be re-processed, false if it's up to date
+ */
+async function isDBAlbumStale(album: Album): Promise<boolean> {
+  const existing = getAlbum(album.key);
+  if (!existing || !existing.lastModified) {
+    // Album doesn't exist in DB or has no lastModified, consider it stale
+    return true;
+  }
+
+  try {
+    const folderPath = join(imagesRoot, pathForAlbum(album));
+    const stats = await stat(folderPath);
+    const folderMtime = stats.mtime.getTime().toString();
+
+    // Compare database lastModified with folder mtime
+    // If they match, album is not stale
+    return existing.lastModified !== folderMtime;
+  } catch (error) {
+    // If we can't stat the folder, consider it stale so we can detect if it's deleted
+    debugLogger(`Error checking folder mtime for album ${album.key}:`, error);
+    return true;
+  }
+}
 
 async function folderAlbumExists(album: Album): Promise<boolean> {
   const p = join(imagesRoot, pathForAlbum(album));
@@ -80,6 +110,16 @@ async function addOrRefreshOrDeleteAlbum(
         db.deleteAlbum(album.key);
       }
     } else {
+      // Get folder mtime for lastModified
+      let folderMtime: string | undefined;
+      try {
+        const folderPath = join(imagesRoot, pathForAlbum(album));
+        const stats = await stat(folderPath);
+        folderMtime = stats.mtime.getTime().toString();
+      } catch (error) {
+        debugLogger(`Error getting folder mtime for album ${album.key}:`, error);
+      }
+
       if (!existing) {
         const [count, shortcut] = await Promise.all([
           mediaCount(album),
@@ -89,6 +129,7 @@ async function addOrRefreshOrDeleteAlbum(
           ...album,
           ...count,
           shortcut,
+          lastModified: folderMtime,
         };
         queueNotification({
           type: "albumAdded",
@@ -108,6 +149,7 @@ async function addOrRefreshOrDeleteAlbum(
             ...album,
             ...count,
             shortcut,
+            lastModified: folderMtime,
           };
 
           if (differs(updated, existing)) {
@@ -143,6 +185,15 @@ async function walk(
     name,
     key: keyFromID(relative(imagesRoot, path)),
   };
+
+  // Check if album is stale before processing
+  const isStale = await isDBAlbumStale(album);
+  if (!isStale) {
+    // Album is up to date, skip processing
+    debugLogger(`Skipping album ${album.key} - not stale (lastModified matches folder mtime)`);
+    return;
+  }
+
   const m = await assetsInFolderAlbum(album);
   await reindexAlbumsFromList([album]);
 
@@ -181,12 +232,23 @@ async function reindexAlbumsFromList(albums: Album[]): Promise<void> {
         const newEntryNames = new Set(entries.map(e => e.name));
 
 
+        // Get folder mtime for lastModified
+        let folderMtime: string | undefined;
+        try {
+          const folderPath = join(imagesRoot, pathForAlbum(album));
+          const stats = await stat(folderPath);
+          folderMtime = stats.mtime.getTime().toString();
+        } catch (error) {
+          debugLogger(`Error getting folder mtime for album ${album.key} in reindexAlbumsFromList:`, error);
+        }
+
         // Update album count
         const existing = getAlbum(album.key);
         if (existing) {
           const updatedAlbum: AlbumWithData = {
             ...existing,
             count: entries.length,
+            lastModified: folderMtime,
           };
           const db = getWalkerDatabase();
           db.upsertAlbum(updatedAlbum);
@@ -201,6 +263,7 @@ async function reindexAlbumsFromList(albums: Album[]): Promise<void> {
             ...album,
             ...count,
             shortcut,
+            lastModified: folderMtime,
           };
           const db = getWalkerDatabase();
           db.upsertAlbum(newAlbum);
@@ -248,18 +311,19 @@ export async function walkFilesystem(): Promise<void> {
   }
 
   // Initialize database (will be read-write in walker worker)
+  // This will trigger database creation and migration
   getWalkerDatabase();
 
-  // Initialize RPC service for walker worker
-  const { WorkerAdaptor } = await import("../../../../shared/rpc-transport/worker-adaptor");
-  const { registerServices } = await import("../../../rpc/rpc-handler");
-  const { WalkerWorkerClient } = await import("./walker-worker-rpc");
+  // Send ready message after database initialization
+  if (parentPort) {
+    parentPort.postMessage({ type: "ready" });
+  }
 
+  // Initialize RPC service for walker worker
   const workerAdaptor = new WorkerAdaptor(); // No worker parameter = worker thread mode
   registerServices(workerAdaptor, [WalkerWorkerClient], {});
 
   // Initialize picasa-ini cache writer (only in worker thread)
-  const { initializePicasaIniCache } = await import("./picasa-ini");
   // Start the cache writer in background (it runs forever)
   initializePicasaIniCache().catch((error) => {
     debugLogger("Error in picasa-ini cache writer:", error);
@@ -298,10 +362,6 @@ export async function walkFilesystem(): Promise<void> {
 
     if (iteration === 0) {
       console.info(`Album list retrieved`);
-      const { parentPort } = await import("worker_threads");
-      if (parentPort) {
-        parentPort.postMessage({ type: "ready" });
-      }
     }
     iteration++;
     await sleep(60 * 60); // Wait 60 minutes

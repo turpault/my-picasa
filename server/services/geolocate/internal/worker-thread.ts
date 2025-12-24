@@ -1,4 +1,5 @@
 import { AlbumEntry } from "../../../../shared/types/types";
+import { parentPort } from "worker_threads";
 import { getExifData } from "../../../rpc/rpcFunctions/exif";
 import { getLocations } from "./poi/poi-database";
 import { initPOIDB } from "./poi/ingest";
@@ -183,7 +184,14 @@ async function processUnprocessedEntries(): Promise<void> {
 export async function buildGeolocation() {
   await initPOIDB();
 
+  // Initialize database (read-write in geolocate worker)
+  // This will trigger database creation and migration
   const db = getGeolocateDatabaseReadWrite();
+  
+  // Send ready message after database initialization
+  if (parentPort) {
+    parentPort.postMessage({ type: "ready" });
+  }
 
   // Initialize database with all album entries (create rows with no geo POI data)
   await initializeGeolocateDatabase();

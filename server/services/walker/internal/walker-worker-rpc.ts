@@ -10,6 +10,10 @@ import {
   touchPicasaEntry,
 } from "./mutations";
 import { refreshAlbumKeys, refreshAlbums, onRenamedAlbums, reindexAlbums } from "./worker-thread";
+import {
+  getPicasaIdentifiedReferences,
+  getAlbumPicasaContactByHash,
+} from "./picasa-read-queries";
 
 /**
  * WalkerWorkerClient RPC Service Definition
@@ -22,6 +26,7 @@ export const WalkerWorkerClient: ServiceMap = {
     { symbol: "AlbumEntry", module: "../../../shared/types/types" },
     { symbol: "AlbumEntryMetaData", module: "../../../shared/types/types" },
     { symbol: "Album", module: "../../../shared/types/types" },
+    { symbol: "Contact", module: "../../../shared/types/types" },
   ],
   name: "WalkerWorkerClient",
   constants: {},
@@ -73,6 +78,14 @@ export const WalkerWorkerClient: ServiceMap = {
     reindexAlbums: {
       handler: reindexAlbums,
       arguments: ["albumIds:object"],
+    },
+    getPicasaIdentifiedReferences: {
+      handler: getPicasaIdentifiedReferences,
+      arguments: ["entry:object"],
+    },
+    getAlbumPicasaContactByHash: {
+      handler: getAlbumPicasaContactByHash,
+      arguments: ["album:object", "hash:string"],
     },
   },
 };

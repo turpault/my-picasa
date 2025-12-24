@@ -15,7 +15,7 @@ import {
   Reference,
   ReferenceData,
 } from "../../../shared/types/types";
-import { getEntryMetadata, getContactsFromAlbum } from "../../services/walker/queries";
+import { getContactsFromAlbum, getPicasaIdentifiedReferences } from "../../services/walker/queries";
 import { IdentifiedContact } from "../../services/faces/internal/face/types";
 
 export function rectOfReference(feature: ReferenceData) {
@@ -48,20 +48,8 @@ export function rectOfReference(feature: ReferenceData) {
   return rect;
 }
 
-export async function getPicasaIdentifiedReferences(
-  entry: AlbumEntry,
-): Promise<IdentifiedContact[]> {
-  const contacts = await getContactsFromAlbum(entry.album);
-  const entryMeta = getEntryMetadata(entry);
-  const iniFaces = entryMeta.faces;
-  if (iniFaces) {
-    const facesInEntry = decodeFaces(iniFaces);
-    return facesInEntry
-      .filter((face: Face) => contacts[face.hash])
-      .map((face: Face) => ({ face, contact: contacts[face.hash] }));
-  }
-  return [];
-}
+// Re-export from walker queries (now an RPC call)
+export { getPicasaIdentifiedReferences } from "../../services/walker/queries";
 
 export function isIdentifiedContactInReferences(
   identifiedContact: IdentifiedContact,

@@ -1,3 +1,4 @@
+import { Contact } from "../../../shared/types/types";
 import { Album } from "../../../shared/types/types";
 import { AlbumEntryMetaData } from "../../../shared/types/types";
 import { AlbumEntry } from "../../../shared/types/types";
@@ -90,6 +91,16 @@ export class WalkerWorkerClient {
   async reindexAlbums(albumIds:object):Promise<any> {
     return this.emit('WalkerWorkerClient:reindexAlbums', {
       'args': { albumIds } 
+    });
+  }
+  async getPicasaIdentifiedReferences(entry:object):Promise<any> {
+    return this.emit('WalkerWorkerClient:getPicasaIdentifiedReferences', {
+      'args': { entry } 
+    });
+  }
+  async getAlbumPicasaContactByHash(album:object, hash:string):Promise<any> {
+    return this.emit('WalkerWorkerClient:getAlbumPicasaContactByHash', {
+      'args': { album, hash } 
     });
   }
 }

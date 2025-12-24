@@ -1,4 +1,5 @@
 import Debug from "debug";
+import { parentPort } from "worker_threads";
 import { events } from "../../../../shared/server-events";
 import { ThumbnailSizeVals } from "../../../../shared/types/types";
 import { imageInfo } from "../../../imageOperations/info";
@@ -15,7 +16,14 @@ const thumbnailSizes = ThumbnailSizeVals.filter((f) => !f.includes("large"))
   .flat();
 
 export async function buildThumbs() {
+  // Access database to ensure it's initialized (lazy initialization)
   const albums = getAllFolders();
+  
+  // Send ready message after database is initialized
+  if (parentPort) {
+    parentPort.postMessage({ type: "ready" });
+  }
+  
   // Sort albums in reverse order (most recent first)
   albums.sort((a, b) => b.name.localeCompare(a.name));
   for (const album of albums) {

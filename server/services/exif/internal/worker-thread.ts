@@ -1,6 +1,7 @@
 import debug from "debug";
 import exifr from "exifr";
 import { readFile, stat } from "fs/promises";
+import { parentPort } from "worker_threads";
 import { lock } from "../../../../shared/lib/mutex";
 import { Queue } from "../../../../shared/lib/queue";
 import { buildReadySemaphore, isPicture, isVideo, setReady } from "../../../../shared/lib/utils";
@@ -196,10 +197,17 @@ async function processUnprocessedEntries(): Promise<void> {
  */
 export async function processExifData(): Promise<void> {
   // Initialize database (read-write in EXIF worker)
+  // This will trigger database creation and migration
   const db = getExifDatabaseReadWrite();
+
 
   // Initialize database with all album entries (create rows with no EXIF data)
   await initializeExifDatabase();
+
+  // Send ready message after database initialization
+  if (parentPort) {
+    parentPort.postMessage({ type: "ready" });
+  }
 
   // Start processing unprocessed entries
   await processUnprocessedEntries();

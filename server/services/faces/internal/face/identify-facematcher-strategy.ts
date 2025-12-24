@@ -20,7 +20,7 @@ import {
 import {
   addCandidateFaceRectToEntry,
   removeFaceFromEntry,
-} from "./picasa-faces";
+} from "./face-db";
 import { readReferencesOfEntry } from "../../../../rpc/referenceFiles";
 import { join } from "path";
 

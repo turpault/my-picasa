@@ -8,7 +8,7 @@ import { imagesRoot } from "../../../utils/constants";
 const debugLogger = debug("app:walker-db");
 
 // Database version constant - increment this when schema changes
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 
 /**
  * Shared Walker Database Access
@@ -18,7 +18,7 @@ const DATABASE_VERSION = 2;
  * All other workers and the main thread must use read-only mode.
  */
 class WalkerDatabaseAccess {
-  private db: DatabaseSync | null = null;
+  private db: DatabaseSync;
   private dbPath: string;
   private readonly: boolean;
   private isWriter: boolean;
@@ -37,38 +37,39 @@ class WalkerDatabaseAccess {
     } else {
       debugLogger("Opening walker database in READ-ONLY mode");
     }
+
+    // Open database
+    const dbOptions: any = {
+      mode: this.readonly ? "readonly" : "readwrite",
+    };
+    this.db = new DatabaseSync(this.dbPath, dbOptions);
+
+    // Wrap prepare and exec for SQL logging if DEBUG_SQL is set
+    if (process.env.DEBUG_SQL) {
+      const originalPrepare = this.db.prepare.bind(this.db);
+      const originalExec = this.db.exec.bind(this.db);
+
+      this.db.prepare = (sql: string) => {
+        debugLogger(`SQL: ${sql}`);
+        return originalPrepare(sql);
+      };
+
+      this.db.exec = (sql: string) => {
+        debugLogger(`SQL: ${sql}`);
+        return originalExec(sql);
+      };
+    }
+
+    // Migrate if writer
+    if (this.isWriter) {
+      this.checkAndMigrateDatabase();
+    }
   }
 
   /**
-   * Get the database connection, initializing if necessary
+   * Get the database connection
    */
   getDatabase(): DatabaseSync {
-    if (!this.db) {
-      const dbOptions: any = {
-        mode: this.readonly ? "readonly" : "readwrite",
-      };
-      this.db = new DatabaseSync(this.dbPath, dbOptions);
-
-      // Wrap prepare and exec for SQL logging if DEBUG_SQL is set
-      if (process.env.DEBUG_SQL) {
-        const originalPrepare = this.db.prepare.bind(this.db);
-        const originalExec = this.db.exec.bind(this.db);
-
-        this.db.prepare = (sql: string) => {
-          debugLogger(`SQL: ${sql}`);
-          return originalPrepare(sql);
-        };
-
-        this.db.exec = (sql: string) => {
-          debugLogger(`SQL: ${sql}`);
-          return originalExec(sql);
-        };
-      }
-
-      if (this.isWriter) {
-        this.checkAndMigrateDatabase();
-      }
-    }
     return this.db;
   }
 
@@ -76,7 +77,7 @@ class WalkerDatabaseAccess {
    * Check database version and migrate if necessary (writer only)
    */
   private checkAndMigrateDatabase(): void {
-    if (!this.isWriter || !this.db) return;
+    if (!this.isWriter) return;
 
     try {
       const versionTableExists = this.db.prepare(`
@@ -117,7 +118,7 @@ class WalkerDatabaseAccess {
    * Migrate database to new version (writer only)
    */
   private migrateDatabase(fromVersion: number): void {
-    if (!this.isWriter || !this.db) return;
+    if (!this.isWriter) return;
 
     debugLogger(`Migrating database from version ${fromVersion} to ${DATABASE_VERSION}`);
     try {
@@ -146,6 +147,15 @@ class WalkerDatabaseAccess {
         debugLogger("Migration to version 2 completed");
       }
 
+      // Migration from version 2 to 3: Add lastModified column to albums
+      if (fromVersion < 3) {
+        debugLogger("Migrating to version 3: Adding lastModified column to albums");
+        this.db.exec(`
+          ALTER TABLE albums ADD COLUMN lastModified TEXT;
+        `);
+        debugLogger("Migration to version 3 completed");
+      }
+
       this.db.exec(`UPDATE db_version SET version = ${DATABASE_VERSION} WHERE version = ${fromVersion}`);
       debugLogger(`Database migration completed to version ${DATABASE_VERSION}`);
     } catch (error) {
@@ -158,7 +168,7 @@ class WalkerDatabaseAccess {
    * Initialize database schema (writer only)
    */
   private initDatabase(): void {
-    if (!this.isWriter || !this.db) return;
+    if (!this.isWriter) return;
 
     // Create albums table
     this.db.exec(`
@@ -168,6 +178,7 @@ class WalkerDatabaseAccess {
         kind TEXT NOT NULL,
         count INTEGER NOT NULL DEFAULT 0,
         shortcut TEXT,
+        lastModified TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
@@ -215,10 +226,7 @@ class WalkerDatabaseAccess {
    * Close the database connection
    */
   close(): void {
-    if (this.db) {
-      this.db.close();
-      this.db = null;
-    }
+    this.db.close();
   }
 
   /**
@@ -242,14 +250,15 @@ class WalkerDatabaseAccess {
    */
   getAllAlbums(): AlbumWithData[] {
     const rows = this.getDatabase().prepare(`
-      SELECT key, name, kind, count, shortcut FROM albums ORDER BY key
-    `).all() as Array<{ key: string; name: string; kind?: string; count: number; shortcut: string | null }>;
+      SELECT key, name, kind, count, shortcut, lastModified FROM albums ORDER BY key
+    `).all() as Array<{ key: string; name: string; kind?: string; count: number; shortcut: string | null; lastModified: string | null }>;
 
     return rows.map(row => ({
       key: row.key,
       name: row.name,
       count: row.count,
       shortcut: row.shortcut || undefined,
+      lastModified: row.lastModified || undefined,
     }));
   }
 
@@ -258,8 +267,8 @@ class WalkerDatabaseAccess {
    */
   getAlbum(albumKey: string): AlbumWithData | undefined {
     const row = this.getDatabase().prepare(`
-      SELECT key, name, kind, count, shortcut FROM albums WHERE key = ?
-    `).get(albumKey) as { key: string; name: string; kind?: string; count: number; shortcut: string | null } | undefined;
+      SELECT key, name, kind, count, shortcut, lastModified FROM albums WHERE key = ?
+    `).get(albumKey) as { key: string; name: string; kind?: string; count: number; shortcut: string | null; lastModified: string | null } | undefined;
 
     if (!row) return undefined;
 
@@ -268,6 +277,7 @@ class WalkerDatabaseAccess {
       name: row.name,
       count: row.count,
       shortcut: row.shortcut || undefined,
+      lastModified: row.lastModified || undefined,
     };
   }
 
@@ -461,15 +471,16 @@ class WalkerDatabaseAccess {
     }
 
     const stmt = this.getDatabase().prepare(`
-      INSERT OR REPLACE INTO albums (key, name, kind, count, shortcut, updated_at)
-      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      INSERT OR REPLACE INTO albums (key, name, kind, count, shortcut, lastModified, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `);
     stmt.run(
       album.key,
       album.name,
       'folder', // Always 'folder' since albums are now only folders (kept for backward compatibility)
       album.count,
-      album.shortcut || null
+      album.shortcut || null,
+      album.lastModified || null
     );
   }
 
