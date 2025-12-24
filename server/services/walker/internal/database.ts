@@ -150,13 +150,22 @@ class WalkerDatabaseAccess {
       // Migration from version 2 to 3: Add lastModified column to albums
       if (fromVersion < 3) {
         debugLogger("Migrating to version 3: Adding lastModified column to albums");
-        this.db.exec(`
-          ALTER TABLE albums ADD COLUMN lastModified TEXT;
-        `);
+        // Check if column already exists
+        const columnExists = this.db.prepare(`
+          SELECT COUNT(*) as count FROM pragma_table_info('albums') WHERE name = 'lastModified'
+        `).get() as { count: number } | undefined;
+        
+        if (!columnExists || columnExists.count === 0) {
+          this.db.exec(`ALTER TABLE albums ADD COLUMN lastModified TEXT`);
+          debugLogger("Added lastModified column to albums table");
+        } else {
+          debugLogger("Column lastModified already exists, skipping");
+        }
         debugLogger("Migration to version 3 completed");
       }
 
-      this.db.exec(`UPDATE db_version SET version = ${DATABASE_VERSION} WHERE version = ${fromVersion}`);
+      // Update version to current (version is PRIMARY KEY, so use INSERT OR REPLACE)
+      this.db.exec(`INSERT OR REPLACE INTO db_version (version) VALUES (${DATABASE_VERSION})`);
       debugLogger(`Database migration completed to version ${DATABASE_VERSION}`);
     } catch (error) {
       debugLogger("Error during database migration:", error);
