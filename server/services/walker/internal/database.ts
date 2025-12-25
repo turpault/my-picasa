@@ -154,7 +154,7 @@ class WalkerDatabaseAccess {
         const columnExists = this.db.prepare(`
           SELECT COUNT(*) as count FROM pragma_table_info('albums') WHERE name = 'lastModified'
         `).get() as { count: number } | undefined;
-        
+
         if (!columnExists || columnExists.count === 0) {
           this.db.exec(`ALTER TABLE albums ADD COLUMN lastModified TEXT`);
           debugLogger("Added lastModified column to albums table");

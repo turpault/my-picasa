@@ -15,7 +15,8 @@
       "skipFiles": [
         "<node_internals>/**"
       ],
-      "type": "node"
+      "type": "node",
+      "console": "integratedTerminal"
     },
     {
       "name": "Start favorite to iPhoto",
