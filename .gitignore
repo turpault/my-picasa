@@ -46,6 +46,9 @@ deployed
 server/imageOperations/native-filters/build
 picisa.dmg
 
+# macOS wrapper (Xcode derived data)
+macos-wrapper/build
+
 #anti-justin
 modeles
 
