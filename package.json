@@ -43,7 +43,6 @@
     "dev": "NODE_ENV=development DEBUG='*' PICISA_PICTURE_FOLDER=/tmp bun --hot server/index.ts",
     "start": "DEBUG=app:* PICISA_PICTURE_FOLDER=/Volumes/1TB\\ USB/Photos bun --watch server/index.ts",
     "start:server": "DEBUG='*' PICISA_PICTURE_FOLDER=/Volumes/1TB\\ USB/Photos bun --watch server/index.ts",
-    "start-fav": "bun server/rpc/rpcFunctions/fileJob-export-favorites.ts",
     "predeploy": "npm run build",
     "deploy": "run-p deploy:*",
     "deploy:webapp": "rm -rf deployed ; cp -R public deployed; sudo cp com.turpault.picisa.plist /Library/LaunchDaemons && sudo chmod 600 /Library/LaunchDaemons/com.turpault.picisa.plist ; sudo launchctl unload /Library/LaunchDaemons/com.turpault.picisa.plist ; sudo launchctl load /Library/LaunchDaemons/com.turpault.picisa.plist"
