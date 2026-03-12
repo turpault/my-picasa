@@ -31,7 +31,7 @@
     "./client/**/*.ts",
     "./shared/**/*.ts",
     "./client/**/*.js"
-, "server/preload.js"  ],
+  ],
   "exclude": [
     "dist",
     "public"

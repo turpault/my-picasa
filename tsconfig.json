@@ -27,8 +27,7 @@
   "include": [
     "./client/**/*.ts",
     "./shared/**/*.ts",
-    "./client/**/*.js",
-    "server/preload.js"
+    "./client/**/*.js"
   ],
   "exclude": [
     "dist",
