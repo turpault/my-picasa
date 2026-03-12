@@ -46,7 +46,7 @@
     "prestart": "npm run native-filters",
     "start": "DEBUG=app:* PICISA_PICTURE_FOLDER=/Volumes/1TB\\ USB/Photos NODE_OPTIONS='--experimental-sqlite' run-p start:*",
     "start:webpack": "webpack --watch --progress --mode development",
-    "start:server": "DEBUG=app:* PICISA_PICTURE_FOLDER=/Volumes/1TB\\ USB/Photos NODE_OPTIONS='--experimental-sqlite' nodemon -e ts --watch ./shared  --watch ./server -x \"ts-node -P tsconfig-server.json server/index.ts\"",
+    "start:server": "DEBUG='*' PICISA_PICTURE_FOLDER=/Volumes/1TB\\ USB/Photos NODE_OPTIONS='--experimental-sqlite' nodemon -e ts --watch ./shared  --watch ./server -x \"ts-node -P tsconfig-server.json server/index.ts\"",
     "start-fav": "NODE_OPTIONS='--experimental-sqlite' ts-node --esm server/rpc/rpcFunctions/fileJob-export-favorites.ts",
     "electron": "electron .",
     "predeploy": "npm run build",

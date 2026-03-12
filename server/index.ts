@@ -1,19 +1,36 @@
 import { info } from "console";
 import { startServer, startServices } from "./start";
 import { imagesRoot, rootPath } from "./utils/constants";
-let port: any = process.argv.slice(-1)[0];
 
-try {
-  port = parseInt(port);
-  if (Number.isNaN(port)) {
-    throw new Error("Not a number");
+function getPortFromArgsOrEnv(): number {
+  const args = process.argv.slice(2);
+  const candidate = args[args.length - 1];
+
+  if (candidate) {
+    const parsed = parseInt(candidate, 10);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
   }
-} catch (e) {
-  port = 5500;
+
+  const envPort = process.env.PICISA_PORT;
+  if (envPort) {
+    const parsed = parseInt(envPort, 10);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+
+  return 5500;
 }
 
 async function start() {
+  const port = getPortFromArgsOrEnv();
+  info(
+    `Starting standalone server on port ${port} in folder ${rootPath}. Photos root is ${imagesRoot}`,
+  );
   await startServer(port);
   await startServices();
 }
+
 start();

@@ -142,20 +142,30 @@ function setupRoutes(server: FastifyInstance) {
     await reply.sendFile(file, "/");
   });
 }
-const port = Math.floor(Math.random() * 10000 + 5000);
 
-export function getPort() {
-  return port;
+const DEFAULT_PORT = 5500;
+
+function resolvePort(p?: number): number {
+  if (typeof p === "number" && !Number.isNaN(p)) {
+    return p;
+  }
+
+  const envPort = process.env.PICISA_PORT;
+  if (envPort) {
+    const parsed = parseInt(envPort, 10);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+
+  return DEFAULT_PORT;
 }
 
 export async function startServer(p?: number) {
   try {
-    // No port specified, get a random one
-    if (!p) {
-      p = getPort();
-    }
+    const port = resolvePort(p);
     info(
-      `Starting server on port ${p} in folder ${rootPath}. Photos root is ${imagesRoot}`,
+      `Starting server on port ${port} in folder ${rootPath}. Photos root is ${imagesRoot}`,
     );
 
     startSentry();
@@ -178,8 +188,10 @@ export async function startServer(p?: number) {
     });
 
     setupRoutes(server);
-    await server.ready().then(() => server.listen({ host: "0.0.0.0", port: p }));
-    console.info(`Ready to accept connections on port ${p}.`);
+    await server.ready().then(() =>
+      server.listen({ host: "0.0.0.0", port }),
+    );
+    console.info(`Ready to accept connections on port ${port}.`);
   } catch (err) {
     console.error(err);
     process.exit(1);
