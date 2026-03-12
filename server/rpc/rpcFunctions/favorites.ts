@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import { Database } from "bun:sqlite";
 import exifr from "exifr";
 import { copyFile, mkdir, unlink, utimes } from "fs/promises";
 import { join } from "path";
@@ -74,20 +74,16 @@ function pruneExtraData(fileName: string) {
     .toLowerCase();
 }
 
-async function allPhotosInPhotoApp(): Promise<string[]> {
-  async function read(stream: any) {
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream) chunks.push(chunk);
-    return Buffer.concat(chunks as Uint8Array[]).toString("utf8");
+function allPhotosInPhotoApp(): string[] {
+  const db = new Database(photoLibrary(), { readonly: true });
+  try {
+    const rows = db
+      .query("SELECT ZORIGINALFILENAME FROM ZADDITIONALASSETATTRIBUTES")
+      .all() as { ZORIGINALFILENAME: string | null }[];
+    return rows.map((r) => pruneExtraData(r.ZORIGINALFILENAME ?? ""));
+  } finally {
+    db.close();
   }
-
-  const list = await read(
-    spawn("sqlite3", [
-      photoLibrary(),
-      "select ZORIGINALFILENAME  from ZADDITIONALASSETATTRIBUTES",
-    ]).stdout,
-  );
-  return list.split("\n").map(pruneExtraData);
 }
 
 async function deleteFavorite(entry: AlbumEntry): Promise<void> {
