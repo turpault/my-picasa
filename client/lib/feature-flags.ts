@@ -1,12 +1,12 @@
 import { FeatureFlags, FeatureFlag } from "../../shared/types/feature-flags";
-import { PicisaClient } from "../rpc/generated-rpc/PicisaClient";
+import type { PicisaClientApi } from "../../shared/rpc-contracts";
 
 class FeatureFlagService {
   private featureFlags: FeatureFlags | null = null;
-  private client: PicisaClient | null = null;
+  private client: PicisaClientApi | null = null;
   private loadingPromise: Promise<FeatureFlags> | null = null;
 
-  setClient(client: PicisaClient) {
+  setClient(client: PicisaClientApi) {
     this.client = client;
   }
 

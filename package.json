@@ -39,7 +39,6 @@
     "build:icons": "png2icons resources/picisa.png resources/picisa -icns",
     "build:ico": "png2icons resources/picisa.png public/favicon -ico",
     "build:splashbase64url": "node server/toBase64Url.mjs public/resources/images/splash.png",
-    "build:rpc": "NODE_OPTIONS='--experimental-sqlite' ts-node server/rpc/generate.ts client/rpc/generated-rpc",
     "build:copy-filters": "mkdir -p dist/server/imageOperations/native-filters/build/Release ; cp server/imageOperations/native-filters/build/Release/*.node dist/server/imageOperations/native-filters/build/Release/",
     "native-filters": "cd server/imageOperations/native-filters ; npm run configure ; npm run build",
     "prestart": "npm run native-filters",

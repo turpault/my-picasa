@@ -1,10 +1,16 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
 import { sleep } from "../../shared/lib/utils";
+import { createRPCClient } from "../../shared/rpc-transport/create-rpc-client";
 import { WsAdaptor } from "../../shared/rpc-transport/ws-adaptor";
 import { events, ServerEvents } from "../../shared/server-events";
-import { PicisaClient } from "./generated-rpc/PicisaClient";
+import {
+  PICISA_METHODS,
+  PICISA_PARAM_NAMES,
+  type PicisaClientApi,
+} from "../../shared/rpc-contracts";
+
 export type ConnectionEvent = {
-  connected: { service: PicisaClient };
+  connected: { service: PicisaClientApi };
   disconnected: { event: Event };
 };
 export function connect(
@@ -36,8 +42,12 @@ export function connect(
       opening = false;
       try {
         socket.socket(wSocket);
-        const service = new PicisaClient();
-        service.initialize(socket);
+        const service = createRPCClient<PicisaClientApi>(
+          socket,
+          "PicisaClient",
+          PICISA_METHODS,
+          PICISA_PARAM_NAMES
+        );
         events.emit("connected", { service });
       } catch (e) {
         reopen(10);
@@ -51,7 +61,7 @@ export function connect(
 
 let ev: Emitter<ConnectionEvent>;
 let _connected = false;
-let _service: PicisaClient;
+let _service: PicisaClientApi;
 
 let _servicePort = 5500;
 export function setServicePort(port: number) {
@@ -61,7 +71,7 @@ export function getServicePort() {
   return _servicePort;
 }
 
-export async function getService(): Promise<PicisaClient> {
+export async function getService(): Promise<PicisaClientApi> {
   if (!ev) {
     ev = connect(getServicePort(), location.hostname || "localhost", false);
     ev.on("connected", ({ service }) => {
@@ -73,7 +83,7 @@ export async function getService(): Promise<PicisaClient> {
     });
   }
   if (!_connected) {
-    return new Promise<PicisaClient>((resolve) => {
+    return new Promise<PicisaClientApi>((resolve) => {
       ev.once("connected", ({ service }) => {
         service.on("serverEvent", (serverEvent: { eventType: string; data: any }) => {
           events.emit(serverEvent.eventType as keyof ServerEvents, serverEvent.data);

@@ -1,8 +1,13 @@
 import { Album, AlbumEntry, AlbumEntryMetaData, AlbumMetaData, AlbumWithData, Contact, ContactByHash, extraFields, PicasaSection, Shortcut, ThumbnailSize } from "../../../shared/types/types";
+import { createRPCClient } from "../../../shared/rpc-transport/create-rpc-client";
 import { getWalkerDatabase } from "./internal/database";
 import { getWorker } from "../../worker-manager";
 import { WorkerAdaptor } from "../../../shared/rpc-transport/worker-adaptor";
-import { WalkerWorkerClient } from "../../../client/rpc/generated-rpc/WalkerWorkerClient";
+import {
+  WALKER_WORKER_METHODS,
+  WALKER_WORKER_PARAM_NAMES,
+  type WalkerWorkerClientApi,
+} from "../../../shared/rpc-contracts";
 
 // Re-export from picasa-ini for compatibility
 export {
@@ -87,9 +92,9 @@ export function getAlbumMetaData(album: Album): AlbumMetaData {
  * Returns a WalkerWorkerClient instance connected to the walker worker.
  * This is a singleton - the same instance is returned on each call.
  */
-let mutationsClient: WalkerWorkerClient | null = null;
+let mutationsClient: WalkerWorkerClientApi | null = null;
 
-export function getMutations(): WalkerWorkerClient {
+export function getMutations(): WalkerWorkerClientApi {
   if (mutationsClient) {
     return mutationsClient;
   }
@@ -100,8 +105,12 @@ export function getMutations(): WalkerWorkerClient {
   }
 
   const adaptor = new WorkerAdaptor(worker);
-  mutationsClient = new WalkerWorkerClient();
-  mutationsClient.initialize(adaptor);
+  mutationsClient = createRPCClient<WalkerWorkerClientApi>(
+    adaptor,
+    "WalkerWorkerClient",
+    WALKER_WORKER_METHODS,
+    WALKER_WORKER_PARAM_NAMES
+  );
   return mutationsClient;
 }
 
