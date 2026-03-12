@@ -12,7 +12,7 @@ import {
 } from "../lib/settings";
 import { getService } from "../rpc/connect";
 import { AlbumEntrySelectionManager } from "../selection/selection-manager";
-import { Contact } from "../types/types";
+import { Contact } from "../../shared/types/types";
 import { MultiSelect } from "./controls/multi-dropdown";
 import { PicasaMultiButton } from "./controls/multibutton";
 import { makeNewAlbum } from "./global-actions";

@@ -39,7 +39,7 @@ export async function startWorker(serviceName: string): Promise<Worker | null> {
 
   const worker = new Worker(workerFile, {
     workerData: { serviceName },
-    execArgv: isTs ? ["--experimental-sqlite", "-r", "ts-node/register"] : ["--experimental-sqlite"]
+    // No execArgv: run with Bun so workers can use bun:sqlite; Bun runs TS natively
   });
 
   worker.on("error", (err) => {

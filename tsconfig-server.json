@@ -1,6 +1,7 @@
 {
   "lib": ["ESNext"],
   "compilerOptions": {
+    "types": ["node", "bun-types"],
     "module": "commonjs",
     "esModuleInterop": true,
     "target": "ESNext",

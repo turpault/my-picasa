@@ -50,8 +50,10 @@ export async function parseLUTs() {
       }
       await crawl(filtersFolder);
     }
-  } catch (e) {
-    console.error(e);
+  } catch (e: unknown) {
+    if ((e as NodeJS.ErrnoException)?.code !== "ENOENT") {
+      console.error(e);
+    }
   }
 }
 

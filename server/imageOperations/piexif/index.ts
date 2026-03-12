@@ -1,12 +1,14 @@
 import * as _utils from "./utils";
 
 // Hacky? Yep, but sometimes you gotta do what you gotta do
-export { Types, IExif, IExifElement } from "./interfaces";
+export { Types } from "./interfaces";
+export type { IExif, IExifElement } from "./interfaces";
 export { TagValues } from "./constants";
 export { GPSHelper } from "./helper";
 export { ValueConvertError } from "./exceptions";
 
-import { Types, IExif, IExifElement } from "./interfaces";
+import { Types } from "./interfaces";
+import type { IExif, IExifElement } from "./interfaces";
 import { TagValues } from "./constants";
 
 export const version = "2.0.0b";

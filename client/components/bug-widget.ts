@@ -1,6 +1,6 @@
 import { _$ } from "../lib/dom";
 import { getService } from "../rpc/connect";
-import { Bug } from "../types/types";
+import { Bug } from "../../shared/types/types";
 import { question } from "./question";
 import { t } from "./strings";
 

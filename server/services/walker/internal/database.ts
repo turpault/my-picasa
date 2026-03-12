@@ -1,9 +1,10 @@
-import { DatabaseSync } from "node:sqlite";
+import { Database } from "bun:sqlite";
 import debug from "debug";
 import { join } from "path";
 import { workerData } from "worker_threads";
 import { Album, AlbumEntry, AlbumEntryMetaData, AlbumMetaData, AlbumWithData, extraFields, Shortcut } from "../../../../shared/types/types";
 import { imagesRoot } from "../../../utils/constants";
+import { ensureDbFormatOrRemove, isDev } from "../../../utils/ensure-db-format";
 
 const debugLogger = debug("app:walker-db");
 
@@ -18,7 +19,7 @@ const DATABASE_VERSION = 3;
  * All other workers and the main thread must use read-only mode.
  */
 class WalkerDatabaseAccess {
-  private db: DatabaseSync;
+  private db: Database;
   private dbPath: string;
   private readonly: boolean;
   private isWriter: boolean;
@@ -34,29 +35,34 @@ class WalkerDatabaseAccess {
 
     if (this.isWriter) {
       debugLogger("Opening walker database in READ-WRITE mode (walker worker)");
+      if (isDev()) {
+        ensureDbFormatOrRemove(this.dbPath, (db) => {
+          db.prepare("SELECT version FROM db_version ORDER BY version DESC LIMIT 1").get();
+        });
+      }
     } else {
       debugLogger("Opening walker database in READ-ONLY mode");
     }
 
-    // Open database
-    const dbOptions: any = {
-      mode: this.readonly ? "readonly" : "readwrite",
-    };
-    this.db = new DatabaseSync(this.dbPath, dbOptions);
+    // Open database (bun:sqlite)
+    this.db = new Database(this.dbPath, {
+      readonly: this.readonly,
+      create: this.isWriter,
+    });
 
-    // Wrap prepare and exec for SQL logging if DEBUG_SQL is set
+    // Wrap prepare and run for SQL logging if DEBUG_SQL is set
     if (process.env.DEBUG_SQL) {
       const originalPrepare = this.db.prepare.bind(this.db);
-      const originalExec = this.db.exec.bind(this.db);
+      const originalRun = this.db.run.bind(this.db);
 
       this.db.prepare = (sql: string) => {
         debugLogger(`SQL: ${sql}`);
         return originalPrepare(sql);
       };
 
-      this.db.exec = (sql: string) => {
+      this.db.run = (sql: string) => {
         debugLogger(`SQL: ${sql}`);
-        return originalExec(sql);
+        return originalRun(sql);
       };
     }
 
@@ -69,7 +75,7 @@ class WalkerDatabaseAccess {
   /**
    * Get the database connection
    */
-  getDatabase(): DatabaseSync {
+  getDatabase(): Database {
     return this.db;
   }
 
@@ -87,13 +93,13 @@ class WalkerDatabaseAccess {
 
       if (!versionTableExists) {
         debugLogger("First time database setup - creating version table");
-        this.db.exec(`
+        this.db.run(`
           CREATE TABLE db_version (
             version INTEGER PRIMARY KEY,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
         `);
-        this.db.exec(`INSERT INTO db_version (version) VALUES (${DATABASE_VERSION})`);
+        this.db.run(`INSERT INTO db_version (version) VALUES (${DATABASE_VERSION})`);
         this.initDatabase();
         debugLogger(`Database initialized with version ${DATABASE_VERSION}`);
       } else {
@@ -125,7 +131,7 @@ class WalkerDatabaseAccess {
       // Migration from version 1 to 2: Add metadata columns to album_entries
       if (fromVersion < 2) {
         debugLogger("Migrating to version 2: Adding metadata columns to album_entries");
-        this.db.exec(`
+        this.db.run(`
           ALTER TABLE album_entries ADD COLUMN date_taken TEXT;
           ALTER TABLE album_entries ADD COLUMN photostar INTEGER DEFAULT 0;
           ALTER TABLE album_entries ADD COLUMN star INTEGER DEFAULT 0;
@@ -156,7 +162,7 @@ class WalkerDatabaseAccess {
         `).get() as { count: number } | undefined;
 
         if (!columnExists || columnExists.count === 0) {
-          this.db.exec(`ALTER TABLE albums ADD COLUMN lastModified TEXT`);
+          this.db.run(`ALTER TABLE albums ADD COLUMN lastModified TEXT`);
           debugLogger("Added lastModified column to albums table");
         } else {
           debugLogger("Column lastModified already exists, skipping");
@@ -165,7 +171,7 @@ class WalkerDatabaseAccess {
       }
 
       // Update version to current (version is PRIMARY KEY, so use INSERT OR REPLACE)
-      this.db.exec(`INSERT OR REPLACE INTO db_version (version) VALUES (${DATABASE_VERSION})`);
+      this.db.run(`INSERT OR REPLACE INTO db_version (version) VALUES (${DATABASE_VERSION})`);
       debugLogger(`Database migration completed to version ${DATABASE_VERSION}`);
     } catch (error) {
       debugLogger("Error during database migration:", error);
@@ -180,7 +186,7 @@ class WalkerDatabaseAccess {
     if (!this.isWriter) return;
 
     // Create albums table
-    this.db.exec(`
+    this.db.run(`
       CREATE TABLE IF NOT EXISTS albums (
         key TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -194,7 +200,7 @@ class WalkerDatabaseAccess {
     `);
 
     // Create album_entries table with metadata fields
-    this.db.exec(`
+    this.db.run(`
       CREATE TABLE IF NOT EXISTS album_entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         album_key TEXT NOT NULL,
@@ -223,7 +229,7 @@ class WalkerDatabaseAccess {
     `);
 
     // Create indexes
-    this.db.exec(`
+    this.db.run(`
       CREATE INDEX IF NOT EXISTS idx_albums_name ON albums(name);
       CREATE INDEX IF NOT EXISTS idx_albums_kind ON albums(kind);
       CREATE INDEX IF NOT EXISTS idx_album_entries_album_key ON album_entries(album_key);

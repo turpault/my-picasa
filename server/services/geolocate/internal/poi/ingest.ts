@@ -16,8 +16,10 @@ export async function initPOIDB() {
         await ingestFiles([join(CSVLocation, file)]);
       }
     }
-  } catch (e) {
-    console.error(e);
+  } catch (e: unknown) {
+    if ((e as NodeJS.ErrnoException)?.code !== "ENOENT") {
+      console.error(e);
+    }
   }
 }
 

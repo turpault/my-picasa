@@ -205,7 +205,9 @@ async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
     picasaMap.set(album.key, i);
     return i;
   } catch (e: any) {
-    console.error(`Error reading .ini file: ${e.message}`);
+    if (e?.code !== "ENOENT" && e?.code !== "EACCES" && e?.code !== "EPERM") {
+      console.error(`Error reading .ini file: ${e.message}`);
+    }
     const res = {};
     picasaMap.set(album.key, res);
     return res;

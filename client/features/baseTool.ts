@@ -10,7 +10,7 @@ import {
 } from "../imageProcess/client";
 import { $, _$, bindStateToControl } from "../lib/dom";
 import { State } from "../lib/state";
-import { AlbumEntry } from "../types/types";
+import { AlbumEntry } from "../../shared/types/types";
 
 export type ToolRegistrarEvents = {
   added: { tool: Tool };

@@ -4,7 +4,7 @@ import {
   idFromAlbumEntry,
 } from "../../shared/lib/utils";
 import { t } from "../components/strings";
-import { Album, AlbumEntry } from "../types/types";
+import { Album, AlbumEntry } from "../../shared/types/types";
 import { State, StateDef } from "./state";
 
 export function NodeListToFirstElem(

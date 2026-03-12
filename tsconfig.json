@@ -8,7 +8,7 @@
     ],
     "moduleResolution": "node",
     "strict": true,
-    "importHelpers": true,
+    "importHelpers": false,
     "noImplicitReturns": true,
     "strictNullChecks": false,
     "allowJs": true,

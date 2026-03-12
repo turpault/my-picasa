@@ -1,5 +1,5 @@
 import { buildEmitter, Emitter } from "../../shared/lib/event";
-import { Filters } from "../types/types";
+import { Filters } from "../../shared/types/types";
 import { get, set } from "./idb-keyval";
 
 export type Settings = {

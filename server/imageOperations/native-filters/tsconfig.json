@@ -1,9 +1,4 @@
 {
-  "ts-node": {
-    "compilerOptions": {
-      "module": "CommonJS"
-    }
-  },
   "compilerOptions": {
     "module": "es6",
     "target": "ESNext",
@@ -14,7 +9,7 @@
     "moduleResolution": "node",
     "strict": true,
     "esModuleInterop": true,
-    "importHelpers": true,
+    "importHelpers": false,
     "noImplicitReturns": true,
     "strictNullChecks": false,
     "allowJs": true,

@@ -1,26 +1,30 @@
-import { DatabaseSync } from "node:sqlite";
+import { Database } from "bun:sqlite";
 import { join } from "path";
 import { imagesRoot } from "../../../../utils/constants";
+import { ensureDbFormatOrRemove, isDev } from "../../../../utils/ensure-db-format";
 import { info } from "console";
 import { GeoPOI } from "../../../../../shared/types/types";
 import { POI_TYPE } from "./poi-types";
 
-let dbInstance: DatabaseSync | null = null;
+let dbInstance: Database | null = null;
 
 /**
  * Get the POI database instance (singleton)
  */
-export function getPoiDb(): DatabaseSync {
+export function getPoiDb(): Database {
   if (!dbInstance) {
     const dbPath = join(imagesRoot, "poi.db");
-    const dbOptions: any = {
-      mode: "readwrite",
-    };
-    const db = new DatabaseSync(dbPath, dbOptions);
+    if (isDev()) {
+      ensureDbFormatOrRemove(dbPath, (db) => {
+        const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='poi'").get();
+        if (!row) throw new Error("POI table missing");
+      });
+    }
+    const db = new Database(dbPath, { create: true });
     dbInstance = db;
 
     // Initialize POI table
-    db.exec(`
+    db.run(`
       CREATE TABLE IF NOT EXISTS poi (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         type INTEGER NOT NULL,
@@ -33,7 +37,7 @@ export function getPoiDb(): DatabaseSync {
     `);
 
     // Initialize processed files table
-    db.exec(`
+    db.run(`
       CREATE TABLE IF NOT EXISTS processed_files (
         filename TEXT PRIMARY KEY,
         last_modified TEXT NOT NULL,
@@ -50,9 +54,9 @@ export function getPoiDb(): DatabaseSync {
       if (!columnInfo) {
         info("Migrating processed_files table: adding last_modified column");
         // First add as nullable
-        db.exec(`ALTER TABLE processed_files ADD COLUMN last_modified TEXT;`);
+        db.run(`ALTER TABLE processed_files ADD COLUMN last_modified TEXT;`);
         // Set default value from processed_at for existing rows
-        db.exec(`UPDATE processed_files SET last_modified = processed_at WHERE last_modified IS NULL;`);
+        db.run(`UPDATE processed_files SET last_modified = processed_at WHERE last_modified IS NULL;`);
         info("Migration completed: last_modified column added");
       }
     } catch (error) {
@@ -100,13 +104,13 @@ export function insertPoiBatch(items: Array<{ type: number; lat: number; lon: nu
   const insertStmt = db.prepare("INSERT INTO poi (type, lat, lon, label) VALUES (?, ?, ?, ?)");
 
   try {
-    db.exec("BEGIN");
+    db.run("BEGIN");
     for (const item of items) {
       insertStmt.run(item.type, item.lat, item.lon, item.label);
     }
-    db.exec("COMMIT");
+    db.run("COMMIT");
   } catch (error) {
-    db.exec("ROLLBACK");
+    db.run("ROLLBACK");
     throw error;
   }
   

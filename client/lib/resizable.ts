@@ -1,4 +1,4 @@
-import { Cell } from "../types/types";
+import { Cell } from "../../shared/types/types";
 import { _$, $ } from "./dom";
 import { calculateImagePositions } from "../../shared/lib/mosaic-positions";
 

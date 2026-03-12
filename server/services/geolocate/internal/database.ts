@@ -1,10 +1,11 @@
-import { DatabaseSync } from "node:sqlite";
+import { Database } from "bun:sqlite";
 import debug from "debug";
 import { join } from "path";
 import { AlbumEntry } from "../../../../shared/types/types";
 import { imagesRoot } from "../../../utils/constants";
 import { getExifData } from "../../../rpc/rpcFunctions/exif";
 import { getWalkerDatabase } from "../../walker/internal/database";
+import { ensureDbFormatOrRemove, isDev } from "../../../utils/ensure-db-format";
 
 const debugLogger = debug("app:geolocate-db");
 
@@ -21,7 +22,7 @@ export type OpenMode = 'READ' | 'READWRITE';
  * All other instances must use READ mode.
  */
 export class GeolocateDatabaseAccess {
-  private db: DatabaseSync;
+  private db: Database;
   private dbPath: string;
   private readonly: boolean;
   private isWriter: boolean;
@@ -35,29 +36,34 @@ export class GeolocateDatabaseAccess {
 
     if (this.isWriter) {
       debugLogger("Opening Geolocate database in READ-WRITE mode");
+      if (isDev()) {
+        ensureDbFormatOrRemove(this.dbPath, (db) => {
+          db.prepare("SELECT version FROM db_version ORDER BY version DESC LIMIT 1").get();
+        });
+      }
     } else {
       debugLogger("Opening Geolocate database in READ-ONLY mode");
     }
 
-    // Open database
-    const dbOptions: any = {
-      mode: this.readonly ? "readonly" : "readwrite",
-    };
-    this.db = new DatabaseSync(this.dbPath, dbOptions);
+    // Open database (bun:sqlite)
+    this.db = new Database(this.dbPath, {
+      readonly: this.readonly,
+      create: this.isWriter,
+    });
 
-    // Wrap prepare and exec for SQL logging if DEBUG_SQL is set
+    // Wrap prepare and run for SQL logging if DEBUG_SQL is set
     if (process.env.DEBUG_SQL) {
       const originalPrepare = this.db.prepare.bind(this.db);
-      const originalExec = this.db.exec.bind(this.db);
-      
+      const originalRun = this.db.run.bind(this.db);
+
       this.db.prepare = (sql: string) => {
         debugLogger(`SQL: ${sql}`);
         return originalPrepare(sql);
       };
-      
-      this.db.exec = (sql: string) => {
+
+      this.db.run = (sql: string) => {
         debugLogger(`SQL: ${sql}`);
-        return originalExec(sql);
+        return originalRun(sql);
       };
     }
 
@@ -68,7 +74,7 @@ export class GeolocateDatabaseAccess {
       // Convert path to file: URI for SQLite ATTACH with mode=ro
       // SQLite requires absolute paths, and we need to escape single quotes for SQL string
       const fileUri = `file:${walkerDbPath.replace(/'/g, "''")}?mode=ro`;
-      this.db.exec(`ATTACH DATABASE '${fileUri}' AS walker`);
+      this.db.run(`ATTACH DATABASE '${fileUri}' AS walker`);
       debugLogger("Attached walker database as read-only");
     } catch (error) {
       debugLogger("Warning: Could not attach walker database:", error);
@@ -84,7 +90,7 @@ export class GeolocateDatabaseAccess {
   /**
    * Get the database connection
    */
-  getDatabase(): DatabaseSync {
+  getDatabase(): Database {
     return this.db;
   }
 
@@ -102,13 +108,13 @@ export class GeolocateDatabaseAccess {
 
       if (!versionTableExists) {
         debugLogger("First time database setup - creating version table");
-        this.db.exec(`
+        this.db.run(`
           CREATE TABLE db_version (
             version INTEGER PRIMARY KEY,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
         `);
-        this.db.exec(`INSERT INTO db_version (version) VALUES (${DATABASE_VERSION})`);
+        this.db.run(`INSERT INTO db_version (version) VALUES (${DATABASE_VERSION})`);
         this.initDatabase();
         debugLogger(`Database initialized with version ${DATABASE_VERSION}`);
       } else {
@@ -138,7 +144,7 @@ export class GeolocateDatabaseAccess {
     debugLogger(`Migrating database from version ${fromVersion} to ${DATABASE_VERSION}`);
     try {
       // For version 1, no migration needed yet
-      this.db.exec(`UPDATE db_version SET version = ${DATABASE_VERSION} WHERE version = ${fromVersion}`);
+      this.db.run(`UPDATE db_version SET version = ${DATABASE_VERSION} WHERE version = ${fromVersion}`);
       debugLogger(`Database migration completed to version ${DATABASE_VERSION}`);
     } catch (error) {
       debugLogger("Error during database migration:", error);
@@ -153,7 +159,7 @@ export class GeolocateDatabaseAccess {
     if (!this.isWriter) return;
 
     // Create geo_poi_data table
-    this.db.exec(`
+    this.db.run(`
       CREATE TABLE IF NOT EXISTS geo_poi_data (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         album_key TEXT NOT NULL,
@@ -168,7 +174,7 @@ export class GeolocateDatabaseAccess {
     `);
 
     // Create indexes for better query performance
-    this.db.exec(`
+    this.db.run(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_geo_entry ON geo_poi_data(album_key, entry_name);
       CREATE INDEX IF NOT EXISTS idx_album_key ON geo_poi_data(album_key);
       CREATE INDEX IF NOT EXISTS idx_album_name ON geo_poi_data(album_name);

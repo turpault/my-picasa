@@ -30,7 +30,16 @@ export async function startAlbumUpdateNotification() {
 export async function assetsInFolderAlbum(
   album: Album,
 ): Promise<{ entries: AlbumEntry[]; folders: string[] }> {
-  const items = await readdir(join(imagesRoot, pathForAlbum(album)));
+  let items: string[];
+  try {
+    items = await readdir(join(imagesRoot, pathForAlbum(album)));
+  } catch (err: unknown) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (code === "EACCES" || code === "EPERM") {
+      return { entries: [], folders: [] };
+    }
+    throw err;
+  }
   const entries: AlbumEntry[] = [];
   const folders: string[] = [];
 

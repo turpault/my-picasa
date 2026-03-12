@@ -12,7 +12,7 @@ import {
   Node,
   Project,
   UndoStep,
-} from "./types/types";
+} from "../shared/types/types";
 
 export type PanZoomEvent = {
   pan: { x: number; y: number };

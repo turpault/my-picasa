@@ -3,7 +3,7 @@ import { thumbnailUrl } from "../../imageProcess/client";
 import { $, _$, elementFromEntry, setIdForEntry } from "../../lib/dom";
 import { getService } from "../../rpc/connect";
 import { AlbumEntrySelectionManager } from "../../selection/selection-manager";
-import { AlbumEntry, AlbumEntryPicasa } from "../../types/types";
+import { AlbumEntry, AlbumEntryPicasa } from "../../../shared/types/types";
 import { events } from "../../../shared/server-events";
 
 class PicasaEntryCarouselElement extends HTMLElement {

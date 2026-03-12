@@ -3,7 +3,7 @@ import { idFromAlbumEntry, uuid } from "../../../shared/lib/utils";
 import { thumbnailUrl } from "../../imageProcess/client";
 import { $, _$ } from "../../lib/dom";
 import { AlbumEntrySelectionManager } from "../../selection/selection-manager";
-import { AlbumEntry, ThumbnailSize } from "../../types/types";
+import { AlbumEntry, ThumbnailSize } from "../../../shared/types/types";
 
 const singleLineSelectHTML = `
 <div class="w3-bar multiselect-control">

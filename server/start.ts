@@ -1,12 +1,10 @@
-import fastifystatic from "@fastify/static";
-import FastifyWebsocket from "@fastify/websocket";
-import Fastify, { FastifyInstance, RouteShorthandOptions } from "fastify";
-import { join } from "path";
+/// <reference types="bun-types" />
+import { join, resolve, sep } from "path";
+import { existsSync } from "fs";
 import { lockedLocks, startLockMonitor } from "../shared/lib/mutex";
 import { RPCAdaptorInterface } from "../shared/rpc-transport/rpc-adaptor-interface";
 import { WsAdaptor } from "../shared/rpc-transport/ws-adaptor";
 import { closePoiDb } from "./services/geolocate/internal/poi/poi-database";
-// import { getIndexingService } from "../worker/background/bg-indexing"; // This causes DB initialization on main thread
 import { parseLUTs } from "./imageOperations/image-filters";
 import { encode } from "./imageOperations/sharp-processor";
 import { startAlbumUpdateNotification } from "./rpc/fileAndFolders";
@@ -15,7 +13,6 @@ import { RPCInit } from "./rpc/index";
 import { asset } from "./rpc/routes/asset";
 import { albumThumbnail, thumbnail } from "./rpc/routes/thumbnail";
 import { albumWithData } from "./rpc/rpcFunctions/albumUtils";
-// initializePicasaIniCache is now called in the walker worker
 import { info } from "console";
 import { loadFaceAlbums } from "./operations/faces/faces";
 import { startSentry } from "./sentry";
@@ -25,131 +22,27 @@ import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
 import { initUndo } from "./utils/undo";
 import { startWorkers } from "./worker-manager";
-// import { startBackgroundTasksOnStart } from "../worker/background/bg-services-on-start";
 
-/** */
+import indexHtml from "../public/index.html";
 
-// Returns a socket that can be used
-function socketAdaptorInit(serverClient: any): RPCAdaptorInterface {
-  const s = new WsAdaptor();
-  s.socket(serverClient);
-  return s;
+type BunServerWebSocket = import("bun").ServerWebSocket<unknown>;
+
+interface WsWrapper {
+  readyState: number;
+  send(data: string | Buffer): void;
+  close(): void;
+  onmessage?: (event: { data: string | Buffer }) => void;
+  onclose?: () => void;
+  onerror?: (event: unknown) => void;
 }
 
-export function socketInit(httpServer: FastifyInstance) {
-  httpServer.register(async function (fastify) {
-    fastify.get("/cmd", { websocket: true }, (connection, req) => {
-      console.info("[socket]: Client has connected...");
-      const socket = socketAdaptorInit(connection);
-      addSocket(socket);
-      socket.onDisconnect(() => {
-        removeSocket(socket);
-      });
-
-      RPCInit(socket, {});
-
-      connection.on("error", () => {
-        console.debug("[socket]: Socket had an error...");
-        removeSocket(socket);
-      });
-    });
-  });
-}
-
-function setupRoutes(server: FastifyInstance) {
-  const pingOpts: RouteShorthandOptions = {
-    schema: {
-      response: {
-        200: {
-          type: "object",
-          properties: {
-            pong: {
-              type: "string",
-            },
-          },
-        },
-      },
-    },
-  };
-  server.get("/ping", pingOpts, async (request, reply) => {
-    return { pong: "it worked!" };
-  });
-
-  server.get("/encode/:context/:mime", async (request, reply) => {
-    const { context, mime } = request.params as any;
-    reply.type(mime);
-    return encode(context, mime).then((r) => r.data);
-  });
-
-  server.get("/stats", async (request, reply) => {
-    return { series: await history(), locks: lockedLocks() };
-  });
-
-  server.get("/thumbnail/:albumkey/:resolution", async (request, reply) => {
-    const { albumkey, resolution } = request.params as any;
-    const album = await albumWithData(albumkey);
-
-    if (!album) {
-      reply.code(404);
-      reply.send();
-      return {};
-    }
-    const animated = (request.query as any)["animated"] !== undefined;
-
-    const r = await albumThumbnail(album, resolution, animated);
-    reply.type(r.mime);
-    reply.header("cache-control", "no-cache");
-    return r.data;
-  });
-
-  server.get(
-    "/thumbnail/:albumkey/:name/:resolution",
-    async (request, reply) => {
-      const { albumkey, name, resolution } = request.params as any;
-      const album = await albumWithData(albumkey);
-      if (!album) {
-        reply.code(404);
-        reply.send();
-        return {};
-      }
-      const entry = {
-        album,
-        name,
-      };
-      const animated = (request.query as any)["animated"] !== undefined;
-
-      const r = await thumbnail(entry, resolution, animated);
-      reply.type(r.mime);
-      reply.header("cache-control", "no-cache");
-      return r.data;
-    },
-  );
-
-  server.get("/asset/:albumkey/:name", async (request, reply) => {
-    const { albumkey, name } = request.params as any;
-    const album = await albumWithData(albumkey);
-    if (!album) {
-      reply.code(404);
-      reply.send();
-      return;
-    }
-    const entry = {
-      album,
-      name,
-    };
-
-    const file = await asset(entry);
-    await reply.sendFile(file, "/");
-  });
-}
-
+const publicDir = join(process.cwd(), "public");
 const DEFAULT_PORT = 5500;
 
 function resolvePort(p?: number): number {
   if (typeof p === "number" && !Number.isNaN(p)) {
     return p;
   }
-
   const envPort = process.env.PICISA_PORT;
   if (envPort) {
     const parsed = parseInt(envPort, 10);
@@ -157,8 +50,45 @@ function resolvePort(p?: number): number {
       return parsed;
     }
   }
-
   return DEFAULT_PORT;
+}
+
+/** Create a WebSocket-like wrapper for Bun's ServerWebSocket so WsAdaptor receives send, onmessage, onclose, readyState. */
+function createBunWsWrapper(bunWs: BunServerWebSocket): WsWrapper {
+  const wrapper: WsWrapper = {
+    readyState: 1,
+    send(data: string | Buffer) {
+      bunWs.send(data);
+    },
+    close() {
+      wrapper.readyState = 3;
+      bunWs.close();
+    },
+    onmessage: undefined,
+    onclose: undefined,
+    onerror: undefined,
+  };
+  return wrapper;
+}
+
+function socketAdaptorInit(serverClient: WsWrapper | WebSocket): RPCAdaptorInterface {
+  const s = new WsAdaptor();
+  s.socket(serverClient as WebSocket);
+  return s;
+}
+
+/** Safe path under publicDir; returns null if path escapes. */
+function safePublicPath(pathname: string): string | null {
+  const normalized = pathname.replace(/^\/+/, "") || "index.html";
+  const resolved = resolve(publicDir, normalized);
+  const publicResolved = resolve(publicDir);
+  if (
+    resolved !== publicResolved &&
+    !resolved.startsWith(publicResolved + sep)
+  ) {
+    return null;
+  }
+  return resolved;
 }
 
 export async function startServer(p?: number) {
@@ -169,28 +99,135 @@ export async function startServer(p?: number) {
     );
 
     startSentry();
-    const server: FastifyInstance = Fastify({
-      //logger: true,
-      maxParamLength: 32000,
-      bodyLimit: 50 * 1024 * 1024,
+
+    const server = Bun.serve({
+      hostname: "0.0.0.0",
+      port,
+      maxRequestBodySize: 50 * 1024 * 1024,
+      development: process.env.NODE_ENV !== "production",
+      routes: {
+        "/": indexHtml,
+        "/ping": () => Response.json({ pong: "it worked!" }),
+        "/stats": async () =>
+          Response.json({ series: await history(), locks: lockedLocks() }),
+        "/encode/:context/:mime": async (req) => {
+          const { context, mime } = req.params;
+          const r = await encode(
+            context,
+            mime as "image/jpeg" | "image/png" | "image/webp",
+          );
+          const body =
+            r.data instanceof Buffer ? new Uint8Array(r.data) : r.data;
+          return new Response(body, {
+            headers: { "Content-Type": mime },
+          });
+        },
+        "/thumbnail/:albumkey/:name/:resolution": async (req) => {
+          const { albumkey, name, resolution } = req.params;
+          const album = await albumWithData(albumkey);
+          if (!album) return new Response(null, { status: 404 });
+          const entry = { album, name };
+          const url = new URL(req.url);
+          const animated = url.searchParams.has("animated");
+          const r = await thumbnail(
+            entry,
+            resolution as "th-small" | "th-medium" | "th-large",
+            animated,
+          );
+          const body =
+            r.data instanceof Buffer ? new Uint8Array(r.data) : r.data;
+          return new Response(body, {
+            headers: {
+              "Content-Type": r.mime,
+              "Cache-Control": "no-cache",
+            },
+          });
+        },
+        "/thumbnail/:albumkey/:resolution": async (req) => {
+          const { albumkey, resolution } = req.params;
+          const album = await albumWithData(albumkey);
+          if (!album) return new Response(null, { status: 404 });
+          const url = new URL(req.url);
+          const animated = url.searchParams.has("animated");
+          const r = await albumThumbnail(
+            album,
+            resolution as "th-small" | "th-medium" | "th-large",
+            animated,
+          );
+          const body =
+            r.data instanceof Buffer ? new Uint8Array(r.data) : r.data;
+          return new Response(body, {
+            headers: {
+              "Content-Type": r.mime,
+              "Cache-Control": "no-cache",
+            },
+          });
+        },
+        "/asset/:albumkey/:name": async (req) => {
+          const { albumkey, name } = req.params;
+          const album = await albumWithData(albumkey);
+          if (!album) return new Response(null, { status: 404 });
+          const entry = { album, name };
+          const filePath = await asset(entry);
+          const file = Bun.file(filePath);
+          const exists = await file.exists();
+          if (!exists) return new Response(null, { status: 404 });
+          return new Response(file, {
+            headers: {
+              "Content-Type": filePath.toLowerCase().match(/\.(mp4|webm|mov|avi)$/)
+                ? "video/mp4"
+                : "image/jpeg",
+            },
+          });
+        },
+      },
+      async fetch(req, server) {
+        busy();
+        const pathname = new URL(req.url).pathname;
+
+        if (req.headers.get("upgrade") === "websocket" && pathname === "/cmd") {
+          const success = server.upgrade(req);
+          if (success) return undefined as unknown as Response;
+          return new Response("Expected WebSocket", { status: 400 });
+        }
+
+        const filePath = safePublicPath(pathname);
+        if (filePath && existsSync(filePath)) {
+          return new Response(Bun.file(filePath));
+        }
+        return new Response("Not Found", { status: 404 });
+      },
+      websocket: {
+        open(ws) {
+          console.info("[socket]: Client has connected...");
+          const wrapper = createBunWsWrapper(ws);
+          const socket = socketAdaptorInit(wrapper);
+          addSocket(socket);
+          socket.onDisconnect(() => {
+            removeSocket(socket);
+          });
+          RPCInit(socket, {});
+
+          (ws as unknown as { _wrapper: WsWrapper })._wrapper = wrapper;
+        },
+        message(ws, data) {
+          const w = (ws as unknown as { _wrapper: WsWrapper })._wrapper;
+          if (w?.onmessage) {
+            w.onmessage(
+              typeof data === "string" ? { data } : { data: String(data) },
+            );
+          }
+        },
+        close(ws) {
+          const w = (ws as unknown as { _wrapper: WsWrapper })._wrapper;
+          if (w) {
+            w.readyState = 3;
+            w.onclose?.();
+          }
+        },
+      },
     });
 
-    server.register(fastifystatic, {
-      root: join(__dirname, "..", "public"),
-      prefix: "/", // optional: default '/',
-    });
-    server.register(FastifyWebsocket);
-    await socketInit(server);
-
-    server.addHook("preHandler", (request, reply, done) => {
-      busy();
-      done();
-    });
-
-    setupRoutes(server);
-    await server.ready().then(() =>
-      server.listen({ host: "0.0.0.0", port }),
-    );
     console.info(`Ready to accept connections on port ${port}.`);
   } catch (err) {
     console.error(err);
@@ -198,31 +235,24 @@ export async function startServer(p?: number) {
   }
 }
 
-// Ensure cleanup on exit
-process.on('exit', () => {
+process.on("exit", () => {
   closePoiDb();
-  // const service = getIndexingService(true);
-  // service.close();
 });
 
 export async function startServices() {
   await initUndo();
   info("Starting services...");
 
-  // Start all workers
   info("Starting workers...");
   await startWorkers();
 
   info("Measuring CPU load...");
   measureCPULoad();
-  // Picasa ini cache writer is initialized in walker worker
   info("Starting lock monitor...");
   startLockMonitor();
   info("Starting album update notification...");
   startAlbumUpdateNotification();
-  // Persons are now fetched from faces service queries, no need to build a list
   info("Starting background tasks...");
-  // startBackgroundTasksOnStart();
   info("Parsing LUTs...");
   await parseLUTs();
   info("Initializing projects...");

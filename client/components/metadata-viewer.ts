@@ -6,7 +6,7 @@ import {
 } from "../imageProcess/client";
 import { $, _$ } from "../lib/dom";
 import { getService } from "../rpc/connect";
-import { AlbumEntry, AlbumEntryMetaData, AlbumEntryWithMetadataAndExif } from "../types/types";
+import { AlbumEntry, AlbumEntryMetaData, AlbumEntryWithMetadataAndExif } from "../../shared/types/types";
 import { ApplicationState } from "../uiTypes";
 import { t } from "./strings";
 type MetaTransform = {

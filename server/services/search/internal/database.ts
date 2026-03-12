@@ -1,4 +1,4 @@
-import { DatabaseSync } from "node:sqlite";
+import { Database } from "bun:sqlite";
 import debug from "debug";
 import { join } from "path";
 import { Album, AlbumEntry, AlbumWithData, Filters } from "../../../../shared/types/types";
@@ -8,6 +8,7 @@ import { isPicture, isVideo } from "../../../../shared/lib/utils";
 import { imagesRoot } from "../../../utils/constants";
 import { getGeoPOI } from "../../geolocate/queries";
 import { getWalkerDatabase } from "../../walker/internal/database";
+import { ensureDbFormatOrRemove, isDev } from "../../../utils/ensure-db-format";
 const debugLogger = debug("app:indexing-db");
 
 // Database version constant - increment this when schema changes
@@ -42,7 +43,7 @@ export type OpenMode = 'READ' | 'READWRITE';
  * All other instances must use READ mode.
  */
 export class IndexingDatabaseAccess {
-  private db: DatabaseSync;
+  private db: Database;
   private dbPath: string;
   private readonly: boolean;
   private isWriter: boolean;
@@ -56,29 +57,34 @@ export class IndexingDatabaseAccess {
 
     if (this.isWriter) {
       debugLogger("Opening indexing database in READ-WRITE mode");
+      if (isDev()) {
+        ensureDbFormatOrRemove(this.dbPath, (db) => {
+          db.prepare("SELECT version FROM db_version ORDER BY version DESC LIMIT 1").get();
+        });
+      }
     } else {
       debugLogger("Opening indexing database in READ-ONLY mode");
     }
 
-    // Open database
-    const dbOptions: any = {
-      mode: this.readonly ? "readonly" : "readwrite",
-    };
-    this.db = new DatabaseSync(this.dbPath, dbOptions);
+    // Open database (bun:sqlite)
+    this.db = new Database(this.dbPath, {
+      readonly: this.readonly,
+      create: this.isWriter,
+    });
 
-    // Wrap prepare and exec for SQL logging if DEBUG_SQL is set
+    // Wrap prepare and run for SQL logging if DEBUG_SQL is set
     if (process.env.DEBUG_SQL) {
       const originalPrepare = this.db.prepare.bind(this.db);
-      const originalExec = this.db.exec.bind(this.db);
+      const originalRun = this.db.run.bind(this.db);
 
       this.db.prepare = (sql: string) => {
         debugLogger(`SQL: ${sql}`);
         return originalPrepare(sql);
       };
 
-      this.db.exec = (sql: string) => {
+      this.db.run = (sql: string) => {
         debugLogger(`SQL: ${sql}`);
-        return originalExec(sql);
+        return originalRun(sql);
       };
     }
 
@@ -89,7 +95,7 @@ export class IndexingDatabaseAccess {
       // Convert path to file: URI for SQLite ATTACH with mode=ro
       // SQLite requires absolute paths, and we need to escape single quotes for SQL string
       const fileUri = `file:${walkerDbPath.replace(/'/g, "''")}?mode=ro`;
-      this.db.exec(`ATTACH DATABASE '${fileUri}' AS walker`);
+      this.db.run(`ATTACH DATABASE '${fileUri}' AS walker`);
       debugLogger("Attached walker database as read-only");
     } catch (error) {
       debugLogger("Warning: Could not attach walker database:", error);
@@ -106,7 +112,7 @@ export class IndexingDatabaseAccess {
   /**
    * Get the database connection
    */
-  getDatabase(): DatabaseSync {
+  getDatabase(): Database {
     return this.db;
   }
 
@@ -124,13 +130,13 @@ export class IndexingDatabaseAccess {
 
       if (!versionTableExists) {
         debugLogger("First time database setup - creating version table");
-        this.db.exec(`
+        this.db.run(`
           CREATE TABLE db_version (
             version INTEGER PRIMARY KEY,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
         `);
-        this.db.exec(`INSERT INTO db_version (version) VALUES (${DATABASE_VERSION})`);
+        this.db.run(`INSERT INTO db_version (version) VALUES (${DATABASE_VERSION})`);
         this.initDatabase();
         debugLogger(`Database initialized with version ${DATABASE_VERSION}`);
       } else {
@@ -159,7 +165,7 @@ export class IndexingDatabaseAccess {
 
     debugLogger(`Migrating database from version ${fromVersion} to ${DATABASE_VERSION}`);
     try {
-      this.db.exec(`UPDATE db_version SET version = ${DATABASE_VERSION} WHERE version = ${fromVersion}`);
+      this.db.run(`UPDATE db_version SET version = ${DATABASE_VERSION} WHERE version = ${fromVersion}`);
       debugLogger(`Database migration completed to version ${DATABASE_VERSION}`);
     } catch (error) {
       debugLogger("Error during database migration:", error);
@@ -174,7 +180,7 @@ export class IndexingDatabaseAccess {
     if (!this.isWriter) return;
 
     // Create pictures table
-    this.db.exec(`
+    this.db.run(`
       CREATE TABLE IF NOT EXISTS pictures (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         album_key TEXT NOT NULL,
@@ -200,7 +206,7 @@ export class IndexingDatabaseAccess {
     `);
 
     // Create indexes for better query performance
-    this.db.exec(`
+    this.db.run(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_picture ON pictures(album_key, entry_name);
       CREATE INDEX IF NOT EXISTS idx_album_key ON pictures(album_key);
       CREATE INDEX IF NOT EXISTS idx_album_name ON pictures(album_name);
@@ -217,7 +223,7 @@ export class IndexingDatabaseAccess {
     `);
 
     // Create full-text search index for metadata
-    this.db.exec(`
+    this.db.run(`
       CREATE VIRTUAL TABLE IF NOT EXISTS pictures_fts USING fts5(
         album_name,
         entry_name,
@@ -230,7 +236,7 @@ export class IndexingDatabaseAccess {
     `);
 
     // Create triggers to automatically keep FTS in sync
-    this.db.exec(`
+    this.db.run(`
       CREATE TRIGGER IF NOT EXISTS pictures_fts_insert AFTER INSERT ON pictures BEGIN
         INSERT INTO pictures_fts(rowid, album_name, entry_name, persons, text_content, caption)
         VALUES (new.id, new.album_name, new.entry_name, new.persons, new.text_content, new.caption);
@@ -287,7 +293,7 @@ export class IndexingDatabaseAccess {
 
     debugLogger("Rebuilding FTS index to fix orphaned entries...");
     try {
-      this.db.exec(`INSERT INTO pictures_fts(pictures_fts) VALUES('rebuild');`);
+      this.db.run(`INSERT INTO pictures_fts(pictures_fts) VALUES('rebuild');`);
       debugLogger("FTS index rebuilt successfully");
     } catch (error) {
       debugLogger("Error rebuilding FTS index:", error);
@@ -782,7 +788,7 @@ export class IndexingDatabaseAccess {
     }
 
     debugLogger("Clearing all marks from database...");
-    this.getDatabase().exec("UPDATE pictures SET marked = 0");
+    this.getDatabase().run("UPDATE pictures SET marked = 0");
   }
 
   /**
