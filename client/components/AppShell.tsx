@@ -1,6 +1,8 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { useAppEmitter, type TabKind } from "../context/AppContext";
 import { t } from "./strings";
+import BrowserPage from "./pages/BrowserPage";
+import { EditorPage } from "./pages/EditorPage";
 import { GalleryPage } from "./pages/GalleryPage";
 import { MosaicPage } from "./pages/MosaicPage";
 import { SlideshowPage } from "./pages/SlideshowPage";
@@ -11,14 +13,6 @@ type TabDescriptor = {
   label: string;
   data?: any;
 };
-
-function BrowserPage() {
-  return <div className="fill">{t("Browser")}</div>;
-}
-
-function EditorPage({ entry }: { entry: any }) {
-  return <div className="fill">Editor: {entry?.name}</div>;
-}
 
 function makeBrowserTab(): TabDescriptor {
   return {

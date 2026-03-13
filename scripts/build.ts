@@ -35,14 +35,8 @@ async function main() {
   await run(["bun", "run", "configure"], join(root, "server/imageOperations/native-filters"));
   await run(["bun", "run", "build"], join(root, "server/imageOperations/native-filters"));
 
-  console.log("[build] Client (Bun bundle)…");
-  await run([
-    "bun",
-    "build",
-    "public/index.html",
-    "--minify",
-    "--outdir=public/dist",
-  ]);
+  console.log("[build] Client (Vite)…");
+  await run(["bunx", "vite", "build"]);
 
   console.log("[build] Icons (icns)…");
   await run([
