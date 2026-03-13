@@ -1,6 +1,9 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { useAppEmitter, type TabKind } from "../context/AppContext";
 import { t } from "./strings";
+import { GalleryPage } from "./pages/GalleryPage";
+import { MosaicPage } from "./pages/MosaicPage";
+import { SlideshowPage } from "./pages/SlideshowPage";
 
 type TabDescriptor = {
   id: string;
@@ -15,42 +18,6 @@ function BrowserPage() {
 
 function EditorPage({ entry }: { entry: any }) {
   return <div className="fill">Editor: {entry?.name}</div>;
-}
-
-function GalleryPage({
-  initialList,
-  initialIndex,
-  onClose,
-}: {
-  initialList: any[];
-  initialIndex: number;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fill">
-      Gallery ({initialList.length} items, starting at {initialIndex})
-    </div>
-  );
-}
-
-function MosaicPage({
-  project,
-  onClose,
-}: {
-  project: { name: string; entries: any[] };
-  onClose: () => void;
-}) {
-  return <div className="fill">Mosaic: {project.name}</div>;
-}
-
-function SlideshowPage({
-  project,
-  onClose,
-}: {
-  project: { name: string; entries: any[] };
-  onClose: () => void;
-}) {
-  return <div className="fill">Slideshow: {project.name}</div>;
 }
 
 function makeBrowserTab(): TabDescriptor {
