@@ -46,6 +46,7 @@ import { clientException, clientLog } from "./rpcFunctions/clientLog";
 import { getExifData, getFileStats } from "./rpcFunctions/exif";
 import { geoPOI, getExifCoordinates } from "./rpcFunctions/geolocate";
 import { getFeatureFlags, updateFeatureFlags } from "./rpcFunctions/featureFlags";
+import { getSettings, updateSettings } from "./rpcFunctions/settings";
 import { createFSJob, getJob, waitJob } from "./rpcFunctions/fileJobs";
 import {
   folder,
@@ -326,6 +327,14 @@ export const PicisaClient: ServiceMap = {
     updateFeatureFlags: {
       handler: updateFeatureFlags,
       arguments: ["flags:object"],
-    }
+    },
+    getSettings: {
+      handler: getSettings,
+      arguments: [],
+    },
+    updateSettings: {
+      handler: updateSettings,
+      arguments: ["settings:object"],
+    },
   },
 };
