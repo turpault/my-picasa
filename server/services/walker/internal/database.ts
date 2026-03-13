@@ -38,6 +38,7 @@ class WalkerDatabaseAccess {
       if (isDev()) {
         ensureDbFormatOrRemove(this.dbPath, (db) => {
           db.prepare("SELECT version FROM db_version ORDER BY version DESC LIMIT 1").get();
+          db.prepare("SELECT lastModified FROM albums LIMIT 1").get();
         });
       }
     } else {
@@ -49,6 +50,12 @@ class WalkerDatabaseAccess {
       readonly: this.readonly,
       create: this.isWriter,
     });
+
+    if (this.isWriter) {
+      this.db.run("PRAGMA journal_mode=WAL");
+    } else {
+      this.db.run("PRAGMA busy_timeout=5000");
+    }
 
     // Wrap prepare and run for SQL logging if DEBUG_SQL is set
     if (process.env.DEBUG_SQL) {

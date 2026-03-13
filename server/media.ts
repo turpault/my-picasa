@@ -18,6 +18,7 @@ import {
   readFaceAlbumEntries,
 } from "./operations/faces/faces";
 import { getEntryMetadata, getMutations, getShortcuts } from "./services/walker/queries";
+import { getWalkerReadyPromise } from "./worker-manager";
 import { isPicture, isVideo } from "../shared/lib/utils";
 
 /**
@@ -86,6 +87,8 @@ export async function getAlbums(filters?: Filters): Promise<AlbumWithData[]> {
     }
     return matchedAlbums;
   }
+  // Wait for walker to finish first scan so albums table is populated
+  await getWalkerReadyPromise();
   return getAllAlbums();
 }
 

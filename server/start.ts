@@ -37,6 +37,7 @@ interface WsWrapper {
 }
 
 const publicDir = join(process.cwd(), "public");
+const distDir = join(publicDir, "dist");
 const DEFAULT_PORT = 5500;
 
 function resolvePort(p?: number): number {
@@ -189,6 +190,14 @@ export async function startServer(p?: number) {
           const success = server.upgrade(req);
           if (success) return undefined as unknown as Response;
           return new Response("Expected WebSocket", { status: 400 });
+        }
+
+        const distRel = pathname.replace(/^\/+/, "").replace(/\/+/g, "/");
+        if (distRel && !distRel.includes("..")) {
+          const distPath = resolve(distDir, distRel);
+          if (distPath.startsWith(resolve(distDir)) && existsSync(distPath)) {
+            return new Response(Bun.file(distPath));
+          }
         }
 
         const filePath = safePublicPath(pathname);

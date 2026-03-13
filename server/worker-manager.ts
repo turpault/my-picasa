@@ -4,6 +4,16 @@ import { events } from "../shared/server-events";
 
 const workers: Map<string, Worker> = new Map();
 
+/** Resolved when the walker worker has completed its first filesystem walk and albums are available. */
+let walkerReadyResolve: (() => void) | null = null;
+export const walkerReadyPromise = new Promise<void>((r) => {
+  walkerReadyResolve = r;
+});
+
+export function getWalkerReadyPromise(): Promise<void> {
+  return walkerReadyPromise;
+}
+
 export async function startWorkers() {
 
   const services = [
@@ -60,6 +70,10 @@ export async function startWorker(serviceName: string): Promise<Worker | null> {
       events.emit(msg.eventType, msg.data);
     }
     if (msg.type === "ready") {
+      if (serviceName === "walker") {
+        walkerReadyResolve?.();
+        walkerReadyResolve = null;
+      }
       resolveFct();
     }
   });

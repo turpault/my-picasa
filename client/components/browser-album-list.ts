@@ -135,7 +135,13 @@ export async function makeAlbumList(
       <div class="browser-list-label">${label}</div>
       </div>`,
     );
-    setIdForAlbum(r, item.album, elementPrefix);
+    if (item.album) {
+      setIdForAlbum(r, item.album, elementPrefix);
+    } else if (item.project) {
+      r.id(`${elementPrefix}project|${item.project.type}`);
+    } else if (item.contact) {
+      r.id(`${elementPrefix}person|${item.contact.id}`);
+    }
     r.attachData({ item });
     return r;
   }

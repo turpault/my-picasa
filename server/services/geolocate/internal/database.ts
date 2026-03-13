@@ -230,20 +230,24 @@ export class GeolocateDatabaseAccess {
 
   /**
    * Check if an entry has been processed (regardless of whether it has geo POI data)
-   * Join with album_entries to check if entry exists in walker database
+   * Join with album_entries to check if entry exists in walker database.
+   * Returns false if walker schema is not attached or not ready yet.
    */
   isProcessed(entry: AlbumEntry): boolean {
-    const result = this.getDatabase()
-      .prepare(
-        `SELECT g.processed_at 
-         FROM walker.album_entries ae
-         LEFT JOIN geo_poi_data g ON ae.album_key = g.album_key AND ae.entry_name = g.entry_name
-         WHERE ae.album_key = ? AND ae.entry_name = ?`
-      )
-      .get(entry.album.key ?? "", entry.name ?? "") as { processed_at: string | null } | undefined;
+    try {
+      const result = this.getDatabase()
+        .prepare(
+          `SELECT g.processed_at 
+           FROM walker.album_entries ae
+           LEFT JOIN geo_poi_data g ON ae.album_key = g.album_key AND ae.entry_name = g.entry_name
+           WHERE ae.album_key = ? AND ae.entry_name = ?`
+        )
+        .get(entry.album.key ?? "", entry.name ?? "") as { processed_at: string | null } | undefined;
 
-    // Entry is processed if it exists in album_entries and has a processed_at value in geo_poi_data
-    return result !== undefined && result.processed_at !== null;
+      return result !== undefined && result.processed_at !== null;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -290,25 +294,28 @@ export class GeolocateDatabaseAccess {
 
   /**
    * Get all entries that need geo POI processing
-   * An unprocessed entry exists in album_entries but has no data in geo_poi_data
+   * An unprocessed entry exists in album_entries but has no data in geo_poi_data.
+   * Returns [] if walker schema is not attached or not ready yet.
    */
   getUnprocessedEntries(): Array<{ album_key: string; album_name: string; entry_name: string }> {
-    const results = this.getDatabase()
-      .prepare(
-        `SELECT 
-          walker.album_entries.album_key,
-          walker.albums.name AS album_name,
-          walker.album_entries.entry_name
-         FROM walker.album_entries
-         LEFT JOIN walker.albums ON walker.album_entries.album_key = walker.albums.key
-         LEFT JOIN geo_poi_data ON walker.album_entries.album_key = geo_poi_data.album_key 
-           AND walker.album_entries.entry_name = geo_poi_data.entry_name
-         WHERE geo_poi_data.album_key IS NULL
-         ORDER BY walker.album_entries.created_at ASC`
-      )
-      .all() as Array<{ album_key: string; album_name: string; entry_name: string }>;
-
-    return results;
+    try {
+      return this.getDatabase()
+        .prepare(
+          `SELECT 
+            walker.album_entries.album_key,
+            walker.albums.name AS album_name,
+            walker.album_entries.entry_name
+           FROM walker.album_entries
+           LEFT JOIN walker.albums ON walker.album_entries.album_key = walker.albums.key
+           LEFT JOIN geo_poi_data ON walker.album_entries.album_key = geo_poi_data.album_key 
+             AND walker.album_entries.entry_name = geo_poi_data.entry_name
+           WHERE geo_poi_data.album_key IS NULL
+           ORDER BY walker.album_entries.created_at ASC`
+        )
+        .all() as Array<{ album_key: string; album_name: string; entry_name: string }>;
+    } catch {
+      return [];
+    }
   }
 
   // ========== WRITE METHODS (Write operations - READWRITE only) ==========

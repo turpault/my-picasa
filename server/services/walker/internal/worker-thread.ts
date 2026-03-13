@@ -314,11 +314,6 @@ export async function walkFilesystem(): Promise<void> {
   // This will trigger database creation and migration
   getWalkerDatabase();
 
-  // Send ready message after database initialization
-  if (parentPort) {
-    parentPort.postMessage({ type: "ready" });
-  }
-
   // Initialize RPC service for walker worker
   const workerAdaptor = new WorkerAdaptor(); // No worker parameter = worker thread mode
   registerServices(workerAdaptor, [WalkerWorkerClient], {});
@@ -362,6 +357,10 @@ export async function walkFilesystem(): Promise<void> {
 
     if (iteration === 0) {
       console.info(`Album list retrieved`);
+      // Send ready only after first walk completes so clients get a populated album list
+      if (parentPort) {
+        parentPort.postMessage({ type: "ready" });
+      }
     }
     iteration++;
     await sleep(60 * 60); // Wait 60 minutes
