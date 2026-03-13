@@ -42,6 +42,7 @@ export type ServerEvents = {
   undoChanged: {
     undoSteps: UndoStep[];
   };
+  settingsChanged: {};
 };
 
 export const events = buildEmitter<ServerEvents>();

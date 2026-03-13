@@ -68,6 +68,8 @@ export const PICISA_METHODS = [
   "getContacts",
   "getFeatureFlags",
   "updateFeatureFlags",
+  "getSettings",
+  "updateSettings",
 ] as const;
 
 /** Method names for WalkerWorkerClient (walker worker RPC). */
@@ -172,6 +174,8 @@ export const PICISA_PARAM_NAMES: Record<string, readonly string[]> = {
   getContacts: [],
   getFeatureFlags: [],
   updateFeatureFlags: ["flags"],
+  getSettings: [],
+  updateSettings: ["settings"],
 };
 
 export const WALKER_WORKER_PARAM_NAMES: Record<string, readonly string[]> = {
