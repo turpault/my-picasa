@@ -2,7 +2,6 @@ import React, { useCallback, useMemo, useState } from "react";
 import type {
   Album,
   AlbumEntry,
-  AlbumEntryWithMetadata,
   AlbumWithData,
   Filters,
   Shortcut,
@@ -29,7 +28,7 @@ import { t } from "../strings";
 // ---------------------------------------------------------------------------
 
 interface ThumbnailProps {
-  entry: AlbumEntryWithMetadata;
+  entry: AlbumEntry;
   isSelected: boolean;
   onSelect: (e: React.MouseEvent) => void;
   onDoubleClick: () => void;
@@ -64,9 +63,6 @@ function Thumbnail({
       onDragStart={handleDragStart}
     >
       <img src={url} loading="lazy" alt={entry.name} />
-      {entry.meta?.starCount && (
-        <span className="star-overlay">{"★".repeat(Number(entry.meta.starCount) || 0)}</span>
-      )}
     </div>
   );
 }
@@ -91,7 +87,7 @@ function PhotoList({ album }: PhotoListProps) {
   );
 
   const handleSelect = useCallback(
-    (entry: AlbumEntryWithMetadata, e: React.MouseEvent) => {
+    (entry: AlbumEntry, e: React.MouseEvent) => {
       const key = entryKey(entry);
 
       if (e.metaKey || e.ctrlKey) {
@@ -116,7 +112,7 @@ function PhotoList({ album }: PhotoListProps) {
   );
 
   const handleDoubleClick = useCallback(
-    (entry: AlbumEntryWithMetadata) => {
+    (entry: AlbumEntry) => {
       appEmitter.emit("edit", { entry });
     },
     [appEmitter],
@@ -181,9 +177,11 @@ function AlbumList({ selectedAlbum, onSelectAlbum }: AlbumListProps) {
   const albumsByYear = useMemo(() => {
     const groups = new Map<string, AlbumWithData[]>();
     for (const a of albums) {
-      const year = a.lastModified
-        ? new Date(a.lastModified).getFullYear().toString()
-        : t("Unknown date");
+      const ts = a.lastModified ? Number(a.lastModified) : NaN;
+      const parsedYear = !isNaN(ts) && ts > 0
+        ? new Date(ts).getFullYear()
+        : NaN;
+      const year = parsedYear > 1970 ? parsedYear.toString() : t("Unknown date");
       if (!groups.has(year)) groups.set(year, []);
       groups.get(year)!.push(a);
     }

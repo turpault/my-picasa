@@ -64,7 +64,7 @@ export function FeatureFlagsModal({ visible, onClose }: FeatureFlagsModalProps) 
       )}
       {!flags && !error && <p>{t("Loading")}...</p>}
       {flags &&
-        Object.entries(flags.flags).map(([name, flag]) => (
+        Object.entries(flags?.flags ?? {}).map(([name, flag]) => (
           <div key={name} className="w3-panel w3-border w3-round" style={{ padding: "8px 12px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>

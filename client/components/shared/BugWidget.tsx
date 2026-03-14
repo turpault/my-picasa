@@ -20,7 +20,7 @@ export function BugWidget() {
   const handleMouseEnter = useCallback(async () => {
     if (!service) return;
     setTooltip(t("Loading bugs..."));
-    const bugs = (await service.getBugs()) as Bug[];
+    const bugs = ((await service.getBugs()) ?? []) as Bug[];
     const text = bugs.map((b) => `${t(b.status)}: ${b.description}`).join("\n");
     setTooltip(text || t("No bugs"));
   }, [service]);

@@ -166,29 +166,29 @@ export function AppShell() {
       case "Browser":
         return <BrowserPage />;
       case "Editor":
-        return <EditorPage entry={tab.data.entry} />;
+        return tab.data?.entry ? <EditorPage entry={tab.data.entry} /> : null;
       case "Gallery":
-        return (
+        return tab.data?.initialList ? (
           <GalleryPage
             initialList={tab.data.initialList}
-            initialIndex={tab.data.initialIndex}
+            initialIndex={tab.data.initialIndex ?? 0}
             onClose={() => closeTabAt(activeIndex)}
           />
-        );
+        ) : null;
       case "Mosaic":
-        return (
+        return tab.data?.project ? (
           <MosaicPage
             project={tab.data.project}
             onClose={() => closeTabAt(activeIndex)}
           />
-        );
+        ) : null;
       case "Slideshow":
-        return (
+        return tab.data?.project ? (
           <SlideshowPage
             project={tab.data.project}
             onClose={() => closeTabAt(activeIndex)}
           />
-        );
+        ) : null;
       default:
         return <div>{t("Not implemented yet")}</div>;
     }

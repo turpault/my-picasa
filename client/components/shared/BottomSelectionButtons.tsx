@@ -44,7 +44,7 @@ export function BottomSelectionButtons({
     let cancelled = false;
     albumEntryMetadata(activeEntry).then((meta) => {
       if (cancelled) return;
-      const stars = parseInt(meta.starCount || "0");
+      const stars = parseInt(meta?.starCount || "0");
       setStarLabel(stars ? "🌟".repeat(stars) : "☆");
       let text = `${activeEntry.album.name} > ${activeEntry.name}   `;
       if (meta?.dateTaken) {

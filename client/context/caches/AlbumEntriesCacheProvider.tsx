@@ -3,17 +3,17 @@ import { usePicisaService, useReconnectVersion } from "../AppContext";
 import { events as serverEvents } from "../../../shared/server-events";
 import type {
   Album,
-  AlbumEntryWithMetadata,
+  AlbumEntry,
   Filters,
 } from "../../../shared/types/types";
 
 export function useAlbumEntries(
   album: Album | null,
   filters?: Filters,
-): { entries: AlbumEntryWithMetadata[]; loading: boolean } {
+): { entries: AlbumEntry[]; loading: boolean } {
   const service = usePicisaService();
   const reconnectVersion = useReconnectVersion();
-  const [entries, setEntries] = useState<AlbumEntryWithMetadata[]>([]);
+  const [entries, setEntries] = useState<AlbumEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const fetchIdRef = useRef(0);
   const albumRef = useRef(album);
@@ -32,7 +32,8 @@ export function useAlbumEntries(
     const id = ++fetchIdRef.current;
     const result = await service.media(currentAlbum, filtersRef.current);
     if (id === fetchIdRef.current) {
-      setEntries(result);
+      const list = Array.isArray(result) ? result : result?.entries ?? [];
+      setEntries(list);
       setLoading(false);
     }
   }, [service]);

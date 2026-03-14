@@ -40,6 +40,7 @@ export function Histogram({ context }: HistogramProps) {
   const refresh = useCallback(async () => {
     if (!context || !service || !canvasRef.current) return;
     const data = await service.histogram(context);
+    if (!data) return;
     drawHistogram(data, canvasRef.current);
   }, [context, service]);
 
