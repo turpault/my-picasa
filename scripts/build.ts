@@ -57,11 +57,22 @@ async function main() {
   writeFileSync(join(root, "public/favicon.ico"), new Uint8Array(ico));
 
   console.log("[build] Splash base64…");
-  await run([
-    "bun",
-    "server/toBase64Url.mjs",
-    "public/resources/images/splash.png",
-  ]);
+  const splashPath = join(root, "public/resources/images/splash.png");
+  const splashB64 = readFileSync(splashPath).toString("base64");
+  writeFileSync(
+    splashPath.replace(".png", ".html"),
+    `<!DOCTYPE html>
+<html dir="ltr" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0" />
+  </head>
+  <body>
+    <img style="left:0;right:0;top:0;bottom:0;width:100%;height:100%;position:fixed;" src="data:image/png;base64,${splashB64}" />
+  </body>
+</html>
+`,
+  );
 
   console.log("[build] Done.");
 }
