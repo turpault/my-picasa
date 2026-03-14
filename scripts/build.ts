@@ -37,13 +37,15 @@ async function main() {
   await run(["bun", "run", "build"], join(root, "server/imageOperations/native-filters"));
 
   console.log("[build] Client (Bun bundle)…");
-  await run([
-    "bun",
-    "build",
-    "public/index.html",
-    "--minify",
-    "--outdir=public/dist",
-  ]);
+  const result = await Bun.build({
+    entrypoints: [join(root, "public/index.html")],
+    outdir: join(root, "public/dist"),
+    minify: true,
+  });
+  if (!result.success) {
+    console.error(result.logs);
+    throw new Error("Client build failed");
+  }
 
   console.log("[build] Icons…");
   const pngInput = readFileSync(join(root, "resources/picisa.png"));
