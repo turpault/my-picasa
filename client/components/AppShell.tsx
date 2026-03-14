@@ -6,6 +6,9 @@ import { EditorPage } from "./pages/EditorPage";
 import { GalleryPage } from "./pages/GalleryPage";
 import { MosaicPage } from "./pages/MosaicPage";
 import { SlideshowPage } from "./pages/SlideshowPage";
+import { JobList } from "./shared/JobList";
+import { BugWidget } from "./shared/BugWidget";
+import { FeatureFlagsModal } from "./shared/FeatureFlagsModal";
 
 type TabDescriptor = {
   id: string;
@@ -26,6 +29,7 @@ export function AppShell() {
   const appEmitter = useAppEmitter();
   const [tabs, setTabs] = useState<TabDescriptor[]>(() => [makeBrowserTab()]);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [showFeatureFlags, setShowFeatureFlags] = useState(false);
   const tabsRef = useRef(tabs);
   const activeIndexRef = useRef(activeIndex);
 
@@ -216,8 +220,23 @@ export function AppShell() {
             </a>
           ))}
         </div>
+        <div className="tab-bar-actions">
+          <button
+            className="tab-bar-action-btn"
+            onClick={() => setShowFeatureFlags(true)}
+            title={t("Feature Flags")}
+          >
+            ⚙
+          </button>
+          <BugWidget />
+        </div>
       </div>
       <div className="workarea">{activeTab && renderPage(activeTab)}</div>
+      <JobList />
+      <FeatureFlagsModal
+        visible={showFeatureFlags}
+        onClose={() => setShowFeatureFlags(false)}
+      />
     </div>
   );
 }
