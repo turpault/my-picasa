@@ -163,14 +163,74 @@
 }
 
 .edited-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+  margin: auto;
 }
 
 .edited-video {
   width: 100%;
   height: 100%;
 }
+
 .editor-page {
-  /* bottom: 110px!important; */
+  overflow: hidden;
+}
+
+.editor-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50px;
+  background: #333;
+  display: flex;
+  align-items: center;
+  z-index: 2;
+  gap: 8px;
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+
+.editor-back-button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.editor-strip {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  height: 100%;
+  padding: 4px 0;
+  box-sizing: border-box;
+}
+
+.strip-thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  cursor: pointer;
+  border-radius: 3px;
+  flex-shrink: 0;
+  opacity: 0.6;
+  border: 2px solid transparent;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+.strip-thumb:hover {
+  opacity: 0.85;
+}
+
+.strip-thumb.active {
+  opacity: 1;
+  border-color: #fff;
 }
 .tools-tab-bar {
   position: absolute;
@@ -413,6 +473,9 @@ body {
 }
 
 .fill-with-aspect {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 .meta {
@@ -530,6 +593,9 @@ body {
   bottom: 0;
   overflow: hidden;
   background-color: rgb(243, 243, 243) !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .bottom-list-tools {
@@ -1648,12 +1714,10 @@ body {
 
 .workarea {
   position: absolute;
-  /* inset: 40px 0px 0px; */
-  bottom: 106px;
-  /* height: 100%; */
   top: 40px;
-  width: 100%;
-  /* height: 100%; */
+  bottom: 0;
+  left: 0;
+  right: 0;
 }
 
 .jobs {
