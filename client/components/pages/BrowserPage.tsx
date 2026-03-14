@@ -211,6 +211,8 @@ function AlbumList({ selectedAlbum, onSelectAlbum }: AlbumListProps) {
   const renderAlbumItem = (album: Album, extra?: string) => (
     <div
       key={album.key}
+      role="option"
+      aria-selected={selectedAlbum?.key === album.key}
       className={`album-item${selectedAlbum?.key === album.key ? " selected" : ""}`}
       onClick={() => onSelectAlbum(album)}
       onDrop={(e) => handleDrop(album, e)}

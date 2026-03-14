@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { usePicisaService, useReconnectVersion } from "../AppContext";
 import { events as serverEvents } from "../../../shared/server-events";
+import { isFilterEmpty } from "../../lib/settings";
 import type {
   Album,
   AlbumEntry,
@@ -30,7 +31,8 @@ export function useAlbumEntries(
     }
     setLoading(true);
     const id = ++fetchIdRef.current;
-    const result = await service.media(currentAlbum, filtersRef.current);
+    const effectiveFilters = filtersRef.current ? isFilterEmpty(filtersRef.current) : undefined;
+    const result = await service.media(currentAlbum, effectiveFilters);
     if (id === fetchIdRef.current) {
       const list = Array.isArray(result) ? result : result?.entries ?? [];
       setEntries(list);
