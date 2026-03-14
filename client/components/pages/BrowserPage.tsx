@@ -27,6 +27,16 @@ import { t } from "../strings";
 import { BottomSelectionButtons } from "../shared/BottomSelectionButtons";
 import type { MetaPage } from "../shared/MetadataViewer";
 
+/** Extract year section from album name: "2025-01-15 Foo" → "2025", "0000 Bar" → "Unknown date" */
+function yearFromAlbumName(name: string): string {
+  const match = name.match(/^(\d{4})/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    if (year >= 1900 && year <= 2100) return year.toString();
+  }
+  return t("Unknown date");
+}
+
 // ---------------------------------------------------------------------------
 // Thumbnail
 // ---------------------------------------------------------------------------
@@ -492,13 +502,12 @@ function AlbumList({ orderedAlbums, selectedAlbum, onSelectAlbum }: AlbumListPro
   const albumsByYear = useMemo(() => {
     const groups = new Map<string, AlbumWithData[]>();
     for (const a of orderedAlbums) {
-      const ts = a.lastModified ? Number(a.lastModified) : NaN;
-      const parsedYear = !isNaN(ts) && ts > 0
-        ? new Date(ts).getFullYear()
-        : NaN;
-      const year = parsedYear > 1970 ? parsedYear.toString() : t("Unknown date");
+      const year = yearFromAlbumName(a.name);
       if (!groups.has(year)) groups.set(year, []);
       groups.get(year)!.push(a);
+    }
+    for (const [year, list] of groups) {
+      groups.set(year, [...list].sort((a, b) => b.name.localeCompare(a.name)));
     }
     return new Map([...groups.entries()].sort((a, b) => b[0].localeCompare(a[0])));
   }, [orderedAlbums]);
@@ -709,22 +718,20 @@ export default function BrowserPage() {
     [],
   );
 
-  // Flatten albums into display order (same order as AlbumList year groups)
+  // Flatten albums into display order: group by year prefix in name, reverse alphabetically within each
   const orderedAlbums = useMemo(() => {
     const groups = new Map<string, AlbumWithData[]>();
     for (const a of albums) {
-      const ts = a.lastModified ? Number(a.lastModified) : NaN;
-      const parsedYear = !isNaN(ts) && ts > 0
-        ? new Date(ts).getFullYear()
-        : NaN;
-      const year = parsedYear > 1970 ? parsedYear.toString() : t("Unknown date");
+      const year = yearFromAlbumName(a.name);
       if (!groups.has(year)) groups.set(year, []);
       groups.get(year)!.push(a);
     }
     const sorted = [...groups.entries()].sort((a, b) =>
       b[0].localeCompare(a[0]),
     );
-    return sorted.flatMap(([, yearAlbums]) => yearAlbums);
+    return sorted.flatMap(([, yearAlbums]) =>
+      [...yearAlbums].sort((a, b) => b.name.localeCompare(a.name)),
+    );
   }, [albums]);
 
   // When the user scrolls into a different album, update the sidebar highlight
