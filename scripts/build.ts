@@ -2,8 +2,9 @@
 /**
  * Single entry point for all build steps. Run with: bun run build
  */
-import { rmSync, mkdirSync, cpSync } from "fs";
+import { rmSync, mkdirSync, cpSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
+import png2icons from "png2icons";
 
 const root = import.meta.dir + "/..";
 
@@ -35,24 +36,25 @@ async function main() {
   await run(["bun", "run", "configure"], join(root, "server/imageOperations/native-filters"));
   await run(["bun", "run", "build"], join(root, "server/imageOperations/native-filters"));
 
-  console.log("[build] Client (Vite)…");
-  await run(["bunx", "vite", "build"]);
-
-  console.log("[build] Icons (icns)…");
+  console.log("[build] Client (Bun bundle)…");
   await run([
-    "png2icons",
-    "resources/picisa.png",
-    "resources/picisa",
-    "-icns",
+    "bun",
+    "build",
+    "public/index.html",
+    "--minify",
+    "--outdir=public/dist",
   ]);
 
-  console.log("[build] Icons (ico)…");
-  await run([
-    "png2icons",
-    "resources/picisa.png",
-    "public/favicon",
-    "-ico",
-  ]);
+  console.log("[build] Icons…");
+  const pngInput = readFileSync(join(root, "resources/picisa.png"));
+
+  const icns = png2icons.createICNS(pngInput, png2icons.BICUBIC, 0);
+  if (!icns) throw new Error("Failed to create ICNS");
+  writeFileSync(join(root, "resources/picisa.icns"), new Uint8Array(icns));
+
+  const ico = png2icons.createICO(pngInput, png2icons.BICUBIC, 0, false);
+  if (!ico) throw new Error("Failed to create ICO");
+  writeFileSync(join(root, "public/favicon.ico"), new Uint8Array(ico));
 
   console.log("[build] Splash base64…");
   await run([
