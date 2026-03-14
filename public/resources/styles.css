@@ -1721,6 +1721,46 @@ body {
   white-space: nowrap;
 }
 
+/* --- Album stream (infinite scroll) --- */
+
+.album-stream-section {
+  min-height: 60px;
+}
+
+.album-stream-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 12px 6px;
+  border-bottom: 1px solid #ccc;
+  background: linear-gradient(to bottom, #f0f0f0, #fff);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.album-stream-header[data-album-key] {
+  /* IntersectionObserver needs the data attr on this element */
+}
+
+.album-stream-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.album-stream-section + .album-stream-section {
+  border-top: 3px solid #d0d0d0;
+}
+
+.scroll-sentinel {
+  height: 1px;
+  width: 100%;
+}
+
 .entry-count {
   color: #888;
   font-size: 13px;
