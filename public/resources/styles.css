@@ -909,7 +909,7 @@ body {
 
 .browser-navigator {
   position: absolute;
-  bottom: 0;
+  bottom: 106px;
   top: 50px;
   left: 0;
   right: 0;

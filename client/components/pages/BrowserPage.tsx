@@ -24,6 +24,8 @@ import { useCacheBust } from "../../context/CacheBustProvider";
 import { isFilterEmpty } from "../../lib/settings";
 import { thumbnailUrl } from "../../imageProcess/client";
 import { t } from "../strings";
+import { BottomSelectionButtons } from "../shared/BottomSelectionButtons";
+import type { MetaPage } from "../shared/MetadataViewer";
 
 // ---------------------------------------------------------------------------
 // Thumbnail
@@ -133,18 +135,21 @@ interface PhotoListProps {
   orderedAlbums: AlbumWithData[];
   selectedAlbum: Album | null;
   onVisibleAlbumChange: (album: Album) => void;
+  onSelectionChange: (entries: AlbumEntry[], activeEntry: AlbumEntry | null, activeIndex: number) => void;
 }
 
 function PhotoList({
   orderedAlbums,
   selectedAlbum,
   onVisibleAlbumChange,
+  onSelectionChange,
 }: PhotoListProps) {
   const service = usePicisaService();
   const settings = useSettings();
   const appEmitter = useAppEmitter();
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [activeEntryKey, setActiveEntryKey] = useState<string | null>(null);
 
   // Map of album key → entries (loaded albums)
   const [entriesMap, setEntriesMap] = useState<Map<string, AlbumEntry[]>>(
@@ -352,9 +357,24 @@ function PhotoList({
     [],
   );
 
+  // Propagate selection to parent
+  useEffect(() => {
+    const selectedEntries = allVisibleEntries.filter((e) =>
+      selected.has(entryKey(e)),
+    );
+    const active = activeEntryKey
+      ? allVisibleEntries.find((e) => entryKey(e) === activeEntryKey) ?? null
+      : null;
+    const activeIdx = active
+      ? selectedEntries.findIndex((e) => entryKey(e) === activeEntryKey)
+      : -1;
+    onSelectionChange(selectedEntries, active, activeIdx);
+  }, [selected, activeEntryKey, allVisibleEntries, entryKey, onSelectionChange]);
+
   const handleSelect = useCallback(
     (entry: AlbumEntry, e: React.MouseEvent) => {
       const key = entryKey(entry);
+      setActiveEntryKey(key);
       if (e.metaKey || e.ctrlKey) {
         setSelected((prev) => {
           const next = new Set(prev);
@@ -674,6 +694,21 @@ export default function BrowserPage() {
   const albums = useAlbums();
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
 
+  // Selection state lifted from PhotoList
+  const [selectedEntries, setSelectedEntries] = useState<AlbumEntry[]>([]);
+  const [activeEntry, setActiveEntry] = useState<AlbumEntry | null>(null);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [metaPage, setMetaPage] = useState<MetaPage | null>(null);
+
+  const handleSelectionChange = useCallback(
+    (entries: AlbumEntry[], active: AlbumEntry | null, idx: number) => {
+      setSelectedEntries(entries);
+      setActiveEntry(active);
+      setActiveIndex(idx);
+    },
+    [],
+  );
+
   // Flatten albums into display order (same order as AlbumList year groups)
   const orderedAlbums = useMemo(() => {
     const groups = new Map<string, AlbumWithData[]>();
@@ -693,7 +728,6 @@ export default function BrowserPage() {
   }, [albums]);
 
   // When the user scrolls into a different album, update the sidebar highlight
-  // (but don't re-trigger scroll-to since this comes from scrolling)
   const scrollSelectedRef = useRef(false);
   const handleVisibleAlbumChange = useCallback(
     (album: Album) => {
@@ -719,8 +753,15 @@ export default function BrowserPage() {
           orderedAlbums={orderedAlbums}
           selectedAlbum={selectedAlbum}
           onVisibleAlbumChange={handleVisibleAlbumChange}
+          onSelectionChange={handleSelectionChange}
         />
       </div>
+      <BottomSelectionButtons
+        selected={selectedEntries}
+        activeEntry={activeEntry}
+        activeIndex={activeIndex}
+        onMetaPageChange={setMetaPage}
+      />
     </div>
   );
 }
