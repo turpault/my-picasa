@@ -105,6 +105,19 @@ class EntriesDatabaseAccess {
         { name: "exposure_time", type: "REAL" },
         { name: "f_number", type: "REAL" },
         { name: "focal_length", type: "REAL" },
+        { name: "person_in_image", type: "TEXT" },
+        { name: "acceleration_vector", type: "TEXT" },
+        { name: "photo_identifier", type: "TEXT" },
+        { name: "image_unique_id", type: "TEXT" },
+        { name: "lens_model", type: "TEXT" },
+        { name: "lens_info", type: "TEXT" },
+        { name: "focal_length_35mm", type: "INTEGER" },
+        { name: "gps_altitude", type: "REAL" },
+        { name: "gps_altitude_ref", type: "TEXT" },
+        { name: "gps_date_stamp", type: "TEXT" },
+        { name: "gps_img_direction", type: "REAL" },
+        { name: "gps_img_direction_ref", type: "TEXT" },
+        { name: "gps_timestamp", type: "TEXT" },
       ];
 
       for (const { name, type } of exifColumns) {
@@ -211,6 +224,10 @@ class EntriesDatabaseAccess {
         image_width INTEGER, image_height INTEGER,
         latitude REAL, longitude REAL,
         iso INTEGER, exposure_time REAL, f_number REAL, focal_length REAL,
+        person_in_image TEXT, acceleration_vector TEXT, photo_identifier TEXT,
+        image_unique_id TEXT, lens_model TEXT, lens_info TEXT, focal_length_35mm INTEGER,
+        gps_altitude REAL, gps_altitude_ref TEXT, gps_date_stamp TEXT,
+        gps_img_direction REAL, gps_img_direction_ref TEXT, gps_timestamp TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(album_key, entry_name)
       );

@@ -7,7 +7,7 @@ const debugLogger = debug("app:exif-db");
 
 export type OpenMode = "READ" | "READWRITE";
 
-/** Well-known EXIF fields stored as separate columns for querying */
+/** Well-known EXIF/XMP fields stored as separate columns for querying */
 export type ExifColumns = {
   date_taken?: string | null;
   make?: string | null;
@@ -20,6 +20,19 @@ export type ExifColumns = {
   exposure_time?: number | null;
   f_number?: number | null;
   focal_length?: number | null;
+  person_in_image?: string | null;
+  acceleration_vector?: string | null;
+  photo_identifier?: string | null;
+  image_unique_id?: string | null;
+  lens_model?: string | null;
+  lens_info?: string | null;
+  focal_length_35mm?: number | null;
+  gps_altitude?: number | null;
+  gps_altitude_ref?: string | null;
+  gps_date_stamp?: string | null;
+  gps_img_direction?: number | null;
+  gps_img_direction_ref?: string | null;
+  gps_timestamp?: string | null;
 };
 
 /**
@@ -131,36 +144,46 @@ export class ExifDatabaseAccess {
     const db = this.getDatabase();
     const hasExif = exifData !== null && exifData.trim().length > 0;
     const cols = columns ?? {};
+    const colVals = [
+      cols.date_taken ?? null, cols.make ?? null, cols.model ?? null,
+      cols.image_width ?? null, cols.image_height ?? null,
+      cols.latitude ?? null, cols.longitude ?? null,
+      cols.iso ?? null, cols.exposure_time ?? null, cols.f_number ?? null, cols.focal_length ?? null,
+      cols.person_in_image ?? null, cols.acceleration_vector ?? null, cols.photo_identifier ?? null,
+      cols.image_unique_id ?? null, cols.lens_model ?? null, cols.lens_info ?? null,
+      cols.focal_length_35mm ?? null,
+      cols.gps_altitude ?? null, cols.gps_altitude_ref ?? null, cols.gps_date_stamp ?? null,
+      cols.gps_img_direction ?? null, cols.gps_img_direction_ref ?? null, cols.gps_timestamp ?? null,
+    ];
     const result = db.prepare(`
       UPDATE exif_data SET
         exif_data = ?, has_exif = ?, processed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP,
         date_taken = ?, make = ?, model = ?,
         image_width = ?, image_height = ?,
         latitude = ?, longitude = ?,
-        iso = ?, exposure_time = ?, f_number = ?, focal_length = ?
+        iso = ?, exposure_time = ?, f_number = ?, focal_length = ?,
+        person_in_image = ?, acceleration_vector = ?, photo_identifier = ?,
+        image_unique_id = ?, lens_model = ?, lens_info = ?,
+        focal_length_35mm = ?,
+        gps_altitude = ?, gps_altitude_ref = ?, gps_date_stamp = ?,
+        gps_img_direction = ?, gps_img_direction_ref = ?, gps_timestamp = ?
       WHERE album_key = ? AND entry_name = ?
-    `).run(
-      exifData, hasExif ? 1 : 0,
-      cols.date_taken ?? null, cols.make ?? null, cols.model ?? null,
-      cols.image_width ?? null, cols.image_height ?? null,
-      cols.latitude ?? null, cols.longitude ?? null,
-      cols.iso ?? null, cols.exposure_time ?? null, cols.f_number ?? null, cols.focal_length ?? null,
-      entry.album.key ?? "", entry.name ?? "",
-    );
+    `).run(exifData, hasExif ? 1 : 0, ...colVals, entry.album.key ?? "", entry.name ?? "");
     if (result.changes === 0) {
       const entryRow = db.prepare("SELECT entry_id FROM album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key ?? "", entry.name ?? "") as { entry_id: string } | undefined;
       if (entryRow) {
         db.prepare(`
           INSERT INTO exif_data (entry_id, album_key, entry_name, exif_data, has_exif, processed_at, updated_at,
-            date_taken, make, model, image_width, image_height, latitude, longitude, iso, exposure_time, f_number, focal_length)
+            date_taken, make, model, image_width, image_height, latitude, longitude, iso, exposure_time, f_number, focal_length,
+            person_in_image, acceleration_vector, photo_identifier, image_unique_id, lens_model, lens_info, focal_length_35mm,
+            gps_altitude, gps_altitude_ref, gps_date_stamp, gps_img_direction, gps_img_direction_ref, gps_timestamp)
           VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?)
         `).run(
           entryRow.entry_id, entry.album.key ?? "", entry.name ?? "", exifData, hasExif ? 1 : 0,
-          cols.date_taken ?? null, cols.make ?? null, cols.model ?? null,
-          cols.image_width ?? null, cols.image_height ?? null,
-          cols.latitude ?? null, cols.longitude ?? null,
-          cols.iso ?? null, cols.exposure_time ?? null, cols.f_number ?? null, cols.focal_length ?? null,
+          ...colVals,
         );
       }
     }
