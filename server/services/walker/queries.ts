@@ -1,4 +1,4 @@
-import { Album, AlbumEntry, AlbumEntryMetaData, AlbumMetaData, AlbumWithData, Contact, ContactByHash, extraFields, PicasaSection, Shortcut, ThumbnailSize } from "../../../shared/types/types";
+import { Album, AlbumEntry, AlbumEntryMetaData, AlbumMetaData, AlbumWithData, Contact, ContactByHash, PicasaSection, Shortcut, ThumbnailSize } from "../../../shared/types/types";
 import { getWalkerDatabase } from "./internal/database";
 import {
   refreshAlbumKeys as refreshAlbumKeysImpl,

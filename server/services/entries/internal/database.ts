@@ -216,16 +216,23 @@ class EntriesDatabaseAccess {
 
   private migrateDropRemovedFields(): void {
     try {
-      const info = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
-      const hasTextactive = info.some((c) => c.name === "textactive");
-      const hasStats = info.some((c) => c.name === "stats");
-      const hasExtraFields = info.some((c) => c.name === "extra_fields");
-      if (!hasTextactive && !hasStats && !hasExtraFields) return;
+      const entriesInfo = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
+      const hasTextactive = entriesInfo.some((c) => c.name === "textactive");
+      const hasStats = entriesInfo.some((c) => c.name === "stats");
+      const hasExtraFields = entriesInfo.some((c) => c.name === "extra_fields");
+      if (hasTextactive || hasStats || hasExtraFields) {
+        debugLogger("Dropping removed columns from album_entries");
+        if (hasTextactive) this.db.run("ALTER TABLE album_entries DROP COLUMN textactive");
+        if (hasStats) this.db.run("ALTER TABLE album_entries DROP COLUMN stats");
+        if (hasExtraFields) this.db.run("ALTER TABLE album_entries DROP COLUMN extra_fields");
+      }
 
-      debugLogger("Dropping removed columns from album_entries");
-      if (hasTextactive) this.db.run("ALTER TABLE album_entries DROP COLUMN textactive");
-      if (hasStats) this.db.run("ALTER TABLE album_entries DROP COLUMN stats");
-      if (hasExtraFields) this.db.run("ALTER TABLE album_entries DROP COLUMN extra_fields");
+      const albumsInfo = this.db.prepare("PRAGMA table_info(albums)").all() as Array<{ name: string }>;
+      const hasKind = albumsInfo.some((c) => c.name === "kind");
+      if (hasKind) {
+        debugLogger("Dropping dead kind column from albums");
+        this.db.run("ALTER TABLE albums DROP COLUMN kind");
+      }
     } catch (e) {
       debugLogger("migrateDropRemovedFields error:", e);
     }
@@ -427,7 +434,7 @@ class EntriesDatabaseAccess {
       CREATE TABLE db_version (version INTEGER PRIMARY KEY, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
       INSERT INTO db_version (version) VALUES (${DATABASE_VERSION});
       CREATE TABLE albums (
-        album_id TEXT NOT NULL UNIQUE, key TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL,
+        album_id TEXT NOT NULL UNIQUE, key TEXT PRIMARY KEY, name TEXT NOT NULL,
         count INTEGER NOT NULL DEFAULT 0, shortcut TEXT, lastModified TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -447,7 +454,6 @@ class EntriesDatabaseAccess {
         UNIQUE(album_key, entry_name)
       );
       CREATE INDEX idx_albums_name ON albums(name);
-      CREATE INDEX idx_albums_kind ON albums(kind);
       CREATE INDEX idx_albums_album_id ON albums(album_id);
       CREATE INDEX idx_album_entries_album_key ON album_entries(album_key);
       CREATE INDEX idx_album_entries_album_id ON album_entries(album_id);
@@ -460,9 +466,9 @@ class EntriesDatabaseAccess {
       const albumId = uuid();
       albumIdByKey.set(a.key, albumId);
       entriesDb.prepare(`
-        INSERT INTO albums (album_id, key, name, kind, count, shortcut, lastModified, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(albumId, a.key, a.name, a.kind, a.count ?? 0, a.shortcut, a.lastModified, a.created_at, a.updated_at);
+        INSERT INTO albums (album_id, key, name, count, shortcut, lastModified, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(albumId, a.key, a.name, a.count ?? 0, a.shortcut, a.lastModified, a.created_at, a.updated_at);
     }
 
     const entries = walkerDb.prepare("SELECT * FROM album_entries").all() as any[];
@@ -513,7 +519,7 @@ class EntriesDatabaseAccess {
   private initDatabase(): void {
     this.db.run(`
       CREATE TABLE IF NOT EXISTS albums (
-        album_id TEXT NOT NULL UNIQUE, key TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL,
+        album_id TEXT NOT NULL UNIQUE, key TEXT PRIMARY KEY, name TEXT NOT NULL,
         count INTEGER NOT NULL DEFAULT 0, shortcut TEXT, lastModified TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -566,8 +572,8 @@ class EntriesDatabaseAccess {
   async getAllAlbums(): Promise<AlbumWithData[]> {
     return deferSync(() => {
       const rows = this.db.prepare(`
-        SELECT key, name, kind, count, shortcut, lastModified FROM albums ORDER BY key
-      `).all() as Array<{ key: string; name: string; kind?: string; count: number; shortcut: string | null; lastModified: string | null }>;
+        SELECT key, name, count, shortcut, lastModified FROM albums ORDER BY key
+      `).all() as Array<{ key: string; name: string; count: number; shortcut: string | null; lastModified: string | null }>;
       return rows.map((r) => ({
         key: r.key,
         name: r.name,
@@ -581,8 +587,8 @@ class EntriesDatabaseAccess {
   async getAlbum(albumKey: string): Promise<AlbumWithData | undefined> {
     return deferSync(() => {
       const row = this.db.prepare(`
-        SELECT key, name, kind, count, shortcut, lastModified FROM albums WHERE key = ?
-      `).get(albumKey) as { key: string; name: string; kind?: string; count: number; shortcut: string | null; lastModified: string | null } | undefined;
+        SELECT key, name, count, shortcut, lastModified FROM albums WHERE key = ?
+      `).get(albumKey) as { key: string; name: string; count: number; shortcut: string | null; lastModified: string | null } | undefined;
       if (!row) return undefined;
       return {
         key: row.key,
@@ -682,8 +688,8 @@ class EntriesDatabaseAccess {
   async getShortcuts(): Promise<Shortcut[]> {
     return deferSync(() => {
       const rows = this.db.prepare(`
-        SELECT key, name, kind, shortcut FROM albums WHERE shortcut IS NOT NULL AND shortcut != ''
-      `).all() as Array<{ key: string; name: string; kind?: string; shortcut: string }>;
+        SELECT key, name, shortcut FROM albums WHERE shortcut IS NOT NULL AND shortcut != ''
+      `).all() as Array<{ key: string; name: string; shortcut: string }>;
       return rows.map((r) => ({
         shortcut: r.shortcut,
         album: { key: r.key, name: r.name },
@@ -737,9 +743,9 @@ class EntriesDatabaseAccess {
         | undefined;
       const albumId = existing?.album_id ?? uuid();
       this.db.prepare(`
-        INSERT OR REPLACE INTO albums (album_id, key, name, kind, count, shortcut, lastModified, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `).run(albumId, album.key, album.name, "folder", album.count, album.shortcut || null, album.lastModified || null);
+        INSERT OR REPLACE INTO albums (album_id, key, name, count, shortcut, lastModified, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `).run(albumId, album.key, album.name, album.count, album.shortcut || null, album.lastModified || null);
     });
   }
 

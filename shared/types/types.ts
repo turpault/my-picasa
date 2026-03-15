@@ -4,7 +4,6 @@ export type PartialRecord<K extends keyof any, T> = {
 
 export type PicasaSection = { [name: string]: string };
 
-export type extraFields = `cached:filters:stats`;
 export type AlbumEntryMetaData = {
   dateTaken?: string; // ISO date
   photostar?: boolean; // Starred from MacOS photo app
@@ -23,7 +22,7 @@ export type AlbumEntryMetaData = {
   thumbFilterVersionSmall?: number;
   thumbFilterVersionMedium?: number;
   thumbFilterVersionLarge?: number;
-} & PartialRecord<extraFields, string>;
+};
 
 export type GeoPOI = {
   loc: string;

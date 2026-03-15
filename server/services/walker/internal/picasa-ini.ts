@@ -21,7 +21,6 @@ import {
   FaceList,
   PicasaSection,
   ThumbnailSize,
-  extraFields,
   idFromKey,
   keyFromID,
 } from "../../../../shared/types/types";
@@ -72,19 +71,19 @@ function stripCacheFieldsFromMetadata(metadata: AlbumEntryMetaData): AlbumEntryM
 }
 
 /** @deprecated Use filter_version / thumb_filter_version columns instead. Kept for migration. */
-export const cachedFilterKey: Record<ThumbnailSize, extraFields> = {
+export const cachedFilterKey: Record<ThumbnailSize, string> = {
   "th-small": "cached:filters:th-small",
   "th-medium": "cached:filters:th-medium",
   "th-large": "cached:filters:th-large",
 };
 /** @deprecated Use filter_version / thumb_filter_version columns instead. Kept for migration. */
-export const dimensionsFilterKey: Record<ThumbnailSize, extraFields> = {
+export const dimensionsFilterKey: Record<ThumbnailSize, string> = {
   "th-small": "cached:dimensions:th-small",
   "th-medium": "cached:dimensions:th-medium",
   "th-large": "cached:dimensions:th-large",
 };
 /** @deprecated Use filter_version / thumb_filter_version columns instead. Kept for migration. */
-export const rotateFilterKey: Record<ThumbnailSize, extraFields> = {
+export const rotateFilterKey: Record<ThumbnailSize, string> = {
   "th-small": "cached:rotate:th-small",
   "th-medium": "cached:rotate:th-medium",
   "th-large": "cached:rotate:th-large",
