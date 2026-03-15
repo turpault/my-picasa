@@ -15,6 +15,7 @@ import {
 } from "../../../../shared/types/types";
 import { imagesRoot } from "../../../utils/constants";
 import { ensureDbFormatOrRemove, isDev } from "../../../utils/ensure-db-format";
+import { deferSync } from "../../../utils/defer-sync";
 import { uuid } from "../../../../shared/lib/utils";
 
 const debugLogger = debug("app:entries-db");
@@ -484,84 +485,93 @@ class EntriesDatabaseAccess {
 
   // ========== Query methods (mirror walker API) ==========
 
-  getAllAlbums(): AlbumWithData[] {
-    const rows = this.db.prepare(`
-      SELECT key, name, kind, count, shortcut, lastModified FROM albums ORDER BY key
-    `).all() as Array<{ key: string; name: string; kind?: string; count: number; shortcut: string | null; lastModified: string | null }>;
-    return rows.map((r) => ({
-      key: r.key,
-      name: r.name,
-      count: r.count,
-      shortcut: r.shortcut || undefined,
-      lastModified: r.lastModified || undefined,
-    }));
+  async getAllAlbums(): Promise<AlbumWithData[]> {
+    return deferSync(() => {
+      const rows = this.db.prepare(`
+        SELECT key, name, kind, count, shortcut, lastModified FROM albums ORDER BY key
+      `).all() as Array<{ key: string; name: string; kind?: string; count: number; shortcut: string | null; lastModified: string | null }>;
+      return rows.map((r) => ({
+        key: r.key,
+        name: r.name,
+        count: r.count,
+        shortcut: r.shortcut || undefined,
+        lastModified: r.lastModified || undefined,
+      }));
+    });
   }
 
-  getAlbum(albumKey: string): AlbumWithData | undefined {
-    const row = this.db.prepare(`
-      SELECT key, name, kind, count, shortcut, lastModified FROM albums WHERE key = ?
-    `).get(albumKey) as { key: string; name: string; kind?: string; count: number; shortcut: string | null; lastModified: string | null } | undefined;
-    if (!row) return undefined;
-    return {
-      key: row.key,
-      name: row.name,
-      count: row.count,
-      shortcut: row.shortcut || undefined,
-      lastModified: row.lastModified || undefined,
-    };
+  async getAlbum(albumKey: string): Promise<AlbumWithData | undefined> {
+    return deferSync(() => {
+      const row = this.db.prepare(`
+        SELECT key, name, kind, count, shortcut, lastModified FROM albums WHERE key = ?
+      `).get(albumKey) as { key: string; name: string; kind?: string; count: number; shortcut: string | null; lastModified: string | null } | undefined;
+      if (!row) return undefined;
+      return {
+        key: row.key,
+        name: row.name,
+        count: row.count,
+        shortcut: row.shortcut || undefined,
+        lastModified: row.lastModified || undefined,
+      };
+    });
   }
 
-  getAlbumEntries(album: Album): AlbumEntry[] {
-    const rows = this.db.prepare(`
-      SELECT entry_name FROM album_entries WHERE album_key = ? ORDER BY entry_name
-    `).all(album.key) as Array<{ entry_name: string }>;
-    return rows.map((r) => ({ album, name: r.entry_name }));
+  async getAlbumEntries(album: Album): Promise<AlbumEntry[]> {
+    return deferSync(() => {
+      const rows = this.db.prepare(`
+        SELECT entry_name FROM album_entries WHERE album_key = ? ORDER BY entry_name
+      `).all(album.key) as Array<{ entry_name: string }>;
+      return rows.map((r) => ({ album, name: r.entry_name }));
+    });
   }
 
-  getEntriesNeedingThumbnails(
+  async getEntriesNeedingThumbnails(
     sizes: ThumbnailSize[],
-  ): Array<{ album: Album; entry_name: string; size: ThumbnailSize }> {
-    const hasColumns = this.db
-      .prepare("PRAGMA table_info(album_entries)")
-      .all() as Array<{ name: string }>;
-    if (!hasColumns.some((c) => c.name === "filter_version")) {
-      return [];
-    }
-
-    const sizeToColumn: Record<ThumbnailSize, string> = {
-      "th-small": "thumb_filter_version_small",
-      "th-medium": "thumb_filter_version_medium",
-      "th-large": "thumb_filter_version_large",
-    };
-
-    const results: Array<{ album: Album; entry_name: string; size: ThumbnailSize }> = [];
-    const albums = this.getAllAlbums();
-
-    for (const size of sizes) {
-      const col = sizeToColumn[size];
-      const rows = this.db
-        .prepare(
-          `SELECT ae.album_key, a.name AS album_name, ae.entry_name
-           FROM album_entries ae
-           JOIN albums a ON ae.album_key = a.key
-           WHERE ae.${col} < ae.filter_version OR ae.${col} = -1`,
-        )
-        .all() as Array<{ album_key: string; album_name: string; entry_name: string }>;
-
-      for (const r of rows) {
-        const album = albums.find((a) => a.key === r.album_key) ?? {
-          key: r.album_key,
-          name: r.album_name,
-          count: 0,
-        };
-        results.push({ album, entry_name: r.entry_name, size });
+  ): Promise<Array<{ album: Album; entry_name: string; size: ThumbnailSize }>> {
+    return deferSync(async () => {
+      const hasColumns = this.db
+        .prepare("PRAGMA table_info(album_entries)")
+        .all() as Array<{ name: string }>;
+      if (!hasColumns.some((c) => c.name === "filter_version")) {
+        return [];
       }
-    }
-    return results;
+
+      const sizeToColumn: Record<ThumbnailSize, string> = {
+        "th-small": "thumb_filter_version_small",
+        "th-medium": "thumb_filter_version_medium",
+        "th-large": "thumb_filter_version_large",
+      };
+
+      const results: Array<{ album: Album; entry_name: string; size: ThumbnailSize }> = [];
+      const albums = await this.getAllAlbums();
+
+      for (const size of sizes) {
+        const col = sizeToColumn[size];
+        const rows = this.db
+          .prepare(
+            `SELECT ae.album_key, a.name AS album_name, ae.entry_name
+             FROM album_entries ae
+             JOIN albums a ON ae.album_key = a.key
+             WHERE ae.${col} < ae.filter_version OR ae.${col} = -1`,
+          )
+          .all() as Array<{ album_key: string; album_name: string; entry_name: string }>;
+
+        for (const r of rows) {
+          const album = albums.find((a) => a.key === r.album_key) ?? {
+            key: r.album_key,
+            name: r.album_name,
+            count: 0,
+          };
+          results.push({ album, entry_name: r.entry_name, size });
+        }
+      }
+      return results;
+    });
   }
 
-  getEntryMetadata(entry: AlbumEntry): AlbumEntryMetaData {
-    const row = this.db.prepare(`
+  async getEntryMetadata(entry: AlbumEntry): Promise<AlbumEntryMetaData> {
+    return deferSync(() => {
+      const row = this.db.prepare(`
       SELECT date_taken, photostar, star, star_count, caption, text,
         dimensions, dimensions_from_filter, rank, rotate, faces, filters, persons, extra_fields,
         filter_version, thumb_filter_version_small, thumb_filter_version_medium, thumb_filter_version_large
@@ -605,25 +615,31 @@ class EntriesDatabaseAccess {
       }
     }
     return metadata;
+    });
   }
 
-  getShortcuts(): Shortcut[] {
-    const rows = this.db.prepare(`
-      SELECT key, name, kind, shortcut FROM albums WHERE shortcut IS NOT NULL AND shortcut != ''
-    `).all() as Array<{ key: string; name: string; kind?: string; shortcut: string }>;
-    return rows.map((r) => ({
-      shortcut: r.shortcut,
-      album: { key: r.key, name: r.name },
-    }));
+  async getShortcuts(): Promise<Shortcut[]> {
+    return deferSync(() => {
+      const rows = this.db.prepare(`
+        SELECT key, name, kind, shortcut FROM albums WHERE shortcut IS NOT NULL AND shortcut != ''
+      `).all() as Array<{ key: string; name: string; kind?: string; shortcut: string }>;
+      return rows.map((r) => ({
+        shortcut: r.shortcut,
+        album: { key: r.key, name: r.name },
+      }));
+    });
   }
 
-  getAlbumShortcut(albumKey: string): string | undefined {
-    const row = this.db.prepare(`SELECT shortcut FROM albums WHERE key = ?`).get(albumKey) as { shortcut: string | null } | undefined;
-    return row?.shortcut || undefined;
+  async getAlbumShortcut(albumKey: string): Promise<string | undefined> {
+    return deferSync(() => {
+      const row = this.db.prepare(`SELECT shortcut FROM albums WHERE key = ?`).get(albumKey) as { shortcut: string | null } | undefined;
+      return row?.shortcut || undefined;
+    });
   }
 
-  getAlbumMetaData(album: Album): AlbumMetaData {
-    const rows = this.db.prepare(`
+  async getAlbumMetaData(album: Album): Promise<AlbumMetaData> {
+    return deferSync(() => {
+      const rows = this.db.prepare(`
       SELECT entry_name, date_taken, photostar, star, star_count, caption, text,
         dimensions, dimensions_from_filter, rank, rotate, faces, filters, persons, extra_fields
       FROM album_entries WHERE album_key = ? ORDER BY entry_name
@@ -664,26 +680,32 @@ class EntriesDatabaseAccess {
       metadata[row.entry_name] = entryMetadata;
     }
     return metadata;
+    });
   }
 
   // ========== Write methods ==========
 
-  upsertAlbum(album: AlbumWithData): void {
-    if (!this.isWriter) throw new Error("upsertAlbum requires READWRITE");
-    this.db.prepare(`
-      INSERT OR REPLACE INTO albums (key, name, kind, count, shortcut, lastModified, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `).run(album.key, album.name, "folder", album.count, album.shortcut || null, album.lastModified || null);
+  async upsertAlbum(album: AlbumWithData): Promise<void> {
+    return deferSync(() => {
+      if (!this.isWriter) throw new Error("upsertAlbum requires READWRITE");
+      this.db.prepare(`
+        INSERT OR REPLACE INTO albums (key, name, kind, count, shortcut, lastModified, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `).run(album.key, album.name, "folder", album.count, album.shortcut || null, album.lastModified || null);
+    });
   }
 
-  deleteAlbum(albumKey: string): void {
-    if (!this.isWriter) throw new Error("deleteAlbum requires READWRITE");
-    this.db.prepare(`DELETE FROM albums WHERE key = ?`).run(albumKey);
+  async deleteAlbum(albumKey: string): Promise<void> {
+    return deferSync(() => {
+      if (!this.isWriter) throw new Error("deleteAlbum requires READWRITE");
+      this.db.prepare(`DELETE FROM albums WHERE key = ?`).run(albumKey);
+    });
   }
 
-  upsertEntry(entry: AlbumEntry, fileStats?: { mtime: string; size: number }): void {
-    if (!this.isWriter) throw new Error("upsertEntry requires READWRITE");
-    const existing = this.db.prepare(`
+  async upsertEntry(entry: AlbumEntry, fileStats?: { mtime: string; size: number }): Promise<void> {
+    return deferSync(() => {
+      if (!this.isWriter) throw new Error("upsertEntry requires READWRITE");
+      const existing = this.db.prepare(`
       SELECT entry_id FROM album_entries WHERE album_key = ? AND entry_name = ?
     `).get(entry.album.key, entry.name) as { entry_id: string } | undefined;
 
@@ -705,76 +727,90 @@ class EntriesDatabaseAccess {
         ) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
       `).run(entryId, entry.album.key, entry.name);
     }
+    });
   }
 
-  getEntryFileStats(entry: AlbumEntry): { mtime: string; size: number } | null {
-    const hasFileStats = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
-    if (!hasFileStats.some((c) => c.name === "file_mtime")) return null;
+  async getEntryFileStats(entry: AlbumEntry): Promise<{ mtime: string; size: number } | null> {
+    return deferSync(() => {
+      const hasFileStats = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
+      if (!hasFileStats.some((c) => c.name === "file_mtime")) return null;
 
-    const row = this.db.prepare(`
-      SELECT file_mtime, file_size FROM album_entries WHERE album_key = ? AND entry_name = ?
-    `).get(entry.album.key ?? "", entry.name) as { file_mtime: string | null; file_size: number | null } | undefined;
-    if (!row || row.file_mtime == null || row.file_size == null) return null;
-    return { mtime: row.file_mtime, size: row.file_size };
+      const row = this.db.prepare(`
+        SELECT file_mtime, file_size FROM album_entries WHERE album_key = ? AND entry_name = ?
+      `).get(entry.album.key ?? "", entry.name) as { file_mtime: string | null; file_size: number | null } | undefined;
+      if (!row || row.file_mtime == null || row.file_size == null) return null;
+      return { mtime: row.file_mtime, size: row.file_size };
+    });
   }
 
-  updateEntryFileStats(entry: AlbumEntry, mtime: string, size: number): void {
-    if (!this.isWriter) throw new Error("updateEntryFileStats requires READWRITE");
-    const hasFileStats = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
-    if (!hasFileStats.some((c) => c.name === "file_mtime")) return;
+  async updateEntryFileStats(entry: AlbumEntry, mtime: string, size: number): Promise<void> {
+    return deferSync(() => {
+      if (!this.isWriter) throw new Error("updateEntryFileStats requires READWRITE");
+      const hasFileStats = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
+      if (!hasFileStats.some((c) => c.name === "file_mtime")) return;
 
-    this.db.prepare(`
-      UPDATE album_entries SET file_mtime = ?, file_size = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE album_key = ? AND entry_name = ?
-    `).run(mtime, size, entry.album.key ?? "", entry.name);
+      this.db.prepare(`
+        UPDATE album_entries SET file_mtime = ?, file_size = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE album_key = ? AND entry_name = ?
+      `).run(mtime, size, entry.album.key ?? "", entry.name);
+    });
   }
 
-  updateEntryLocation(entryId: string, albumKey: string, entryName: string): void {
-    if (!this.isWriter) throw new Error("updateEntryLocation requires READWRITE");
-    this.db.prepare(`
-      UPDATE album_entries SET album_key = ?, entry_name = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE entry_id = ?
-    `).run(albumKey, entryName, entryId);
+  async updateEntryLocation(entryId: string, albumKey: string, entryName: string): Promise<void> {
+    return deferSync(() => {
+      if (!this.isWriter) throw new Error("updateEntryLocation requires READWRITE");
+      this.db.prepare(`
+        UPDATE album_entries SET album_key = ?, entry_name = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE entry_id = ?
+      `).run(albumKey, entryName, entryId);
+    });
   }
 
-  deleteEntry(entry: AlbumEntry): void {
-    if (!this.isWriter) throw new Error("deleteEntry requires READWRITE");
-    this.db.prepare(`DELETE FROM album_entries WHERE album_key = ? AND entry_name = ?`).run(entry.album.key, entry.name);
+  async deleteEntry(entry: AlbumEntry): Promise<void> {
+    return deferSync(() => {
+      if (!this.isWriter) throw new Error("deleteEntry requires READWRITE");
+      this.db.prepare(`DELETE FROM album_entries WHERE album_key = ? AND entry_name = ?`).run(entry.album.key, entry.name);
+    });
   }
 
-  updateAlbumShortcut(albumKey: string, shortcut: string | null): void {
-    if (!this.isWriter) throw new Error("updateAlbumShortcut requires READWRITE");
-    if (shortcut) {
-      this.db.prepare(`UPDATE albums SET shortcut = NULL, updated_at = CURRENT_TIMESTAMP WHERE shortcut = ? AND key != ?`).run(shortcut, albumKey);
-    }
-    this.db.prepare(`UPDATE albums SET shortcut = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?`).run(shortcut, albumKey);
+  async updateAlbumShortcut(albumKey: string, shortcut: string | null): Promise<void> {
+    return deferSync(() => {
+      if (!this.isWriter) throw new Error("updateAlbumShortcut requires READWRITE");
+      if (shortcut) {
+        this.db.prepare(`UPDATE albums SET shortcut = NULL, updated_at = CURRENT_TIMESTAMP WHERE shortcut = ? AND key != ?`).run(shortcut, albumKey);
+      }
+      this.db.prepare(`UPDATE albums SET shortcut = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?`).run(shortcut, albumKey);
+    });
   }
 
-  updateThumbFilterVersion(
+  async updateThumbFilterVersion(
     entry: AlbumEntry,
     size: ThumbnailSize,
     filterVersion: number,
-  ): void {
-    if (!this.isWriter) throw new Error("updateThumbFilterVersion requires READWRITE");
-    const column =
-      size === "th-small"
-        ? "thumb_filter_version_small"
-        : size === "th-medium"
-          ? "thumb_filter_version_medium"
-          : "thumb_filter_version_large";
-    this.db
-      .prepare(
-        `UPDATE album_entries SET ${column} = ?, updated_at = CURRENT_TIMESTAMP WHERE album_key = ? AND entry_name = ?`,
-      )
-      .run(filterVersion, entry.album.key ?? "", entry.name ?? "");
+  ): Promise<void> {
+    return deferSync(() => {
+      if (!this.isWriter) throw new Error("updateThumbFilterVersion requires READWRITE");
+      const column =
+        size === "th-small"
+          ? "thumb_filter_version_small"
+          : size === "th-medium"
+            ? "thumb_filter_version_medium"
+            : "thumb_filter_version_large";
+      this.db
+        .prepare(
+          `UPDATE album_entries SET ${column} = ?, updated_at = CURRENT_TIMESTAMP WHERE album_key = ? AND entry_name = ?`,
+        )
+        .run(filterVersion, entry.album.key ?? "", entry.name ?? "");
+    });
   }
 
-  updateEntryMetadata(
+  async updateEntryMetadata(
     entry: AlbumEntry,
     metadata: AlbumEntryMetaData,
     options?: { incrementFilterVersion?: boolean },
-  ): void {
-    if (!this.isWriter) throw new Error("updateEntryMetadata requires READWRITE");
+  ): Promise<void> {
+    return deferSync(() => {
+      if (!this.isWriter) throw new Error("updateEntryMetadata requires READWRITE");
     const standardFields = new Set([
       "dateTaken", "photostar", "star", "starCount", "caption", "text",
       "dimensions", "dimensionsFromFilter", "rank", "rotate", "faces", "filters", "persons",
@@ -805,6 +841,7 @@ class EntriesDatabaseAccess {
       metadata.rotate || null, metadata.faces || null, metadata.filters || null,
       metadata.persons || null, extraFieldsJson, entry.album.key ?? "", entry.name ?? ""
     );
+    });
   }
 }
 

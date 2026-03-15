@@ -1,90 +1,218 @@
 import debug from "debug";
-import { PriorityQueue } from "../../shared/lib/queue";
+import { sleep } from "../../shared/lib/utils";
+import {
+  initQueueDatabase,
+  clearQueueDatabase,
+  addToQueueBatch,
+  pickFromQueue,
+  getQueueStats,
+  getQueuePendingByType,
+} from "./queue-database";
+import { hasInteractiveRequestsInFlight } from "./busy";
 import { JOB_PRIORITY, type JobType } from "../services/extraction/job-types";
 
 const GLOBAL_QUEUE_CONCURRENCY = 10;
+const BATCH_FLUSH_DELAY_MS = 3;
 const debugLogger = debug("app:global-queue");
 
-/** Reverse map: priority -> job type name(s) for logging. Multiple types can share a priority. */
-const PRIORITY_TO_JOB_TYPE: Record<number, string> = {};
-for (const [type, prio] of Object.entries(JOB_PRIORITY) as [JobType, number][]) {
-  const existing = PRIORITY_TO_JOB_TYPE[prio];
-  PRIORITY_TO_JOB_TYPE[prio] = existing ? `${existing},${type}` : type;
+type Task = () => Promise<unknown> | unknown;
+type PendingJob = { id: number; priority: number; jobType: JobType };
+
+let pendingBatch: PendingJob[] = [];
+let flushScheduled = false;
+type QueueItem = { task: Task; resolve: (v: unknown) => void; reject: (e: unknown) => void };
+
+let taskMap: Map<number, QueueItem> | null = null;
+let nextId = 1;
+let activeCount = 0;
+let doneCount = 0;
+let extractionStatsCallback: ((stats: { pending: number; active: number; done: number }) => void) | null = null;
+let drainResolve: (() => void) | null = null;
+let workerRunning = false;
+
+function notifyStats(): void {
+  if (extractionStatsCallback) {
+    void getQueueStats().then((dbStats) => {
+      extractionStatsCallback?.({
+        pending: dbStats.pending,
+        active: activeCount,
+        done: doneCount,
+      });
+    });
+  }
+  if (drainResolve) {
+    void getQueueStats().then((dbStats) => {
+      if (
+        dbStats.pending === 0 &&
+        activeCount === 0 &&
+        pendingBatch.length === 0
+      ) {
+        drainResolve?.();
+        drainResolve = null;
+      }
+    });
+  }
 }
 
-let globalQueue: PriorityQueue | null = null;
-let extractionStatsCallback: ((stats: { pending: number; active: number; done: number }) => void) | null = null;
+async function flushPending(): Promise<void> {
+  if (pendingBatch.length === 0) return;
+  const batch = pendingBatch;
+  pendingBatch = [];
+  await addToQueueBatch(
+    batch.map(({ id, priority, jobType }) => ({ id, priority, jobType }))
+  );
+  await sleep(BATCH_FLUSH_DELAY_MS / 1000);
+  notifyStats();
+}
+
+function scheduleFlush(): void {
+  if (flushScheduled) return;
+  flushScheduled = true;
+  setImmediate(async () => {
+    flushScheduled = false;
+    await flushPending();
+  });
+}
+
+async function runWorker(): Promise<void> {
+  while (true) {
+    while (hasInteractiveRequestsInFlight()) {
+      await sleep(50);
+    }
+    const id = await pickFromQueue();
+    if (id === null) {
+      notifyStats();
+      await new Promise((r) => setTimeout(r, 50));
+      continue;
+    }
+
+    const item = taskMap?.get(id);
+    taskMap?.delete(id);
+    if (!item) {
+      debugLogger("Task %d not found in map (may have been cleared)", id);
+      activeCount--;
+      notifyStats();
+      continue;
+    }
+
+    activeCount++;
+    notifyStats();
+
+    const byType = (await getQueuePendingByType()).reduce(
+      (acc, { job_type, count }) => {
+        acc[job_type] = count;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
+    const dbStats = await getQueueStats();
+    debugLogger(
+      "Starting job (id=%d), queue: pending=%d active=%d, pendingByType=%o",
+      id,
+      dbStats.pending,
+      activeCount,
+      byType
+    );
+
+    try {
+      const result = await Promise.resolve(item.task());
+      item.resolve(result);
+    } catch (e) {
+      item.reject(e);
+    } finally {
+      activeCount--;
+      doneCount++;
+      notifyStats();
+    }
+  }
+}
+
+function startWorkers(concurrency: number): void {
+  if (workerRunning) return;
+  workerRunning = true;
+  for (let i = 0; i < concurrency; i++) {
+    void runWorker();
+  }
+}
 
 export function initGlobalJobQueue(
   concurrency: number = GLOBAL_QUEUE_CONCURRENCY,
   onStats?: (stats: { pending: number; active: number; done: number }) => void
 ): void {
-  if (globalQueue) {
-    return;
-  }
-  globalQueue = new PriorityQueue(concurrency, 5); // default priority 5
+  if (taskMap !== null) return;
+
+  initQueueDatabase();
+  clearQueueDatabase();
+  taskMap = new Map();
+  nextId = 1;
+  activeCount = 0;
+  doneCount = 0;
   extractionStatsCallback = onStats ?? null;
-  globalQueue.event.on("changed", () => {
-    if (extractionStatsCallback && globalQueue) {
-      extractionStatsCallback(globalQueue.getStats());
-    }
-  });
+
+  startWorkers(concurrency);
+  debugLogger("Global job queue initialized (concurrency=%d, SQLite-backed)", concurrency);
 }
 
 export function addJob<T>(task: () => Promise<T> | T, jobType: JobType): Promise<T> {
-  if (!globalQueue) {
+  if (!taskMap) {
     throw new Error("Global job queue not initialized");
   }
   const priority = JOB_PRIORITY[jobType] ?? 5;
-  const wrappedTask = async () => {
-    const stats = getGlobalQueueStats();
-    const byPriority = globalQueue?.getPendingByPriority?.() ?? new Map<number, number>();
-    const byType: Record<string, number> = {};
-    for (const [p, count] of byPriority) {
-      const name = PRIORITY_TO_JOB_TYPE[p] ?? `priority${p}`;
-      byType[name] = count;
-    }
-    debugLogger(
-      "Starting job (type=%s), queue: pending=%d active=%d, pendingByType=%o",
-      jobType,
-      stats.pending,
-      stats.active,
-      byType
-    );
-    return Promise.resolve(task());
-  };
-  return globalQueue.add(wrappedTask, priority);
+  const id = nextId++;
+  const promise = new Promise<T>((resolve, reject) => {
+    taskMap!.set(id, {
+      task: task as Task,
+      resolve: resolve as (v: unknown) => void,
+      reject,
+    });
+  });
+  pendingBatch.push({ id, priority, jobType });
+  scheduleFlush();
+  return promise;
 }
 
-export function getGlobalQueueStats(): { pending: number; active: number; done: number } {
-  if (!globalQueue) {
-    return { pending: 0, active: 0, done: 0 };
-  }
-  return globalQueue.getStats();
-}
-
-/** Pending items by priority for stats UI. Each entry: { priority, count, types } */
-export function getGlobalQueuePendingByPriority(): Array<{
-  priority: number;
-  count: number;
-  types: string;
+export async function getGlobalQueueStats(): Promise<{
+  pending: number;
+  active: number;
+  done: number;
 }> {
-  if (!globalQueue) {
-    return [];
+  const dbStats = await getQueueStats();
+  return {
+    pending: dbStats.pending + pendingBatch.length,
+    active: activeCount,
+    done: doneCount,
+  };
+}
+
+/** Pending items by job type for stats UI. */
+export async function getGlobalQueuePendingByPriority(): Promise<
+  Array<{ priority: number; count: number; types: string }>
+> {
+  const byType = await getQueuePendingByType();
+  const priorityMap: Record<number, number> = {};
+  for (const { job_type, count } of byType) {
+    const prio = JOB_PRIORITY[job_type as JobType] ?? 5;
+    priorityMap[prio] = (priorityMap[prio] ?? 0) + count;
   }
-  const byPriority = globalQueue.getPendingByPriority();
-  return [...byPriority.entries()]
-    .sort((a, b) => a[0] - b[0])
+  return Object.entries(priorityMap)
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
     .map(([priority, count]) => ({
-      priority,
+      priority: Number(priority),
       count,
-      types: PRIORITY_TO_JOB_TYPE[priority] ?? `priority${priority}`,
+      types: Object.entries(JOB_PRIORITY)
+        .filter(([, p]) => p === Number(priority))
+        .map(([t]) => t)
+        .join(",") || `priority${priority}`,
     }));
 }
 
-export function drainGlobalQueue(): Promise<void> {
-  if (!globalQueue) {
-    return Promise.resolve();
+export async function drainGlobalQueue(): Promise<void> {
+  await flushPending();
+  const dbStats = await getQueueStats();
+  if (dbStats.pending === 0 && activeCount === 0) {
+    return;
   }
-  return globalQueue.drain();
+  return new Promise((resolve) => {
+    drainResolve = resolve;
+  });
 }

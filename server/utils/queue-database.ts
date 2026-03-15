@@ -1,0 +1,104 @@
+/**
+ * SQLite-backed job queue. Cleared and repopulated on server startup.
+ * Stores job ordering (priority, job_type); tasks are held in memory (Map) since they are functions.
+ * All DB operations are deferred via setImmediate to avoid blocking the event loop.
+ */
+import { Database } from "bun:sqlite";
+import { join } from "path";
+import { imagesRoot } from "./constants";
+import debug from "debug";
+import { deferSync } from "./defer-sync";
+
+const debugLogger = debug("app:queue-db");
+
+const QUEUE_DB_PATH = join(imagesRoot, "picisa_queue.db");
+
+let db: Database | null = null;
+
+export function initQueueDatabase(): void {
+  if (db) return;
+  db = new Database(QUEUE_DB_PATH);
+  db.run("PRAGMA journal_mode=WAL");
+  db.run(`
+    CREATE TABLE IF NOT EXISTS queue (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      priority INTEGER NOT NULL,
+      job_type TEXT NOT NULL,
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    )
+  `);
+  db.run("CREATE INDEX IF NOT EXISTS idx_queue_pick ON queue(priority, created_at)");
+  debugLogger("Queue database initialized at %s", QUEUE_DB_PATH);
+}
+
+export function clearQueueDatabase(): void {
+  if (!db) return;
+  db.run("DELETE FROM queue");
+  debugLogger("Queue database cleared");
+}
+
+/** Batch insert jobs in a single transaction. Deferred to next tick. */
+export function addToQueueBatch(
+  items: Array<{ id: number; priority: number; jobType: string }>
+): Promise<void> {
+  if (!db) throw new Error("Queue database not initialized");
+  if (items.length === 0) return Promise.resolve();
+  return deferSync(() => {
+    const insert = db!.prepare(
+      "INSERT INTO queue (id, priority, job_type) VALUES (?, ?, ?)"
+    );
+    const batch = db!.transaction((rows: typeof items) => {
+      for (const { id, priority, jobType } of rows) {
+        insert.run(id, priority, jobType);
+      }
+    });
+    batch(items);
+  });
+}
+
+/** Atomically pick and remove the next job. Returns id or null if empty. */
+export function pickFromQueue(): Promise<number | null> {
+  if (!db) return Promise.resolve(null);
+  return deferSync(() => {
+    const pick = db!.transaction(() => {
+      const row = db!
+        .prepare(
+          "SELECT id FROM queue ORDER BY priority ASC, created_at ASC LIMIT 1"
+        )
+        .get() as { id: number } | undefined;
+      if (!row) return null;
+      db!.prepare("DELETE FROM queue WHERE id = ?").run(row.id);
+      return row.id;
+    });
+    return pick();
+  });
+}
+
+export function getQueueStats(): Promise<{ pending: number }> {
+  if (!db) return Promise.resolve({ pending: 0 });
+  return deferSync(() => {
+    const row = db!.prepare("SELECT COUNT(*) as count FROM queue").get() as { count: number };
+    return { pending: row?.count ?? 0 };
+  });
+}
+
+/** Pending count per job type for stats. */
+export function getQueuePendingByType(): Promise<Array<{ job_type: string; count: number }>> {
+  if (!db) return Promise.resolve([]);
+  return deferSync(() => {
+    const rows = db!
+      .prepare(
+        "SELECT job_type, COUNT(*) as count FROM queue GROUP BY job_type ORDER BY job_type"
+      )
+      .all() as Array<{ job_type: string; count: number }>;
+    return rows;
+  });
+}
+
+export function closeQueueDatabase(): void {
+  if (db) {
+    db.close();
+    db = null;
+    debugLogger("Queue database closed");
+  }
+}

@@ -17,14 +17,14 @@ function generateContactId(name: string): string {
 /**
  * Calculate contact counts by scanning all album entries
  */
-function calculateContactCounts(): Map<string, { id: string; count: number }> {
+async function calculateContactCounts(): Promise<Map<string, { id: string; count: number }>> {
   const contactData = new Map<string, { id: string; count: number }>();
-  const albums = getAllAlbums();
+  const albums = await getAllAlbums();
 
   for (const album of albums) {
-    const entries = getAlbumEntries(album);
+    const entries = await getAlbumEntries(album);
     for (const entry of entries) {
-      const contactNames = readPersons(entry);
+      const contactNames = await readPersons(entry);
       for (const contactName of contactNames) {
         if (contactName) {
           const id = generateContactId(contactName);
@@ -44,7 +44,7 @@ function calculateContactCounts(): Map<string, { id: string; count: number }> {
 export async function buildPersonsList() {
   // Listen to album changes to emit person image list change events
   const onAlbumAddedOrUpdated = async (album: Album) => {
-    const contactData = calculateContactCounts();
+    const contactData = await calculateContactCounts();
     const contactsList: Contact[] = Array.from(contactData.entries()).map(([name, data]) => ({
       id: data.id,
       originalName: name,

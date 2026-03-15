@@ -39,7 +39,7 @@ const ALLOW_EMPTY_ALBUM_CREATED_SINCE = 1000 * 60 * 60; // one hour
  * Returns true if the album should be re-processed, false if it's up to date
  */
 async function isDBAlbumStale(album: Album): Promise<boolean> {
-  const existing = getAlbum(album.key);
+        const existing = await getAlbum(album.key);
   if (!existing || !existing.lastModified) {
     // Album doesn't exist in DB or has no lastModified, consider it stale
     return true;
@@ -90,7 +90,7 @@ async function addOrRefreshOrDeleteAlbum(
   }
 
   try {
-    const existing = getAlbum(album.key);
+        const existing = await getAlbum(album.key);
 
     if (!added && !(await folderAlbumExists(album))) {
       if (existing) {
@@ -98,7 +98,7 @@ async function addOrRefreshOrDeleteAlbum(
         // Emit server event
         events.emit("albumRemoved", album);
         const db = getWalkerDatabase();
-        db.deleteAlbum(album.key);
+        await db.deleteAlbum(album.key);
       }
     } else {
       // Get folder mtime for lastModified
@@ -129,7 +129,7 @@ async function addOrRefreshOrDeleteAlbum(
         // Emit through ServerEvents (will be forwarded to all workers)
         events.emit("albumAdded", updated);
         const db = getWalkerDatabase();
-        db.upsertAlbum(updated);
+        await db.upsertAlbum(updated);
       } else {
         if (options !== "SkipCheckInfo") {
           const [count, shortcut] = await Promise.all([
@@ -151,7 +151,7 @@ async function addOrRefreshOrDeleteAlbum(
             // Emit server event
             events.emit("albumUpdated", updated);
             const db = getWalkerDatabase();
-            db.upsertAlbum(updated);
+            await db.upsertAlbum(updated);
           }
         }
       }
@@ -235,7 +235,7 @@ async function reindexAlbumsFromList(albums: Album[], options?: ReindexOptions):
         }
 
         // Update album count
-        const existing = getAlbum(album.key);
+        const existing = await getAlbum(album.key);
         if (existing) {
           const updatedAlbum: AlbumWithData = {
             ...existing,
@@ -243,7 +243,7 @@ async function reindexAlbumsFromList(albums: Album[], options?: ReindexOptions):
             lastModified: folderMtime,
           };
           const db = getWalkerDatabase();
-          db.upsertAlbum(updatedAlbum);
+          await db.upsertAlbum(updatedAlbum);
           events.emit("albumUpdated", updatedAlbum);
         } else {
           // Album doesn't exist in DB, add it
@@ -258,7 +258,7 @@ async function reindexAlbumsFromList(albums: Album[], options?: ReindexOptions):
             lastModified: folderMtime,
           };
           const db = getWalkerDatabase();
-          db.upsertAlbum(newAlbum);
+          await db.upsertAlbum(newAlbum);
           events.emit("albumAdded", newAlbum);
         }
 
@@ -279,14 +279,14 @@ async function reindexAlbumsFromList(albums: Album[], options?: ReindexOptions):
           if (!existingEntryNames.has(entry.name)) {
             if (!skipEntryEvents) events.emit("albumEntryAdded", entry);
             const db = getWalkerDatabase();
-            db.upsertEntry(entry, fileStats);
+            await db.upsertEntry(entry, fileStats);
           } else if (fileStats) {
             const db = getWalkerDatabase();
             const cached = db.getEntryFileStats(entry);
             if (!cached || cached.mtime !== fileStats.mtime || cached.size !== fileStats.size) {
               debugLogger(`File changed: ${entry.name} (mtime/size differ from cache)`);
               if (!skipEntryEvents) events.emit("albumEntryFileChanged", entry);
-              db.updateEntryFileStats(entry, fileStats.mtime, fileStats.size);
+              await db.updateEntryFileStats(entry, fileStats.mtime, fileStats.size);
             }
           }
         }
@@ -337,7 +337,7 @@ export async function walkFilesystem(): Promise<void> {
   });
 
   console.info("Filesystem scan: initial walk");
-  const oldAlbums = getAllAlbums();
+  const oldAlbums = await getAllAlbums();
   const foundKeys = new Set<string>();
 
   addJob(
@@ -368,12 +368,9 @@ export async function walkFilesystem(): Promise<void> {
 }
 
 export async function refreshAlbumKeys(albums: string[]) {
-  await Promise.all(
-    albums
-      .map((key) => getAlbum(key))
-      .filter((album): album is AlbumWithData => album !== undefined)
-      .map((album) => addOrRefreshOrDeleteAlbum(album))
-  );
+  const albumResults = await Promise.all(albums.map((key) => getAlbum(key)));
+  const validAlbums = albumResults.filter((album): album is AlbumWithData => album !== undefined);
+  await Promise.all(validAlbums.map((album) => addOrRefreshOrDeleteAlbum(album)));
 }
 
 export async function refreshAlbums(albums: AlbumWithData[]) {
@@ -382,11 +379,11 @@ export async function refreshAlbums(albums: AlbumWithData[]) {
 
 export async function onRenamedAlbums(from: Album, to: Album) {
   try {
-    const old = getAlbum(from.key);
+    const old = await getAlbum(from.key);
     if (old) {
       const updated: AlbumWithData = { ...old, ...to };
       const db = getWalkerDatabase();
-      db.upsertAlbum(updated);
+      await db.upsertAlbum(updated);
       queueNotification({
         type: "albumRenamed",
         altAlbum: old,
@@ -404,8 +401,8 @@ export async function onRenamedAlbums(from: Album, to: Album) {
  */
 export async function reindexAlbums(albumIds: string[]): Promise<void> {
   try {
-    const albums = albumIds
-      .map((key) => getAlbum(key))
+    const albumResults = await Promise.all(albumIds.map((key) => getAlbum(key)));
+    const albums = albumResults
       .filter((album): album is AlbumWithData => album !== undefined)
       .map(album => ({ key: album.key, name: album.name }));
 

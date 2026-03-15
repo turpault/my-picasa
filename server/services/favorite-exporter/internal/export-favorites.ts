@@ -39,13 +39,13 @@ async function removeFromFavorites(entry: AlbumEntry): Promise<void> {
 
 async function exportAllMissing(): Promise<void> {
   await mkdir(favoritesFolder, { recursive: true });
-  const albums = getAllAlbums();
+  const albums = await getAllAlbums();
   const q = new Queue(10);
   for (const album of albums) {
     q.add(async () => {
-      const entries = getAlbumEntries(album);
+      const entries = await getAlbumEntries(album);
       for (const entry of entries) {
-        const withMetadata = getEntryMetadata(entry);
+        const withMetadata = await getEntryMetadata(entry);
         if (!withMetadata.star) continue;
         q.add(async () => {
           await exportStarredEntry(entry);

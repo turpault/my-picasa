@@ -18,14 +18,14 @@ function generatePersonId(name: string): string {
 /**
  * Calculate person counts by scanning all album entries
  */
-function calculatePersonCounts(): Map<string, { id: string; count: number }> {
+async function calculatePersonCounts(): Promise<Map<string, { id: string; count: number }>> {
   const personData = new Map<string, { id: string; count: number }>();
-  const albums = getAllAlbums();
+  const albums = await getAllAlbums();
 
   for (const album of albums) {
-    const entries = getAlbumEntries(album);
+    const entries = await getAlbumEntries(album);
     for (const entry of entries) {
-      const persons = readPersons(entry);
+      const persons = await readPersons(entry);
       for (const personName of persons) {
         if (personName) {
           const id = generatePersonId(personName);
@@ -45,7 +45,7 @@ function calculatePersonCounts(): Map<string, { id: string; count: number }> {
 export async function buildPersonsList() {
   // Listen to album changes to emit person image list change events
   const onAlbumAddedOrUpdated = async (album: Album) => {
-    const personData = calculatePersonCounts();
+    const personData = await calculatePersonCounts();
     const personsList: Person[] = Array.from(personData.entries()).map(([name, data]) => ({
       id: data.id,
       name,

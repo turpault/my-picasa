@@ -25,7 +25,7 @@ export async function getPicasaIdentifiedReferences(
 ): Promise<IdentifiedContact[]> {
   const contacts = await getContactsFromAlbum(entry.album);
   const db = getWalkerDatabase();
-  const entryMeta = db.getEntryMetadata(entry);
+  const entryMeta = await db.getEntryMetadata(entry);
   const iniFaces = entryMeta.faces;
   if (iniFaces) {
     const facesInEntry = decodeFaces(iniFaces);

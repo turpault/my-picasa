@@ -39,7 +39,7 @@ export async function media(
     return { entries };
   }
   // Use walker service queries when no filters (direct album entries)
-  const entries = getWalkerAlbumEntries(album);
+  const entries = await getWalkerAlbumEntries(album);
 
   await sortAssetsByRank(entries);
   await assignRanks(entries);
@@ -47,10 +47,10 @@ export async function media(
 }
 
 async function sortAssetsByRank(entries: AlbumEntry[]) {
-  entries.forEach((entry) => {
-    const meta = getEntryMetadata(entry);
+  for (const entry of entries) {
+    const meta = await getEntryMetadata(entry);
     Object.assign(entry, { rank: meta.rank });
-  });
+  }
 
   sortByKey(entries as (AlbumEntry & { rank: any })[], ["rank"], ["numeric"]);
 }
@@ -64,7 +64,7 @@ async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {
   let rank = 0;
   for (const entry of filesInFolder) {
     if (isPicture(entry) || isVideo(entry)) {
-      let current = getEntryMetadata(entry).rank || "0";
+      let current = (await getEntryMetadata(entry)).rank || "0";
       if (rank !== parseInt(current)) {
         await mutations.updateEntryMetadata(entry, "rank", rank);
       }
@@ -82,7 +82,7 @@ export async function getAlbums(filters?: Filters): Promise<AlbumWithData[]> {
     const matchedAlbums = await searchFoldersByFilters(filters);
 
     // Complete with shortcuts
-    const shortcuts = getShortcuts();
+    const shortcuts = await getShortcuts();
     for (const album of matchedAlbums) {
       const shortcut = shortcuts.find((s) => s.album.key === album.key);
       if (shortcut) {
@@ -93,14 +93,14 @@ export async function getAlbums(filters?: Filters): Promise<AlbumWithData[]> {
   }
   // Wait for walker to finish first scan so albums table is populated
   await getWalkerReadyPromise();
-  return getAllAlbums();
+  return await getAllAlbums();
 }
 
 /**
  * Get folder album data by key
  */
-export function getFolderAlbumData(key: string): AlbumWithData {
-  const album = getAlbum(key);
+export async function getFolderAlbumData(key: string): Promise<AlbumWithData> {
+  const album = await getAlbum(key);
   if (!album) {
     throw new Error(`Album ${key} not found`);
   }
@@ -110,7 +110,7 @@ export function getFolderAlbumData(key: string): AlbumWithData {
 /**
  * Get album entries from the walker database
  */
-export function getAlbumEntries(album: Album): AlbumEntry[] {
+export async function getAlbumEntries(album: Album): Promise<AlbumEntry[]> {
   return getWalkerAlbumEntries(album);
 }
 

@@ -101,7 +101,7 @@ export async function updateThumbFilterVersion(
   filterVersion: number,
 ): Promise<void> {
   const db = (await import("../../services/entries/internal/database")).getEntriesDatabase();
-  db.updateThumbFilterVersion(entry, size, filterVersion);
+  await db.updateThumbFilterVersion(entry, size, filterVersion);
 }
 
 export async function copyThumbnails(
@@ -149,19 +149,8 @@ export async function shouldMakeThumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize,
   animated: boolean,
+  options?: { assumeExistingIsFresh?: boolean },
 ): Promise<boolean> {
-  const metadata = getEntryMetadata(entry);
-  const sourceStat = await stat(
-    join(imagesRoot, entryRelativePath(entry)),
-  ).catch((): undefined => undefined);
-
-  if (!sourceStat) {
-    return false;
-  }
-
-  const filterVersion = metadata.filterVersion ?? 0;
-  const thumbFilterVersion = getThumbFilterVersionForSize(metadata, size);
-
   const { fullPath } = thumbnailPathFromEntryAndSize(entry, size, animated);
   const thumbStats = await stat(fullPath).catch(() => undefined);
 
@@ -171,16 +160,34 @@ export async function shouldMakeThumbnail(
     );
     return true;
   }
-  if (thumbStats.mtime < sourceStat.mtime) {
-    debug(`Thumbnail for media ${entry.album.name}/${entry.name} is outdated`);
-    return true;
-  }
   if (thumbStats.size === 0) {
     debug(
       `Thumbnail for media ${entry.album.name}/${entry.name} has no size data`,
     );
     return true;
   }
+
+  /** On startup: if thumbnail exists and has content, assume up-to-date. */
+  if (options?.assumeExistingIsFresh) {
+    return false;
+  }
+
+  const metadata = getEntryMetadata(entry);
+  const sourceStat = await stat(
+    join(imagesRoot, entryRelativePath(entry)),
+  ).catch((): undefined => undefined);
+
+  if (!sourceStat) {
+    return false;
+  }
+
+  if (thumbStats.mtime < sourceStat.mtime) {
+    debug(`Thumbnail for media ${entry.album.name}/${entry.name} is outdated`);
+    return true;
+  }
+
+  const filterVersion = metadata.filterVersion ?? 0;
+  const thumbFilterVersion = getThumbFilterVersionForSize(metadata, size);
   if (thumbFilterVersion < filterVersion) {
     debug(
       `Thumbnail for media ${entry.album.name}/${entry.name} has stale filter version (${thumbFilterVersion} < ${filterVersion})`,

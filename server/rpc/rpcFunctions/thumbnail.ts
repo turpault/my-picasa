@@ -50,12 +50,13 @@ export async function makeThumbnailIfNeeded(
   entry: AlbumEntry,
   size: ThumbnailSize = "th-medium",
   animated: boolean = true,
+  options?: { assumeExistingIsFresh?: boolean },
 ) {
   try {
     if (isPicture(entry)) {
-      return await makeImageThumbnailIfNeeded(entry, size, animated);
+      return await makeImageThumbnailIfNeeded(entry, size, animated, options);
     } else {
-      return await makeVideoThumbnailIfNeeded(entry, size, animated);
+      return await makeVideoThumbnailIfNeeded(entry, size, animated, options);
     }
   } catch (e) {
     console.error(
@@ -103,10 +104,11 @@ async function makeImageThumbnailIfNeeded(
   entry: AlbumEntry,
   size: ThumbnailSize,
   animated: boolean,
+  options?: { assumeExistingIsFresh?: boolean },
 ) {
   inc("thumbnail");
   try {
-    if (await shouldMakeThumbnail(entry, size, animated)) {
+    if (await shouldMakeThumbnail(entry, size, animated, options)) {
       await makeImageThumbnail(entry, size, animated);
     }
   } finally {
@@ -156,6 +158,7 @@ async function makeVideoThumbnailIfNeeded(
   entry: AlbumEntry,
   size: ThumbnailSize,
   animated: boolean,
+  options?: { assumeExistingIsFresh?: boolean },
 ) {
   inc("thumbnail");
   const unlock = await lock(
@@ -168,7 +171,7 @@ async function makeVideoThumbnailIfNeeded(
     (animated ? " animated" : ""),
   );
   try {
-    if (await shouldMakeThumbnail(entry, size, animated)) {
+    if (await shouldMakeThumbnail(entry, size, animated, options)) {
       await makeVideoThumbnail(entry, size, animated);
     }
   } finally {

@@ -75,8 +75,8 @@ export async function populateAllReferences() {
     }, "FACE");
   }
   const t = setInterval(
-    () => {
-      const stats = getGlobalQueueStats();
+    async () => {
+      const stats = await getGlobalQueueStats();
       debug(`populateReferences: Remaining ${stats.pending + stats.active} albums to process.`);
     },
     2000,

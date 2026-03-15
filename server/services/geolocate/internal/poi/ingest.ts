@@ -41,7 +41,7 @@ async function ingestFiles(filesToIngest: string[]) {
     }
 
     // Check if file has been processed and if modification time matches
-    const processedRecord = getProcessedFileInfo(file);
+    const processedRecord = await getProcessedFileInfo(file);
     const isProcessed = processedRecord !== null;
     const mtimeMatches = processedRecord?.last_modified === fileMtime;
 
@@ -60,9 +60,9 @@ async function ingestFiles(filesToIngest: string[]) {
       const batchSize = 1000;
       let batch: Array<{ type: number; lat: number; lon: number; label: string }> = [];
 
-      const flushBatch = () => {
+      const flushBatch = async () => {
         if (batch.length === 0) return;
-        const inserted = insertPoiBatch(batch);
+        const inserted = await insertPoiBatch(batch);
         idx += inserted;
         batch = [];
       };
@@ -79,17 +79,17 @@ async function ingestFiles(filesToIngest: string[]) {
           batch.push({ type, lat: latF, lon: longF, label });
 
           if (batch.length >= batchSize) {
-            flushBatch();
+            await flushBatch();
           }
         } catch (e) {
           console.error(`Error processing line: ${line}`, e);
         }
       }
 
-      flushBatch(); // Flush remaining items
+      await flushBatch(); // Flush remaining items
 
       // Mark file as processed with current modification time
-      markFileAsProcessed(file, fileMtime);
+      await markFileAsProcessed(file, fileMtime);
       console.info(`File ${file} complete - ${idx} lines processed`);
     }
   }

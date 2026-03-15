@@ -6,8 +6,23 @@ let lastActivity: number = 0;
 let activityCounter = 0;
 let isWarm = false;
 
+/** Count of interactive HTTP requests (or WebSocket connections) in-flight. */
+let interactiveRequestCount = 0;
+
 /** CPU load 0–100, updated every second by measureCPULoad. */
 let cpuLoadPercent = 0;
+
+export function beginInteractiveRequest(): void {
+  interactiveRequestCount++;
+}
+
+export function endInteractiveRequest(): void {
+  if (interactiveRequestCount > 0) interactiveRequestCount--;
+}
+
+export function hasInteractiveRequestsInFlight(): boolean {
+  return interactiveRequestCount > 0;
+}
 
 export function lockIdleWorkers() {
   activityCounter++;

@@ -186,7 +186,7 @@ export async function albumWithData(
 }
 
 export async function getAlbumMetadata(album: Album) {
-  const ini = getAlbumMetaData(album);
+  const ini = await getAlbumMetaData(album);
   return ini;
 }
 

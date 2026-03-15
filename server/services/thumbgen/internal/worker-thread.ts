@@ -14,8 +14,8 @@ function enqueueThumbnail(
 ): void {
   addJob(async () => {
     try {
-      await makeThumbnailIfNeeded(entry, size, true);
-      await makeThumbnailIfNeeded(entry, size, false);
+      await makeThumbnailIfNeeded(entry, size, true, { assumeExistingIsFresh: true });
+      await makeThumbnailIfNeeded(entry, size, false, { assumeExistingIsFresh: true });
     } catch (error) {
       debug(`Error generating thumbnail for ${entry.album.name}/${entry.name} (${size}):`, error);
     }
@@ -25,7 +25,7 @@ function enqueueThumbnail(
 export async function buildThumbs() {
   const db = getEntriesDatabase();
 
-  const needingThumbnails = db.getEntriesNeedingThumbnails([...STARTUP_SIZES]);
+  const needingThumbnails = await db.getEntriesNeedingThumbnails([...STARTUP_SIZES]);
   for (const { album, entry_name, size } of needingThumbnails) {
     enqueueThumbnail({ album, name: entry_name }, size);
   }

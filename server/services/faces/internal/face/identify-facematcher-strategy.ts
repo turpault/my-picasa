@@ -155,8 +155,8 @@ async function populateCandidates() {
     }, "FACE");
   }
   const t = setInterval(
-    () => {
-      const stats = getGlobalQueueStats();
+    async () => {
+      const stats = await getGlobalQueueStats();
       debug(
         `populateCandidates: Remaining ${stats.pending + stats.active} albums to process.`,
       );

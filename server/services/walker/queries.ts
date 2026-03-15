@@ -36,17 +36,17 @@ export {
  * Can be used in the main thread or any service.
  */
 
-export function getAllAlbums(): AlbumWithData[] {
+export async function getAllAlbums(): Promise<AlbumWithData[]> {
   const db = getWalkerDatabase();
   return db.getAllAlbums();
 }
 
-export function getAlbum(albumKey: string): AlbumWithData | undefined {
+export async function getAlbum(albumKey: string): Promise<AlbumWithData | undefined> {
   const db = getWalkerDatabase();
   return db.getAlbum(albumKey);
 }
 
-export function getAlbumEntries(album: Album): AlbumEntry[] {
+export async function getAlbumEntries(album: Album): Promise<AlbumEntry[]> {
   const db = getWalkerDatabase();
   return db.getAlbumEntries(album);
 }
@@ -56,7 +56,7 @@ export function getAlbumEntries(album: Album): AlbumEntry[] {
  * This reads directly from the database. No worker delegation needed.
  * If metadata is empty in DB, returns empty object - metadata will be synced from picasa-ini by worker.
  */
-export function getEntryMetadata(entry: AlbumEntry): AlbumEntryMetaData {
+export async function getEntryMetadata(entry: AlbumEntry): Promise<AlbumEntryMetaData> {
   const db = getWalkerDatabase();
   return db.getEntryMetadata(entry);
 }
@@ -65,7 +65,7 @@ export function getEntryMetadata(entry: AlbumEntry): AlbumEntryMetaData {
  * Get shortcuts map (read-only operation)
  * Reads directly from the database.
  */
-export function getShortcuts(): Shortcut[] {
+export async function getShortcuts(): Promise<Shortcut[]> {
   const db = getWalkerDatabase();
   return db.getShortcuts();
 }
@@ -74,7 +74,7 @@ export function getShortcuts(): Shortcut[] {
  * Read shortcut for an album (read-only operation)
  * Reads directly from the database.
  */
-export function readShortcut(album: Album): string | undefined {
+export async function readShortcut(album: Album): Promise<string | undefined> {
   const db = getWalkerDatabase();
   return db.getAlbumShortcut(album.key);
 }
@@ -82,8 +82,8 @@ export function readShortcut(album: Album): string | undefined {
 /**
  * Read persons from entry metadata
  */
-export function readPersons(entry: AlbumEntry): string[] {
-  const metadata = getEntryMetadata(entry);
+export async function readPersons(entry: AlbumEntry): Promise<string[]> {
+  const metadata = await getEntryMetadata(entry);
   const persons = metadata.persons || "";
   return persons.split(",").map((p) => p.trim());
 }
@@ -92,7 +92,7 @@ export function readPersons(entry: AlbumEntry): string[] {
  * Get album metadata (read-only operation)
  * Reads directly from the database by reconstructing from entry metadata.
  */
-export function getAlbumMetaData(album: Album): AlbumMetaData {
+export async function getAlbumMetaData(album: Album): Promise<AlbumMetaData> {
   const db = getWalkerDatabase();
   return db.getAlbumMetaData(album);
 }

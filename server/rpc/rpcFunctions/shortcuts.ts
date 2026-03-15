@@ -8,7 +8,7 @@ export async function setAlbumShortcut(album: Album, shortcut: string) {
   if (!a) {
     throw new Error("Unknown album");
   }
-  const shortcuts = getShortcuts();
+  const shortcuts = await getShortcuts();
   const previous = shortcuts.find((s) => s.shortcut === shortcut);
   const mutations = getMutations();
   await mutations.updateAlbumShortcut(album, shortcut);

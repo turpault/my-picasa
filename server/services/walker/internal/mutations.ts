@@ -35,25 +35,22 @@ export async function updateAlbumEntry(
   await picasaIni.writeEntryToPicasaIni(entry, field, value);
 
   // 2. Update entry database (derived cache)
-  const currentMetadata = db.getEntryMetadata(entry);
-  const updatedMetadata: AlbumEntryMetaData =
-    field === "*"
-      ? (value || {})
-      : {
-          ...currentMetadata,
-          ...(value !== undefined && value !== null
-            ? { [field]: `${value}` }
-            : (() => {
-                const m = { ...currentMetadata };
-                delete (m as Record<string, unknown>)[field as string];
-                return m;
-              })(),
-        };
-  db.updateEntryMetadata(entry, updatedMetadata, options);
+  const currentMetadata = await db.getEntryMetadata(entry);
+  let updatedMetadata: AlbumEntryMetaData;
+  if (field === "*") {
+    updatedMetadata = value || {};
+  } else if (value !== undefined && value !== null) {
+    updatedMetadata = { ...currentMetadata, [field]: `${value}` };
+  } else {
+    const m = { ...currentMetadata } as Record<string, unknown>;
+    delete m[field as string];
+    updatedMetadata = m as AlbumEntryMetaData;
+  }
+  await db.updateEntryMetadata(entry, updatedMetadata, options);
 
   // 3. Emit events to trigger downstream jobs (thumbnails, search, etc.)
   if (field !== "*") {
-    const finalMetadata = db.getEntryMetadata(entry);
+    const finalMetadata = await db.getEntryMetadata(entry);
     const entryPicasa: AlbumEntryPicasa = { ...entry, metadata: finalMetadata };
 
     if (["filters", "caption", "rotate", "star", "starCount"].includes(field as string)) {
@@ -92,7 +89,7 @@ export async function updateEntryMetadata(
     field = "*";
   } else {
     field = fieldOrMetadata as keyof AlbumEntryMetaData | "*";
-    const currentMetadata = db.getEntryMetadata(entry);
+    const currentMetadata = await db.getEntryMetadata(entry);
 
     if (field === "*") {
       updatedMetadata = value || {};
@@ -191,7 +188,7 @@ export async function updateAlbumShortcut(album: Album, shortcut: string): Promi
 
   // Then update database
   const db = getWalkerDatabase();
-  db.updateAlbumShortcut(album.key, shortcut || null);
+  await db.updateAlbumShortcut(album.key, shortcut || null);
 
   // Emit event after successful mutation
   events.emit("shortcutsUpdated", {});
@@ -206,5 +203,5 @@ export async function touchPicasaEntry(entry: AlbumEntry): Promise<void> {
   // Also update database
   const db = getWalkerDatabase();
   const metadata = await picasaIni.getPicasaEntry(entry);
-  db.updateEntryMetadata(entry, metadata);
+  await db.updateEntryMetadata(entry, metadata);
 }

@@ -207,6 +207,17 @@ export class PriorityQueue {
     };
   }
 
+  /** Pending count per priority (for logging by job type). */
+  getPendingByPriority(): Map<number, number> {
+    const result = new Map<number, number>();
+    for (const [p, bucket] of this.buckets) {
+      if (bucket.length > 0) {
+        result.set(p, bucket.length);
+      }
+    }
+    return result;
+  }
+
   total(): number {
     return this._total;
   }

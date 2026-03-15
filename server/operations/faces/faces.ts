@@ -51,7 +51,7 @@ export async function getFaceData(entry: AlbumEntry): Promise<FaceData> {
 export async function readFaceAlbumEntries(
   album: Album,
 ): Promise<AlbumEntry[]> {
-  return getAlbumEntries(album);
+  return await getAlbumEntries(album);
 }
 
 /**
@@ -99,7 +99,7 @@ export async function addReferenceToFaceAlbum(
 ) {
   const faceAlbum = getFaceAlbum(contact);
   writeFaceAlbumEntry(faceAlbum, referenceId, face);
-  faceAlbum.count = getAlbumEntries(faceAlbum).length;
+  faceAlbum.count = (await getAlbumEntries(faceAlbum)).length;
 }
 
 export async function removeReferenceToFaceAlbum(
@@ -108,7 +108,7 @@ export async function removeReferenceToFaceAlbum(
 ) {
   const faceAlbum = getFaceAlbum(contact);
   deletePicasaSection(faceAlbum, referenceId);
-  faceAlbum.count = getAlbumEntries(faceAlbum).length;
+  faceAlbum.count = (await getAlbumEntries(faceAlbum)).length;
 }
 
 const faceAlbums: AlbumWithData[] = [];
@@ -133,7 +133,7 @@ export async function loadFaceAlbums() {
       name,
       key: personKeyFromName(name),
     };
-    const entries = getAlbumEntries(album);
+    const entries = await getAlbumEntries(album);
     faceAlbums.push({ ...album, count: entries.length });
   }
 }
