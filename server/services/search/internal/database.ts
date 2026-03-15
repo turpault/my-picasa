@@ -5,6 +5,7 @@ import { getEntryMetadata } from "../../walker/queries";
 import { isPicture, isVideo } from "../../../../shared/lib/utils";
 import { getGeoPOI } from "../../geolocate/queries";
 import { getEntriesDatabase } from "../../entries/internal/database";
+import { deferSync } from "../../../utils/defer-sync";
 
 const debugLogger = debug("app:indexing-db");
 
@@ -508,88 +509,90 @@ export class IndexingDatabaseAccess {
       throw new Error("indexPicture can only be called on a READWRITE database instance");
     }
 
-    const db = this.getDatabase();
-    const picasaEntry = getEntryMetadata(entry);
+    const picasaEntry = await getEntryMetadata(entry);
+    return deferSync(() => {
+      const db = this.getDatabase();
 
-    // Extract metadata from picasa entry
-    const persons = picasaEntry.persons || '';
-    const starCount = picasaEntry.starCount || '';
-    const photostar = picasaEntry.photostar || false;
-    const textContent = picasaEntry.text || '';
-    const caption = picasaEntry.caption || '';
+      // Extract metadata from picasa entry
+      const persons = picasaEntry.persons || '';
+      const starCount = picasaEntry.starCount || '';
+      const photostar = picasaEntry.photostar || false;
+      const textContent = picasaEntry.text || '';
+      const caption = picasaEntry.caption || '';
 
-    // Get geo POI from geolocate service (may be null if not processed yet)
-    let geoPOI = '';
-    try {
-      const geoPOIData = getGeoPOI(entry);
-      geoPOI = geoPOIData || '';
-    } catch (error) {
-      // If geolocate service is not available, use empty string
-      debugLogger(`Could not get geo POI for ${entry.name}:`, error);
-    }
-
-    // Determine entry type
-    let entryType = 'unknown';
-    if (isPicture(entry)) {
-      entryType = 'picture';
-    } else if (isVideo(entry)) {
-      entryType = 'video';
-    }
-
-    try {
-      if (entry.album.key === undefined || entry.album.name === undefined || entry.name === undefined) {
-        debugLogger(`Error indexing picture ${entry.name}: album.key or album.name or name is undefined`);
-        return;
+      // Get geo POI from geolocate service (may be null if not processed yet)
+      let geoPOI = '';
+      try {
+        const geoPOIData = getGeoPOI(entry);
+        geoPOI = geoPOIData || '';
+      } catch (error) {
+        // If geolocate service is not available, use empty string
+        debugLogger(`Could not get geo POI for ${entry.name}:`, error);
       }
 
-      const entryRow = db.prepare("SELECT entry_id, index_version FROM album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key ?? "", entry.name ?? "") as { entry_id: string; index_version?: number } | undefined;
-      const entryId = entryRow?.entry_id ?? "";
-      const indexVersion = entryRow?.index_version ?? 0;
+      // Determine entry type
+      let entryType = 'unknown';
+      if (isPicture(entry)) {
+        entryType = 'picture';
+      } else if (isVideo(entry)) {
+        entryType = 'video';
+      }
 
-      const insertStmt = db.prepare(`
-        INSERT OR REPLACE INTO pictures (
-          entry_id, album_key, album_name, entry_name,
-          persons, star_count, geo_poi, photostar, text_content, caption, entry_type, marked,
-          index_version, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP)
-      `);
+      try {
+        if (entry.album.key === undefined || entry.album.name === undefined || entry.name === undefined) {
+          debugLogger(`Error indexing picture ${entry.name}: album.key or album.name or name is undefined`);
+          return;
+        }
 
-      insertStmt.run(
-        entryId,
-        entry.album.key ?? '',
-        entry.album.name ?? '',
-        entry.name ?? '',
-        persons ?? '',
-        starCount ?? '',
-        geoPOI ?? '',
-        photostar ? 1 : 0,
-        textContent ?? '',
-        caption ?? '',
-        entryType ?? 'unknown',
-        indexVersion
-      );
+        const entryRow = db.prepare("SELECT entry_id, index_version FROM album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key ?? "", entry.name ?? "") as { entry_id: string; index_version?: number } | undefined;
+        const entryId = entryRow?.entry_id ?? "";
+        const indexVersion = entryRow?.index_version ?? 0;
 
-      // FTS index is automatically updated via triggers
+        const insertStmt = db.prepare(`
+          INSERT OR REPLACE INTO pictures (
+            entry_id, album_key, album_name, entry_name,
+            persons, star_count, geo_poi, photostar, text_content, caption, entry_type, marked,
+            index_version, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP)
+        `);
 
-    } catch (error: any) {
-      debugLogger(`Error indexing picture ${entry.name}:`);
-      debugLogger(`  Error message: ${error.message}`);
-      debugLogger(`  Error code: ${error.code}`);
-      debugLogger(`  SQL: ${error.sql || 'N/A'}`);
-      debugLogger(`  Entry data with types:`, {
-        album_key: `${typeof entry.album.key} = ${entry.album.key}`,
-        album_name: `${typeof entry.album.name} = ${entry.album.name}`,
-        entry_name: `${typeof entry.name} = ${entry.name}`,
-        persons: `${typeof persons} = ${persons}`,
-        starCount: `${typeof starCount} = ${starCount}`,
-        geoPOI: `${typeof geoPOI} = ${geoPOI}`,
-        photostar: `${typeof photostar} = ${photostar}`,
-        textContent: `${typeof textContent} = ${textContent?.substring(0, 50)}`,
-        caption: `${typeof caption} = ${caption?.substring(0, 50)}`,
-        entryType: `${typeof entryType} = ${entryType}`
-      });
-      throw error;
-    }
+        insertStmt.run(
+          entryId,
+          entry.album.key ?? '',
+          entry.album.name ?? '',
+          entry.name ?? '',
+          persons ?? '',
+          starCount ?? '',
+          geoPOI ?? '',
+          photostar ? 1 : 0,
+          textContent ?? '',
+          caption ?? '',
+          entryType ?? 'unknown',
+          indexVersion
+        );
+
+        // FTS index is automatically updated via triggers
+
+      } catch (error: any) {
+        debugLogger(`Error indexing picture ${entry.name}:`);
+        debugLogger(`  Error message: ${error.message}`);
+        debugLogger(`  Error code: ${error.code}`);
+        debugLogger(`  SQL: ${error.sql || 'N/A'}`);
+        debugLogger(`  Entry data with types:`, {
+          album_key: `${typeof entry.album.key} = ${entry.album.key}`,
+          album_name: `${typeof entry.album.name} = ${entry.album.name}`,
+          entry_name: `${typeof entry.name} = ${entry.name}`,
+          persons: `${typeof persons} = ${persons}`,
+          starCount: `${typeof starCount} = ${starCount}`,
+          geoPOI: `${typeof geoPOI} = ${geoPOI}`,
+          photostar: `${typeof photostar} = ${photostar}`,
+          textContent: `${typeof textContent} = ${textContent?.substring(0, 50)}`,
+          caption: `${typeof caption} = ${caption?.substring(0, 50)}`,
+          entryType: `${typeof entryType} = ${entryType}`
+        });
+        throw error;
+      }
+    });
   }
 
   /**
@@ -643,9 +646,11 @@ export class IndexingDatabaseAccess {
       throw new Error("removePicture can only be called on a READWRITE database instance");
     }
 
-    const db = this.getDatabase();
-    db.prepare(`DELETE FROM pictures WHERE album_key = ? AND entry_name = ?`).run(entry.album.key || "", entry.name || "");
-    debugLogger(`Removed entry ${entry.name} from database`);
+    return deferSync(() => {
+      const db = this.getDatabase();
+      db.prepare(`DELETE FROM pictures WHERE album_key = ? AND entry_name = ?`).run(entry.album.key || "", entry.name || "");
+      debugLogger(`Removed entry ${entry.name} from database`);
+    });
   }
 
   /**
@@ -656,7 +661,8 @@ export class IndexingDatabaseAccess {
       throw new Error("updateGeoPOI can only be called on a READWRITE database instance");
     }
 
-    const db = this.getDatabase();
+    return deferSync(() => {
+      const db = this.getDatabase();
     try {
       // Get geo POI from geolocate service
       const geoPOI = getGeoPOI(entry) || '';
@@ -683,6 +689,7 @@ export class IndexingDatabaseAccess {
       debugLogger(`Error updating geo POI for entry ${entry.name}:`, error);
       throw error;
     }
+    });
   }
 
   /**
@@ -693,8 +700,9 @@ export class IndexingDatabaseAccess {
       throw new Error("updateEntry can only be called on a READWRITE database instance");
     }
 
-    const db = this.getDatabase();
-    try {
+    return deferSync(() => {
+      const db = this.getDatabase();
+      try {
       // Extract metadata from picasa entry
       const persons = metadata.persons || '';
       const starCount = metadata.starCount || '';
@@ -760,6 +768,7 @@ export class IndexingDatabaseAccess {
       debugLogger(`Error updating entry ${entry.name}:`, error);
       throw error;
     }
+    });
   }
 }
 

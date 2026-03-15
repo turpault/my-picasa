@@ -5,6 +5,7 @@ import { lock } from "../../../../shared/lib/mutex";
 import { isPicture, isVideo, sleep } from "../../../../shared/lib/utils";
 import { events } from "../../../../shared/server-events";
 import { AlbumEntry, ExifData, ExifTag } from "../../../../shared/types/types";
+import { deferSync } from "../../../utils/defer-sync";
 import { dimensionsFromFileBuffer } from "../../../imageOperations/sharp-processor";
 import { entryFilePath } from "../../../utils/serverUtils";
 import type { ExifColumns } from "./database";
@@ -175,7 +176,7 @@ async function extractExifDataFromFile(entry: AlbumEntry, withStats = false): Pr
         }
         return {};
       });
-      const dimensions = dimensionsFromFileBuffer(fileData);
+      const dimensions = await deferSync(() => dimensionsFromFileBuffer(fileData));
       const filtered: ExifData = {
         ...filterExifTags(tags || {}),
         imageWidth: dimensions.width,
@@ -241,7 +242,7 @@ async function updateExifWithRetry(
 ): Promise<void> {
   for (let attempt = 0; attempt < MAX_DB_RETRIES; attempt++) {
     try {
-      db.updateExifData(entry, exifJson, columns);
+      await deferSync(() => db.updateExifData(entry, exifJson, columns));
       return;
     } catch (e) {
       if (attempt < MAX_DB_RETRIES - 1 && isSqliteLockError(e)) {

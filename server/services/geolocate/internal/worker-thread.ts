@@ -1,5 +1,6 @@
 import { AlbumEntry } from "../../../../shared/types/types";
 import { getExifData } from "../../../rpc/rpcFunctions/exif";
+import { deferSync } from "../../../utils/defer-sync";
 import { getLocations } from "./poi/poi-database";
 import { getGeolocateDatabaseReadWrite } from "./database";
 import { events } from "../../../../shared/server-events";
@@ -43,22 +44,22 @@ export async function processGeoPOI(entry: AlbumEntry): Promise<void> {
       try {
         const geoPOI = await getLocations(latitude, longitude);
         const geoPOIJson = JSON.stringify(geoPOI);
-        db.updateGeoPOI(entry, geoPOIJson);
+        await deferSync(() => db.updateGeoPOI(entry, geoPOIJson));
         // Emit event that geo data was found (only if POI data exists)
         if (geoPOI && geoPOI.length > 0) {
           events.emit("geoDataFound", entry);
         }
       } catch (e) {
         debugLogger(`Error geolocating ${entry.name}:`, e);
-        db.updateGeoPOI(entry, null);
+        await deferSync(() => db.updateGeoPOI(entry, null));
       }
     } else {
       // Processed but no GPS coordinates - mark as processed with no POI
-      db.updateGeoPOI(entry, null);
+      await deferSync(() => db.updateGeoPOI(entry, null));
     }
   } catch (error) {
     debugLogger(`Error processing geo POI for ${entry.name}:`, error);
-    db.updateGeoPOI(entry, null);
+    await deferSync(() => db.updateGeoPOI(entry, null));
   }
 }
 
