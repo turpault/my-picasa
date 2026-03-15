@@ -29,6 +29,7 @@ import { pathForAlbum } from "../../../utils/serverUtils";
 import { events } from "../../../../shared/server-events";
 import { getAllAlbums, getAlbum, getAlbumEntries as getWalkerAlbumEntries } from "../queries";
 import { getWalkerDatabase } from "./database";
+import { startFileWatcher } from "./file-watcher";
 
 const debugLogger = debug("app:walker-db");
 
@@ -364,6 +365,7 @@ export async function walkFilesystem(): Promise<void> {
       console.info(`Album list retrieved`);
       walkerReadyResolve?.();
       walkerReadyResolve = null;
+      startFileWatcher();
     }
     iteration++;
     await sleep(60 * 60); // Wait 60 minutes
