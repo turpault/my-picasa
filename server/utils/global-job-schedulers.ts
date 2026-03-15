@@ -20,7 +20,12 @@ import { isVideo, namifyAlbumEntry } from "../../shared/lib/utils";
 import { RESIZE_ON_EXPORT_SIZE } from "../../shared/lib/shared-constants";
 import type { JobType } from "../services/extraction/job-types";
 import { extractExifData } from "../services/exif/internal/worker-thread";
-import { createReferenceFileIfNeeded } from "../services/faces/internal/face/references";
+import {
+  createReferenceFileIfNeeded,
+  entryHasReferences,
+} from "../services/faces/internal/face/references";
+import { isExifProcessed } from "../services/exif/queries";
+import { shouldMakeThumbnail } from "../rpc/rpcFunctions/thumbnail-cache";
 
 const debugLogger = debug("app:job-schedulers");
 
@@ -31,15 +36,15 @@ function entryKey(entry: { album: { key: string }; name: string }): string {
   return `${entry.album.key}:${entry.name}`;
 }
 
-/** Debounce map: key -> { timeout, payload }. Resets timer on each call. */
+/** Debounce map: key -> { timeout, schedule }. Resets timer on each call. */
 const pendingJobs = new Map<
   string,
-  { timeout: ReturnType<typeof setTimeout>; schedule: () => void }
+  { timeout: ReturnType<typeof setTimeout>; schedule: () => void | Promise<void> }
 >();
 
 function debounceSchedule(
   key: string,
-  schedule: () => void,
+  schedule: () => void | Promise<void>,
   delayMs: number = DEBOUNCE_MS
 ): void {
   const existing = pendingJobs.get(key);
@@ -48,13 +53,14 @@ function debounceSchedule(
   }
   const timeout = setTimeout(() => {
     pendingJobs.delete(key);
-    schedule();
+    Promise.resolve(schedule()).catch((e) => debugLogger("Debounced schedule error:", e));
   }, delayMs);
   pendingJobs.set(key, { timeout, schedule });
 }
 
-function scheduleExif(entry: AlbumEntry): void {
+function scheduleExif(entry: AlbumEntry, options?: { force?: boolean }): void {
   debounceSchedule(`exif:${entryKey(entry)}`, () => {
+    if (!options?.force && isExifProcessed(entry)) return;
     addJob(
       async () => {
         await waitUntilIdle();
@@ -71,7 +77,10 @@ function scheduleThumbnail(
 ): void {
   for (const size of sizes) {
     const key = `thumbnail:${entryKey(entry)}:${size}`;
-    debounceSchedule(key, () => {
+    debounceSchedule(key, async () => {
+      const needsAnimated = await shouldMakeThumbnail(entry, size, true);
+      const needsStatic = await shouldMakeThumbnail(entry, size, false);
+      if (!needsAnimated && !needsStatic) return;
       addJob(
         async () => {
           try {
@@ -87,8 +96,9 @@ function scheduleThumbnail(
   }
 }
 
-function scheduleFace(entry: AlbumEntry): void {
-  debounceSchedule(`face:${entryKey(entry)}`, () => {
+function scheduleFace(entry: AlbumEntry, options?: { force?: boolean }): void {
+  debounceSchedule(`face:${entryKey(entry)}`, async () => {
+    if (!options?.force && (await entryHasReferences(entry))) return;
     addJob(async () => createReferenceFileIfNeeded(entry), "FACE");
   });
 }
@@ -135,10 +145,10 @@ export function setupGlobalJobSchedulers(): void {
 
   // --- EXIF: file updates (binary or stats) ---
   events.on("albumEntryAdded", (entry: AlbumEntry) => {
-    scheduleExif(entry);
+    scheduleExif(entry); // only if not yet processed
   });
   events.on("albumEntryFileChanged", (entry: AlbumEntry) => {
-    scheduleExif(entry);
+    scheduleExif(entry, { force: true }); // file changed, re-extract
   });
 
   // --- THUMBNAIL: entry filter + file updates ---
@@ -167,10 +177,10 @@ export function setupGlobalJobSchedulers(): void {
 
   // --- FACE: file updates ---
   events.on("albumEntryAdded", (entry: AlbumEntry) => {
-    scheduleFace(entry);
+    scheduleFace(entry); // only if no refs yet
   });
   events.on("albumEntryFileChanged", (entry: AlbumEntry) => {
-    scheduleFace(entry);
+    scheduleFace(entry, { force: true }); // file changed, re-detect
   });
 
   // --- FAVORITE_EXPORT: entry updates (star changes) ---

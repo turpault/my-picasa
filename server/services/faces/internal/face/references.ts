@@ -20,7 +20,12 @@ import {
 import { media } from "../../../../rpc/rpcFunctions/albumUtils";
 import { entryFilePath, fileExists } from "../../../../utils/serverUtils";
 import { getAllAlbums } from "../../../walker/queries";
-import { idFromAlbumEntry, isAnimated, isPicture, jsonifyObject } from "../../../../../shared/lib/utils";
+import {
+  idFromAlbumEntry,
+  isAnimated,
+  isPicture,
+  jsonifyObject,
+} from "../../../../../shared/lib/utils";
 const debug = Debug("app:faces");
 
 let optionsSSDMobileNet: faceapi.SsdMobilenetv1Options;
@@ -56,6 +61,15 @@ export async function populateAllReferences() {
   const { drainGlobalQueue, getGlobalQueueStats } = await import("../../../../utils/global-job-queue");
 
   for (const album of albums) {
+    const entries = await media(album);
+    let needsWork = false;
+    for (const entry of entries.entries) {
+      if (isPicture(entry) && !isAnimated(entry) && !(await entryHasReferences(entry))) {
+        needsWork = true;
+        break;
+      }
+    }
+    if (!needsWork) continue;
     addJob(async () => {
       await processFaces(album).catch(debug);
     }, "FACE");
@@ -71,7 +85,8 @@ export async function populateAllReferences() {
   clearInterval(t);
 }
 
-async function entryHasReferences(entry: AlbumEntry) {
+/** Check if entry already has face reference file. Used by job schedulers to skip unnecessary jobs. */
+export async function entryHasReferences(entry: AlbumEntry): Promise<boolean> {
   const p = referencePath(entry);
   return fileExists(join(p.path, p.file));
 }
