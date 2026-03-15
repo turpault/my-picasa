@@ -747,17 +747,22 @@ export default function BrowserPage() {
     [],
   );
 
-  // Flatten albums into display order: group by year prefix in name, reverse alphabetically within each
+  // Flatten albums into display order: group by year prefix, 0000/Unknown date at end
   const orderedAlbums = useMemo(() => {
+    const unknownDate = yearFromAlbumName("0000");
     const groups = new Map<string, AlbumWithData[]>();
     for (const a of albums) {
       const year = yearFromAlbumName(a.name);
       if (!groups.has(year)) groups.set(year, []);
       groups.get(year)!.push(a);
     }
-    const sorted = [...groups.entries()].sort((a, b) =>
-      b[0].localeCompare(a[0]),
-    );
+    const sorted = [...groups.entries()].sort((a, b) => {
+      const [yearA, yearB] = [a[0], b[0]];
+      if (yearA === yearB) return 0;
+      if (yearA === unknownDate) return 1;
+      if (yearB === unknownDate) return -1;
+      return yearB.localeCompare(yearA);
+    });
     return sorted.flatMap(([, yearAlbums]) =>
       [...yearAlbums].sort((a, b) => b.name.localeCompare(a.name)),
     );

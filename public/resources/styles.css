@@ -234,12 +234,37 @@
 }
 .tools-tab-bar {
   position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   background: #9b9ca1;
-  height:40px;
-  width:100%;
+  height: 40px;
+  width: 100%;
+  display: flex;
+  flex-shrink: 0;
+}
+.tools-tab-button {
+  flex: 1;
+  min-width: 0;
+  padding: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.tools-tab-button.active {
+  background: #7a7b80;
+}
+.tools-tab-icon {
+  width: 24px;
+  height: 24px;
+  display: block;
+  margin: 0 auto;
 }
 .tools-tab-page {
-  margin:10px;
+  margin: 10px;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  overflow-y: auto;
 }
 .tools-tab-bar-buttons {
   position:absolute;
@@ -250,24 +275,29 @@
 }
 .tools-tab-contents {
   position: absolute;
-  width:100%;
+  width: 100%;
   top: 40px;
-  bottom:140px;
-  /* background-color: #e8e8e8; */
+  bottom: 170px;
+  overflow-y: auto;
+  overflow-x: clip;
 }
 .editor-controls {
-  /* display: none; */
   position: absolute;
   width: 100%;
   top: 40px;
-  bottom: 140px;
+  bottom: 170px;
   background: #deddde;
   padding: 10px;
 }
 .tools-bar-undo-redo {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 140px;
   width: 100%;
   height: 30px;
   text-align: center;
+  flex-shrink: 0;
 }
 .tools-bar-undo {
   left:10px;
@@ -524,7 +554,6 @@ body {
 
 .tool-button {
   line-height: 40px;
-  background-image: none;
   width: 65px;
   height: 60px;
   text-align: center;
