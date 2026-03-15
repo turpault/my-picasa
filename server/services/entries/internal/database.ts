@@ -67,7 +67,35 @@ class EntriesDatabaseAccess {
 
     if (this.isWriter) {
       this.checkAndMigrateDatabase();
+      this.migrateAlbumEntriesIndexVersion();
       this.migrateChildTablesIfNeeded();
+      this.migratePicturesIndexVersion();
+    }
+  }
+
+  private migrateAlbumEntriesIndexVersion(): void {
+    try {
+      const info = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
+      if (info.some((c) => c.name === "index_version")) return;
+      debugLogger("Adding index_version to album_entries");
+      this.db.run("ALTER TABLE album_entries ADD COLUMN index_version INTEGER NOT NULL DEFAULT 0");
+    } catch (e) {
+      debugLogger("migrateAlbumEntriesIndexVersion error:", e);
+    }
+  }
+
+  private migratePicturesIndexVersion(): void {
+    const hasPictures = this.db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='pictures'"
+    ).get();
+    if (!hasPictures) return;
+    try {
+      const info = this.db.prepare("PRAGMA table_info(pictures)").all() as Array<{ name: string }>;
+      if (info.some((c) => c.name === "index_version")) return;
+      debugLogger("Adding index_version to pictures");
+      this.db.run("ALTER TABLE pictures ADD COLUMN index_version INTEGER NOT NULL DEFAULT 0");
+    } catch (e) {
+      debugLogger("migratePicturesIndexVersion error:", e);
     }
   }
 
@@ -105,6 +133,7 @@ class EntriesDatabaseAccess {
         album_key TEXT NOT NULL, album_name TEXT NOT NULL, entry_name TEXT NOT NULL,
         persons TEXT, star_count TEXT, geo_poi TEXT, photostar INTEGER,
         text_content TEXT, caption TEXT, entry_type TEXT, marked INTEGER DEFAULT 0,
+        index_version INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(album_key, entry_name)
       );
@@ -178,10 +207,12 @@ class EntriesDatabaseAccess {
         for (const r of rows) {
           const entry = this.db.prepare("SELECT entry_id FROM album_entries WHERE album_key=? AND entry_name=?").get(r.album_key, r.entry_name) as { entry_id: string } | undefined;
           if (entry) {
+            const ae = this.db.prepare("SELECT index_version FROM album_entries WHERE album_key=? AND entry_name=?").get(r.album_key, r.entry_name) as { index_version: number } | undefined;
+            const indexVersion = ae?.index_version ?? 0;
             this.db.prepare(`
-              INSERT OR REPLACE INTO pictures (entry_id, album_key, album_name, entry_name, persons, star_count, geo_poi, photostar, text_content, caption, entry_type, marked, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            `).run(entry.entry_id, r.album_key, r.album_name, r.entry_name, r.persons, r.star_count, r.geo_poi, r.photostar ?? 0, r.text_content, r.caption, r.entry_type ?? "unknown", r.marked ?? 0);
+              INSERT OR REPLACE INTO pictures (entry_id, album_key, album_name, entry_name, persons, star_count, geo_poi, photostar, text_content, caption, entry_type, marked, index_version, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            `).run(entry.entry_id, r.album_key, r.album_name, r.entry_name, r.persons, r.star_count, r.geo_poi, r.photostar ?? 0, r.text_content, r.caption, r.entry_type ?? "unknown", r.marked ?? 0, indexVersion);
           }
         }
         oldDb.close();
@@ -222,6 +253,7 @@ class EntriesDatabaseAccess {
         star_count TEXT, caption TEXT, text TEXT, textactive TEXT,
         dimensions TEXT, dimensions_from_filter TEXT, rank TEXT, rotate TEXT,
         faces TEXT, filters TEXT, stats TEXT, persons TEXT, extra_fields TEXT,
+        index_version INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (album_key) REFERENCES albums(key) ON DELETE CASCADE,
@@ -248,8 +280,8 @@ class EntriesDatabaseAccess {
         INSERT INTO album_entries (
           entry_id, album_key, entry_name, date_taken, photostar, star, star_count,
           caption, text, textactive, dimensions, dimensions_from_filter, rank, rotate,
-          faces, filters, stats, persons, extra_fields, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          faces, filters, stats, persons, extra_fields, index_version, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
       `).run(
         entryId, e.album_key, e.entry_name, e.date_taken, e.photostar, e.star, e.star_count,
         e.caption, e.text, e.textactive, e.dimensions, e.dimensions_from_filter, e.rank, e.rotate,
@@ -302,6 +334,7 @@ class EntriesDatabaseAccess {
         star_count TEXT, caption TEXT, text TEXT, textactive TEXT,
         dimensions TEXT, dimensions_from_filter TEXT, rank TEXT, rotate TEXT,
         faces TEXT, filters TEXT, stats TEXT, persons TEXT, extra_fields TEXT,
+        index_version INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (album_key) REFERENCES albums(key) ON DELETE CASCADE,
@@ -521,7 +554,7 @@ class EntriesDatabaseAccess {
       UPDATE album_entries SET
         date_taken = ?, photostar = ?, star = ?, star_count = ?, caption = ?, text = ?, textactive = ?,
         dimensions = ?, dimensions_from_filter = ?, rank = ?, rotate = ?, faces = ?, filters = ?, stats = ?, persons = ?,
-        extra_fields = ?, updated_at = CURRENT_TIMESTAMP
+        extra_fields = ?, index_version = index_version + 1, updated_at = CURRENT_TIMESTAMP
       WHERE album_key = ? AND entry_name = ?
     `).run(
       metadata.dateTaken || null, metadata.photostar ? 1 : 0, metadata.star ? 1 : 0,

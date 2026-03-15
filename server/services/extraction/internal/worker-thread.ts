@@ -198,6 +198,22 @@ async function processUnprocessedGeo(): Promise<void> {
   await extractionQueue.drain();
 }
 
+async function processEntriesNeedingReindex(): Promise<void> {
+  const db = getIndexingDatabaseReadWrite();
+  const entries = db.getEntriesNeedingReindex();
+  if (entries.length === 0) return;
+
+  debugLogger(`Queueing ${entries.length} entries needing reindex (version mismatch)`);
+  for (const { album_key, album_name, entry_name } of entries) {
+    const entry: AlbumEntry = {
+      name: entry_name,
+      album: { key: album_key, name: album_name },
+    };
+    extractionQueue.add(() => runIndexJob(entry), JOB_PRIORITY.OTHER);
+  }
+  await extractionQueue.drain();
+}
+
 async function indexAllPictures(): Promise<void> {
   debugLogger("Starting full picture indexing with mark-and-sweep...");
   const l = await lock("indexAllPictures");
@@ -242,6 +258,7 @@ export async function runExtractionWorker(): Promise<void> {
 
   await processUnprocessedExif();
   await processUnprocessedGeo();
+  await processEntriesNeedingReindex();
   await indexAllPictures();
 
   extractionQueue.event.on("changed", postQueueStats);

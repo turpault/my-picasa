@@ -109,6 +109,34 @@ export class IndexingDatabaseAccess {
   }
 
   /**
+   * Get entries that need reindexing (album_entries.index_version != pictures.index_version)
+   */
+  getEntriesNeedingReindex(): Array<{ album_key: string; album_name: string; entry_name: string }> {
+    const db = this.getDatabase();
+    try {
+      const hasIndexVersion = db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
+      if (!hasIndexVersion.some((c) => c.name === "index_version")) {
+        return [];
+      }
+      const hasPicturesIndexVersion = db.prepare("PRAGMA table_info(pictures)").all() as Array<{ name: string }>;
+      if (!hasPicturesIndexVersion.some((c) => c.name === "index_version")) {
+        return [];
+      }
+      const rows = db.prepare(`
+        SELECT ae.album_key, a.name AS album_name, ae.entry_name
+        FROM album_entries ae
+        LEFT JOIN pictures p ON ae.album_key = p.album_key AND ae.entry_name = p.entry_name
+        LEFT JOIN albums a ON ae.album_key = a.key
+        WHERE ae.index_version != COALESCE(p.index_version, -1)
+      `).all() as Array<{ album_key: string; album_name: string; entry_name: string }>;
+      return rows;
+    } catch (e) {
+      debugLogger("getEntriesNeedingReindex error:", e);
+      return [];
+    }
+  }
+
+  /**
    * Check if an entry is indexed
    */
   isIndexed(entry: AlbumEntry): boolean {
@@ -514,15 +542,16 @@ export class IndexingDatabaseAccess {
         return;
       }
 
-      const entryRow = db.prepare("SELECT entry_id FROM album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key ?? "", entry.name ?? "") as { entry_id: string } | undefined;
+      const entryRow = db.prepare("SELECT entry_id, index_version FROM album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key ?? "", entry.name ?? "") as { entry_id: string; index_version?: number } | undefined;
       const entryId = entryRow?.entry_id ?? "";
+      const indexVersion = entryRow?.index_version ?? 0;
 
       const insertStmt = db.prepare(`
         INSERT OR REPLACE INTO pictures (
           entry_id, album_key, album_name, entry_name,
           persons, star_count, geo_poi, photostar, text_content, caption, entry_type, marked,
-          updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+          index_version, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP)
       `);
 
       insertStmt.run(
@@ -536,7 +565,8 @@ export class IndexingDatabaseAccess {
         photostar ? 1 : 0,
         textContent ?? '',
         caption ?? '',
-        entryType ?? 'unknown'
+        entryType ?? 'unknown',
+        indexVersion
       );
 
       // FTS index is automatically updated via triggers
@@ -690,15 +720,20 @@ export class IndexingDatabaseAccess {
         entryType = 'video';
       }
 
+      const aeRow = db.prepare("SELECT index_version FROM album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key || '', entry.name || '') as { index_version?: number } | undefined;
+      const indexVersion = aeRow?.index_version ?? 0;
+
       const updateStmt = db.prepare(`
         UPDATE pictures SET
           persons = ?, star_count = ?, geo_poi = ?, photostar = ?, 
-          text_content = ?, caption = ?, entry_type = ?, marked = 1, updated_at = CURRENT_TIMESTAMP
+          text_content = ?, caption = ?, entry_type = ?, marked = 1,
+          index_version = ?, updated_at = CURRENT_TIMESTAMP
         WHERE album_key = ? AND entry_name = ?
       `);
 
       const result = updateStmt.run(
         persons, starCount, geoPOI, photostar, textContent, caption, entryType,
+        indexVersion,
         entry.album.key || '', entry.name || ''
       );
 
