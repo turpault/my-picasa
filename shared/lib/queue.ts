@@ -198,6 +198,15 @@ export class PriorityQueue {
     return this._done;
   }
 
+  /** Queue stats for monitoring: pending (waiting), active (running), done. */
+  getStats(): { pending: number; active: number; done: number } {
+    return {
+      pending: this.getWaitingCount(),
+      active: this._active,
+      done: this._done,
+    };
+  }
+
   total(): number {
     return this._total;
   }

@@ -25,6 +25,13 @@ const DB_RETRY_DELAY_MS = 500;
 
 const extractionQueue = new PriorityQueue(EXTRACTION_CONCURRENCY, JOB_PRIORITY.OTHER);
 
+function postQueueStats(): void {
+  if (parentPort) {
+    const stats = extractionQueue.getStats();
+    parentPort.postMessage({ type: "extractionStats", data: stats });
+  }
+}
+
 function isSqliteLockError(e: unknown): boolean {
   const err = e as { code?: string; message?: string };
   return (
@@ -237,5 +244,7 @@ export async function runExtractionWorker(): Promise<void> {
   await processUnprocessedGeo();
   await indexAllPictures();
 
+  extractionQueue.event.on("changed", postQueueStats);
+  postQueueStats();
   setupEventListeners();
 }

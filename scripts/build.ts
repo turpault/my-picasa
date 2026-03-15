@@ -38,7 +38,10 @@ async function main() {
 
   console.log("[build] Client (Bun bundle)…");
   const result = await Bun.build({
-    entrypoints: [join(root, "public/index.html")],
+    entrypoints: [
+      join(root, "public/index.html"),
+      join(root, "client/stats.ts"),
+    ],
     outdir: join(root, "public/dist"),
     minify: true,
   });

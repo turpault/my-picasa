@@ -4,6 +4,17 @@ import { events } from "../shared/server-events";
 
 const workers: Map<string, Worker> = new Map();
 
+/** Last extraction queue stats from worker, for /stats API. */
+let extractionStats: { pending: number; active: number; done: number } = {
+  pending: 0,
+  active: 0,
+  done: 0,
+};
+
+export function getExtractionStats(): { pending: number; active: number; done: number } {
+  return extractionStats;
+}
+
 /** Resolved when the walker worker has completed its first filesystem walk and albums are available. */
 let walkerReadyResolve: (() => void) | null = null;
 export const walkerReadyPromise = new Promise<void>((r) => {
@@ -64,6 +75,9 @@ export async function startWorker(serviceName: string): Promise<Worker | null> {
 
   workers.set(serviceName, worker);
   worker.on("message", (msg) => {
+    if (msg.type === "extractionStats" && msg.data) {
+      extractionStats = msg.data;
+    }
     if (msg.type === "serverEvent" && msg.eventType) {
       events.emit(msg.eventType, msg.data);
     }

@@ -18,7 +18,7 @@ import { albumWithData } from "./rpc/rpcFunctions/albumUtils";
 import { info } from "console";
 import { loadFaceAlbums } from "./operations/faces/faces";
 import { startSentry } from "./sentry";
-import { busy, measureCPULoad } from "./utils/busy";
+import { busy, getActivityStatus, getCpuLoad, measureCPULoad } from "./utils/busy";
 import { imagesRoot, rootPath } from "./utils/constants";
 import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
@@ -115,7 +115,13 @@ export async function startServer(p?: number) {
         "/": indexHtml,
         "/ping": () => Response.json({ pong: "it worked!" }),
         "/stats": async () =>
-          Response.json({ series: await history(), locks: lockedLocks() }),
+          Response.json({
+            series: await history(),
+            locks: lockedLocks(),
+            extraction: getExtractionStats(),
+            cpuLoad: getCpuLoad(),
+            activity: getActivityStatus(),
+          }),
         "/encode/:context/:mime": async (req) =>
           httpRequestQueue.add(async () => {
             const { context, mime } = req.params;
