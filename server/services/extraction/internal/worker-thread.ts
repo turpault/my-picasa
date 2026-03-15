@@ -117,6 +117,16 @@ function setupEventListeners(): void {
     }
   });
 
+  events.on("albumEntryFileChanged", async (entry: AlbumEntry) => {
+    try {
+      await waitUntilIdle();
+      debugLogger(`Queueing EXIF extraction for changed file: ${entry.name}`);
+      addJob(() => runExifJob(entry), "EXIF");
+    } catch (error) {
+      debugLogger(`Error handling albumEntryFileChanged for ${entry.name}:`, error);
+    }
+  });
+
   events.on("albumEntryRemoved", async (entry: AlbumEntry) => {
     debugLogger(`Queueing removal of ${entry.name} from extraction DBs`);
     addJob(() => runRemoveJob(entry), "REMOVE");

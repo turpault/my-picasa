@@ -75,8 +75,22 @@ class EntriesDatabaseAccess {
       this.checkAndMigrateDatabase();
       this.migrateAlbumEntriesIndexVersion();
       this.migrateFilterVersion();
+      this.migrateFileStats();
       this.migrateChildTablesIfNeeded();
       this.migratePicturesIndexVersion();
+    }
+  }
+
+  private migrateFileStats(): void {
+    try {
+      const info = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
+      if (info.some((c) => c.name === "file_mtime")) return;
+
+      debugLogger("Adding file_mtime and file_size columns to album_entries");
+      this.db.run("ALTER TABLE album_entries ADD COLUMN file_mtime TEXT");
+      this.db.run("ALTER TABLE album_entries ADD COLUMN file_size INTEGER");
+    } catch (e) {
+      debugLogger("migrateFileStats error:", e);
     }
   }
 
@@ -281,9 +295,9 @@ class EntriesDatabaseAccess {
         entry_id TEXT PRIMARY KEY,
         album_key TEXT NOT NULL, entry_name TEXT NOT NULL,
         date_taken TEXT, photostar INTEGER DEFAULT 0, star INTEGER DEFAULT 0,
-        star_count TEXT, caption TEXT, text TEXT, textactive TEXT,
+        star_count TEXT, caption TEXT, text TEXT,
         dimensions TEXT, dimensions_from_filter TEXT, rank TEXT, rotate TEXT,
-        faces TEXT, filters TEXT, stats TEXT, persons TEXT, extra_fields TEXT,
+        faces TEXT, filters TEXT, persons TEXT, extra_fields TEXT,
         index_version INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -310,13 +324,13 @@ class EntriesDatabaseAccess {
       entriesDb.prepare(`
         INSERT INTO album_entries (
           entry_id, album_key, entry_name, date_taken, photostar, star, star_count,
-          caption, text, textactive, dimensions, dimensions_from_filter, rank, rotate,
-          faces, filters, stats, persons, extra_fields, index_version, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+          caption, text, dimensions, dimensions_from_filter, rank, rotate,
+          faces, filters, persons, extra_fields, index_version, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
       `).run(
         entryId, e.album_key, e.entry_name, e.date_taken, e.photostar, e.star, e.star_count,
-        e.caption, e.text, e.textactive, e.dimensions, e.dimensions_from_filter, e.rank, e.rotate,
-        e.faces, e.filters, e.stats, e.persons, e.extra_fields, e.created_at, e.updated_at
+        e.caption, e.text, e.dimensions, e.dimensions_from_filter, e.rank, e.rotate,
+        e.faces, e.filters, e.persons, e.extra_fields, e.created_at, e.updated_at
       );
     }
 
@@ -362,9 +376,9 @@ class EntriesDatabaseAccess {
         entry_id TEXT PRIMARY KEY,
         album_key TEXT NOT NULL, entry_name TEXT NOT NULL,
         date_taken TEXT, photostar INTEGER DEFAULT 0, star INTEGER DEFAULT 0,
-        star_count TEXT, caption TEXT, text TEXT, textactive TEXT,
+        star_count TEXT, caption TEXT, text TEXT,
         dimensions TEXT, dimensions_from_filter TEXT, rank TEXT, rotate TEXT,
-        faces TEXT, filters TEXT, stats TEXT, persons TEXT, extra_fields TEXT,
+        faces TEXT, filters TEXT, persons TEXT, extra_fields TEXT,
         index_version INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -584,18 +598,52 @@ class EntriesDatabaseAccess {
     this.db.prepare(`DELETE FROM albums WHERE key = ?`).run(albumKey);
   }
 
-  upsertEntry(entry: AlbumEntry): void {
+  upsertEntry(entry: AlbumEntry, fileStats?: { mtime: string; size: number }): void {
     if (!this.isWriter) throw new Error("upsertEntry requires READWRITE");
     const existing = this.db.prepare(`
       SELECT entry_id FROM album_entries WHERE album_key = ? AND entry_name = ?
     `).get(entry.album.key, entry.name) as { entry_id: string } | undefined;
 
     const entryId = existing?.entry_id ?? uuid();
+    const hasFileStats = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
+    if (hasFileStats.some((c) => c.name === "file_mtime") && fileStats) {
+      this.db.prepare(`
+        INSERT INTO album_entries (entry_id, album_key, entry_name, file_mtime, file_size, updated_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(album_key, entry_name) DO UPDATE SET
+          file_mtime = excluded.file_mtime,
+          file_size = excluded.file_size,
+          updated_at = CURRENT_TIMESTAMP
+      `).run(entryId, entry.album.key, entry.name, fileStats.mtime, fileStats.size);
+    } else {
+      this.db.prepare(`
+        INSERT OR REPLACE INTO album_entries (
+          entry_id, album_key, entry_name, updated_at
+        ) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+      `).run(entryId, entry.album.key, entry.name);
+    }
+  }
+
+  getEntryFileStats(entry: AlbumEntry): { mtime: string; size: number } | null {
+    const hasFileStats = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
+    if (!hasFileStats.some((c) => c.name === "file_mtime")) return null;
+
+    const row = this.db.prepare(`
+      SELECT file_mtime, file_size FROM album_entries WHERE album_key = ? AND entry_name = ?
+    `).get(entry.album.key ?? "", entry.name) as { file_mtime: string | null; file_size: number | null } | undefined;
+    if (!row || row.file_mtime == null || row.file_size == null) return null;
+    return { mtime: row.file_mtime, size: row.file_size };
+  }
+
+  updateEntryFileStats(entry: AlbumEntry, mtime: string, size: number): void {
+    if (!this.isWriter) throw new Error("updateEntryFileStats requires READWRITE");
+    const hasFileStats = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
+    if (!hasFileStats.some((c) => c.name === "file_mtime")) return;
+
     this.db.prepare(`
-      INSERT OR REPLACE INTO album_entries (
-        entry_id, album_key, entry_name, updated_at
-      ) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-    `).run(entryId, entry.album.key, entry.name);
+      UPDATE album_entries SET file_mtime = ?, file_size = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE album_key = ? AND entry_name = ?
+    `).run(mtime, size, entry.album.key ?? "", entry.name);
   }
 
   updateEntryLocation(entryId: string, albumKey: string, entryName: string): void {

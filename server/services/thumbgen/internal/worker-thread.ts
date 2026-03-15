@@ -51,6 +51,17 @@ function setupEventDrivenThumbnailGeneration(): void {
     }
   });
 
+  events.on("albumEntryFileChanged", async (entry) => {
+    try {
+      await imageInfo(entry);
+      for (const size of STARTUP_SIZES) {
+        enqueueThumbnail(entry, size);
+      }
+    } catch (error) {
+      debug(`Error queueing thumbnails for changed ${entry.name}:`, error);
+    }
+  });
+
   events.on("filtersChanged", (event: { entry: { album: { key: string; name: string }; name: string } }) => {
     for (const size of STARTUP_SIZES) {
       enqueueThumbnail(event.entry, size);

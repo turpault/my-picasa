@@ -20,6 +20,8 @@ export type ServerEvents = {
     value: any;
   };
   albumEntryAdded: AlbumEntry;
+  /** Emitted when file stats (mtime/size) differ from cached - triggers EXIF, thumbnail reprocessing */
+  albumEntryFileChanged: AlbumEntry;
   albumEntryMoved: { oldEntry: AlbumEntry; newEntry: AlbumEntry };
   albumEntryRemoved: AlbumEntry;
   albumEntryUpdated: AlbumEntryWithMetadata;

@@ -18,6 +18,7 @@ import {
   assetsInFolderAlbum,
   queueNotification,
 } from "../../../rpc/fileAndFolders";
+import { pathForAlbumEntry } from "../../../utils/serverUtils";
 import { mediaCount } from "../../../rpc/rpcFunctions/albumUtils";
 import {
   initializePicasaIniCache,
@@ -257,12 +258,32 @@ async function reindexAlbumsFromList(albums: Album[]): Promise<void> {
           events.emit("albumAdded", newAlbum);
         }
 
-        // Emit events for added entries
+        // Emit events for added entries, check file stats for existing entries
         for (const entry of entries) {
+          const filePath = pathForAlbumEntry(entry);
+          let fileStats: { mtime: string; size: number } | undefined;
+          try {
+            const s = await stat(filePath);
+            fileStats = {
+              mtime: s.mtime.getTime().toString(),
+              size: s.size,
+            };
+          } catch (e) {
+            debugLogger(`Error stating ${entry.name} in ${album.key}:`, e);
+          }
+
           if (!existingEntryNames.has(entry.name)) {
             events.emit("albumEntryAdded", entry);
             const db = getWalkerDatabase();
-            db.upsertEntry(entry);
+            db.upsertEntry(entry, fileStats);
+          } else if (fileStats) {
+            const db = getWalkerDatabase();
+            const cached = db.getEntryFileStats(entry);
+            if (!cached || cached.mtime !== fileStats.mtime || cached.size !== fileStats.size) {
+              debugLogger(`File changed: ${entry.name} (mtime/size differ from cache)`);
+              events.emit("albumEntryFileChanged", entry);
+              db.updateEntryFileStats(entry, fileStats.mtime, fileStats.size);
+            }
           }
         }
 
