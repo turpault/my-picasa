@@ -44,14 +44,27 @@ import { normalizeName } from "../../../operations/faces/faces";
 /** Keys with these prefixes are never written to .picasa.ini (DB-only cache data). */
 const CACHE_FIELD_PREFIXES = ["cached:", "thumb_filter_version:"];
 
+/** Fields that are no longer used and should be stripped on read/write. */
+const REMOVED_FIELDS = new Set([
+  "textactive",
+  "stats",
+  "originalAlbumName",
+  "originalAlbumKey",
+  "originalName",
+]);
+
 function isCacheField(key: string): boolean {
   return CACHE_FIELD_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
+
+function isRemovedField(key: string): boolean {
+  return REMOVED_FIELDS.has(key);
 }
 
 function stripCacheFieldsFromMetadata(metadata: AlbumEntryMetaData): AlbumEntryMetaData {
   const result: AlbumEntryMetaData = {};
   for (const key in metadata) {
-    if (!isCacheField(key)) {
+    if (!isCacheField(key) && !isRemovedField(key)) {
       (result as Record<string, string>)[key] = metadata[key as keyof AlbumEntryMetaData] as string;
     }
   }
@@ -435,7 +448,7 @@ export async function updatePicasaEntry(
   if (entry.name.normalize() !== entry.name) {
     debugger;
   }
-  if (field !== "*" && isCacheField(field as string)) {
+  if (field !== "*" && (isCacheField(field as string) || isRemovedField(field as string))) {
     return;
   }
   let hasChanged = true;
@@ -568,7 +581,7 @@ function dataFix(album: Album, i: AlbumMetaData): boolean {
       changed = true;
     }
     for (const field of Object.keys(i[key] as object)) {
-      if (isCacheField(field)) {
+      if (isCacheField(field) || isRemovedField(field)) {
         delete (i[key] as Record<string, unknown>)[field];
         changed = true;
       }

@@ -76,6 +76,7 @@ class EntriesDatabaseAccess {
       this.migrateAlbumEntriesIndexVersion();
       this.migrateFilterVersion();
       this.migrateFileStats();
+      this.migrateDropRemovedFields();
       this.migrateChildTablesIfNeeded();
       this.migratePicturesIndexVersion();
     }
@@ -91,6 +92,21 @@ class EntriesDatabaseAccess {
       this.db.run("ALTER TABLE album_entries ADD COLUMN file_size INTEGER");
     } catch (e) {
       debugLogger("migrateFileStats error:", e);
+    }
+  }
+
+  private migrateDropRemovedFields(): void {
+    try {
+      const info = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
+      const hasTextactive = info.some((c) => c.name === "textactive");
+      const hasStats = info.some((c) => c.name === "stats");
+      if (!hasTextactive && !hasStats) return;
+
+      debugLogger("Dropping removed textactive and stats columns from album_entries");
+      if (hasTextactive) this.db.run("ALTER TABLE album_entries DROP COLUMN textactive");
+      if (hasStats) this.db.run("ALTER TABLE album_entries DROP COLUMN stats");
+    } catch (e) {
+      debugLogger("migrateDropRemovedFields error:", e);
     }
   }
 
@@ -490,8 +506,8 @@ class EntriesDatabaseAccess {
 
   getEntryMetadata(entry: AlbumEntry): AlbumEntryMetaData {
     const row = this.db.prepare(`
-      SELECT date_taken, photostar, star, star_count, caption, text, textactive,
-        dimensions, dimensions_from_filter, rank, rotate, faces, filters, stats, persons, extra_fields,
+      SELECT date_taken, photostar, star, star_count, caption, text,
+        dimensions, dimensions_from_filter, rank, rotate, faces, filters, persons, extra_fields,
         filter_version, thumb_filter_version_small, thumb_filter_version_medium, thumb_filter_version_large
       FROM album_entries WHERE album_key = ? AND entry_name = ?
     `).get(entry.album.key ?? "", entry.name ?? "") as any;
@@ -504,14 +520,12 @@ class EntriesDatabaseAccess {
     if (row.star_count) metadata.starCount = row.star_count;
     if (row.caption) metadata.caption = row.caption;
     if (row.text) metadata.text = row.text;
-    if (row.textactive) metadata.textactive = row.textactive;
     if (row.dimensions) metadata.dimensions = row.dimensions;
     if (row.dimensions_from_filter) metadata.dimensionsFromFilter = row.dimensions_from_filter;
     if (row.rank) metadata.rank = row.rank;
     if (row.rotate) metadata.rotate = row.rotate;
     if (row.faces) metadata.faces = row.faces;
     if (row.filters) metadata.filters = row.filters;
-    if (row.stats) metadata.stats = row.stats;
     if (row.persons) metadata.persons = row.persons;
     if (row.filter_version !== undefined) metadata.filterVersion = row.filter_version;
     if (row.thumb_filter_version_small !== undefined) metadata.thumbFilterVersionSmall = row.thumb_filter_version_small;
@@ -520,8 +534,13 @@ class EntriesDatabaseAccess {
     if (row.extra_fields) {
       try {
         const extra = JSON.parse(row.extra_fields);
+        const removedKeys = ["textactive", "stats", "originalAlbumName", "originalAlbumKey", "originalName"];
         for (const k of Object.keys(extra)) {
-          if (!k.startsWith("cached:") && !k.startsWith("thumb_filter_version:")) {
+          if (
+            !k.startsWith("cached:") &&
+            !k.startsWith("thumb_filter_version:") &&
+            !removedKeys.includes(k)
+          ) {
             (metadata as Record<string, unknown>)[k] = extra[k];
           }
         }
@@ -549,8 +568,8 @@ class EntriesDatabaseAccess {
 
   getAlbumMetaData(album: Album): AlbumMetaData {
     const rows = this.db.prepare(`
-      SELECT entry_name, date_taken, photostar, star, star_count, caption, text, textactive,
-        dimensions, dimensions_from_filter, rank, rotate, faces, filters, stats, persons, extra_fields
+      SELECT entry_name, date_taken, photostar, star, star_count, caption, text,
+        dimensions, dimensions_from_filter, rank, rotate, faces, filters, persons, extra_fields
       FROM album_entries WHERE album_key = ? ORDER BY entry_name
     `).all(album.key) as any[];
     const metadata: AlbumMetaData = {};
@@ -562,18 +581,26 @@ class EntriesDatabaseAccess {
       if (row.star_count) entryMetadata.starCount = row.star_count;
       if (row.caption) entryMetadata.caption = row.caption;
       if (row.text) entryMetadata.text = row.text;
-      if (row.textactive) entryMetadata.textactive = row.textactive;
       if (row.dimensions) entryMetadata.dimensions = row.dimensions;
       if (row.dimensions_from_filter) entryMetadata.dimensionsFromFilter = row.dimensions_from_filter;
       if (row.rank) entryMetadata.rank = row.rank;
       if (row.rotate) entryMetadata.rotate = row.rotate;
       if (row.faces) entryMetadata.faces = row.faces;
       if (row.filters) entryMetadata.filters = row.filters;
-      if (row.stats) entryMetadata.stats = row.stats;
       if (row.persons) entryMetadata.persons = row.persons;
       if (row.extra_fields) {
         try {
-          Object.assign(entryMetadata, JSON.parse(row.extra_fields));
+          const extra = JSON.parse(row.extra_fields);
+          const removedKeys = ["textactive", "stats", "originalAlbumName", "originalAlbumKey", "originalName"];
+          for (const k of Object.keys(extra)) {
+            if (
+              !k.startsWith("cached:") &&
+              !k.startsWith("thumb_filter_version:") &&
+              !removedKeys.includes(k)
+            ) {
+              (entryMetadata as Record<string, unknown>)[k] = extra[k];
+            }
+          }
         } catch (e) {
           debugLogger(`Error parsing extra_fields for ${row.entry_name}:`, e);
         }
@@ -693,12 +720,13 @@ class EntriesDatabaseAccess {
   ): void {
     if (!this.isWriter) throw new Error("updateEntryMetadata requires READWRITE");
     const standardFields = new Set([
-      "dateTaken", "photostar", "star", "starCount", "caption", "text", "textactive",
-      "dimensions", "dimensionsFromFilter", "rank", "rotate", "faces", "filters", "stats", "persons",
+      "dateTaken", "photostar", "star", "starCount", "caption", "text",
+      "dimensions", "dimensionsFromFilter", "rank", "rotate", "faces", "filters", "persons",
     ]);
+    const removedFields = new Set(["textactive", "stats", "originalAlbumName", "originalAlbumKey", "originalName"]);
     const extra: Partial<Record<extraFields, string>> = {};
     for (const key in metadata) {
-      if (!standardFields.has(key)) {
+      if (!standardFields.has(key) && !removedFields.has(key)) {
         extra[key as extraFields] = metadata[key as keyof AlbumEntryMetaData] as string;
       }
     }
@@ -710,15 +738,15 @@ class EntriesDatabaseAccess {
 
     this.db.prepare(`
       UPDATE album_entries SET
-        date_taken = ?, photostar = ?, star = ?, star_count = ?, caption = ?, text = ?, textactive = ?,
-        dimensions = ?, dimensions_from_filter = ?, rank = ?, rotate = ?, faces = ?, filters = ?, stats = ?, persons = ?,
+        date_taken = ?, photostar = ?, star = ?, star_count = ?, caption = ?, text = ?,
+        dimensions = ?, dimensions_from_filter = ?, rank = ?, rotate = ?, faces = ?, filters = ?, persons = ?,
         extra_fields = ?, index_version = index_version + 1${filterVersionIncrement}, updated_at = CURRENT_TIMESTAMP
       WHERE album_key = ? AND entry_name = ?
     `).run(
       metadata.dateTaken || null, metadata.photostar ? 1 : 0, metadata.star ? 1 : 0,
-      metadata.starCount || null, metadata.caption || null, metadata.text || null, metadata.textactive || null,
+      metadata.starCount || null, metadata.caption || null, metadata.text || null,
       metadata.dimensions || null, metadata.dimensionsFromFilter || null, metadata.rank || null,
-      metadata.rotate || null, metadata.faces || null, metadata.filters || null, metadata.stats || null,
+      metadata.rotate || null, metadata.faces || null, metadata.filters || null,
       metadata.persons || null, extraFieldsJson, entry.album.key ?? "", entry.name ?? ""
     );
   }
