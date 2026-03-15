@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { AlbumEntry } from "../../../shared/types/types";
-import { isVideo } from "../../../shared/lib/utils";
+import { isVideo, decodeOperations, encodeOperations } from "../../../shared/lib/utils";
 import { usePicisaService, useAppEmitter } from "../../context/AppContext";
 import { useAlbumEntries } from "../../context/caches/AlbumEntriesCacheProvider";
 import { useCacheBust } from "../../context/CacheBustProvider";
@@ -22,48 +22,48 @@ const toolCategories = [
     name: "Basic",
     icon: `${RES}/wrench.svg`,
     tools: [
-      { name: t("Crop"), icon: `${RES}/wrench.svg` },
-      { name: t("Tilt"), icon: `${RES}/wrench.svg` },
-      { name: t("Rotate Left"), icon: `${RES}/wrench.svg` },
-      { name: t("Rotate Right"), icon: `${RES}/wrench.svg` },
-      { name: t("Flip"), icon: `${RES}/wrench.svg` },
-      { name: t("Mirror"), icon: `${RES}/wrench.svg` },
+      { name: t("Crop"), icon: `${RES}/wrench.svg`, filterName: "crop64" },
+      { name: t("Tilt"), icon: `${RES}/wrench.svg`, filterName: "tilt" },
+      { name: t("Rotate Left"), icon: `${RES}/wrench.svg`, action: "rotateLeft" },
+      { name: t("Rotate Right"), icon: `${RES}/wrench.svg`, action: "rotateRight" },
+      { name: t("Flip"), icon: `${RES}/wrench.svg`, filterName: "flip" },
+      { name: t("Mirror"), icon: `${RES}/wrench.svg`, filterName: "mirror" },
     ],
   },
   {
     name: t("Adjustments"),
     icon: `${RES}/contrast.svg`,
     tools: [
-      { name: t("Brightness"), icon: `${RES}/contrast.svg` },
-      { name: t("Contrast"), icon: `${RES}/contrast.svg` },
-      { name: t("Highlights"), icon: `${RES}/contrast.svg` },
-      { name: t("Extra Light"), icon: `${RES}/contrast.svg` },
+      { name: t("Brightness"), icon: `${RES}/contrast.svg`, filterName: "finetune2" },
+      { name: t("Contrast"), icon: `${RES}/contrast.svg`, filterName: "finetune2" },
+      { name: t("Highlights"), icon: `${RES}/contrast.svg`, filterName: "finetune2" },
+      { name: t("Extra Light"), icon: `${RES}/contrast.svg`, filterName: "autolight" },
     ],
   },
   {
     name: t("Effects"),
     icon: `${RES}/brush.svg`,
     tools: [
-      { name: t("Autocolor"), icon: `${RES}/brush.svg` },
-      { name: t("Greyscale"), icon: `${RES}/brush.svg` },
-      { name: t("Sepia"), icon: `${RES}/brush.svg` },
-      { name: t("Polaroid"), icon: `${RES}/brush.svg` },
+      { name: t("Autocolor"), icon: `${RES}/brush.svg`, filterName: "autocolor" },
+      { name: t("Greyscale"), icon: `${RES}/brush.svg`, filterName: "greyscale" },
+      { name: t("Sepia"), icon: `${RES}/brush.svg`, filterName: "sepia" },
+      { name: t("Polaroid"), icon: `${RES}/brush.svg`, filterName: "polaroid" },
     ],
   },
   {
     name: t("More..."),
     icon: `${RES}/green-brush.svg`,
     tools: [
-      { name: t("Blur"), icon: `${RES}/green-brush.svg` },
-      { name: t("Sharpen"), icon: `${RES}/green-brush.svg` },
-      { name: t("Heatmap"), icon: `${RES}/green-brush.svg` },
-      { name: t("Solarize"), icon: `${RES}/green-brush.svg` },
+      { name: t("Blur"), icon: `${RES}/green-brush.svg`, filterName: "blur" },
+      { name: t("Sharpen"), icon: `${RES}/green-brush.svg`, filterName: "sharpen" },
+      { name: t("Heatmap"), icon: `${RES}/green-brush.svg`, filterName: "heatmap" },
+      { name: t("Solarize"), icon: `${RES}/green-brush.svg`, filterName: "solarize" },
     ],
   },
   {
     name: t("Filters"),
     icon: `${RES}/blue-brush.svg`,
-    tools: [{ name: t("Filter"), icon: `${RES}/blue-brush.svg` }],
+    tools: [{ name: t("Filter"), icon: `${RES}/blue-brush.svg`, filterName: "filter" }],
   },
 ];
 
@@ -182,6 +182,32 @@ export function EditorPage({ entry: initialEntry, onClose }: EditorPageProps) {
     setEntry(e);
   }, []);
 
+  const handleToolClick = useCallback(
+    async (tool: { action?: string; filterName?: string }) => {
+      if (!service || entryIsVideo) return;
+      setBusy(true);
+      try {
+        if (tool.action === "rotateLeft") {
+          await service.rotate([entry], "left");
+        } else if (tool.action === "rotateRight") {
+          await service.rotate([entry], "right");
+        } else if (tool.filterName && ["flip", "mirror"].includes(tool.filterName)) {
+          const meta = await service.getAlbumEntryMetadata(entry);
+          const current = decodeOperations(meta?.filters || "");
+          const idx = current.findIndex((o) => o.name === tool.filterName);
+          const next =
+            idx >= 0
+              ? current.filter((_, i) => i !== idx)
+              : [...current, { name: tool.filterName!, args: ["1"] }];
+          await service.setFilters(entry, encodeOperations(next));
+        }
+      } finally {
+        setBusy(false);
+      }
+    },
+    [service, entry, entryIsVideo],
+  );
+
   const imgSrc = assetUrl(entry) + `?cb=${cacheBust(entry)}`;
 
   return (
@@ -218,9 +244,7 @@ export function EditorPage({ entry: initialEntry, onClose }: EditorPageProps) {
                   icon={tool.icon}
                   iconPos="top"
                   className="tool-button"
-                  onClick={() => {
-                    /* TODO: activate tool */
-                  }}
+                  onClick={() => handleToolClick(tool)}
                 >
                   {tool.name}
                 </Button>
