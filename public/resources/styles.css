@@ -280,6 +280,7 @@
   bottom: 170px;
   overflow-y: auto;
   overflow-x: clip;
+  z-index: 1;
 }
 .editor-controls {
   position: absolute;
@@ -288,6 +289,7 @@
   bottom: 170px;
   background: #deddde;
   padding: 10px;
+  z-index: 0;
 }
 .tools-bar-undo-redo {
   position: absolute;
