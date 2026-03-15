@@ -184,6 +184,8 @@ function PhotoList({
     return map;
   }, [orderedAlbums]);
 
+  const mountedRef = useRef(true);
+
   // Fetch entries for a single album
   const fetchAlbumEntries = useCallback(
     async (album: Album) => {
@@ -195,18 +197,28 @@ function PhotoList({
           ? isFilterEmpty(settings.filters)
           : undefined;
         const result = await service.media(album, effectiveFilters);
+        if (!mountedRef.current) return;
         const list = Array.isArray(result) ? result : result?.entries ?? [];
         setEntriesMap((prev) => new Map(prev).set(key, list));
       } finally {
-        setLoadingSet((prev) => {
-          const next = new Set(prev);
-          next.delete(key);
-          return next;
-        });
+        if (mountedRef.current) {
+          setLoadingSet((prev) => {
+            const next = new Set(prev);
+            next.delete(key);
+            return next;
+          });
+        }
       }
     },
     [service, settings.filters],
   );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // Ensure an album is loaded (no-op if already loaded)
   const ensureLoaded = useCallback(
@@ -279,6 +291,7 @@ function PhotoList({
       (entries) => {
         if (!entries[0]?.isIntersecting) return;
         const lastLoaded = visibleAlbums[visibleAlbums.length - 1];
+        if (!lastLoaded) return;
         const idx = albumIndex.get(lastLoaded.key);
         if (idx !== undefined && idx < orderedAlbums.length - 1) {
           ensureLoaded(orderedAlbums[idx + 1]);
@@ -300,6 +313,7 @@ function PhotoList({
       (entries) => {
         if (!entries[0]?.isIntersecting) return;
         const firstLoaded = visibleAlbums[0];
+        if (!firstLoaded) return;
         const idx = albumIndex.get(firstLoaded.key);
         if (idx !== undefined && idx > 0) {
           const prevAlbum = orderedAlbums[idx - 1];
@@ -309,9 +323,10 @@ function PhotoList({
           ensureLoaded(prevAlbum);
           // After render, restore scroll position
           requestAnimationFrame(() => {
-            const newScrollHeight = container.scrollHeight;
-            container.scrollTop =
-              prevScrollTop + (newScrollHeight - prevScrollHeight);
+            const c = scrollContainerRef.current;
+            if (!c) return;
+            const newScrollHeight = c.scrollHeight;
+            c.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
           });
         }
       },
