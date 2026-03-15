@@ -186,9 +186,13 @@ export class ExifDatabaseAccess {
           person_in_image, acceleration_vector, photo_identifier, image_unique_id, lens_model, lens_info, focal_length_35mm,
           gps_altitude, gps_altitude_ref, gps_date_stamp, gps_img_direction, gps_img_direction_ref, gps_timestamp)
         VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?, ?, ?,
-          ?, ?, ?, ?, ?, ?)
+          ?, ?, ?, ?,
+          ?, ?, ?,
+          ?, ?, ?,
+          ?,
+          ?, ?, ?,
+          ?, ?, ?)
       `).run(entryId, exifData, hasExif ? 1 : 0, ...colVals);
     }
     debugLogger(`Updated EXIF data for entry ${entry.name}`);
