@@ -133,8 +133,9 @@ function isSqliteLockError(e: unknown): boolean {
 
 /**
  * Extract EXIF data for an entry and update the database
+ * Exported for use by the extraction worker.
  */
-async function extractExifData(entry: AlbumEntry): Promise<void> {
+export async function extractExifData(entry: AlbumEntry): Promise<void> {
   const db = getExifDatabaseReadWrite();
   try {
     debugLogger(`Extracting EXIF data for ${entry.name}`);

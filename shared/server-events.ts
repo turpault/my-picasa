@@ -20,6 +20,7 @@ export type ServerEvents = {
     value: any;
   };
   albumEntryAdded: AlbumEntry;
+  albumEntryMoved: { oldEntry: AlbumEntry; newEntry: AlbumEntry };
   albumEntryRemoved: AlbumEntry;
   albumEntryUpdated: AlbumEntryWithMetadata;
   albumAdded: AlbumWithData;

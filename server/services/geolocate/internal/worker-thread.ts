@@ -71,9 +71,10 @@ function queueGeoPOIProcessing(entry: AlbumEntry): void {
 
 /**
  * Process geo POI for an entry and update the database
- * This is called when EXIF data becomes available (via exifDataProcessed event)
+ * This is called when EXIF data becomes available (via exifDataProcessed event).
+ * Exported for use by the extraction worker.
  */
-async function processGeoPOI(entry: AlbumEntry): Promise<void> {
+export async function processGeoPOI(entry: AlbumEntry): Promise<void> {
   const db = getGeolocateDatabaseReadWrite();
   try {
     debugLogger(`Processing geo POI for ${entry.name}`);

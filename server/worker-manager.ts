@@ -18,12 +18,10 @@ export async function startWorkers() {
 
   const services = [
     'walker',
-    'search',
+    'extraction',
     'thumbgen',
-    'exif',
     'faces',
     'favorite-exporter',
-    'geolocate'
   ];
 
   for (const service of services) {

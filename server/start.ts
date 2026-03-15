@@ -6,6 +6,7 @@ import { lockedLocks, startLockMonitor } from "../shared/lib/mutex";
 import { RPCAdaptorInterface } from "../shared/rpc-transport/rpc-adaptor-interface";
 import { WsAdaptor } from "../shared/rpc-transport/ws-adaptor";
 import { closePoiDb } from "./services/geolocate/internal/poi/poi-database";
+import { closeWalkerDatabase } from "./services/walker/internal/database";
 import { parseLUTs } from "./imageOperations/image-filters";
 import { encode } from "./imageOperations/sharp-processor";
 import { startAlbumUpdateNotification } from "./rpc/fileAndFolders";
@@ -254,6 +255,7 @@ export async function startServer(p?: number) {
 
 process.on("exit", () => {
   closePoiDb();
+  closeWalkerDatabase();
 });
 
 export async function startServices() {

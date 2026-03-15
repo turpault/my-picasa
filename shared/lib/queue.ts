@@ -116,3 +116,130 @@ export class Queue {
   private _done: number;
   private options: { fifo?: boolean };
 }
+
+/**
+ * Priority queue: picks the item with the lowest priority number first.
+ * Within the same priority, FIFO (oldest first).
+ * Default priority is 3 (lowest).
+ */
+export class PriorityQueue {
+  private buckets: Map<number, Array<{ task: Task; resolve: (v: any) => void; reject: (e: any) => void }>> = new Map();
+  private concurrency: number;
+  private _active = 0;
+  private _total = 0;
+  private _done = 0;
+  private defaultPriority = 3;
+  event: Emitter<QueueEvent>;
+
+  constructor(concurrency: number = 1, defaultPriority: number = 3) {
+    this.concurrency = concurrency;
+    this.defaultPriority = defaultPriority;
+    this.event = buildEmitter<QueueEvent>(false);
+  }
+
+  add<T>(r: Task, priority?: number): Promise<T> {
+    const p = priority ?? this.defaultPriority;
+    if (!this.buckets.has(p)) {
+      this.buckets.set(p, []);
+    }
+    this.buckets.get(p)!.push({
+      task: r,
+      resolve: () => {},
+      reject: () => {},
+    });
+    return new Promise<T>((resolve, reject) => {
+      const bucket = this.buckets.get(p)!;
+      const item = bucket[bucket.length - 1];
+      item.resolve = resolve as (v: any) => void;
+      item.reject = reject;
+      this._total++;
+      this.changed();
+      this.startIfNeeded();
+    });
+  }
+
+  private changed(): void {
+    const waiting = this.getWaitingCount();
+    this.event.emit("changed", {
+      waiting,
+      progress: this._active,
+      done: this._total,
+    });
+  }
+
+  private getWaitingCount(): number {
+    let count = 0;
+    for (const bucket of this.buckets.values()) {
+      count += bucket.length;
+    }
+    return count;
+  }
+
+  private pickNext(): { task: Task; resolve: (v: any) => void; reject: (e: any) => void } | null {
+    const priorities = [...this.buckets.keys()].sort((a, b) => a - b);
+    for (const p of priorities) {
+      const bucket = this.buckets.get(p)!;
+      if (bucket.length > 0) {
+        const item = bucket.shift()!;
+        if (bucket.length === 0) {
+          this.buckets.delete(p);
+        }
+        return item;
+      }
+    }
+    return null;
+  }
+
+  length(): number {
+    return this.getWaitingCount() + this._active;
+  }
+
+  done(): number {
+    return this._done;
+  }
+
+  total(): number {
+    return this._total;
+  }
+
+  async drain(): Promise<void> {
+    if (this._active === 0 && this.length() === 0) {
+      return;
+    }
+    return new Promise<void>((resolve) => {
+      this.event.once("drain", () => {
+        resolve();
+      });
+    });
+  }
+
+  private startIfNeeded(): void {
+    while (this._active < this.concurrency) {
+      const item = this.pickNext();
+      if (!item) break;
+
+      this._active++;
+      this.changed();
+
+      Promise.resolve()
+        .then(() => item.task())
+        .then((v) => {
+          try {
+            item.resolve(v);
+          } catch {
+            // ignore
+          }
+        })
+        .catch((e) => item.reject(e))
+        .finally(() => {
+          this._done++;
+          this._active--;
+          this.changed();
+          if (this._active === 0 && this.getWaitingCount() === 0) {
+            this.event.emit("drain", {});
+          }
+          this.startIfNeeded();
+        });
+    }
+  }
+}
