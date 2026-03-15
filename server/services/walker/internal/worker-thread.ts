@@ -186,7 +186,7 @@ async function walk(
   }
 
   const m = await assetsInFolderAlbum(album);
-  await reindexAlbumsFromList([album]);
+  await reindexAlbumsFromList([album], { skipEntryEvents: true });
 
 
   // depth down first
@@ -205,10 +205,14 @@ async function walk(
   }
 }
 
+/** When true, skip emitting albumEntryAdded/albumEntryFileChanged/albumEntryRemoved to avoid flooding the global queue during initial walk. */
+type ReindexOptions = { skipEntryEvents?: boolean };
+
 /**
  * Reindex albums from a list of Album objects
  */
-async function reindexAlbumsFromList(albums: Album[]): Promise<void> {
+async function reindexAlbumsFromList(albums: Album[], options?: ReindexOptions): Promise<void> {
+  const skipEntryEvents = options?.skipEntryEvents ?? false;
   try {
     for (const album of albums) {
       try {
@@ -273,7 +277,7 @@ async function reindexAlbumsFromList(albums: Album[]): Promise<void> {
           }
 
           if (!existingEntryNames.has(entry.name)) {
-            events.emit("albumEntryAdded", entry);
+            if (!skipEntryEvents) events.emit("albumEntryAdded", entry);
             const db = getWalkerDatabase();
             db.upsertEntry(entry, fileStats);
           } else if (fileStats) {
@@ -281,7 +285,7 @@ async function reindexAlbumsFromList(albums: Album[]): Promise<void> {
             const cached = db.getEntryFileStats(entry);
             if (!cached || cached.mtime !== fileStats.mtime || cached.size !== fileStats.size) {
               debugLogger(`File changed: ${entry.name} (mtime/size differ from cache)`);
-              events.emit("albumEntryFileChanged", entry);
+              if (!skipEntryEvents) events.emit("albumEntryFileChanged", entry);
               db.updateEntryFileStats(entry, fileStats.mtime, fileStats.size);
             }
           }
@@ -290,7 +294,7 @@ async function reindexAlbumsFromList(albums: Album[]): Promise<void> {
         // Emit events for removed entries
         for (const entry of existingEntries) {
           if (!newEntryNames.has(entry.name)) {
-            events.emit("albumEntryRemoved", entry);
+            if (!skipEntryEvents) events.emit("albumEntryRemoved", entry);
             const db = getWalkerDatabase();
             db.deleteEntry(entry);
           }

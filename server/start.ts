@@ -23,9 +23,10 @@ import { imagesRoot, rootPath } from "./utils/constants";
 import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
 import { initUndo } from "./utils/undo";
-import { startWorkers } from "./worker-manager";
+import { getExtractionStats, startWorkers } from "./worker-manager";
 
 import indexHtml from "../public/index.html";
+import statsHTML from "../public/stats.html";
 
 type BunServerWebSocket = import("bun").ServerWebSocket<unknown>;
 
@@ -113,6 +114,7 @@ export async function startServer(p?: number) {
       development: process.env.NODE_ENV !== "production",
       routes: {
         "/": indexHtml,
+        "/stat": statsHTML,
         "/ping": () => Response.json({ pong: "it worked!" }),
         "/stats": async () =>
           Response.json({

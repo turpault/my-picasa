@@ -8,7 +8,7 @@ import { addJob } from "./global-job-queue";
 import { events } from "../../shared/server-events";
 import { imageInfo } from "../imageOperations/info";
 import { makeThumbnailIfNeeded } from "../rpc/rpcFunctions/thumbnail";
-import { getEntryMetadata } from "../walker/queries";
+import { getEntryMetadata } from "../services/walker/queries";
 import { unlink } from "fs/promises";
 import { extname, join } from "path";
 import { exportToFolder } from "../imageOperations/export";
