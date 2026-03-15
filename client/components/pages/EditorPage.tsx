@@ -4,10 +4,11 @@ import { isVideo } from "../../../shared/lib/utils";
 import { usePicisaService, useAppEmitter } from "../../context/AppContext";
 import { useAlbumEntries } from "../../context/caches/AlbumEntriesCacheProvider";
 import { useCacheBust } from "../../context/CacheBustProvider";
-import { assetUrl, thumbnailUrl } from "../../imageProcess/client";
+import { assetUrl, thumbnailUrl, buildContext, destroyContext } from "../../imageProcess/client";
 import { toggleStar } from "../../lib/handles";
 import { t } from "../strings";
 import { Button } from "../controls";
+import { Histogram } from "../shared/Histogram";
 
 interface EditorPageProps {
   entry: AlbumEntry;
@@ -130,9 +131,40 @@ export function EditorPage({ entry: initialEntry, onClose }: EditorPageProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const entryIsVideo = isVideo(entry);
 
+  const [histogramContext, setHistogramContext] = useState<string | null>(null);
+  const histogramContextRef = useRef<string | null>(null);
+
   useEffect(() => {
     setEntry(initialEntry);
   }, [initialEntry]);
+
+  useEffect(() => {
+    if (entryIsVideo) {
+      setHistogramContext(null);
+      histogramContextRef.current = null;
+      return;
+    }
+    let cancelled = false;
+    buildContext(entry)
+      .then((ctx) => {
+        if (cancelled) {
+          destroyContext(ctx);
+        } else {
+          histogramContextRef.current = ctx;
+          setHistogramContext(ctx);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setHistogramContext(null);
+      });
+    return () => {
+      cancelled = true;
+      const toDestroy = histogramContextRef.current;
+      histogramContextRef.current = null;
+      setHistogramContext(null);
+      if (toDestroy) destroyContext(toDestroy);
+    };
+  }, [entry.album.key, entry.name, entryIsVideo]);
 
   useEffect(() => {
     if (!service) return;
@@ -222,7 +254,7 @@ export function EditorPage({ entry: initialEntry, onClose }: EditorPageProps) {
 
         <div className="histogram">
           {t("Histogram data and information about the camera")}
-          <div className="histogram-camera-model" />
+          <Histogram context={histogramContext} />
         </div>
       </div>
 

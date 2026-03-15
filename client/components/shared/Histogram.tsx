@@ -48,5 +48,12 @@ export function Histogram({ context }: HistogramProps) {
     refresh();
   }, [refresh]);
 
-  return <canvas ref={canvasRef} className="canvas-histogram" />;
+  return (
+    <canvas
+      ref={canvasRef}
+      className="canvas-histogram"
+      width={256}
+      height={71}
+    />
+  );
 }
