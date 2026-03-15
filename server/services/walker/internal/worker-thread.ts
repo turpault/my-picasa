@@ -6,7 +6,6 @@ import { addJob, drainGlobalQueue } from "../../../utils/global-job-queue";
 import {
   alphaSorter,
   differs,
-  sleep,
 } from "../../../../shared/lib/utils";
 import {
   Album,
@@ -333,43 +332,35 @@ export async function walkFilesystem(): Promise<void> {
     await reindexAlbumsFromList(albums);
   });
 
-  let iteration = 0;
-  while (true) {
-    console.info(`Filesystem scan: iteration ${iteration}`);
-    const oldAlbums = getAllAlbums();
-    const oldKeys = new Set(oldAlbums.map(a => a.key));
-    const foundKeys = new Set<string>();
+  console.info("Filesystem scan: initial walk");
+  const oldAlbums = getAllAlbums();
+  const foundKeys = new Set<string>();
 
-    addJob(
-      () =>
-        walk("", imagesRoot, async (a: Album) => {
-          addOrRefreshOrDeleteAlbum(
-            a,
-            "SkipCheckInfo",
-            true /* we know it's added */
-          );
-          foundKeys.add(a.key);
-        }),
-      "WALK"
-    );
-    await drainGlobalQueue();
+  addJob(
+    () =>
+      walk("", imagesRoot, async (a: Album) => {
+        addOrRefreshOrDeleteAlbum(
+          a,
+          "SkipCheckInfo",
+          true /* we know it's added */
+        );
+        foundKeys.add(a.key);
+      }),
+    "WALK"
+  );
+  await drainGlobalQueue();
 
-    // Find deleted albums
-    for (const oldAlbum of oldAlbums) {
-      if (!foundKeys.has(oldAlbum.key)) {
-        addOrRefreshOrDeleteAlbum(oldAlbum);
-      }
+  // Find deleted albums
+  for (const oldAlbum of oldAlbums) {
+    if (!foundKeys.has(oldAlbum.key)) {
+      addOrRefreshOrDeleteAlbum(oldAlbum);
     }
-
-    if (iteration === 0) {
-      console.info(`Album list retrieved`);
-      walkerReadyResolve?.();
-      walkerReadyResolve = null;
-      startFileWatcher();
-    }
-    iteration++;
-    await sleep(60 * 60); // Wait 60 minutes
   }
+
+  console.info("Album list retrieved");
+  walkerReadyResolve?.();
+  walkerReadyResolve = null;
+  startFileWatcher();
 }
 
 export async function refreshAlbumKeys(albums: string[]) {
