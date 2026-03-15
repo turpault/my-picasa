@@ -1,315 +1,90 @@
-import { Database } from "bun:sqlite";
-import debug from "debug";
-import { join } from "path";
 import { AlbumEntry } from "../../../../shared/types/types";
-import { imagesRoot } from "../../../utils/constants";
 import { getExifData } from "../../../rpc/rpcFunctions/exif";
-import { getWalkerDatabase } from "../../walker/internal/database";
-import { ensureDbFormatOrRemove, isDev } from "../../../utils/ensure-db-format";
+import { getEntriesDatabase } from "../../entries/internal/database";
 
-const debugLogger = debug("app:geolocate-db");
+const debugLogger = require("debug")("app:geolocate-db");
 
-// Database version constant - increment this when schema changes
-const DATABASE_VERSION = 1;
-
-export type OpenMode = 'READ' | 'READWRITE';
+export type OpenMode = "READ" | "READWRITE";
 
 /**
- * Shared Geolocate Database Access
- * 
- * This module provides access to the picasa_geolocate.db database with enforced single-writer pattern.
- * Only instances opened with READWRITE mode can write to the database.
- * All other instances must use READ mode.
+ * Geolocate database access - uses geo_poi_data table in picisa_entries.db (Phase 3).
  */
 export class GeolocateDatabaseAccess {
-  private db: Database;
-  private dbPath: string;
-  private readonly: boolean;
+  private getDb: () => ReturnType<typeof getEntriesDatabase>["getDatabase"];
   private isWriter: boolean;
-  private openMode: OpenMode;
 
-  constructor(openMode: OpenMode = 'READ') {
-    this.dbPath = join(imagesRoot, "picasa_geolocate.db");
-    this.openMode = openMode;
-    this.isWriter = openMode === 'READWRITE';
-    this.readonly = !this.isWriter;
-
-    if (this.isWriter) {
-      debugLogger("Opening Geolocate database in READ-WRITE mode");
-      if (isDev()) {
-        ensureDbFormatOrRemove(this.dbPath, (db) => {
-          db.prepare("SELECT version FROM db_version ORDER BY version DESC LIMIT 1").get();
-        });
-      }
-    } else {
-      debugLogger("Opening Geolocate database in READ-ONLY mode");
-    }
-
-    // Open database (bun:sqlite)
-    this.db = new Database(this.dbPath, {
-      readonly: this.readonly,
-      create: this.isWriter,
-    });
-
-    // Wrap prepare and run for SQL logging if DEBUG_SQL is set
-    if (process.env.DEBUG_SQL) {
-      const originalPrepare = this.db.prepare.bind(this.db);
-      const originalRun = this.db.run.bind(this.db);
-
-      this.db.prepare = (sql: string) => {
-        debugLogger(`SQL: ${sql}`);
-        return originalPrepare(sql);
-      };
-
-      this.db.run = (sql: string) => {
-        debugLogger(`SQL: ${sql}`);
-        return originalRun(sql);
-      };
-    }
-
-    // Attach walker database as read-only (always read-only in Geolocate service)
-    this.db.run("PRAGMA busy_timeout=15000");
-    try {
-      const walkerDb = getWalkerDatabase();
-      const walkerDbPath = walkerDb.getDatabasePath();
-      const fileUri = `file:${walkerDbPath.replace(/'/g, "''")}?mode=ro`;
-      this.db.run(`ATTACH DATABASE '${fileUri}' AS walker`);
-      debugLogger("Attached walker database as read-only");
-    } catch (error) {
-      debugLogger("Warning: Could not attach walker database:", error);
-      // Continue without attachment - queries will need to work without it
-    }
-
-    // Migrate if writer
-    if (this.isWriter) {
-      this.checkAndMigrateDatabase();
-    }
+  constructor(openMode: OpenMode = "READ") {
+    this.isWriter = openMode === "READWRITE";
+    this.getDb = () => getEntriesDatabase().getDatabase();
   }
 
-  /**
-   * Get the database connection
-   */
-  getDatabase(): Database {
-    return this.db;
+  getDatabase() {
+    return this.getDb();
   }
 
-  /**
-   * Check database version and migrate if necessary (writer only)
-   */
-  private checkAndMigrateDatabase(): void {
-    if (!this.isWriter) return;
-
-    try {
-      const versionTableExists = this.db.prepare(`
-        SELECT name FROM sqlite_master 
-        WHERE type='table' AND name='db_version'
-      `).get();
-
-      if (!versionTableExists) {
-        debugLogger("First time database setup - creating version table");
-        this.db.run(`
-          CREATE TABLE db_version (
-            version INTEGER PRIMARY KEY,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-          )
-        `);
-        this.db.run(`INSERT INTO db_version (version) VALUES (${DATABASE_VERSION})`);
-        this.initDatabase();
-        debugLogger(`Database initialized with version ${DATABASE_VERSION}`);
-      } else {
-        const currentVersion = this.db.prepare("SELECT version FROM db_version ORDER BY version DESC LIMIT 1").get() as { version: number } | undefined;
-
-        if (!currentVersion || currentVersion.version < DATABASE_VERSION) {
-          debugLogger(`Database version mismatch. Current: ${currentVersion?.version || 'unknown'}, Required: ${DATABASE_VERSION}`);
-          this.migrateDatabase(currentVersion?.version || 0);
-        } else if (currentVersion.version > DATABASE_VERSION) {
-          debugLogger(`Database version ${currentVersion.version} is newer than expected ${DATABASE_VERSION}. This may cause compatibility issues.`);
-        } else {
-          debugLogger(`Database version ${DATABASE_VERSION} is up to date`);
-        }
-      }
-    } catch (error) {
-      debugLogger("Error checking database version:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Migrate database to new version (writer only)
-   */
-  private migrateDatabase(fromVersion: number): void {
-    if (!this.isWriter) return;
-
-    debugLogger(`Migrating database from version ${fromVersion} to ${DATABASE_VERSION}`);
-    try {
-      // For version 1, no migration needed yet
-      this.db.run(`UPDATE db_version SET version = ${DATABASE_VERSION} WHERE version = ${fromVersion}`);
-      debugLogger(`Database migration completed to version ${DATABASE_VERSION}`);
-    } catch (error) {
-      debugLogger("Error during database migration:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Initialize database schema (writer only)
-   */
-  private initDatabase(): void {
-    if (!this.isWriter) return;
-
-    // Create geo_poi_data table
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS geo_poi_data (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        album_key TEXT NOT NULL,
-        album_name TEXT NOT NULL,
-        entry_name TEXT NOT NULL,
-        geo_poi TEXT,
-        has_geo_poi BOOLEAN NOT NULL DEFAULT 0,
-        processed_at TEXT,
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create indexes for better query performance
-    this.db.run(`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_geo_entry ON geo_poi_data(album_key, entry_name);
-      CREATE INDEX IF NOT EXISTS idx_album_key ON geo_poi_data(album_key);
-      CREATE INDEX IF NOT EXISTS idx_album_name ON geo_poi_data(album_name);
-      CREATE INDEX IF NOT EXISTS idx_entry_name ON geo_poi_data(entry_name);
-      CREATE INDEX IF NOT EXISTS idx_has_geo_poi ON geo_poi_data(has_geo_poi);
-      CREATE INDEX IF NOT EXISTS idx_processed_at ON geo_poi_data(processed_at);
-    `);
-
-    debugLogger("Database initialized at:", this.dbPath);
-  }
-
-  /**
-   * Close the database connection
-   */
   close(): void {
-    this.db.close();
+    // Entries DB is managed by getEntriesDatabase
   }
 
-  /**
-   * Check if this instance has write access
-   */
   canWrite(): boolean {
     return this.isWriter;
   }
 
-  // ========== QUERY METHODS (Read-only operations) ==========
-
-  /**
-   * Get geo POI data for a specific entry
-   */
   getGeoPOI(entry: AlbumEntry): string | null {
     const result = this.getDatabase()
-      .prepare(
-        `SELECT geo_poi FROM geo_poi_data WHERE album_key = ? AND entry_name = ?`
-      )
+      .prepare(`SELECT geo_poi FROM geo_poi_data WHERE album_key = ? AND entry_name = ?`)
       .get(entry.album.key ?? "", entry.name ?? "") as { geo_poi: string | null } | undefined;
-
     return result?.geo_poi ?? null;
   }
 
-  /**
-   * Check if an entry has geo POI data
-   */
   hasGeoPOI(entry: AlbumEntry): boolean {
     const result = this.getDatabase()
-      .prepare(
-        `SELECT has_geo_poi FROM geo_poi_data WHERE album_key = ? AND entry_name = ?`
-      )
+      .prepare(`SELECT has_geo_poi FROM geo_poi_data WHERE album_key = ? AND entry_name = ?`)
       .get(entry.album.key ?? "", entry.name ?? "") as { has_geo_poi: number } | undefined;
-
     return (result?.has_geo_poi ?? 0) === 1;
   }
 
-  /**
-   * Check if an entry has been processed (regardless of whether it has geo POI data)
-   * Join with album_entries to check if entry exists in walker database.
-   * Returns false if walker schema is not attached or not ready yet.
-   */
   isProcessed(entry: AlbumEntry): boolean {
     try {
       const result = this.getDatabase()
         .prepare(
-          `SELECT g.processed_at 
-           FROM walker.album_entries ae
+          `SELECT g.processed_at FROM album_entries ae
            LEFT JOIN geo_poi_data g ON ae.album_key = g.album_key AND ae.entry_name = g.entry_name
            WHERE ae.album_key = ? AND ae.entry_name = ?`
         )
         .get(entry.album.key ?? "", entry.name ?? "") as { processed_at: string | null } | undefined;
-
       return result !== undefined && result.processed_at !== null;
     } catch {
       return false;
     }
   }
 
-  /**
-   * Get GPS coordinates (latitude, longitude) from EXIF data for an entry
-   */
   getCoordinates(entry: AlbumEntry): { latitude: number; longitude: number } | null {
-    // Use the RPC function which handles processed/not processed distinction
     const exif = getExifData(entry);
-
-    // If null, EXIF hasn't been processed yet
-    if (exif === null) {
-      return null;
-    }
-
-    // If empty object, EXIF was processed but has no data
-    if (Object.keys(exif).length === 0) {
-      return null;
-    }
-
+    if (exif === null || Object.keys(exif).length === 0) return null;
     try {
       const { GPSLatitude, GPSLatitudeRef, GPSLongitudeRef, GPSLongitude } = exif;
-
-      if (
-        GPSLatitude &&
-        GPSLatitudeRef &&
-        GPSLongitudeRef &&
-        GPSLongitude
-      ) {
-        const latitude =
-          (GPSLatitudeRef === "N" ? 1 : -1) *
-          (GPSLatitude[0] + GPSLatitude[1] / 60 + GPSLatitude[2] / 3600);
-        const longitude =
-          (GPSLongitudeRef === "E" ? 1 : -1) *
-          (GPSLongitude[0] + GPSLongitude[1] / 60 + GPSLongitude[2] / 3600);
-
+      if (GPSLatitude && GPSLatitudeRef && GPSLongitudeRef && GPSLongitude) {
+        const latitude = (GPSLatitudeRef === "N" ? 1 : -1) * (GPSLatitude[0] + GPSLatitude[1] / 60 + GPSLatitude[2] / 3600);
+        const longitude = (GPSLongitudeRef === "E" ? 1 : -1) * (GPSLongitude[0] + GPSLongitude[1] / 60 + GPSLongitude[2] / 3600);
         return { latitude, longitude };
       }
-    } catch (e) {
-      // If parsing fails, return null
+    } catch {
+      /* */
     }
-
     return null;
   }
 
-  /**
-   * Get all entries that need geo POI processing
-   * An unprocessed entry exists in album_entries but has no data in geo_poi_data.
-   * Returns [] if walker schema is not attached or not ready yet.
-   */
   getUnprocessedEntries(): Array<{ album_key: string; album_name: string; entry_name: string }> {
     try {
       return this.getDatabase()
         .prepare(
-          `SELECT 
-            walker.album_entries.album_key,
-            walker.albums.name AS album_name,
-            walker.album_entries.entry_name
-           FROM walker.album_entries
-           LEFT JOIN walker.albums ON walker.album_entries.album_key = walker.albums.key
-           LEFT JOIN geo_poi_data ON walker.album_entries.album_key = geo_poi_data.album_key 
-             AND walker.album_entries.entry_name = geo_poi_data.entry_name
-           WHERE geo_poi_data.album_key IS NULL
-           ORDER BY walker.album_entries.created_at ASC`
+          `SELECT ae.album_key, a.name AS album_name, ae.entry_name
+           FROM album_entries ae
+           LEFT JOIN albums a ON ae.album_key = a.key
+           LEFT JOIN geo_poi_data g ON ae.album_key = g.album_key AND ae.entry_name = g.entry_name
+           WHERE g.album_key IS NULL
+           ORDER BY ae.created_at ASC`
         )
         .all() as Array<{ album_key: string; album_name: string; entry_name: string }>;
     } catch {
@@ -317,143 +92,51 @@ export class GeolocateDatabaseAccess {
     }
   }
 
-  // ========== WRITE METHODS (Write operations - READWRITE only) ==========
-
-  /**
-   * Create or update an entry in the database (without geo POI data initially)
-   */
   upsertEntry(entry: AlbumEntry): void {
-    if (!this.isWriter) {
-      throw new Error("upsertEntry can only be called on a READWRITE database instance");
-    }
-
+    if (!this.isWriter) throw new Error("upsertEntry requires READWRITE");
     const db = this.getDatabase();
-    try {
-      if (entry.album.key === undefined || entry.album.name === undefined || entry.name === undefined) {
-        debugLogger(`Error upserting entry ${entry.name}: album.key or album.name or name is undefined`);
-        return;
-      }
-
-      const upsertStmt = db.prepare(`
-        INSERT INTO geo_poi_data (
-          album_key, album_name, entry_name, geo_poi, has_geo_poi, updated_at
-        ) VALUES (?, ?, ?, NULL, 0, CURRENT_TIMESTAMP)
-        ON CONFLICT(album_key, entry_name) DO UPDATE SET
-          album_name = excluded.album_name,
-          updated_at = CURRENT_TIMESTAMP
-      `);
-
-      upsertStmt.run(
-        entry.album.key ?? '',
-        entry.album.name ?? '',
-        entry.name ?? ''
-      );
-
-    } catch (error: any) {
-      debugLogger(`Error upserting entry ${entry.name}:`, error);
-      throw error;
-    }
+    const entryRow = db.prepare("SELECT entry_id FROM album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key ?? "", entry.name ?? "") as { entry_id: string } | undefined;
+    if (!entryRow) return;
+    db.prepare(`
+      INSERT OR REPLACE INTO geo_poi_data (entry_id, album_key, entry_name, geo_poi, has_geo_poi, updated_at)
+      VALUES (?, ?, ?, NULL, 0, CURRENT_TIMESTAMP)
+    `).run(entryRow.entry_id, entry.album.key ?? "", entry.name ?? "");
   }
 
-  /**
-   * Update geo POI data for an entry
-   */
   updateGeoPOI(entry: AlbumEntry, geoPOI: string | null): void {
-    if (!this.isWriter) {
-      throw new Error("updateGeoPOI can only be called on a READWRITE database instance");
-    }
-
+    if (!this.isWriter) throw new Error("updateGeoPOI requires READWRITE");
     const db = this.getDatabase();
-    try {
-      if (entry.album.key === undefined || entry.name === undefined) {
-        debugLogger(`Error updating geo POI for ${entry.name}: album.key or name is undefined`);
-        return;
+    const hasGeoPOI = geoPOI !== null && geoPOI.trim().length > 0 && geoPOI !== "{}" && geoPOI !== "[]";
+    const result = db.prepare(`
+      UPDATE geo_poi_data SET geo_poi = ?, has_geo_poi = ?, processed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE album_key = ? AND entry_name = ?
+    `).run(geoPOI, hasGeoPOI ? 1 : 0, entry.album.key ?? "", entry.name ?? "");
+    if (result.changes === 0) {
+      const entryRow = db.prepare("SELECT entry_id FROM album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key ?? "", entry.name ?? "") as { entry_id: string } | undefined;
+      if (entryRow) {
+        db.prepare(`
+          INSERT INTO geo_poi_data (entry_id, album_key, entry_name, geo_poi, has_geo_poi, processed_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).run(entryRow.entry_id, entry.album.key ?? "", entry.name ?? "", geoPOI, hasGeoPOI ? 1 : 0);
       }
-
-      const hasGeoPOI = geoPOI !== null && geoPOI.trim().length > 0 && geoPOI !== '{}' && geoPOI !== '[]';
-
-      const updateStmt = db.prepare(`
-        UPDATE geo_poi_data SET
-          geo_poi = ?,
-          has_geo_poi = ?,
-          processed_at = CURRENT_TIMESTAMP,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE album_key = ? AND entry_name = ?
-      `);
-
-      const result = updateStmt.run(
-        geoPOI,
-        hasGeoPOI ? 1 : 0,
-        entry.album.key ?? '',
-        entry.name ?? ''
-      );
-
-      if (result.changes === 0) {
-        // Entry doesn't exist, create it
-        const insertStmt = db.prepare(`
-          INSERT INTO geo_poi_data (
-            album_key, album_name, entry_name, geo_poi, has_geo_poi, processed_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `);
-        insertStmt.run(
-          entry.album.key ?? '',
-          entry.album.name ?? '',
-          entry.name ?? '',
-          geoPOI,
-          hasGeoPOI ? 1 : 0
-        );
-      }
-
-    } catch (error: any) {
-      debugLogger(`Error updating geo POI for ${entry.name}:`, error);
-      throw error;
     }
   }
 
-  /**
-   * Remove an entry from the database
-   */
   removeEntry(entry: AlbumEntry): void {
-    if (!this.isWriter) {
-      throw new Error("removeEntry can only be called on a READWRITE database instance");
-    }
-
-    const db = this.getDatabase();
-    try {
-      const deleteStmt = db.prepare(
-        `DELETE FROM geo_poi_data WHERE album_key = ? AND entry_name = ?`
-      );
-
-      deleteStmt.run(entry.album.key ?? '', entry.name ?? '');
-    } catch (error: any) {
-      debugLogger(`Error removing entry ${entry.name}:`, error);
-      throw error;
-    }
+    if (!this.isWriter) throw new Error("removeEntry requires READWRITE");
+    this.getDatabase().prepare(`DELETE FROM geo_poi_data WHERE album_key = ? AND entry_name = ?`).run(entry.album.key ?? "", entry.name ?? "");
   }
 }
 
-// Singleton instances
 let geolocateDatabaseReadOnly: GeolocateDatabaseAccess | null = null;
 let geolocateDatabaseReadWrite: GeolocateDatabaseAccess | null = null;
 
-/**
- * Get the read-only singleton instance of the Geolocate database
- */
 export function getGeolocateDatabaseReadOnly(): GeolocateDatabaseAccess {
-  if (!geolocateDatabaseReadOnly) {
-    geolocateDatabaseReadOnly = new GeolocateDatabaseAccess('READ');
-  }
+  if (!geolocateDatabaseReadOnly) geolocateDatabaseReadOnly = new GeolocateDatabaseAccess("READ");
   return geolocateDatabaseReadOnly;
 }
 
-/**
- * Get the read-write singleton instance of the Geolocate database
- * Only one instance should exist, typically in the geolocate worker
- */
 export function getGeolocateDatabaseReadWrite(): GeolocateDatabaseAccess {
-  if (!geolocateDatabaseReadWrite) {
-    geolocateDatabaseReadWrite = new GeolocateDatabaseAccess('READWRITE');
-  }
+  if (!geolocateDatabaseReadWrite) geolocateDatabaseReadWrite = new GeolocateDatabaseAccess("READWRITE");
   return geolocateDatabaseReadWrite;
 }
-

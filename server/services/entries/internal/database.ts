@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import debug from "debug";
 import { join } from "path";
-import { existsSync } from "fs";
+import { existsSync, unlinkSync } from "fs";
 import { workerData } from "worker_threads";
 import {
   Album,
@@ -11,16 +11,19 @@ import {
   AlbumWithData,
   extraFields,
   Shortcut,
-} from "../../../../../shared/types/types";
+} from "../../../../shared/types/types";
 import { imagesRoot } from "../../../utils/constants";
 import { ensureDbFormatOrRemove, isDev } from "../../../utils/ensure-db-format";
-import { uuid } from "../../../../../shared/lib/utils";
+import { uuid } from "../../../../shared/lib/utils";
 
 const debugLogger = debug("app:entries-db");
 
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const ENTRIES_DB_PATH = join(imagesRoot, "picisa_entries.db");
 const WALKER_DB_PATH = join(imagesRoot, "picisa_walker.db");
+const EXIF_DB_PATH = join(imagesRoot, "picisa_exif.db");
+const GEOLOCATE_DB_PATH = join(imagesRoot, "picasa_geolocate.db");
+const INDEX_DB_PATH = join(imagesRoot, "picisa_index.db");
 
 /**
  * Unified entries database (picisa_entries.db).
@@ -36,7 +39,7 @@ class EntriesDatabaseAccess {
   constructor() {
     this.dbPath = ENTRIES_DB_PATH;
     const serviceName = workerData?.serviceName;
-    this.isWriter = serviceName === "walker";
+    this.isWriter = serviceName === "walker" || serviceName === "extraction";
 
     if (this.isWriter) {
       debugLogger("Opening entries database in READ-WRITE mode (walker worker)");
@@ -64,6 +67,130 @@ class EntriesDatabaseAccess {
 
     if (this.isWriter) {
       this.checkAndMigrateDatabase();
+      this.migrateChildTablesIfNeeded();
+    }
+  }
+
+  private migrateChildTablesIfNeeded(): void {
+    const hasExifTable = this.db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='exif_data'"
+    ).get();
+    if (hasExifTable) return;
+
+    debugLogger("Adding exif_data, geo_poi_data, pictures tables to entries DB");
+    this.db.run(`
+      CREATE TABLE exif_data (
+        entry_id TEXT PRIMARY KEY,
+        album_key TEXT NOT NULL, entry_name TEXT NOT NULL,
+        exif_data TEXT, has_exif INTEGER DEFAULT 0, processed_at TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(album_key, entry_name)
+      );
+      CREATE INDEX idx_exif_album_key ON exif_data(album_key);
+      CREATE INDEX idx_exif_entry_name ON exif_data(entry_name);
+
+      CREATE TABLE geo_poi_data (
+        entry_id TEXT PRIMARY KEY,
+        album_key TEXT NOT NULL, entry_name TEXT NOT NULL,
+        geo_poi TEXT, has_geo_poi INTEGER DEFAULT 0, processed_at TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(album_key, entry_name)
+      );
+      CREATE INDEX idx_geo_album_key ON geo_poi_data(album_key);
+      CREATE INDEX idx_geo_entry_name ON geo_poi_data(entry_name);
+
+      CREATE TABLE pictures (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entry_id TEXT NOT NULL,
+        album_key TEXT NOT NULL, album_name TEXT NOT NULL, entry_name TEXT NOT NULL,
+        persons TEXT, star_count TEXT, geo_poi TEXT, photostar INTEGER,
+        text_content TEXT, caption TEXT, entry_type TEXT, marked INTEGER DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(album_key, entry_name)
+      );
+      CREATE INDEX idx_pictures_album_key ON pictures(album_key);
+      CREATE INDEX idx_pictures_entry_id ON pictures(entry_id);
+
+      CREATE VIRTUAL TABLE pictures_fts USING fts5(
+        album_name, entry_name, persons, text_content, caption,
+        content='pictures', content_rowid='id'
+      );
+      CREATE TRIGGER pictures_fts_insert AFTER INSERT ON pictures BEGIN
+        INSERT INTO pictures_fts(rowid, album_name, entry_name, persons, text_content, caption)
+        VALUES (new.id, new.album_name, new.entry_name, new.persons, new.text_content, new.caption);
+      END;
+      CREATE TRIGGER pictures_fts_delete AFTER DELETE ON pictures BEGIN
+        INSERT INTO pictures_fts(pictures_fts, rowid, album_name, entry_name, persons, text_content, caption)
+        VALUES('delete', old.id, old.album_name, old.entry_name, old.persons, old.text_content, old.caption);
+      END;
+      CREATE TRIGGER pictures_fts_update AFTER UPDATE ON pictures BEGIN
+        INSERT INTO pictures_fts(pictures_fts, rowid, album_name, entry_name, persons, text_content, caption)
+        VALUES('delete', old.id, old.album_name, old.entry_name, old.persons, old.text_content, old.caption);
+        INSERT INTO pictures_fts(rowid, album_name, entry_name, persons, text_content, caption)
+        VALUES (new.id, new.album_name, new.entry_name, new.persons, new.text_content, new.caption);
+      END;
+    `);
+
+    this.migrateDataFromOldDbs();
+  }
+
+  private migrateDataFromOldDbs(): void {
+    if (existsSync(EXIF_DB_PATH)) {
+      try {
+        const oldDb = new Database(EXIF_DB_PATH, { readonly: true });
+        const rows = oldDb.prepare("SELECT album_key, entry_name, exif_data, has_exif, processed_at FROM exif_data").all() as any[];
+        for (const r of rows) {
+          const entry = this.db.prepare("SELECT entry_id FROM album_entries WHERE album_key=? AND entry_name=?").get(r.album_key, r.entry_name) as { entry_id: string } | undefined;
+          if (entry) {
+            this.db.prepare("INSERT OR REPLACE INTO exif_data (entry_id, album_key, entry_name, exif_data, has_exif, processed_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)")
+              .run(entry.entry_id, r.album_key, r.entry_name, r.exif_data, r.has_exif ?? 0, r.processed_at);
+          }
+        }
+        oldDb.close();
+        debugLogger(`Migrated ${rows.length} exif rows`);
+      } catch (e) {
+        debugLogger("Exif migration error:", e);
+      }
+    }
+    if (existsSync(GEOLOCATE_DB_PATH)) {
+      try {
+        const oldDb = new Database(GEOLOCATE_DB_PATH, { readonly: true });
+        const rows = oldDb.prepare("SELECT album_key, entry_name, geo_poi, has_geo_poi, processed_at FROM geo_poi_data").all() as any[];
+        for (const r of rows) {
+          const entry = this.db.prepare("SELECT entry_id FROM album_entries WHERE album_key=? AND entry_name=?").get(r.album_key, r.entry_name) as { entry_id: string } | undefined;
+          if (entry) {
+            this.db.prepare("INSERT OR REPLACE INTO geo_poi_data (entry_id, album_key, entry_name, geo_poi, has_geo_poi, processed_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)")
+              .run(entry.entry_id, r.album_key, r.entry_name, r.geo_poi, r.has_geo_poi ?? 0, r.processed_at);
+          }
+        }
+        oldDb.close();
+        debugLogger(`Migrated ${rows.length} geo rows`);
+        unlinkSync(GEOLOCATE_DB_PATH);
+        debugLogger("Removed old picasa_geolocate.db");
+      } catch (e) {
+        debugLogger("Geo migration error:", e);
+      }
+    }
+    if (existsSync(INDEX_DB_PATH)) {
+      try {
+        const oldDb = new Database(INDEX_DB_PATH, { readonly: true });
+        const rows = oldDb.prepare("SELECT album_key, album_name, entry_name, persons, star_count, geo_poi, photostar, text_content, caption, entry_type, marked FROM pictures").all() as any[];
+        for (const r of rows) {
+          const entry = this.db.prepare("SELECT entry_id FROM album_entries WHERE album_key=? AND entry_name=?").get(r.album_key, r.entry_name) as { entry_id: string } | undefined;
+          if (entry) {
+            this.db.prepare(`
+              INSERT OR REPLACE INTO pictures (entry_id, album_key, album_name, entry_name, persons, star_count, geo_poi, photostar, text_content, caption, entry_type, marked, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            `).run(entry.entry_id, r.album_key, r.album_name, r.entry_name, r.persons, r.star_count, r.geo_poi, r.photostar ?? 0, r.text_content, r.caption, r.entry_type ?? "unknown", r.marked ?? 0);
+          }
+        }
+        oldDb.close();
+        debugLogger(`Migrated ${rows.length} picture rows`);
+        unlinkSync(INDEX_DB_PATH);
+        debugLogger("Removed old picisa_index.db");
+      } catch (e) {
+        debugLogger("Pictures migration error:", e);
+      }
     }
   }
 
@@ -132,7 +259,8 @@ class EntriesDatabaseAccess {
 
     walkerDb.close();
     entriesDb.close();
-    debugLogger("Migration from walker DB completed");
+    unlinkSync(WALKER_DB_PATH);
+    debugLogger("Migration from walker DB completed, removed picisa_walker.db");
   }
 
   private checkAndMigrateDatabase(): void {

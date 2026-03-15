@@ -1,272 +1,55 @@
 import { Database } from "bun:sqlite";
 import debug from "debug";
-import { join } from "path";
 import { Album, AlbumEntry, AlbumWithData, Filters } from "../../../../shared/types/types";
-
 import { getEntryMetadata } from "../../walker/queries";
 import { isPicture, isVideo } from "../../../../shared/lib/utils";
-import { imagesRoot } from "../../../utils/constants";
 import { getGeoPOI } from "../../geolocate/queries";
-import { getWalkerDatabase } from "../../walker/internal/database";
-import { ensureDbFormatOrRemove, isDev } from "../../../utils/ensure-db-format";
+import { getEntriesDatabase } from "../../entries/internal/database";
+
 const debugLogger = debug("app:indexing-db");
 
-// Database version constant - increment this when schema changes
-const DATABASE_VERSION = 7;
-
-/**
- * Normalize text by removing diacritics and converting to lowercase
- */
 function normalizeText(text: string): string {
-  if (!text) return '';
-  return text
-    .normalize('NFD') // Decompose characters into base + combining characters
-    .replace(/[\u0300-\u036f]/g, '') // Remove combining diacritical marks
-    .toLowerCase()
-    .trim();
+  if (!text) return "";
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
-export type OpenMode = 'READ' | 'READWRITE';
+export type OpenMode = "READ" | "READWRITE";
 
 /**
- * Search Database Access with FTS (Full-Text Search)
- * 
- * This module provides access to the picisa_index.db database with FTS5 full-text search capabilities.
- * The database maintains a search index with FTS5 virtual tables for fast text search across:
- * - Album names
- * - Entry names
- * - Persons
- * - Text content
- * - Captions
- * 
- * Enforced single-writer pattern: only instances opened with READWRITE mode can write to the database.
- * All other instances must use READ mode.
+ * Search Database Access - uses pictures table in picisa_entries.db (Phase 3).
  */
 export class IndexingDatabaseAccess {
-  private db: Database;
-  private dbPath: string;
-  private readonly: boolean;
+  private getDb: () => Database;
   private isWriter: boolean;
-  private openMode: OpenMode;
 
-  constructor(openMode: OpenMode = 'READ') {
-    this.dbPath = join(imagesRoot, "picisa_index.db");
-    this.openMode = openMode;
-    this.isWriter = openMode === 'READWRITE';
-    this.readonly = !this.isWriter;
-
+  constructor(openMode: OpenMode = "READ") {
+    this.isWriter = openMode === "READWRITE";
+    this.getDb = () => getEntriesDatabase().getDatabase();
     if (this.isWriter) {
-      debugLogger("Opening indexing database in READ-WRITE mode");
-      if (isDev()) {
-        ensureDbFormatOrRemove(this.dbPath, (db) => {
-          db.prepare("SELECT version FROM db_version ORDER BY version DESC LIMIT 1").get();
-        });
-      }
-    } else {
-      debugLogger("Opening indexing database in READ-ONLY mode");
-    }
-
-    // Open database (bun:sqlite)
-    this.db = new Database(this.dbPath, {
-      readonly: this.readonly,
-      create: this.isWriter,
-    });
-
-    // Wrap prepare and run for SQL logging if DEBUG_SQL is set
-    if (process.env.DEBUG_SQL) {
-      const originalPrepare = this.db.prepare.bind(this.db);
-      const originalRun = this.db.run.bind(this.db);
-
-      this.db.prepare = (sql: string) => {
-        debugLogger(`SQL: ${sql}`);
-        return originalPrepare(sql);
-      };
-
-      this.db.run = (sql: string) => {
-        debugLogger(`SQL: ${sql}`);
-        return originalRun(sql);
-      };
-    }
-
-    // Attach walker database as read-only (always read-only in Search service)
-    this.db.run("PRAGMA busy_timeout=15000");
-    try {
-      const walkerDb = getWalkerDatabase();
-      const walkerDbPath = walkerDb.getDatabasePath();
-      const fileUri = `file:${walkerDbPath.replace(/'/g, "''")}?mode=ro`;
-      this.db.run(`ATTACH DATABASE '${fileUri}' AS walker`);
-      debugLogger("Attached walker database as read-only");
-    } catch (error) {
-      debugLogger("Warning: Could not attach walker database:", error);
-      // Continue without attachment - queries will need to work without it
-    }
-
-    // Migrate if writer
-    if (this.isWriter) {
-      this.checkAndMigrateDatabase();
       this.checkAndFixFTSIntegrity();
     }
   }
 
-  /**
-   * Get the database connection
-   */
   getDatabase(): Database {
-    return this.db;
+    return this.getDb();
   }
 
-  /**
-   * Check database version and migrate if necessary (writer only)
-   */
-  private checkAndMigrateDatabase(): void {
-    if (!this.isWriter) return;
-
-    try {
-      const versionTableExists = this.db.prepare(`
-        SELECT name FROM sqlite_master 
-        WHERE type='table' AND name='db_version'
-      `).get();
-
-      if (!versionTableExists) {
-        debugLogger("First time database setup - creating version table");
-        this.db.run(`
-          CREATE TABLE db_version (
-            version INTEGER PRIMARY KEY,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-          )
-        `);
-        this.db.run(`INSERT INTO db_version (version) VALUES (${DATABASE_VERSION})`);
-        this.initDatabase();
-        debugLogger(`Database initialized with version ${DATABASE_VERSION}`);
-      } else {
-        const currentVersion = this.db.prepare("SELECT version FROM db_version ORDER BY version DESC LIMIT 1").get() as { version: number } | undefined;
-
-        if (!currentVersion || currentVersion.version < DATABASE_VERSION) {
-          debugLogger(`Database version mismatch. Current: ${currentVersion?.version || 'unknown'}, Required: ${DATABASE_VERSION}`);
-          this.migrateDatabase(currentVersion?.version || 0);
-        } else if (currentVersion.version > DATABASE_VERSION) {
-          debugLogger(`Database version ${currentVersion.version} is newer than expected ${DATABASE_VERSION}. This may cause compatibility issues.`);
-        } else {
-          debugLogger(`Database version ${DATABASE_VERSION} is up to date`);
-        }
-      }
-    } catch (error) {
-      debugLogger("Error checking database version:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Migrate database to new version (writer only)
-   */
-  private migrateDatabase(fromVersion: number): void {
-    if (!this.isWriter) return;
-
-    debugLogger(`Migrating database from version ${fromVersion} to ${DATABASE_VERSION}`);
-    try {
-      this.db.run(`UPDATE db_version SET version = ${DATABASE_VERSION} WHERE version = ${fromVersion}`);
-      debugLogger(`Database migration completed to version ${DATABASE_VERSION}`);
-    } catch (error) {
-      debugLogger("Error during database migration:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Initialize database schema (writer only)
-   */
-  private initDatabase(): void {
-    if (!this.isWriter) return;
-
-    // Create pictures table
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS pictures (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        album_key TEXT NOT NULL,
-        album_name TEXT NOT NULL,
-        entry_name TEXT NOT NULL,
-        persons TEXT,
-        star_count TEXT,
-        geo_poi TEXT,
-        photostar BOOLEAN,
-        text_content TEXT,
-        caption TEXT,
-        entry_type TEXT,
-        file_extension TEXT,
-        mime_type TEXT,
-        file_size INTEGER,
-        width INTEGER,
-        height INTEGER,
-        duration REAL,
-        marked BOOLEAN NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create indexes for better query performance
-    this.db.run(`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_picture ON pictures(album_key, entry_name);
-      CREATE INDEX IF NOT EXISTS idx_album_key ON pictures(album_key);
-      CREATE INDEX IF NOT EXISTS idx_album_name ON pictures(album_name);
-      CREATE INDEX IF NOT EXISTS idx_entry_name ON pictures(entry_name);
-      CREATE INDEX IF NOT EXISTS idx_persons ON pictures(persons);
-      CREATE INDEX IF NOT EXISTS idx_star_count ON pictures(star_count);
-      CREATE INDEX IF NOT EXISTS idx_photostar ON pictures(photostar);
-      CREATE INDEX IF NOT EXISTS idx_entry_type ON pictures(entry_type);
-      CREATE INDEX IF NOT EXISTS idx_file_extension ON pictures(file_extension);
-      CREATE INDEX IF NOT EXISTS idx_mime_type ON pictures(mime_type);
-      CREATE INDEX IF NOT EXISTS idx_file_size ON pictures(file_size);
-      CREATE INDEX IF NOT EXISTS idx_dimensions ON pictures(width, height);
-      CREATE INDEX IF NOT EXISTS idx_marked ON pictures(marked);
-    `);
-
-    // Create full-text search index for metadata
-    this.db.run(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS pictures_fts USING fts5(
-        album_name,
-        entry_name,
-        persons,
-        text_content,
-        caption,
-        content='pictures',
-        content_rowid='id'
-      )
-    `);
-
-    // Create triggers to automatically keep FTS in sync
-    this.db.run(`
-      CREATE TRIGGER IF NOT EXISTS pictures_fts_insert AFTER INSERT ON pictures BEGIN
-        INSERT INTO pictures_fts(rowid, album_name, entry_name, persons, text_content, caption)
-        VALUES (new.id, new.album_name, new.entry_name, new.persons, new.text_content, new.caption);
-      END;
-
-      CREATE TRIGGER IF NOT EXISTS pictures_fts_delete AFTER DELETE ON pictures BEGIN
-        INSERT INTO pictures_fts(pictures_fts, rowid, album_name, entry_name, persons, text_content, caption)
-        VALUES('delete', old.id, old.album_name, old.entry_name, old.persons, old.text_content, old.caption);
-      END;
-
-      CREATE TRIGGER IF NOT EXISTS pictures_fts_update AFTER UPDATE ON pictures BEGIN
-        INSERT INTO pictures_fts(pictures_fts, rowid, album_name, entry_name, persons, text_content, caption)
-        VALUES('delete', old.id, old.album_name, old.entry_name, old.persons, old.text_content, old.caption);
-        INSERT INTO pictures_fts(rowid, album_name, entry_name, persons, text_content, caption)
-        VALUES (new.id, new.album_name, new.entry_name, new.persons, new.text_content, new.caption);
-      END;
-    `);
-
-    debugLogger("Database initialized at:", this.dbPath);
-  }
-
-  /**
-   * Check for orphaned FTS entries and fix them (writer only)
-   */
   private checkAndFixFTSIntegrity(): void {
     if (!this.isWriter) return;
 
+    const db = this.getDatabase();
+    const tablesExist = db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('pictures','pictures_fts')"
+    ).all() as { name: string }[];
+    if (tablesExist.length < 2) {
+      debugLogger("pictures or pictures_fts table not yet created, skipping FTS integrity check");
+      return;
+    }
+
     debugLogger("Checking FTS integrity...");
     try {
-      const pictureCount = this.db.prepare("SELECT COUNT(*) as count FROM pictures").get() as { count: number };
-      const ftsCount = this.db.prepare("SELECT COUNT(*) as count FROM pictures_fts").get() as { count: number };
+      const pictureCount = db.prepare("SELECT COUNT(*) as count FROM pictures").get() as { count: number };
+      const ftsCount = db.prepare("SELECT COUNT(*) as count FROM pictures_fts").get() as { count: number };
 
       debugLogger(`Pictures: ${pictureCount.count}, FTS entries: ${ftsCount.count}`);
 
@@ -286,13 +69,13 @@ export class IndexingDatabaseAccess {
    * Rebuild the FTS index (writer only)
    */
   rebuildFTSIndex(): void {
-    if (!this.isWriter || !this.db) {
+    if (!this.isWriter) {
       throw new Error("rebuildFTSIndex can only be called on a READWRITE database instance");
     }
 
     debugLogger("Rebuilding FTS index to fix orphaned entries...");
     try {
-      this.db.run(`INSERT INTO pictures_fts(pictures_fts) VALUES('rebuild');`);
+      this.getDatabase().run(`INSERT INTO pictures_fts(pictures_fts) VALUES('rebuild');`);
       debugLogger("FTS index rebuilt successfully");
     } catch (error) {
       debugLogger("Error rebuilding FTS index:", error);
@@ -300,11 +83,8 @@ export class IndexingDatabaseAccess {
     }
   }
 
-  /**
-   * Close the database connection
-   */
   close(): void {
-    this.db.close();
+    // Entries DB is managed by getEntriesDatabase
   }
 
   /**
@@ -734,15 +514,19 @@ export class IndexingDatabaseAccess {
         return;
       }
 
+      const entryRow = db.prepare("SELECT entry_id FROM album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key ?? "", entry.name ?? "") as { entry_id: string } | undefined;
+      const entryId = entryRow?.entry_id ?? "";
+
       const insertStmt = db.prepare(`
         INSERT OR REPLACE INTO pictures (
-          album_key, album_name, entry_name,
+          entry_id, album_key, album_name, entry_name,
           persons, star_count, geo_poi, photostar, text_content, caption, entry_type, marked,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
       `);
 
       insertStmt.run(
+        entryId,
         entry.album.key ?? '',
         entry.album.name ?? '',
         entry.name ?? '',
@@ -830,18 +614,8 @@ export class IndexingDatabaseAccess {
     }
 
     const db = this.getDatabase();
-    const removeStmt = db.prepare(`
-      DELETE FROM pictures WHERE album_key = ? AND entry_name = ?
-    `);
-    removeStmt.run(entry.album.key || '', entry.name || '');
+    db.prepare(`DELETE FROM pictures WHERE album_key = ? AND entry_name = ?`).run(entry.album.key || "", entry.name || "");
     debugLogger(`Removed entry ${entry.name} from database`);
-    const ftsRemoveStmt = db.prepare(`
-      DELETE FROM pictures_fts WHERE rowid = (
-        SELECT id FROM pictures WHERE album_key = ? AND entry_name = ?
-      )
-    `);
-    ftsRemoveStmt.run(entry.album.key || '', entry.name || '');
-    debugLogger(`Removed FTS entry ${entry.name} from database`);
   }
 
   /**

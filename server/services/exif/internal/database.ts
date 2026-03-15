@@ -1,272 +1,75 @@
 import { Database } from "bun:sqlite";
 import debug from "debug";
-import { join } from "path";
 import { AlbumEntry } from "../../../../shared/types/types";
-import { imagesRoot } from "../../../utils/constants";
-import { getWalkerDatabase } from "../../walker/internal/database";
-import { ensureDbFormatOrRemove, isDev } from "../../../utils/ensure-db-format";
+import { getEntriesDatabase } from "../../entries/internal/database";
 
 const debugLogger = debug("app:exif-db");
 
-// Database version constant - increment this when schema changes
-const DATABASE_VERSION = 1;
-
-export type OpenMode = 'READ' | 'READWRITE';
+export type OpenMode = "READ" | "READWRITE";
 
 /**
- * Shared EXIF Database Access
- * 
- * This module provides access to the picisa_exif.db database with enforced single-writer pattern.
- * Only instances opened with READWRITE mode can write to the database.
- * All other instances must use READ mode.
+ * EXIF database access - uses exif_data table in picisa_entries.db (Phase 3).
  */
 export class ExifDatabaseAccess {
-  private db: Database;
-  private dbPath: string;
-  private readonly: boolean;
+  private getDb: () => Database;
   private isWriter: boolean;
-  private openMode: OpenMode;
 
-  constructor(openMode: OpenMode = 'READ') {
-    this.dbPath = join(imagesRoot, "picisa_exif.db");
-    this.openMode = openMode;
-    this.isWriter = openMode === 'READWRITE';
-    this.readonly = !this.isWriter;
-
-    if (this.isWriter) {
-      debugLogger("Opening EXIF database in READ-WRITE mode");
-      if (isDev()) {
-        ensureDbFormatOrRemove(this.dbPath, (db) => {
-          db.prepare("SELECT version FROM db_version ORDER BY version DESC LIMIT 1").get();
-        });
-      }
-    } else {
-      debugLogger("Opening EXIF database in READ-ONLY mode");
-    }
-
-    // Open database (bun:sqlite)
-    this.db = new Database(this.dbPath, {
-      readonly: this.readonly,
-      create: this.isWriter,
-    });
-
-    // Wrap prepare and run for SQL logging if DEBUG_SQL is set
-    if (process.env.DEBUG_SQL) {
-      const originalPrepare = this.db.prepare.bind(this.db);
-      const originalRun = this.db.run.bind(this.db);
-
-      this.db.prepare = (sql: string) => {
-        debugLogger(`SQL: ${sql}`);
-        return originalPrepare(sql);
-      };
-
-      this.db.run = (sql: string) => {
-        debugLogger(`SQL: ${sql}`);
-        return originalRun(sql);
-      };
-    }
-
-    // Migrate if writer
-    if (this.isWriter) {
-      this.checkAndMigrateDatabase();
-    }
-
-    // Attach walker database as read-only (always read-only in EXIF service)
-    this.db.run("PRAGMA busy_timeout=15000");
-    try {
-      const walkerDb = getWalkerDatabase();
-      const walkerDbPath = walkerDb.getDatabasePath();
-      const fileUri = `file:${walkerDbPath.replace(/'/g, "''")}?mode=ro`;
-      this.db.run(`ATTACH DATABASE '${fileUri}' AS walker`);
-      debugLogger("Attached walker database as read-only");
-    } catch (error) {
-      debugLogger("Warning: Could not attach walker database:", error);
-      // Continue without attachment - queries will need to work without it
-    }
+  constructor(openMode: OpenMode = "READ") {
+    this.isWriter = openMode === "READWRITE";
+    this.getDb = () => getEntriesDatabase().getDatabase();
   }
 
-  /**
-   * Get the database connection
-   */
   getDatabase(): Database {
-    return this.db;
+    return this.getDb();
   }
 
-  /**
-   * Check database version and migrate if necessary (writer only)
-   */
-  private checkAndMigrateDatabase(): void {
-    if (!this.isWriter) return;
-
-    try {
-      const versionTableExists = this.db.prepare(`
-        SELECT name FROM sqlite_master 
-        WHERE type='table' AND name='db_version'
-      `).get();
-
-      if (!versionTableExists) {
-        debugLogger("First time database setup - creating version table");
-        this.db.run(`
-          CREATE TABLE db_version (
-            version INTEGER PRIMARY KEY,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-          )
-        `);
-        this.db.run(`INSERT INTO db_version (version) VALUES (${DATABASE_VERSION})`);
-        this.initDatabase();
-        debugLogger(`Database initialized with version ${DATABASE_VERSION}`);
-      } else {
-        const currentVersion = this.db.prepare("SELECT version FROM db_version ORDER BY version DESC LIMIT 1").get() as { version: number } | undefined;
-
-        if (!currentVersion || currentVersion.version < DATABASE_VERSION) {
-          debugLogger(`Database version mismatch. Current: ${currentVersion?.version || 'unknown'}, Required: ${DATABASE_VERSION}`);
-          this.migrateDatabase(currentVersion?.version || 0);
-        } else if (currentVersion.version > DATABASE_VERSION) {
-          debugLogger(`Database version ${currentVersion.version} is newer than expected ${DATABASE_VERSION}. This may cause compatibility issues.`);
-        } else {
-          debugLogger(`Database version ${DATABASE_VERSION} is up to date`);
-        }
-      }
-    } catch (error) {
-      debugLogger("Error checking database version:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Migrate database to new version (writer only)
-   */
-  private migrateDatabase(fromVersion: number): void {
-    if (!this.isWriter) return;
-
-    debugLogger(`Migrating database from version ${fromVersion} to ${DATABASE_VERSION}`);
-    try {
-      // For version 1, no migration needed yet
-      this.db.run(`UPDATE db_version SET version = ${DATABASE_VERSION} WHERE version = ${fromVersion}`);
-      debugLogger(`Database migration completed to version ${DATABASE_VERSION}`);
-    } catch (error) {
-      debugLogger("Error during database migration:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Initialize database schema (writer only)
-   */
-  private initDatabase(): void {
-    if (!this.isWriter) return;
-
-    // Create exif_data table
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS exif_data (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        album_key TEXT NOT NULL,
-        album_name TEXT NOT NULL,
-        entry_name TEXT NOT NULL,
-        exif_data TEXT,
-        has_exif BOOLEAN NOT NULL DEFAULT 0,
-        processed_at TEXT,
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create indexes for better query performance
-    this.db.run(`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_exif_entry ON exif_data(album_key, entry_name);
-      CREATE INDEX IF NOT EXISTS idx_album_key ON exif_data(album_key);
-      CREATE INDEX IF NOT EXISTS idx_album_name ON exif_data(album_name);
-      CREATE INDEX IF NOT EXISTS idx_entry_name ON exif_data(entry_name);
-      CREATE INDEX IF NOT EXISTS idx_has_exif ON exif_data(has_exif);
-      CREATE INDEX IF NOT EXISTS idx_processed_at ON exif_data(processed_at);
-    `);
-
-    debugLogger("Database initialized at:", this.dbPath);
-  }
-
-  /**
-   * Close the database connection
-   */
   close(): void {
-    this.db.close();
+    // Entries DB is managed by getEntriesDatabase, no per-module close
   }
 
-  /**
-   * Check if this instance has write access
-   */
   canWrite(): boolean {
     return this.isWriter;
   }
 
-  // ========== QUERY METHODS (Read-only operations) ==========
-
-  /**
-   * Get EXIF data for a specific entry
-   */
   getExifData(entry: AlbumEntry): string | null {
     const result = this.getDatabase()
-      .prepare(
-        `SELECT exif_data FROM exif_data WHERE album_key = ? AND entry_name = ?`
-      )
+      .prepare(`SELECT exif_data FROM exif_data WHERE album_key = ? AND entry_name = ?`)
       .get(entry.album.key ?? "", entry.name ?? "") as { exif_data: string | null } | undefined;
-
     return result?.exif_data ?? null;
   }
 
-  /**
-   * Check if an entry has EXIF data
-   */
   hasExifData(entry: AlbumEntry): boolean {
     const result = this.getDatabase()
-      .prepare(
-        `SELECT has_exif FROM exif_data WHERE album_key = ? AND entry_name = ?`
-      )
+      .prepare(`SELECT has_exif FROM exif_data WHERE album_key = ? AND entry_name = ?`)
       .get(entry.album.key ?? "", entry.name ?? "") as { has_exif: number } | undefined;
-
     return (result?.has_exif ?? 0) === 1;
   }
 
-  /**
-   * Check if an entry has been processed (regardless of whether it has EXIF data)
-   * Join with album_entries to check if entry exists in walker database.
-   * Returns false if walker schema is not attached or not ready yet.
-   */
   isProcessed(entry: AlbumEntry): boolean {
     try {
       const result = this.getDatabase()
         .prepare(
-          `SELECT e.processed_at 
-           FROM walker.album_entries ae
+          `SELECT e.processed_at FROM album_entries ae
            LEFT JOIN exif_data e ON ae.album_key = e.album_key AND ae.entry_name = e.entry_name
            WHERE ae.album_key = ? AND ae.entry_name = ?`
         )
         .get(entry.album.key ?? "", entry.name ?? "") as { processed_at: string | null } | undefined;
-
       return result !== undefined && result.processed_at !== null;
     } catch {
       return false;
     }
   }
 
-  /**
-   * Get all entries that need EXIF processing
-   * An unprocessed entry exists in album_entries but has no data in exif_data.
-   * Returns [] if walker schema is not attached or not ready yet.
-   */
   getUnprocessedEntries(): Array<{ album_key: string; album_name: string; entry_name: string }> {
     try {
       return this.getDatabase()
         .prepare(
-          `SELECT 
-            walker.album_entries.album_key,
-            walker.albums.name AS album_name,
-            walker.album_entries.entry_name
-           FROM walker.album_entries
-           LEFT JOIN walker.albums ON walker.album_entries.album_key = walker.albums.key
-           LEFT JOIN exif_data ON walker.album_entries.album_key = exif_data.album_key 
-             AND walker.album_entries.entry_name = exif_data.entry_name
-           WHERE exif_data.album_key IS NULL
-           ORDER BY walker.album_entries.created_at ASC`
+          `SELECT ae.album_key, a.name AS album_name, ae.entry_name
+           FROM album_entries ae
+           LEFT JOIN albums a ON ae.album_key = a.key
+           LEFT JOIN exif_data e ON ae.album_key = e.album_key AND ae.entry_name = e.entry_name
+           WHERE e.album_key IS NULL
+           ORDER BY ae.created_at ASC`
         )
         .all() as Array<{ album_key: string; album_name: string; entry_name: string }>;
     } catch {
@@ -274,187 +77,81 @@ export class ExifDatabaseAccess {
     }
   }
 
-  /**
-   * Get statistics about the EXIF database.
-   * Walker-dependent counts are 0 if walker schema is not attached or not ready yet.
-   */
   getStats(): { totalEntries: number; processedEntries: number; unprocessedEntries: number; lastProcessed: string } {
     const db = this.getDatabase();
     let totalEntries = 0;
     let unprocessedEntries = 0;
     try {
-      totalEntries = (db.prepare("SELECT COUNT(*) as count FROM walker.album_entries").get() as { count: number }).count;
+      totalEntries = (db.prepare("SELECT COUNT(*) as count FROM album_entries").get() as { count: number }).count;
     } catch {
-      /* walker not attached or not ready */
+      /* */
     }
     const processedEntries = (db.prepare("SELECT COUNT(*) as count FROM exif_data WHERE processed_at IS NOT NULL").get() as { count: number }).count;
     try {
       unprocessedEntries = (db.prepare(`
-        SELECT COUNT(*) as count 
-        FROM walker.album_entries ae
+        SELECT COUNT(*) as count FROM album_entries ae
         LEFT JOIN exif_data e ON ae.album_key = e.album_key AND ae.entry_name = e.entry_name
         WHERE e.album_key IS NULL
       `).get() as { count: number }).count;
     } catch {
-      /* walker not attached or not ready */
+      /* */
     }
-    const lastProcessed = (db.prepare("SELECT MAX(processed_at) as last_processed FROM exif_data WHERE processed_at IS NOT NULL").get() as { last_processed: string | null }).last_processed || 'Never';
-
-    return {
-      totalEntries,
-      processedEntries,
-      unprocessedEntries,
-      lastProcessed,
-    };
+    const lastProcessed = (db.prepare("SELECT MAX(processed_at) as last_processed FROM exif_data WHERE processed_at IS NOT NULL").get() as { last_processed: string | null }).last_processed || "Never";
+    return { totalEntries, processedEntries, unprocessedEntries, lastProcessed };
   }
 
-  // ========== WRITE METHODS (Write operations - READWRITE only) ==========
-
-  /**
-   * Create or update an entry in the database (without EXIF data initially)
-   */
   upsertEntry(entry: AlbumEntry): void {
-    if (!this.isWriter) {
-      throw new Error("upsertEntry can only be called on a READWRITE database instance");
-    }
-
+    if (!this.isWriter) throw new Error("upsertEntry requires READWRITE");
     const db = this.getDatabase();
-    try {
-      if (entry.album.key === undefined || entry.album.name === undefined || entry.name === undefined) {
-        debugLogger(`Error upserting entry ${entry.name}: album.key or album.name or name is undefined`);
-        return;
-      }
-
-      const upsertStmt = db.prepare(`
-        INSERT INTO exif_data (
-          album_key, album_name, entry_name, exif_data, has_exif, updated_at
-        ) VALUES (?, ?, ?, NULL, 0, CURRENT_TIMESTAMP)
-        ON CONFLICT(album_key, entry_name) DO UPDATE SET
-          album_name = excluded.album_name,
-          updated_at = CURRENT_TIMESTAMP
-      `);
-
-      upsertStmt.run(
-        entry.album.key ?? '',
-        entry.album.name ?? '',
-        entry.name ?? ''
-      );
-
-    } catch (error: any) {
-      debugLogger(`Error upserting entry ${entry.name}:`, error);
-      throw error;
-    }
+    const entryRow = db.prepare("SELECT entry_id FROM album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key ?? "", entry.name ?? "") as { entry_id: string } | undefined;
+    if (!entryRow) return;
+    db.prepare(`
+      INSERT OR REPLACE INTO exif_data (entry_id, album_key, entry_name, exif_data, has_exif, updated_at)
+      VALUES (?, ?, ?, NULL, 0, CURRENT_TIMESTAMP)
+    `).run(entryRow.entry_id, entry.album.key ?? "", entry.name ?? "");
   }
 
-  /**
-   * Update EXIF data for an entry
-   */
   updateExifData(entry: AlbumEntry, exifData: string | null): void {
-    if (!this.isWriter) {
-      throw new Error("updateExifData can only be called on a READWRITE database instance");
-    }
-
+    if (!this.isWriter) throw new Error("updateExifData requires READWRITE");
     const db = this.getDatabase();
-    try {
-      if (entry.album.key === undefined || entry.name === undefined) {
-        debugLogger(`Error updating EXIF data for ${entry.name}: album.key or name is undefined`);
-        return;
+    const hasExif = exifData !== null && exifData.trim().length > 0;
+    const result = db.prepare(`
+      UPDATE exif_data SET exif_data = ?, has_exif = ?, processed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE album_key = ? AND entry_name = ?
+    `).run(exifData, hasExif ? 1 : 0, entry.album.key ?? "", entry.name ?? "");
+    if (result.changes === 0) {
+      const entryRow = db.prepare("SELECT entry_id FROM album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key ?? "", entry.name ?? "") as { entry_id: string } | undefined;
+      if (entryRow) {
+        db.prepare(`
+          INSERT INTO exif_data (entry_id, album_key, entry_name, exif_data, has_exif, processed_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).run(entryRow.entry_id, entry.album.key ?? "", entry.name ?? "", exifData, hasExif ? 1 : 0);
       }
-
-      const hasExif = exifData !== null && exifData.trim().length > 0;
-
-      const updateStmt = db.prepare(`
-        UPDATE exif_data SET
-          exif_data = ?,
-          has_exif = ?,
-          processed_at = CURRENT_TIMESTAMP,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE album_key = ? AND entry_name = ?
-      `);
-
-      const result = updateStmt.run(
-        exifData,
-        hasExif ? 1 : 0,
-        entry.album.key ?? '',
-        entry.name ?? ''
-      );
-
-      if (result.changes === 0) {
-        // Entry doesn't exist, create it
-        const insertStmt = db.prepare(`
-          INSERT INTO exif_data (
-            album_key, album_name, entry_name, exif_data, has_exif, processed_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `);
-        insertStmt.run(
-          entry.album.key ?? '',
-          entry.album.name ?? '',
-          entry.name ?? '',
-          exifData,
-          hasExif ? 1 : 0
-        );
-      }
-
-      debugLogger(`Updated EXIF data for entry ${entry.name}`);
-    } catch (error) {
-      debugLogger(`Error updating EXIF data for entry ${entry.name}:`, error);
-      throw error;
     }
+    debugLogger(`Updated EXIF data for entry ${entry.name}`);
   }
 
-  /**
-   * Remove an entry from the database
-   */
   removeEntry(entry: AlbumEntry): void {
-    if (!this.isWriter) {
-      throw new Error("removeEntry can only be called on a READWRITE database instance");
-    }
-
-    const db = this.getDatabase();
-    const removeStmt = db.prepare(`
-      DELETE FROM exif_data WHERE album_key = ? AND entry_name = ?
-    `);
-    removeStmt.run(entry.album.key || '', entry.name || '');
+    if (!this.isWriter) throw new Error("removeEntry requires READWRITE");
+    this.getDatabase().prepare(`DELETE FROM exif_data WHERE album_key = ? AND entry_name = ?`).run(entry.album.key || "", entry.name || "");
     debugLogger(`Removed entry ${entry.name} from EXIF database`);
   }
 }
 
-// Singleton instances per process/worker
 let readOnlyDbAccess: ExifDatabaseAccess | null = null;
 let readWriteDbAccess: ExifDatabaseAccess | null = null;
 
-/**
- * Get a read-only EXIF database access instance
- */
 export function getExifDatabaseReadOnly(): ExifDatabaseAccess {
-  if (!readOnlyDbAccess) {
-    readOnlyDbAccess = new ExifDatabaseAccess('READ');
-  }
+  if (!readOnlyDbAccess) readOnlyDbAccess = new ExifDatabaseAccess("READ");
   return readOnlyDbAccess;
 }
 
-/**
- * Get a read-write EXIF database access instance
- * Only the EXIF worker should use this
- */
 export function getExifDatabaseReadWrite(): ExifDatabaseAccess {
-  if (!readWriteDbAccess) {
-    readWriteDbAccess = new ExifDatabaseAccess('READWRITE');
-  }
+  if (!readWriteDbAccess) readWriteDbAccess = new ExifDatabaseAccess("READWRITE");
   return readWriteDbAccess;
 }
 
-/**
- * Close the database connections (for cleanup)
- */
 export function closeExifDatabase(): void {
-  if (readOnlyDbAccess) {
-    readOnlyDbAccess.close();
-    readOnlyDbAccess = null;
-  }
-  if (readWriteDbAccess) {
-    readWriteDbAccess.close();
-    readWriteDbAccess = null;
-  }
+  readOnlyDbAccess = null;
+  readWriteDbAccess = null;
 }
-
