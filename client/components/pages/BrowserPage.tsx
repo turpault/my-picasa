@@ -27,14 +27,15 @@ import { t } from "../strings";
 import { BottomSelectionButtons } from "../shared/BottomSelectionButtons";
 import type { MetaPage } from "../shared/MetadataViewer";
 
-/** Extract year section from album name: "2025-01-15 Foo" → "2025", "0000 Bar" → "Unknown date" */
+/** Extract year section from album name: "2025-01-15 Foo" → "2025", "0000 Bar" → "0000" */
 function yearFromAlbumName(name: string): string {
   const match = name.match(/^(\d{4})/);
   if (match) {
     const year = parseInt(match[1], 10);
     if (year >= 1900 && year <= 2100) return year.toString();
+    return "0000";
   }
-  return t("Unknown date");
+  return "0000";
 }
 
 // ---------------------------------------------------------------------------
@@ -747,9 +748,8 @@ export default function BrowserPage() {
     [],
   );
 
-  // Flatten albums into display order: group by year prefix, 0000/Unknown date at end
+  // Flatten albums into display order: group by year prefix, 0000 at end
   const orderedAlbums = useMemo(() => {
-    const unknownDate = yearFromAlbumName("0000");
     const groups = new Map<string, AlbumWithData[]>();
     for (const a of albums) {
       const year = yearFromAlbumName(a.name);
@@ -759,8 +759,8 @@ export default function BrowserPage() {
     const sorted = [...groups.entries()].sort((a, b) => {
       const [yearA, yearB] = [a[0], b[0]];
       if (yearA === yearB) return 0;
-      if (yearA === unknownDate) return 1;
-      if (yearB === unknownDate) return -1;
+      if (yearA === "0000") return 1;
+      if (yearB === "0000") return -1;
       return yearB.localeCompare(yearA);
     });
     return sorted.flatMap(([, yearAlbums]) =>
