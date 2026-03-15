@@ -27,9 +27,9 @@ import {
 import type { JobType } from "../../extraction/job-types";
 import { unlink } from "fs/promises";
 import { extname, join } from "path";
-import { exportToFolder } from "../../imageOperations/export";
+import { exportToFolder } from "../../../imageOperations/export";
 import { favoritesFolder } from "../../../utils/constants";
-import { fileExists } from "../../serverUtils";
+import { fileExists } from "../../../utils/serverUtils";
 import { namifyAlbumEntry } from "../../../../shared/lib/utils";
 import { RESIZE_ON_EXPORT_SIZE } from "../../../../shared/lib/shared-constants";
 import { runRemoveJob, runUpdateEntryJob } from "../../extraction/internal/worker-thread";
