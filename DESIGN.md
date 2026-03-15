@@ -18,6 +18,18 @@ shared/     → Types, utilities, and transport used by both
 - **Server** may import from `shared/` and `server/`. Never import from `client/`.
 - **Shared** must not import from `client/` or `server/`.
 
+## Data Model & Persistence
+
+### Picture Deletion
+
+Pictures are **never deleted for real**. When the user triggers deletion, pictures are moved to a hidden folder instead of being removed from disk.
+
+### Source of Truth
+
+- **`.picasa.ini`** is the source of truth for any user edit (stars, captions, faces, etc.).
+- **Databases** contain data derived from `.picasa.ini` and the pictures themselves.
+- Databases may act as **write-through caches** of user edits and changes: writes go to `.picasa.ini` first, then the database is updated to stay in sync.
+
 ## Service Structure
 
 Background services live under `server/services/<serviceName>/`:

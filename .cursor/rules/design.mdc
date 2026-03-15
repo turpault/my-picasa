@@ -15,5 +15,7 @@ alwaysApply: true
 4. **Imports**: Relative paths; no circular imports; no client/server cross-imports.
 5. **Types**: Use `shared/types/`; avoid `any`.
 6. **Databases**: In `internal/`; use prepared statements; close on exit.
+7. **Picture deletion**: Never delete for real; move to a hidden folder when user triggers deletion.
+8. **Source of truth**: `.picasa.ini` for user edits; databases are derived from it and pictures, and may be write-through caches.
 
 When adding services, workers, or RPC handlers, match existing patterns in `server/services/`, `server/rpc/`, and `shared/`.
