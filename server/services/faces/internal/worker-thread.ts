@@ -1,6 +1,5 @@
 import * as tf from "@tensorflow/tfjs-node";
 import Debug from "debug";
-import { parentPort } from "worker_threads";
 import { Queue } from "../../../../shared/lib/queue";
 import { getFaceImage } from "../../../rpc/rpcFunctions/thumbnail";
 import { getEntriesForContact, getContacts } from "../queries";
@@ -12,13 +11,7 @@ export async function buildFaceScan() {
   await tf.ready;
 
   // Access database to ensure it's initialized (lazy initialization via queries)
-  // The queries will trigger database initialization
-  await getContacts(); // This will initialize databases if needed
-  
-  // Send ready message after database is initialized
-  if (parentPort) {
-    parentPort.postMessage({ type: "ready" });
-  }
+  await getContacts();
 
   debug("Build references");
   await setupFaceAPI();

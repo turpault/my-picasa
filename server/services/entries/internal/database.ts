@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import debug from "debug";
 import { join } from "path";
 import { existsSync, unlinkSync } from "fs";
-import { workerData } from "worker_threads";
+import { isMainThread, workerData } from "worker_threads";
 import {
   Album,
   AlbumEntry,
@@ -40,13 +40,15 @@ class EntriesDatabaseAccess {
   constructor() {
     this.dbPath = ENTRIES_DB_PATH;
     const serviceName = workerData?.serviceName;
+    // Main thread runs walker, extraction, thumbgen - needs write access
     this.isWriter =
+      isMainThread ||
       serviceName === "walker" ||
       serviceName === "extraction" ||
       serviceName === "thumbgen";
 
     if (this.isWriter) {
-      debugLogger("Opening entries database in READ-WRITE mode (walker worker)");
+      debugLogger("Opening entries database in READ-WRITE mode");
       this.migrateFromWalkerIfNeeded();
       if (isDev()) {
         ensureDbFormatOrRemove(this.dbPath, (db) => {

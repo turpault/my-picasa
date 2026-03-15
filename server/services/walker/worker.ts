@@ -1,41 +1,9 @@
-import { workerData } from "worker_threads";
-import { walkFilesystem } from "./internal/worker-thread";
-import { events } from "../../../shared/server-events";
-
 /**
- * Start the walker worker
+ * Walker runs in main thread. This file is a stub for backward compatibility.
+ * Do not add 'walker' to startWorkers services - it will exit immediately.
  */
-async function startWorker(): Promise<void> {
-  await walkFilesystem();
-}
+import { workerData } from "worker_threads";
 
-// Initialize worker if running in the walker worker thread
-const serviceName = workerData.serviceName;
-console.info(`Worker thread started for service: ${serviceName}`);
-startWorker()
-  .then(() => {
-    console.info(`Worker ${serviceName} completed successfully`);
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error(`Worker ${serviceName} exited with error:`, error);
-    process.exit(1);
-  });
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.error(`Worker ${serviceName} uncaught exception:`, error);
-  process.exit(1);
-});
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (reason, promise) => {
-  console.error(`Worker ${serviceName} unhandled rejection at:`, promise, 'reason:', reason);
-  process.exit(1);
-});
-
-process.on("message", (msg: any) => {
-  if (msg.type === "serverEvent" && msg.eventType) {
-    events.emit(msg.eventType, msg.data);
-  }
-});
+const serviceName = workerData?.serviceName ?? "walker";
+console.warn(`Walker worker stub: ${serviceName} runs in main thread. Exiting.`);
+process.exit(0);

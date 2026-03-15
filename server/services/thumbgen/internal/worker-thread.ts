@@ -1,6 +1,5 @@
 import Debug from "debug";
-import { parentPort } from "worker_threads";
-import { Queue } from "../../../../shared/lib/queue";
+import { addJob } from "../../../utils/global-job-queue";
 import { events } from "../../../../shared/server-events";
 import { ThumbnailSize } from "../../../../shared/types/types";
 import { imageInfo } from "../../../imageOperations/info";
@@ -9,31 +8,24 @@ import { getEntriesDatabase } from "../../entries/internal/database";
 
 const debug = Debug("app:bg-thumbgen");
 
-const THUMBNAIL_QUEUE_CONCURRENCY = 4;
 const STARTUP_SIZES = ["th-small", "th-medium"] as const;
-
-const thumbnailQueue = new Queue(THUMBNAIL_QUEUE_CONCURRENCY, { fifo: true });
 
 function enqueueThumbnail(
   entry: { album: { key: string; name: string }; name: string },
   size: ThumbnailSize,
 ): void {
-  thumbnailQueue.add(async () => {
+  addJob(async () => {
     try {
       await makeThumbnailIfNeeded(entry, size, true);
       await makeThumbnailIfNeeded(entry, size, false);
     } catch (error) {
       debug(`Error generating thumbnail for ${entry.album.name}/${entry.name} (${size}):`, error);
     }
-  });
+  }, "THUMBNAIL");
 }
 
 export async function buildThumbs() {
   const db = getEntriesDatabase();
-
-  if (parentPort) {
-    parentPort.postMessage({ type: "ready" });
-  }
 
   const needingThumbnails = db.getEntriesNeedingThumbnails([...STARTUP_SIZES]);
   for (const { album, entry_name, size } of needingThumbnails) {

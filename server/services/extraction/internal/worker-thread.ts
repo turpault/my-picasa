@@ -1,7 +1,6 @@
 import debug from "debug";
-import { parentPort } from "worker_threads";
 import { lock } from "../../../../shared/lib/mutex";
-import { PriorityQueue } from "../../../../shared/lib/queue";
+import { addJob } from "../../../utils/global-job-queue";
 import { waitUntilIdle } from "../../../utils/busy";
 import { sleep } from "../../../../shared/lib/utils";
 import { AlbumEntry } from "../../../../shared/types/types";
@@ -15,22 +14,10 @@ import type { IndexingDatabaseAccess } from "../../search/internal/database";
 import { extractExifData } from "../../exif/internal/worker-thread";
 import { processGeoPOI } from "../../geolocate/internal/worker-thread";
 import { initPOIDB } from "../../geolocate/internal/poi/ingest";
-import { JOB_PRIORITY } from "../job-types";
-
 const debugLogger = debug("app:bg-extraction");
 
-const EXTRACTION_CONCURRENCY = 3;
 const MAX_DB_RETRIES = 3;
 const DB_RETRY_DELAY_MS = 500;
-
-const extractionQueue = new PriorityQueue(EXTRACTION_CONCURRENCY, JOB_PRIORITY.OTHER);
-
-function postQueueStats(): void {
-  if (parentPort) {
-    const stats = extractionQueue.getStats();
-    parentPort.postMessage({ type: "extractionStats", data: stats });
-  }
-}
 
 function isSqliteLockError(e: unknown): boolean {
   const err = e as { code?: string; message?: string };
@@ -124,7 +111,7 @@ function setupEventListeners(): void {
     try {
       await waitUntilIdle();
       debugLogger(`Queueing EXIF extraction for new file: ${entry.name}`);
-      extractionQueue.add(() => runExifJob(entry), JOB_PRIORITY.EXIF);
+      addJob(() => runExifJob(entry), "EXIF");
     } catch (error) {
       debugLogger(`Error handling albumEntryAdded for ${entry.name}:`, error);
     }
@@ -132,35 +119,30 @@ function setupEventListeners(): void {
 
   events.on("albumEntryRemoved", async (entry: AlbumEntry) => {
     debugLogger(`Queueing removal of ${entry.name} from extraction DBs`);
-    extractionQueue.add(() => runRemoveJob(entry), JOB_PRIORITY.OTHER);
+    addJob(() => runRemoveJob(entry), "REMOVE");
   });
 
   events.on("captionChanged", async (event: { entry: any }) => {
     const { entry } = event;
-    extractionQueue.add(
-      () => runUpdateEntryJob(entry, entry.metadata),
-      JOB_PRIORITY.OTHER
-    );
+    addJob(() => runUpdateEntryJob(entry, entry.metadata), "UPDATE_ENTRY");
   });
 
   events.on("picasaEntryUpdated", async (event: { entry: any; field: string; value: any }) => {
     const { entry, field } = event;
     const relevantFields = ["starCount", "photostar", "text", "caption", "persons"];
     if (relevantFields.includes(field)) {
-      extractionQueue.add(
-        () => runUpdateEntryJob(entry, entry.metadata),
-        JOB_PRIORITY.OTHER
-      );
+      addJob(() => runUpdateEntryJob(entry, entry.metadata), "UPDATE_ENTRY");
     }
   });
 
   events.on("geoDataFound", async (entry: AlbumEntry) => {
-    extractionQueue.add(() => runUpdateGeoPOIJob(entry), JOB_PRIORITY.OTHER);
+    addJob(() => runUpdateGeoPOIJob(entry), "UPDATE_GEO_POI");
   });
 
   events.on("exifDataProcessed", async (entry: AlbumEntry) => {
-    extractionQueue.add(() => runGeoJob(entry), JOB_PRIORITY.GEO);
-    extractionQueue.add(() => runIndexJob(entry), JOB_PRIORITY.OTHER);
+    // GEO runs outside global queue per plan - run directly
+    void runGeoJob(entry);
+    addJob(() => runIndexJob(entry), "INDEX");
   });
 
   debugLogger("Extraction event listeners set up");
@@ -177,9 +159,10 @@ async function processUnprocessedExif(): Promise<void> {
       name: entry_name,
       album: { key: album_key, name: album_name },
     };
-    extractionQueue.add(() => runExifJob(entry), JOB_PRIORITY.EXIF);
+    addJob(() => runExifJob(entry), "EXIF");
   }
-  await extractionQueue.drain();
+  const { drainGlobalQueue } = await import("../../../utils/global-job-queue");
+  await drainGlobalQueue();
 }
 
 async function processUnprocessedGeo(): Promise<void> {
@@ -187,15 +170,14 @@ async function processUnprocessedGeo(): Promise<void> {
   const unprocessed = db.getUnprocessedEntries();
   if (unprocessed.length === 0) return;
 
-  debugLogger(`Queueing ${unprocessed.length} unprocessed geo POI entries`);
+  debugLogger(`Processing ${unprocessed.length} unprocessed geo POI entries (outside global queue)`);
   for (const { album_key, album_name, entry_name } of unprocessed) {
     const entry: AlbumEntry = {
       name: entry_name,
       album: { key: album_key, name: album_name },
     };
-    extractionQueue.add(() => runGeoJob(entry), JOB_PRIORITY.GEO);
+    await runGeoJob(entry);
   }
-  await extractionQueue.drain();
 }
 
 async function processEntriesNeedingReindex(): Promise<void> {
@@ -209,9 +191,10 @@ async function processEntriesNeedingReindex(): Promise<void> {
       name: entry_name,
       album: { key: album_key, name: album_name },
     };
-    extractionQueue.add(() => runIndexJob(entry), JOB_PRIORITY.OTHER);
+    addJob(() => runIndexJob(entry), "INDEX");
   }
-  await extractionQueue.drain();
+  const { drainGlobalQueue } = await import("../../../utils/global-job-queue");
+  await drainGlobalQueue();
 }
 
 async function indexAllPictures(): Promise<void> {
@@ -234,11 +217,12 @@ async function indexAllPictures(): Promise<void> {
     }
 
     for (const entry of m.entries) {
-      extractionQueue.add(() => runIndexJob(entry), JOB_PRIORITY.OTHER);
+      addJob(() => runIndexJob(entry), "INDEX");
     }
   }
 
-  await extractionQueue.drain();
+  const { drainGlobalQueue } = await import("../../../utils/global-job-queue");
+  await drainGlobalQueue();
 
   const removedCount = db.sweepUnmarkedRecords();
   debugLogger(`Picture indexing completed. Removed ${removedCount} orphaned records.`);
@@ -252,16 +236,10 @@ export async function runExtractionWorker(): Promise<void> {
   getGeolocateDatabaseReadWrite();
   getIndexingDatabaseReadWrite();
 
-  if (parentPort) {
-    parentPort.postMessage({ type: "ready" });
-  }
-
   await processUnprocessedExif();
   await processUnprocessedGeo();
   await processEntriesNeedingReindex();
   await indexAllPictures();
 
-  extractionQueue.event.on("changed", postQueueStats);
-  postQueueStats();
   setupEventListeners();
 }

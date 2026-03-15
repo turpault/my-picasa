@@ -2,11 +2,7 @@ import debug from "debug";
 import { Stats } from "fs";
 import { stat } from "fs/promises";
 import { join, relative } from "path";
-import { isMainThread, parentPort, workerData } from "worker_threads";
-import { Queue } from "../../../../shared/lib/queue";
-import { WorkerAdaptor } from "../../../../shared/rpc-transport/worker-adaptor";
-import { registerServices } from "../../../rpc/rpc-handler";
-import { WalkerWorkerClient } from "./walker-worker-rpc";
+import { addJob, drainGlobalQueue } from "../../../utils/global-job-queue";
 import {
   alphaSorter,
   differs,
@@ -34,7 +30,6 @@ import { getAllAlbums, getAlbum, getAlbumEntries as getWalkerAlbumEntries } from
 import { getWalkerDatabase } from "./database";
 
 const debugLogger = debug("app:walker-db");
-const walkQueue = new Queue(10);
 
 const ALLOW_EMPTY_ALBUM_CREATED_SINCE = 1000 * 60 * 60; // one hour
 
@@ -90,11 +85,6 @@ async function addOrRefreshOrDeleteAlbum(
   added?: boolean
 ) {
   if (!album) {
-    return;
-  }
-
-  if (isMainThread) {
-    // In main thread, we can't write to the database
     return;
   }
 
@@ -200,8 +190,9 @@ async function walk(
 
   // depth down first
   for (const child of m.folders.sort(alphaSorter()).reverse()) {
-    walkQueue.add<Album[]>(() =>
-      walk(child.normalize(), join(path, child), cb)
+    addJob(
+      () => walk(child.normalize(), join(path, child), cb),
+      "WALK"
     );
   }
 
@@ -217,10 +208,6 @@ async function walk(
  * Reindex albums from a list of Album objects
  */
 async function reindexAlbumsFromList(albums: Album[]): Promise<void> {
-  if (isMainThread) {
-    throw new Error("reindexAlbumsFromList must be called from the walker worker");
-  }
-
   try {
     for (const album of albums) {
       try {
@@ -301,25 +288,20 @@ async function reindexAlbumsFromList(albums: Album[]): Promise<void> {
   }
 }
 
+/** Resolved when first walk completes. Set by startWalkerInMain. */
+let walkerReadyResolve: (() => void) | null = null;
+export function setWalkerReadyResolver(resolve: () => void): void {
+  walkerReadyResolve = resolve;
+}
+
 /**
- * Main entry point for walker worker
+ * Main entry point for walker - runs in main thread
  */
 export async function walkFilesystem(): Promise<void> {
-  // If in main thread OR not the walker service, do nothing
-  if (isMainThread || workerData.serviceName !== 'walker') {
-    return;
-  }
-
-  // Initialize database (will be read-write in walker worker)
-  // This will trigger database creation and migration
+  // Initialize database (read-write in main thread)
   getWalkerDatabase();
 
-  // Initialize RPC service for walker worker
-  const workerAdaptor = new WorkerAdaptor(); // No worker parameter = worker thread mode
-  registerServices(workerAdaptor, [WalkerWorkerClient], {});
-
-  // Initialize picasa-ini cache writer (only in worker thread)
-  // Start the cache writer in background (it runs forever)
+  // Initialize picasa-ini cache writer
   initializePicasaIniCache().catch((error) => {
     debugLogger("Error in picasa-ini cache writer:", error);
   });
@@ -336,17 +318,19 @@ export async function walkFilesystem(): Promise<void> {
     const oldKeys = new Set(oldAlbums.map(a => a.key));
     const foundKeys = new Set<string>();
 
-    walkQueue.add(() =>
-      walk("", imagesRoot, async (a: Album) => {
-        addOrRefreshOrDeleteAlbum(
-          a,
-          "SkipCheckInfo",
-          true /* we know it's added */
-        );
-        foundKeys.add(a.key);
-      })
+    addJob(
+      () =>
+        walk("", imagesRoot, async (a: Album) => {
+          addOrRefreshOrDeleteAlbum(
+            a,
+            "SkipCheckInfo",
+            true /* we know it's added */
+          );
+          foundKeys.add(a.key);
+        }),
+      "WALK"
     );
-    await walkQueue.drain();
+    await drainGlobalQueue();
 
     // Find deleted albums
     for (const oldAlbum of oldAlbums) {
@@ -357,10 +341,8 @@ export async function walkFilesystem(): Promise<void> {
 
     if (iteration === 0) {
       console.info(`Album list retrieved`);
-      // Send ready only after first walk completes so clients get a populated album list
-      if (parentPort) {
-        parentPort.postMessage({ type: "ready" });
-      }
+      walkerReadyResolve?.();
+      walkerReadyResolve = null;
     }
     iteration++;
     await sleep(60 * 60); // Wait 60 minutes
@@ -368,12 +350,6 @@ export async function walkFilesystem(): Promise<void> {
 }
 
 export async function refreshAlbumKeys(albums: string[]) {
-  if (isMainThread) {
-    // In main thread, we can't write to the database
-    // This should be called via RPC from the walker worker
-    return;
-  }
-
   await Promise.all(
     albums
       .map((key) => getAlbum(key))
@@ -387,10 +363,6 @@ export async function refreshAlbums(albums: AlbumWithData[]) {
 }
 
 export async function onRenamedAlbums(from: Album, to: Album) {
-  if (isMainThread) {
-    return;
-  }
-
   try {
     const old = getAlbum(from.key);
     if (old) {
@@ -413,10 +385,6 @@ export async function onRenamedAlbums(from: Album, to: Album) {
  * @param albumIds List of album keys to reindex
  */
 export async function reindexAlbums(albumIds: string[]): Promise<void> {
-  if (isMainThread) {
-    throw new Error("reindexAlbums must be called from the walker worker");
-  }
-
   try {
     const albums = albumIds
       .map((key) => getAlbum(key))

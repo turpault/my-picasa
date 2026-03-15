@@ -1,13 +1,26 @@
 import { Album, AlbumEntry, AlbumEntryMetaData, AlbumMetaData, AlbumWithData, Contact, ContactByHash, extraFields, PicasaSection, Shortcut, ThumbnailSize } from "../../../shared/types/types";
-import { createRPCClient } from "../../../shared/rpc-transport/create-rpc-client";
 import { getWalkerDatabase } from "./internal/database";
-import { getWorker } from "../../worker-manager";
-import { WorkerAdaptor } from "../../../shared/rpc-transport/worker-adaptor";
 import {
-  WALKER_WORKER_METHODS,
-  WALKER_WORKER_PARAM_NAMES,
-  type WalkerWorkerClientApi,
-} from "../../../shared/rpc-contracts";
+  refreshAlbumKeys as refreshAlbumKeysImpl,
+  refreshAlbums as refreshAlbumsImpl,
+  onRenamedAlbums as onRenamedAlbumsImpl,
+  reindexAlbums as reindexAlbumsImpl,
+} from "./internal/worker-thread";
+import {
+  updateEntryMetadata,
+  setCaption,
+  setFilters,
+  setRotate,
+  toggleStar,
+  rotate,
+  updateAlbumShortcut,
+  touchPicasaEntry,
+} from "./internal/mutations";
+import {
+  getPicasaIdentifiedReferences,
+  getAlbumPicasaContactByHash,
+} from "./internal/picasa-read-queries";
+import type { WalkerWorkerClientApi } from "../../../shared/rpc-contracts";
 
 // Re-export from picasa-ini for compatibility
 export {
@@ -85,42 +98,32 @@ export function getAlbumMetaData(album: Album): AlbumMetaData {
 }
 
 /**
- * Get mutations client (for write operations)
- * Returns a WalkerWorkerClient instance connected to the walker worker.
- * This is a singleton - the same instance is returned on each call.
+ * Local mutations implementation - walker runs in main thread.
  */
-let mutationsClient: WalkerWorkerClientApi | null = null;
+const mutationsClient: WalkerWorkerClientApi = {
+  updateEntryMetadata,
+  setCaption,
+  setFilters,
+  setRotate,
+  toggleStar,
+  rotate,
+  updateAlbumShortcut,
+  touchPicasaEntry,
+  refreshAlbumKeys: refreshAlbumKeysImpl,
+  refreshAlbums: refreshAlbumsImpl,
+  onRenamedAlbums: onRenamedAlbumsImpl,
+  reindexAlbums: reindexAlbumsImpl,
+  getPicasaIdentifiedReferences,
+  getAlbumPicasaContactByHash,
+  on: () => () => {},
+};
 
-/**
- * Get mutations client if the walker worker is available.
- * Returns null when running in a worker thread (workers don't have access to other workers).
- */
-export function getMutationsIfAvailable(): WalkerWorkerClientApi | null {
-  if (mutationsClient) {
-    return mutationsClient;
-  }
-
-  const worker = getWorker('walker');
-  if (!worker) {
-    return null;
-  }
-
-  const adaptor = new WorkerAdaptor(worker);
-  mutationsClient = createRPCClient<WalkerWorkerClientApi>(
-    adaptor,
-    "WalkerWorkerClient",
-    WALKER_WORKER_METHODS,
-    WALKER_WORKER_PARAM_NAMES
-  );
+export function getMutationsIfAvailable(): WalkerWorkerClientApi {
   return mutationsClient;
 }
 
 export function getMutations(): WalkerWorkerClientApi {
-  const client = getMutationsIfAvailable();
-  if (!client) {
-    throw new Error("Walker worker not available");
-  }
-  return client;
+  return mutationsClient;
 }
 
 /**

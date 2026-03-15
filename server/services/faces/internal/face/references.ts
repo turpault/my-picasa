@@ -4,7 +4,7 @@ import Debug from "debug";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { lock } from "../../../../../shared/lib/mutex";
-import { Queue } from "../../../../../shared/lib/queue";
+import { addJob } from "../../../../utils/global-job-queue";
 import {
   Album,
   AlbumEntry,
@@ -24,9 +24,6 @@ import { idFromAlbumEntry, isAnimated, isPicture, jsonifyObject } from "../../..
 const debug = Debug("app:faces");
 
 let optionsSSDMobileNet: faceapi.SsdMobilenetv1Options;
-
-// Limit the parallelism for the face parsing
-const faceProcessingQueue = new Queue(30);
 
 export async function setupFaceAPI() {
   await tf.ready;
@@ -49,23 +46,21 @@ export async function setupFaceAPI() {
 
 export async function populateAllReferences() {
   const albums = await getAllAlbums();
+  const { drainGlobalQueue, getGlobalQueueStats } = await import("../../../../utils/global-job-queue");
 
-  const inProgress = new Set<Album>();
   for (const album of albums) {
-    faceProcessingQueue.add(async () => {
-      inProgress.add(album);
+    addJob(async () => {
       await processFaces(album).catch(debug);
-      inProgress.delete(album);
-    });
+    }, "FACE");
   }
   const t = setInterval(
-    () =>
-      debug(
-        `populateReferences: Remaining ${faceProcessingQueue.length()} albums to process.`,
-      ),
+    () => {
+      const stats = getGlobalQueueStats();
+      debug(`populateReferences: Remaining ${stats.pending + stats.active} albums to process.`);
+    },
     2000,
   );
-  await faceProcessingQueue.drain();
+  await drainGlobalQueue();
   clearInterval(t);
 }
 
@@ -93,7 +88,6 @@ async function processFaces(album: Album) {
   );
 }
 
-const referenceGeneratorQueue = new Queue(10);
 export const referenceQualifier = "reference";
 
 async function createReferenceFileIfNeeded(entry: AlbumEntry) {
@@ -106,7 +100,7 @@ async function createReferenceFileIfNeeded(entry: AlbumEntry) {
       );
       if (!detectedReferences) {
         debug(`Will generate references of file ${imagePath}`);
-        await referenceGeneratorQueue.add(async () => {
+        await addJob(async () => {
           const l = await lock(`createReferenceFileIfNeeded:${imagePath}`);
           try {
             const buffer = await readFile(imagePath);
@@ -151,7 +145,7 @@ async function createReferenceFileIfNeeded(entry: AlbumEntry) {
           } finally {
             l();
           }
-        });
+        }, "FACE");
       }
       return detectedReferences;
     }
