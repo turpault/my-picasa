@@ -1,6 +1,7 @@
 /// <reference types="bun-types" />
 import { join, resolve, sep } from "path";
 import { existsSync } from "fs";
+import { Queue } from "../shared/lib/queue";
 import { lockedLocks, startLockMonitor } from "../shared/lib/mutex";
 import { RPCAdaptorInterface } from "../shared/rpc-transport/rpc-adaptor-interface";
 import { WsAdaptor } from "../shared/rpc-transport/ws-adaptor";
@@ -39,6 +40,9 @@ interface WsWrapper {
 const publicDir = join(process.cwd(), "public");
 const distDir = join(publicDir, "dist");
 const DEFAULT_PORT = 5500;
+
+/** LIFO queue so most recent requests are served first for faster response when scrolling. */
+const httpRequestQueue = new Queue(64, { fifo: false });
 
 function resolvePort(p?: number): number {
   if (typeof p === "number" && !Number.isNaN(p)) {
@@ -111,76 +115,80 @@ export async function startServer(p?: number) {
         "/ping": () => Response.json({ pong: "it worked!" }),
         "/stats": async () =>
           Response.json({ series: await history(), locks: lockedLocks() }),
-        "/encode/:context/:mime": async (req) => {
-          const { context, mime } = req.params;
-          const r = await encode(
-            context,
-            mime as "image/jpeg" | "image/png" | "image/webp",
-          );
-          const body =
-            r.data instanceof Buffer ? new Uint8Array(r.data) : r.data;
-          return new Response(body, {
-            headers: { "Content-Type": mime },
-          });
-        },
-        "/thumbnail/:albumkey/:name/:resolution": async (req) => {
-          const { albumkey, name, resolution } = req.params;
-          const album = await albumWithData(albumkey);
-          if (!album) return new Response(null, { status: 404 });
-          const entry = { album, name };
-          const url = new URL(req.url);
-          const animated = url.searchParams.has("animated");
-          const r = await thumbnail(
-            entry,
-            resolution as "th-small" | "th-medium" | "th-large",
-            animated,
-          );
-          const body =
-            r.data instanceof Buffer ? new Uint8Array(r.data) : r.data;
-          return new Response(body, {
-            headers: {
-              "Content-Type": r.mime,
-              "Cache-Control": "no-cache",
-            },
-          });
-        },
-        "/thumbnail/:albumkey/:resolution": async (req) => {
-          const { albumkey, resolution } = req.params;
-          const album = await albumWithData(albumkey);
-          if (!album) return new Response(null, { status: 404 });
-          const url = new URL(req.url);
-          const animated = url.searchParams.has("animated");
-          const r = await albumThumbnail(
-            album,
-            resolution as "th-small" | "th-medium" | "th-large",
-            animated,
-          );
-          const body =
-            r.data instanceof Buffer ? new Uint8Array(r.data) : r.data;
-          return new Response(body, {
-            headers: {
-              "Content-Type": r.mime,
-              "Cache-Control": "no-cache",
-            },
-          });
-        },
-        "/asset/:albumkey/:name": async (req) => {
-          const { albumkey, name } = req.params;
-          const album = await albumWithData(albumkey);
-          if (!album) return new Response(null, { status: 404 });
-          const entry = { album, name };
-          const filePath = await asset(entry);
-          const file = Bun.file(filePath);
-          const exists = await file.exists();
-          if (!exists) return new Response(null, { status: 404 });
-          return new Response(file, {
-            headers: {
-              "Content-Type": filePath.toLowerCase().match(/\.(mp4|webm|mov|avi)$/)
-                ? "video/mp4"
-                : "image/jpeg",
-            },
-          });
-        },
+        "/encode/:context/:mime": async (req) =>
+          httpRequestQueue.add(async () => {
+            const { context, mime } = req.params;
+            const r = await encode(
+              context,
+              mime as "image/jpeg" | "image/png" | "image/webp",
+            );
+            const body =
+              r.data instanceof Buffer ? new Uint8Array(r.data) : r.data;
+            return new Response(body, {
+              headers: { "Content-Type": mime },
+            });
+          }),
+        "/thumbnail/:albumkey/:name/:resolution": async (req) =>
+          httpRequestQueue.add(async () => {
+            const { albumkey, name, resolution } = req.params;
+            const album = await albumWithData(albumkey);
+            if (!album) return new Response(null, { status: 404 });
+            const entry = { album, name };
+            const url = new URL(req.url);
+            const animated = url.searchParams.has("animated");
+            const r = await thumbnail(
+              entry,
+              resolution as "th-small" | "th-medium" | "th-large",
+              animated,
+            );
+            const body =
+              r.data instanceof Buffer ? new Uint8Array(r.data) : r.data;
+            return new Response(body, {
+              headers: {
+                "Content-Type": r.mime,
+                "Cache-Control": "no-cache",
+              },
+            });
+          }),
+        "/thumbnail/:albumkey/:resolution": async (req) =>
+          httpRequestQueue.add(async () => {
+            const { albumkey, resolution } = req.params;
+            const album = await albumWithData(albumkey);
+            if (!album) return new Response(null, { status: 404 });
+            const url = new URL(req.url);
+            const animated = url.searchParams.has("animated");
+            const r = await albumThumbnail(
+              album,
+              resolution as "th-small" | "th-medium" | "th-large",
+              animated,
+            );
+            const body =
+              r.data instanceof Buffer ? new Uint8Array(r.data) : r.data;
+            return new Response(body, {
+              headers: {
+                "Content-Type": r.mime,
+                "Cache-Control": "no-cache",
+              },
+            });
+          }),
+        "/asset/:albumkey/:name": async (req) =>
+          httpRequestQueue.add(async () => {
+            const { albumkey, name } = req.params;
+            const album = await albumWithData(albumkey);
+            if (!album) return new Response(null, { status: 404 });
+            const entry = { album, name };
+            const filePath = await asset(entry);
+            const file = Bun.file(filePath);
+            const exists = await file.exists();
+            if (!exists) return new Response(null, { status: 404 });
+            return new Response(file, {
+              headers: {
+                "Content-Type": filePath.toLowerCase().match(/\.(mp4|webm|mov|avi)$/)
+                  ? "video/mp4"
+                  : "image/jpeg",
+              },
+            });
+          }),
       },
       async fetch(req, server) {
         busy();

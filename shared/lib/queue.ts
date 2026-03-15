@@ -6,6 +6,10 @@ export type QueueEvent = {
   drain: {};
   changed: { waiting: number; progress: number; done: number };
 };
+/**
+ * Queue with configurable concurrency. Defaults to LIFO (last-in-first-out) so
+ * most recent requests are served first for faster response times when scrolling.
+ */
 export class Queue {
   constructor(concurrency: number = 1, options?: { fifo?: boolean }) {
     this.promises = [];
@@ -15,7 +19,7 @@ export class Queue {
     this._active = 0;
     this._total = 0;
     this._done = 0;
-    this.options = options || {};
+    this.options = { fifo: false, ...options };
     this.event = buildEmitter<QueueEvent>(false);
   }
   add<T>(r: Task): Promise<T> {
