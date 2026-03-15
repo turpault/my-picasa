@@ -14,53 +14,55 @@ interface EditorPageProps {
   onClose?: () => void;
 }
 
+const RES = "/resources/images";
+
 const toolCategories = [
   {
     name: "Basic",
-    icon: "resources/images/wrench.svg",
+    icon: `${RES}/wrench.svg`,
     tools: [
-      { name: t("Crop"), icon: "resources/images/wrench.svg" },
-      { name: t("Tilt"), icon: "resources/images/wrench.svg" },
-      { name: t("Rotate Left"), icon: "resources/images/wrench.svg" },
-      { name: t("Rotate Right"), icon: "resources/images/wrench.svg" },
-      { name: t("Flip"), icon: "resources/images/wrench.svg" },
-      { name: t("Mirror"), icon: "resources/images/wrench.svg" },
+      { name: t("Crop"), icon: `${RES}/wrench.svg` },
+      { name: t("Tilt"), icon: `${RES}/wrench.svg` },
+      { name: t("Rotate Left"), icon: `${RES}/wrench.svg` },
+      { name: t("Rotate Right"), icon: `${RES}/wrench.svg` },
+      { name: t("Flip"), icon: `${RES}/wrench.svg` },
+      { name: t("Mirror"), icon: `${RES}/wrench.svg` },
     ],
   },
   {
     name: t("Adjustments"),
-    icon: "resources/images/contrast.svg",
+    icon: `${RES}/contrast.svg`,
     tools: [
-      { name: t("Brightness"), icon: "resources/images/contrast.svg" },
-      { name: t("Contrast"), icon: "resources/images/contrast.svg" },
-      { name: t("Highlights"), icon: "resources/images/contrast.svg" },
-      { name: t("Extra Light"), icon: "resources/images/contrast.svg" },
+      { name: t("Brightness"), icon: `${RES}/contrast.svg` },
+      { name: t("Contrast"), icon: `${RES}/contrast.svg` },
+      { name: t("Highlights"), icon: `${RES}/contrast.svg` },
+      { name: t("Extra Light"), icon: `${RES}/contrast.svg` },
     ],
   },
   {
     name: t("Effects"),
-    icon: "resources/images/brush.svg",
+    icon: `${RES}/brush.svg`,
     tools: [
-      { name: t("Autocolor"), icon: "resources/images/brush.svg" },
-      { name: t("Greyscale"), icon: "resources/images/brush.svg" },
-      { name: t("Sepia"), icon: "resources/images/brush.svg" },
-      { name: t("Polaroid"), icon: "resources/images/brush.svg" },
+      { name: t("Autocolor"), icon: `${RES}/brush.svg` },
+      { name: t("Greyscale"), icon: `${RES}/brush.svg` },
+      { name: t("Sepia"), icon: `${RES}/brush.svg` },
+      { name: t("Polaroid"), icon: `${RES}/brush.svg` },
     ],
   },
   {
     name: t("More..."),
-    icon: "resources/images/green-brush.svg",
+    icon: `${RES}/green-brush.svg`,
     tools: [
-      { name: t("Blur"), icon: "resources/images/green-brush.svg" },
-      { name: t("Sharpen"), icon: "resources/images/green-brush.svg" },
-      { name: t("Heatmap"), icon: "resources/images/green-brush.svg" },
-      { name: t("Solarize"), icon: "resources/images/green-brush.svg" },
+      { name: t("Blur"), icon: `${RES}/green-brush.svg` },
+      { name: t("Sharpen"), icon: `${RES}/green-brush.svg` },
+      { name: t("Heatmap"), icon: `${RES}/green-brush.svg` },
+      { name: t("Solarize"), icon: `${RES}/green-brush.svg` },
     ],
   },
   {
     name: t("Filters"),
-    icon: "resources/images/blue-brush.svg",
-    tools: [{ name: t("Filter"), icon: "resources/images/blue-brush.svg" }],
+    icon: `${RES}/blue-brush.svg`,
+    tools: [{ name: t("Filter"), icon: `${RES}/blue-brush.svg` }],
   },
 ];
 
@@ -219,7 +221,7 @@ export function EditorPage({ entry: initialEntry, onClose }: EditorPageProps) {
         <div className="editor-controls" />
 
         <div className="histogram">
-          {t("Histogram data and informations about the camera")}
+          {t("Histogram data and information about the camera")}
           <div className="histogram-camera-model" />
         </div>
       </div>
@@ -246,7 +248,7 @@ export function EditorPage({ entry: initialEntry, onClose }: EditorPageProps) {
         {busy && (
           <div className="busy-spinner w3-display-container fill">
             <img
-              src="resources/images/thinking.gif"
+              src={`${RES}/thinking.gif`}
               className="w3-display-middle"
             />
           </div>

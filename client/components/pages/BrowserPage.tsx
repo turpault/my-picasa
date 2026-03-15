@@ -68,11 +68,25 @@ const Thumbnail = React.memo(function Thumbnail({
     [entry],
   );
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onDoubleClick();
+      }
+    },
+    [onDoubleClick],
+  );
+
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={entry.name}
       className={`thumbnail${isSelected ? " selected" : ""}`}
       onClick={onSelect}
       onDoubleClick={onDoubleClick}
+      onKeyDown={handleKeyDown}
       draggable
       onDragStart={handleDragStart}
     >
