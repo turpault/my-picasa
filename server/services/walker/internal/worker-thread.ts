@@ -29,6 +29,7 @@ import { events } from "../../../../shared/server-events";
 import { getAllAlbums, getAlbum, getAlbumEntries as getWalkerAlbumEntries } from "../queries";
 import { getWalkerDatabase } from "./database";
 import { startFileWatcher } from "./file-watcher";
+import { scheduleJobsForEntries, scheduleRemoveJob } from "./post-walk-jobs";
 
 const debugLogger = debug("app:walker-db");
 
@@ -205,26 +206,30 @@ async function walk(
   }
 }
 
-/** When true, skip emitting albumEntryAdded/albumEntryFileChanged/albumEntryRemoved to avoid flooding the global queue during initial walk. */
+/** When true, skip emitting albumEntryAdded/albumEntryFileChanged/albumEntryRemoved to avoid flooding during initial walk. */
 type ReindexOptions = { skipEntryEvents?: boolean };
 
 /**
- * Reindex albums from a list of Album objects
+ * Reindex albums from a list of Album objects.
+ * Returns added/changed entries (for job scheduling) and removed entries (for removal jobs).
  */
-async function reindexAlbumsFromList(albums: Album[], options?: ReindexOptions): Promise<void> {
+async function reindexAlbumsFromList(
+  albums: Album[],
+  options?: ReindexOptions
+): Promise<{ addedOrChanged: AlbumEntry[]; removed: AlbumEntry[] }> {
   const skipEntryEvents = options?.skipEntryEvents ?? false;
+  const addedOrChanged: AlbumEntry[] = [];
+  const removed: AlbumEntry[] = [];
+
   try {
     for (const album of albums) {
       try {
-        // Get existing entries
-        const existingEntries = getWalkerAlbumEntries(album);
-        const existingEntryNames = new Set(existingEntries.map(e => e.name));
+        const existingEntries = await getWalkerAlbumEntries(album);
+        const existingEntryNames = new Set(existingEntries.map((e) => e.name));
 
         const { entries } = await assetsInFolderAlbum(album);
-        const newEntryNames = new Set(entries.map(e => e.name));
+        const newEntryNames = new Set(entries.map((e) => e.name));
 
-
-        // Get folder mtime for lastModified
         let folderMtime: string | undefined;
         try {
           const folderPath = join(imagesRoot, pathForAlbum(album));
@@ -234,7 +239,6 @@ async function reindexAlbumsFromList(albums: Album[], options?: ReindexOptions):
           debugLogger(`Error getting folder mtime for album ${album.key} in reindexAlbumsFromList:`, error);
         }
 
-        // Update album count
         const existing = await getAlbum(album.key);
         if (existing) {
           const updatedAlbum: AlbumWithData = {
@@ -246,7 +250,6 @@ async function reindexAlbumsFromList(albums: Album[], options?: ReindexOptions):
           await db.upsertAlbum(updatedAlbum);
           events.emit("albumUpdated", updatedAlbum);
         } else {
-          // Album doesn't exist in DB, add it
           const [count, shortcut] = await Promise.all([
             mediaCount(album),
             readShortcut(album),
@@ -262,7 +265,6 @@ async function reindexAlbumsFromList(albums: Album[], options?: ReindexOptions):
           events.emit("albumAdded", newAlbum);
         }
 
-        // Emit events for added entries, check file stats for existing entries
         for (const entry of entries) {
           const filePath = pathForAlbumEntry(entry);
           let fileStats: { mtime: string; size: number } | undefined;
@@ -280,27 +282,28 @@ async function reindexAlbumsFromList(albums: Album[], options?: ReindexOptions):
             if (!skipEntryEvents) events.emit("albumEntryAdded", entry);
             const db = getWalkerDatabase();
             await db.upsertEntry(entry, fileStats);
+            addedOrChanged.push(entry);
           } else if (fileStats) {
             const db = getWalkerDatabase();
-            const cached = db.getEntryFileStats(entry);
+            const cached = await db.getEntryFileStats(entry);
             if (!cached || cached.mtime !== fileStats.mtime || cached.size !== fileStats.size) {
               debugLogger(`File changed: ${entry.name} (mtime/size differ from cache)`);
               if (!skipEntryEvents) events.emit("albumEntryFileChanged", entry);
               await db.updateEntryFileStats(entry, fileStats.mtime, fileStats.size);
+              addedOrChanged.push(entry);
             }
           }
         }
 
-        // Emit events for removed entries
         for (const entry of existingEntries) {
           if (!newEntryNames.has(entry.name)) {
             if (!skipEntryEvents) events.emit("albumEntryRemoved", entry);
+            scheduleRemoveJob(entry);
             const db = getWalkerDatabase();
-            db.deleteEntry(entry);
+            await db.deleteEntry(entry);
+            removed.push(entry);
           }
         }
-
-
 
         debugLogger(`Reindexed album ${album.key}: ${entries.length} entries`);
       } catch (error) {
@@ -311,6 +314,8 @@ async function reindexAlbumsFromList(albums: Album[], options?: ReindexOptions):
     debugLogger("Error in reindexAlbumsFromList:", error);
     throw error;
   }
+
+  return { addedOrChanged, removed };
 }
 
 /** Resolved when first walk completes. Set by startWalkerInMain. */
@@ -331,9 +336,10 @@ export async function walkFilesystem(): Promise<void> {
     debugLogger("Error in picasa-ini cache writer:", error);
   });
 
-  // Set up event listener for reindex events
+  // Set up event listener for reindex events (file watcher triggers this)
   events.on("reindex", async (albums: Album[]) => {
-    await reindexAlbumsFromList(albums);
+    const { addedOrChanged } = await reindexAlbumsFromList(albums);
+    await scheduleJobsForEntries(addedOrChanged);
   });
 
   console.info("Filesystem scan: initial walk");
@@ -362,6 +368,19 @@ export async function walkFilesystem(): Promise<void> {
   }
 
   console.info("Album list retrieved");
+
+  // Post-walk: scan all entries, add jobs for missing exif, thumbnails, faces
+  const albums = await getAllAlbums();
+  const allEntries: AlbumEntry[] = [];
+  for (const album of albums) {
+    const entries = await getWalkerAlbumEntries(album);
+    for (const e of entries) {
+      allEntries.push({ album, name: e.name });
+    }
+  }
+  await scheduleJobsForEntries(allEntries);
+  console.info("Post-walk jobs scheduled");
+
   walkerReadyResolve?.();
   walkerReadyResolve = null;
   startFileWatcher();

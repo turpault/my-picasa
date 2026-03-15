@@ -99,39 +99,8 @@ function setupEventListeners(): void {
     });
   });
 
-  // Handle picasaEntryUpdated - update entry when metadata changes
-  events.on("picasaEntryUpdated", async (event: { entry: any; field: string; value: any }) => {
-    const { entry, field } = event;
-
-    // Only update if the field is one we care about (geoPOI is now handled via geoDataFound event)
-    const relevantFields = ['starCount', 'photostar', 'text', 'caption', 'persons'];
-    if (relevantFields.includes(field)) {
-      debugLogger(`Queueing update for entry ${entry.name}, field: ${field}`);
-      indexingQueue.add(async () => {
-        await waitUntilIdle();
-        const db = getIndexingDatabaseReadWrite();
-        try {
-          await db.updateEntry(entry, entry.metadata);
-        } catch (error) {
-          debugLogger("Error handling picasaEntryUpdated event:", error);
-        }
-      });
-    }
-  });
-
-  // Handle geoDataFound - update geo POI in search index when geo data becomes available
-  events.on("geoDataFound", async (entry: AlbumEntry) => {
-    debugLogger(`Queueing geo POI update for entry: ${entry.name}`);
-    indexingQueue.add(async () => {
-      await waitUntilIdle();
-      const db = getIndexingDatabaseReadWrite();
-      try {
-        await db.updateGeoPOI(entry);
-      } catch (error) {
-        debugLogger(`Error updating geo POI for ${entry.name} in search index:`, error);
-      }
-    });
-  });
+  // picasaEntryUpdated, geoDataFound: handled by extraction worker via scheduleUpdateEntryJob
+  // and runUpdateGeoPOIJob (no event-driven job scheduling)
 
   debugLogger("Event listeners set up successfully");
 }

@@ -59,6 +59,14 @@ export type ServerEvents = {
   };
   /** Entry aspect/dimensions changed (e.g. after crop). */
   albumEntryAspectChanged: AlbumEntryPicasa;
+  /** Thumbnail was rebuilt. Client should refresh if showing this thumbnail. */
+  thumbnailRebuilt: {
+    entry: AlbumEntry;
+    size: string;
+    animated: boolean;
+  };
+  /** Entry metadata or file changed. Client should refresh entry display. */
+  entryChanged: AlbumEntry;
   /** Batch of album change notifications for client sync. */
   albumEvent: AlbumChangeEvent[];
   /** Person/contact face images list changed. */

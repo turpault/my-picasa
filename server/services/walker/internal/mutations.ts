@@ -1,9 +1,13 @@
-import { isMainThread } from "worker_threads";
-import { Album, AlbumEntry, AlbumEntryMetaData, AlbumEntryPicasa, AlbumEntryWithMetadata } from "../../../../shared/types/types";
+import { Album, AlbumEntry, AlbumEntryMetaData, AlbumEntryPicasa } from "../../../../shared/types/types";
 import { getWalkerDatabase } from "./database";
 import * as picasaIni from "./picasa-ini";
 import { events } from "../../../../shared/server-events";
 import { imageInfo } from "../../../imageOperations/info";
+import {
+  scheduleThumbnailJob,
+  scheduleFavoriteExportJob,
+  scheduleUpdateEntryJob,
+} from "./post-walk-jobs";
 
 /**
  * Walker Service Mutations
@@ -48,7 +52,7 @@ export async function updateAlbumEntry(
   }
   await db.updateEntryMetadata(entry, updatedMetadata, options);
 
-  // 3. Emit events to trigger downstream jobs (thumbnails, search, etc.)
+  // 3. Emit events and schedule jobs (thumbnails, search, etc.)
   if (field !== "*") {
     const finalMetadata = await db.getEntryMetadata(entry);
     const entryPicasa: AlbumEntryPicasa = { ...entry, metadata: finalMetadata };
@@ -57,11 +61,16 @@ export async function updateAlbumEntry(
       events.emit("albumEntryAspectChanged", entryPicasa);
     }
     events.emit("picasaEntryUpdated", { entry: entryPicasa, field: field as string, value });
+    if (["starCount", "photostar", "text", "caption", "persons"].includes(field as string)) {
+      scheduleUpdateEntryJob(entry, finalMetadata);
+    }
     try {
       const entryWithImageInfo = await imageInfo(entry, finalMetadata);
       events.emit("albumEntryUpdated", entryWithImageInfo);
+      events.emit("entryChanged", entry);
     } catch {
       // Ignore imageInfo errors, still emit the update event
+      events.emit("entryChanged", entry);
     }
   }
 }
@@ -114,6 +123,7 @@ export async function setCaption(entry: AlbumEntry, caption: string): Promise<vo
   await updateAlbumEntry(entry, "caption", caption);
   const metadata = (await picasaIni.getPicasaEntry(entry)) as AlbumEntryMetaData;
   events.emit("captionChanged", { entry: { ...entry, metadata } as AlbumEntryPicasa });
+  scheduleUpdateEntryJob(entry, metadata);
 }
 
 /**
@@ -123,6 +133,7 @@ export async function setFilters(entry: AlbumEntry, filters: string): Promise<vo
   await updateAlbumEntry(entry, "filters", filters, { incrementFilterVersion: true });
   const metadata = (await picasaIni.getPicasaEntry(entry)) as AlbumEntryMetaData;
   events.emit("filtersChanged", { entry: { ...entry, metadata } as AlbumEntryPicasa });
+  scheduleThumbnailJob(entry);
 }
 
 /**
@@ -132,6 +143,7 @@ export async function setRotate(entry: AlbumEntry, rotate?: string): Promise<voi
   await updateAlbumEntry(entry, "rotate", rotate, { incrementFilterVersion: true });
   const metadata = (await picasaIni.getPicasaEntry(entry)) as AlbumEntryMetaData;
   events.emit("rotateChanged", { entry: { ...entry, metadata } as AlbumEntryPicasa });
+  scheduleThumbnailJob(entry);
 }
 
 /**
@@ -159,6 +171,7 @@ export async function toggleStar(entries: AlbumEntry[]): Promise<void> {
     events.emit("favoriteChanged", {
       entry: { ...entry, metadata: finalMetadata } as AlbumEntryPicasa,
     });
+    scheduleFavoriteExportJob(entry, star ? "export" : "remove");
   }
 }
 
@@ -174,6 +187,7 @@ export async function rotate(entries: AlbumEntry[], direction: string): Promise<
     const targetValue = (increment + rotateValue) % 4;
     const rotateStr = targetValue === 0 ? undefined : `rotate(${targetValue})`;
     await updateAlbumEntry(entry, "rotate", rotateStr, { incrementFilterVersion: true });
+    scheduleThumbnailJob(entry);
   }
 }
 

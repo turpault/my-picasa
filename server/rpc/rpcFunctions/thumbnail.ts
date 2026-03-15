@@ -11,6 +11,7 @@ import {
   AlbumEntry,
   ThumbnailSize
 } from "../../../shared/types/types";
+import { events } from "../../../shared/server-events";
 import { exportToFolder } from "../../imageOperations/export";
 import {
   buildFaceImage,
@@ -110,6 +111,7 @@ async function makeImageThumbnailIfNeeded(
   try {
     if (await shouldMakeThumbnail(entry, size, animated, options)) {
       await makeImageThumbnail(entry, size, animated);
+      events.emit("thumbnailRebuilt", { entry, size, animated });
     }
   } finally {
     dec("thumbnail");
@@ -173,6 +175,7 @@ async function makeVideoThumbnailIfNeeded(
   try {
     if (await shouldMakeThumbnail(entry, size, animated, options)) {
       await makeVideoThumbnail(entry, size, animated);
+      events.emit("thumbnailRebuilt", { entry, size, animated });
     }
   } finally {
     dec("thumbnail");

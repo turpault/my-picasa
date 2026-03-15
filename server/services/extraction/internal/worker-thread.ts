@@ -47,17 +47,19 @@ async function indexPictureWithRetry(
 }
 
 /**
- * Run exif extraction job. extractExifData emits exifDataProcessed on completion,
- * which triggers enqueue of geo and index via event listener.
+ * Run EXIF extraction job. On completion, schedules GEO and INDEX (no event-driven scheduling).
  */
-async function runExifJob(entry: AlbumEntry): Promise<void> {
+export async function runExifJob(entry: AlbumEntry): Promise<void> {
   await waitUntilIdle();
   await extractExifData(entry);
+  void runGeoJob(entry);
+  addJob(() => runIndexJob(entry), "INDEX");
 }
 
 async function runGeoJob(entry: AlbumEntry): Promise<void> {
   await waitUntilIdle();
   await processGeoPOI(entry);
+  addJob(() => runUpdateGeoPOIJob(entry), "UPDATE_GEO_POI");
 }
 
 async function runIndexJob(entry: AlbumEntry): Promise<void> {
@@ -70,7 +72,7 @@ async function runIndexJob(entry: AlbumEntry): Promise<void> {
   }
 }
 
-async function runRemoveJob(entry: AlbumEntry): Promise<void> {
+export async function runRemoveJob(entry: AlbumEntry): Promise<void> {
   await waitUntilIdle();
   const exifDb = getExifDatabaseReadWrite();
   const geoDb = getGeolocateDatabaseReadWrite();
@@ -84,7 +86,7 @@ async function runRemoveJob(entry: AlbumEntry): Promise<void> {
   }
 }
 
-async function runUpdateEntryJob(entry: AlbumEntry, metadata: any): Promise<void> {
+export async function runUpdateEntryJob(entry: AlbumEntry, metadata: any): Promise<void> {
   await waitUntilIdle();
   const db = getIndexingDatabaseReadWrite();
   try {
@@ -109,33 +111,10 @@ function setupEventListeners(): void {
 
   // EXIF scheduling is handled by global-job-schedulers (albumEntryAdded, albumEntryFileChanged)
 
-  events.on("albumEntryRemoved", async (entry: AlbumEntry) => {
-    debugLogger(`Queueing removal of ${entry.name} from extraction DBs`);
-    addJob(() => runRemoveJob(entry), "REMOVE");
-  });
-
-  events.on("captionChanged", async (event: { entry: any }) => {
-    const { entry } = event;
-    addJob(() => runUpdateEntryJob(entry, entry.metadata), "UPDATE_ENTRY");
-  });
-
-  events.on("picasaEntryUpdated", async (event: { entry: any; field: string; value: any }) => {
-    const { entry, field } = event;
-    const relevantFields = ["starCount", "photostar", "text", "caption", "persons"];
-    if (relevantFields.includes(field)) {
-      addJob(() => runUpdateEntryJob(entry, entry.metadata), "UPDATE_ENTRY");
-    }
-  });
-
-  events.on("geoDataFound", async (entry: AlbumEntry) => {
-    addJob(() => runUpdateGeoPOIJob(entry), "UPDATE_GEO_POI");
-  });
-
-  events.on("exifDataProcessed", async (entry: AlbumEntry) => {
-    // GEO runs outside global queue per plan - run directly
-    void runGeoJob(entry);
-    addJob(() => runIndexJob(entry), "INDEX");
-  });
+  // albumEntryRemoved: scheduleRemoveJob called from reindex (walker)
+  // captionChanged, picasaEntryUpdated: scheduleUpdateEntryJob called from mutations (walker)
+  // geoDataFound: runUpdateGeoPOIJob scheduled by runGeoJob on completion
+  // exifDataProcessed: GEO and INDEX are scheduled by runExifJob on completion
 
   debugLogger("Extraction event listeners set up");
 }
