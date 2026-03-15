@@ -17,7 +17,7 @@ import {
 import {
   readFaceAlbumEntries,
 } from "./operations/faces/faces";
-import { getEntryMetadata, getMutations, getShortcuts } from "./services/walker/queries";
+import { getEntryMetadata, getMutationsIfAvailable, getShortcuts } from "./services/walker/queries";
 import { getWalkerReadyPromise } from "./worker-manager";
 import { isPicture, isVideo } from "../shared/lib/utils";
 
@@ -56,8 +56,12 @@ async function sortAssetsByRank(entries: AlbumEntry[]) {
 }
 
 async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {
+  const mutations = getMutationsIfAvailable();
+  if (!mutations) {
+    // Walker worker not available (e.g. when running in faces/search worker thread)
+    return;
+  }
   let rank = 0;
-  const mutations = getMutations();
   for (const entry of filesInFolder) {
     if (isPicture(entry) || isVideo(entry)) {
       let current = getEntryMetadata(entry).rank || "0";

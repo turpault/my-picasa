@@ -94,14 +94,18 @@ export function getAlbumMetaData(album: Album): AlbumMetaData {
  */
 let mutationsClient: WalkerWorkerClientApi | null = null;
 
-export function getMutations(): WalkerWorkerClientApi {
+/**
+ * Get mutations client if the walker worker is available.
+ * Returns null when running in a worker thread (workers don't have access to other workers).
+ */
+export function getMutationsIfAvailable(): WalkerWorkerClientApi | null {
   if (mutationsClient) {
     return mutationsClient;
   }
 
   const worker = getWorker('walker');
   if (!worker) {
-    throw new Error("Walker worker not available");
+    return null;
   }
 
   const adaptor = new WorkerAdaptor(worker);
@@ -112,6 +116,14 @@ export function getMutations(): WalkerWorkerClientApi {
     WALKER_WORKER_PARAM_NAMES
   );
   return mutationsClient;
+}
+
+export function getMutations(): WalkerWorkerClientApi {
+  const client = getMutationsIfAvailable();
+  if (!client) {
+    throw new Error("Walker worker not available");
+  }
+  return client;
 }
 
 /**
