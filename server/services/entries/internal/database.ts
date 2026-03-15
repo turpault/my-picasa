@@ -80,6 +80,7 @@ class EntriesDatabaseAccess {
       this.migrateDropRemovedFields();
       this.migrateChildTablesIfNeeded();
       this.migrateExifColumns();
+      this.migrateExifDropAlbumKeyEntryName();
       this.migratePicturesIndexVersion();
     }
   }
@@ -129,6 +130,43 @@ class EntriesDatabaseAccess {
     } catch (e) {
       debugLogger("migrateExifColumns error:", e);
     }
+  }
+
+  private migrateExifDropAlbumKeyEntryName(): void {
+    const hasExifTable = this.db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='exif_data'"
+    ).get();
+    if (!hasExifTable) return;
+
+    const info = this.db.prepare("PRAGMA table_info(exif_data)").all() as Array<{ name: string }>;
+    const cols = new Set(info.map((c) => c.name));
+    if (!cols.has("album_key")) return;
+
+    debugLogger("Migrating exif_data: dropping album_key and entry_name");
+    this.db.run(`
+      CREATE TABLE exif_data_new (
+        entry_id TEXT PRIMARY KEY,
+        exif_data TEXT, has_exif INTEGER DEFAULT 0, processed_at TEXT,
+        date_taken TEXT, make TEXT, model TEXT,
+        image_width INTEGER, image_height INTEGER,
+        latitude REAL, longitude REAL,
+        iso INTEGER, exposure_time REAL, f_number REAL, focal_length REAL,
+        person_in_image TEXT, acceleration_vector TEXT, photo_identifier TEXT,
+        image_unique_id TEXT, lens_model TEXT, lens_info TEXT, focal_length_35mm INTEGER,
+        gps_altitude REAL, gps_altitude_ref TEXT, gps_date_stamp TEXT,
+        gps_img_direction REAL, gps_img_direction_ref TEXT, gps_timestamp TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    const copyCols = ["entry_id", "exif_data", "has_exif", "processed_at", "date_taken", "make", "model",
+      "image_width", "image_height", "latitude", "longitude", "iso", "exposure_time", "f_number", "focal_length",
+      "person_in_image", "acceleration_vector", "photo_identifier", "image_unique_id", "lens_model", "lens_info",
+      "focal_length_35mm", "gps_altitude", "gps_altitude_ref", "gps_date_stamp", "gps_img_direction",
+      "gps_img_direction_ref", "gps_timestamp", "updated_at"];
+    const existingCols = copyCols.filter((c) => cols.has(c));
+    this.db.run(`INSERT INTO exif_data_new (${existingCols.join(", ")}) SELECT ${existingCols.join(", ")} FROM exif_data`);
+    this.db.run("DROP TABLE exif_data");
+    this.db.run("ALTER TABLE exif_data_new RENAME TO exif_data");
   }
 
   private migrateFileStats(): void {
@@ -219,7 +257,6 @@ class EntriesDatabaseAccess {
     this.db.run(`
       CREATE TABLE exif_data (
         entry_id TEXT PRIMARY KEY,
-        album_key TEXT NOT NULL, entry_name TEXT NOT NULL,
         exif_data TEXT, has_exif INTEGER DEFAULT 0, processed_at TEXT,
         date_taken TEXT, make TEXT, model TEXT,
         image_width INTEGER, image_height INTEGER,
@@ -229,11 +266,8 @@ class EntriesDatabaseAccess {
         image_unique_id TEXT, lens_model TEXT, lens_info TEXT, focal_length_35mm INTEGER,
         gps_altitude REAL, gps_altitude_ref TEXT, gps_date_stamp TEXT,
         gps_img_direction REAL, gps_img_direction_ref TEXT, gps_timestamp TEXT,
-        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(album_key, entry_name)
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
-      CREATE INDEX idx_exif_album_key ON exif_data(album_key);
-      CREATE INDEX idx_exif_entry_name ON exif_data(entry_name);
 
       CREATE TABLE geo_poi_data (
         entry_id TEXT PRIMARY KEY,
@@ -289,8 +323,8 @@ class EntriesDatabaseAccess {
         for (const r of rows) {
           const entry = this.db.prepare("SELECT entry_id FROM album_entries WHERE album_key=? AND entry_name=?").get(r.album_key, r.entry_name) as { entry_id: string } | undefined;
           if (entry) {
-            this.db.prepare("INSERT OR REPLACE INTO exif_data (entry_id, album_key, entry_name, exif_data, has_exif, processed_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)")
-              .run(entry.entry_id, r.album_key, r.entry_name, r.exif_data, r.has_exif ?? 0, r.processed_at);
+            this.db.prepare("INSERT OR REPLACE INTO exif_data (entry_id, exif_data, has_exif, processed_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)")
+              .run(entry.entry_id, r.exif_data, r.has_exif ?? 0, r.processed_at);
           }
         }
         oldDb.close();
