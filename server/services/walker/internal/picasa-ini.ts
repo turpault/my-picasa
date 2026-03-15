@@ -376,16 +376,16 @@ export async function rotate(entries: AlbumEntry[], direction: string) {
 }
 
 export async function setRotate(entry: AlbumEntry, rotate?: string) {
-  if (!rotate) updatePicasaEntry(entry, "rotate", undefined);
-  else updatePicasaEntry(entry, "rotate", `rotate(${rotate})`);
+  if (!rotate) writeEntryToPicasaIni(entry, "rotate", undefined);
+  else writeEntryToPicasaIni(entry, "rotate", `rotate(${rotate})`);
 }
 
 export async function setFilters(entry: AlbumEntry, filters: string) {
-  await updatePicasaEntry(entry, "filters", filters);
+  await writeEntryToPicasaIni(entry, "filters", filters);
 }
 
 export async function setCaption(entry: AlbumEntry, caption: string) {
-  await updatePicasaEntry(entry, "caption", caption);
+  await writeEntryToPicasaIni(entry, "caption", caption);
 }
 
 export async function toggleStar(entries: AlbumEntry[]) {
@@ -404,8 +404,8 @@ export async function toggleStar(entries: AlbumEntry[]) {
       star = undefined;
     }
     await Promise.all([
-      updatePicasaEntry(entry, "star", star),
-      updatePicasaEntry(entry, "starCount", starCount),
+      writeEntryToPicasaIni(entry, "star", star),
+      writeEntryToPicasaIni(entry, "starCount", starCount),
     ]);
   }
 }
@@ -440,7 +440,12 @@ async function updatePicasa(
   await writePicasaIni(album, picasa);
 }
 
-export async function updatePicasaEntry(
+/**
+ * Low-level write to .picasa.ini for an entry.
+ * Do not call directly from mutations - use updateAlbumEntry in mutations.ts instead,
+ * which updates both picasa-ini and the entry database and triggers downstream jobs.
+ */
+export async function writeEntryToPicasaIni(
   entry: AlbumEntry,
   field: keyof AlbumEntryMetaData | "*",
   value: any,
