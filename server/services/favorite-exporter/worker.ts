@@ -1,42 +1,10 @@
-import { workerData } from "worker_threads";
-import { buildFavoriteFolder } from "./internal/worker-thread";
-import { events } from "../../../shared/server-events";
-
 /**
- * Start the favorite-exporter worker
+ * Favorite-exporter runs in main thread as event-driven logic.
+ * It is a dependency of metadata changes (picasaEntryUpdated) and new file detection (albumEntryAdded).
+ * This stub exists for backward compatibility - do not start as a worker.
  */
-async function startWorker(): Promise<void> {
-  await buildFavoriteFolder();
-}
+import { workerData } from "worker_threads";
 
-// Initialize worker if running in the favorite-exporter worker thread
-
-const serviceName = workerData.serviceName;
-console.info(`Worker thread started for service: ${serviceName}`);
-startWorker()
-  .then(() => {
-    console.info(`Worker ${serviceName} completed successfully`);
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error(`Worker ${serviceName} exited with error:`, error);
-    process.exit(1);
-  });
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.error(`Worker ${serviceName} uncaught exception:`, error);
-  process.exit(1);
-});
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (reason, promise) => {
-  console.error(`Worker ${serviceName} unhandled rejection at:`, promise, 'reason:', reason);
-  process.exit(1);
-});
-
-process.on("message", (msg: any) => {
-  if (msg.type === "serverEvent" && msg.eventType) {
-    events.emit(msg.eventType, msg.data);
-  }
-});
+const serviceName = workerData?.serviceName ?? "favorite-exporter";
+console.warn(`Favorite-exporter stub: ${serviceName} runs in main thread. Exiting.`);
+process.exit(0);

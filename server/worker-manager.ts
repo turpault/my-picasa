@@ -6,6 +6,7 @@ import { walkFilesystem, setWalkerReadyResolver } from "./services/walker/intern
 import { runExtractionWorker } from "./services/extraction/internal/worker-thread";
 import { buildThumbs } from "./services/thumbgen/internal/worker-thread";
 import { buildFaceScan } from "./services/faces/internal/worker-thread";
+import { setupFavoriteExporter } from "./services/favorite-exporter/internal/export-favorites";
 
 const workers: Map<string, Worker> = new Map();
 
@@ -51,8 +52,8 @@ export async function startWorkers() {
   void buildThumbs();
   void buildFaceScan();
 
-  // Start favorite-exporter worker (excluded from global queue)
-  await startWorker("favorite-exporter");
+  // Favorite-exporter: event-driven, runs on metadata changes and new file detection
+  setupFavoriteExporter(getWalkerReadyPromise);
 
   setupEventForwarding();
 }

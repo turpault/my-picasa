@@ -7,6 +7,7 @@ export const JOB_PRIORITY = {
   UPDATE_ENTRY: 6,
   UPDATE_GEO_POI: 7,
   REMOVE: 8,
+  FAVORITE_EXPORT: 9,
   /** Default for unknown job types. */
   OTHER: 5,
 } as const;
