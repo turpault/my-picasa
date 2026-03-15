@@ -4,7 +4,7 @@ import { readFile, stat } from "fs/promises";
 import { parentPort } from "worker_threads";
 import { lock } from "../../../../shared/lib/mutex";
 import { Queue } from "../../../../shared/lib/queue";
-import { buildReadySemaphore, isPicture, isVideo, setReady } from "../../../../shared/lib/utils";
+import { buildReadySemaphore, isPicture, isVideo, setReady, sleep } from "../../../../shared/lib/utils";
 import { events } from "../../../../shared/server-events";
 import { AlbumEntry, ExifData, ExifTag } from "../../../../shared/types/types";
 import { dimensionsFromFileBuffer } from "../../../imageOperations/sharp-processor";
@@ -89,7 +89,12 @@ async function extractExifDataFromFile(entry: AlbumEntry, withStats = false): Pr
       // Extract from file
       const fileData = await readFile(path);
       const tags = await exifr.parse(fileData).catch((e: any) => {
-        debugLogger(`Exception while reading exif for ${path}: ${e}`);
+        const msg = String(e?.message ?? e);
+        if (msg.includes("Unknown file format") || msg.includes("Unknown")) {
+          debugLogger(`Skipping unsupported format: ${path}`);
+        } else {
+          debugLogger(`Exception while reading exif for ${path}: ${e}`);
+        }
         return {};
       });
       const dimensions = dimensionsFromFileBuffer(fileData);
@@ -115,6 +120,17 @@ async function extractExifDataFromFile(entry: AlbumEntry, withStats = false): Pr
   return exif;
 }
 
+const SQLITE_IOERR_LOCK = "SQLITE_IOERR_LOCK";
+const MAX_DB_RETRIES = 3;
+const DB_RETRY_DELAY_MS = 500;
+
+function isSqliteLockError(e: unknown): boolean {
+  const err = e as { code?: string; message?: string };
+  return err?.code === SQLITE_IOERR_LOCK
+    || Boolean(err?.message?.includes("disk I/O error"))
+    || Boolean(err?.message?.includes("database is locked"));
+}
+
 /**
  * Extract EXIF data for an entry and update the database
  */
@@ -123,17 +139,36 @@ async function extractExifData(entry: AlbumEntry): Promise<void> {
   try {
     debugLogger(`Extracting EXIF data for ${entry.name}`);
     const exif = await extractExifDataFromFile(entry, false);
-    // Always store as JSON string - use "{}" for empty EXIF data, not null
     const exifJson = exif && Object.keys(exif).length > 0 ? JSON.stringify(exif) : "{}";
-    db.updateExifData(entry, exifJson);
-    // Emit event that EXIF data has been processed
+    await updateExifWithRetry(db, entry, exifJson);
     events.emit("exifDataProcessed", entry);
   } catch (error) {
     debugLogger(`Error extracting EXIF data for ${entry.name}:`, error);
-    // Mark as processed even if it failed - store empty JSON object
-    db.updateExifData(entry, "{}");
-    // Still emit event even if processing failed (entry is marked as processed)
+    try {
+      await updateExifWithRetry(db, entry, "{}");
+    } catch (fallbackError) {
+      debugLogger(`Could not mark ${entry.name} as processed (DB may be locked):`, fallbackError);
+    }
     events.emit("exifDataProcessed", entry);
+  }
+}
+
+async function updateExifWithRetry(
+  db: { updateExifData: (e: AlbumEntry, d: string) => void },
+  entry: AlbumEntry,
+  exifJson: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < MAX_DB_RETRIES; attempt++) {
+    try {
+      db.updateExifData(entry, exifJson);
+      return;
+    } catch (e) {
+      if (attempt < MAX_DB_RETRIES - 1 && isSqliteLockError(e)) {
+        await sleep((attempt + 1) * DB_RETRY_DELAY_MS / 1000);
+      } else {
+        throw e;
+      }
+    }
   }
 }
 

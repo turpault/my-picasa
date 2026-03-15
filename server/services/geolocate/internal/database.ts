@@ -68,11 +68,10 @@ export class GeolocateDatabaseAccess {
     }
 
     // Attach walker database as read-only (always read-only in Geolocate service)
+    this.db.run("PRAGMA busy_timeout=15000");
     try {
       const walkerDb = getWalkerDatabase();
       const walkerDbPath = walkerDb.getDatabasePath();
-      // Convert path to file: URI for SQLite ATTACH with mode=ro
-      // SQLite requires absolute paths, and we need to escape single quotes for SQL string
       const fileUri = `file:${walkerDbPath.replace(/'/g, "''")}?mode=ro`;
       this.db.run(`ATTACH DATABASE '${fileUri}' AS walker`);
       debugLogger("Attached walker database as read-only");

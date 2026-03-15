@@ -6,10 +6,37 @@ import { waitUntilIdle } from "../../../utils/busy";
 import { getAllAlbums } from "../../walker/queries";
 import { lock } from "../../../../shared/lib/mutex";
 import { Queue } from "../../../../shared/lib/queue";
+import { sleep } from "../../../../shared/lib/utils";
 import { AlbumEntry } from "../../../../shared/types/types";
 import { getIndexingDatabaseReadWrite } from "./database";
+import type { IndexingDatabaseAccess } from "./database";
 
 const debugLogger = debug("app:bg-indexing");
+
+const MAX_DB_RETRIES = 3;
+const DB_RETRY_DELAY_MS = 500;
+
+function isSqliteLockError(e: unknown): boolean {
+  const err = e as { code?: string; message?: string };
+  return err?.code === "SQLITE_IOERR_LOCK"
+    || err?.message?.includes("disk I/O error")
+    || err?.message?.includes("database is locked");
+}
+
+async function indexPictureWithRetry(db: IndexingDatabaseAccess, entry: AlbumEntry): Promise<void> {
+  for (let attempt = 0; attempt < MAX_DB_RETRIES; attempt++) {
+    try {
+      db.indexPicture(entry);
+      return;
+    } catch (e) {
+      if (attempt < MAX_DB_RETRIES - 1 && isSqliteLockError(e)) {
+        await sleep((attempt + 1) * DB_RETRY_DELAY_MS / 1000);
+      } else {
+        throw e;
+      }
+    }
+  }
+}
 
 // Queue for processing indexing operations
 const indexingQueue = new Queue(3);
@@ -23,7 +50,7 @@ function queueIndexing(entry: AlbumEntry): void {
     const db = getIndexingDatabaseReadWrite();
     try {
       debugLogger(`Indexing file: ${entry.name}`);
-      await db.indexPicture(entry);
+      await indexPictureWithRetry(db, entry);
     } catch (error) {
       debugLogger(`Error indexing ${entry.name}:`, error);
     }
@@ -153,7 +180,7 @@ async function indexAllPictures(): Promise<void> {
       q.add(async () => {
         await waitUntilIdle();
         try {
-          await db.indexPicture(entry);
+          await indexPictureWithRetry(db, entry);
           processedPictures++;
           if (processedPictures % 100 === 0) {
             debugLogger(`Indexed ${processedPictures} pictures (${processedAlbums}/${albums.length} albums)`);

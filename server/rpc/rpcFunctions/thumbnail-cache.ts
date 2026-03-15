@@ -18,7 +18,7 @@ import {
   rotateFilterKey,
 } from "../../services/walker/queries";
 import {
-  getMutations,
+  getMutationsIfAvailable,
 } from "../../services/walker/queries";
 
 import Debug from "debug";
@@ -111,17 +111,17 @@ export async function updateCacheData(
   dimensions: string,
   rotate: string,
 ) {
+  const mutations = getMutationsIfAvailable();
+  if (!mutations) return;
+
   const picasaFilterLabel = cachedFilterKey[size];
   const picasaSizeLabel = dimensionsFilterKey[size];
   const picasaRotateLabel = rotateFilterKey[size];
 
-  const mutations = getMutations();
-  await Promise.all([
-    mutations.updateEntryMetadata(entry, {
-      [picasaFilterLabel]: transform, [picasaSizeLabel]: dimensions,
-      [picasaRotateLabel]: rotate
-    }),
-  ]);
+  await mutations.updateEntryMetadata(entry, {
+    [picasaFilterLabel]: transform, [picasaSizeLabel]: dimensions,
+    [picasaRotateLabel]: rotate
+  });
 }
 
 export async function copyThumbnails(

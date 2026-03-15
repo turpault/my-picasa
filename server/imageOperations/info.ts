@@ -11,7 +11,7 @@ import {
 import { getExifData, getFileStats } from "../rpc/rpcFunctions/exif";
 import {
   getEntryMetadata,
-  getMutations,
+  getMutationsIfAvailable,
 } from "../services/walker/queries";
 import { pathForAlbumEntry, safeWriteFile } from "../utils/serverUtils";
 import { TagValues, dump, insert, load } from "./piexif/index";
@@ -73,10 +73,10 @@ export async function imageInfo(
         const encoded = await encode(context);
         res.meta.width = encoded.width;
         res.meta.height = encoded.height;
-        const mutations = getMutations();
-        await Promise.all([
-          mutations.updateEntryMetadata(entry, { "dimensions": `${encoded.width}x${encoded.height}`, "dimensionsFromFilter": options.filters }, undefined),
-        ]);
+        const mutations = getMutationsIfAvailable();
+        if (mutations) {
+          await mutations.updateEntryMetadata(entry, { "dimensions": `${encoded.width}x${encoded.height}`, "dimensionsFromFilter": options.filters }, undefined);
+        }
       } catch (e) {
         console.error(
           "Error getting image info for file",
