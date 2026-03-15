@@ -1904,6 +1904,34 @@ body {
   pointer-events: none;
 }
 
+.photo-grid .thumbnail-skeleton {
+  cursor: default;
+  background: #e0e0e0;
+  overflow: hidden;
+}
+
+.photo-grid .thumbnail-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 100%
+  );
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+.photo-grid .thumbnail-skeleton:hover {
+  border-color: transparent;
+}
+
+@keyframes skeleton-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
 .loading-indicator {
   text-align: center;
   padding: 20px;

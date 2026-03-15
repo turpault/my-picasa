@@ -97,7 +97,15 @@ const Thumbnail = React.memo(function Thumbnail({
 });
 
 // ---------------------------------------------------------------------------
-// AlbumSection – one album's header + photo grid inside the infinite stream
+// ThumbnailSkeleton – placeholder while photo loads
+// ---------------------------------------------------------------------------
+
+function ThumbnailSkeleton() {
+  return <div className="thumbnail thumbnail-skeleton" aria-hidden />;
+}
+
+// ---------------------------------------------------------------------------
+// AlbumSection – one album's header + photo grid
 // ---------------------------------------------------------------------------
 
 interface AlbumSectionProps {
@@ -124,15 +132,17 @@ function AlbumSection({
     [],
   );
 
+  const skeletonCount = Math.min(album.count || 12, 48);
+
   return (
     <div className="album-stream-section">
       <div className="album-stream-header" ref={headerRef} data-album-key={album.key}>
         <h2>{album.name}</h2>
         <span className="entry-count">
-          {loading ? "…" : entries.length}
+          {loading && entries.length === 0 ? "…" : entries.length}
         </span>
       </div>
-      {entries.length > 0 && (
+      {entries.length > 0 ? (
         <div className="photo-grid">
           {entries.map((entry) => (
             <Thumbnail
@@ -144,10 +154,13 @@ function AlbumSection({
             />
           ))}
         </div>
-      )}
-      {loading && entries.length === 0 && (
-        <div className="loading-indicator">{t("Loading…")}</div>
-      )}
+      ) : loading ? (
+        <div className="photo-grid">
+          {Array.from({ length: skeletonCount }, (_, i) => (
+            <ThumbnailSkeleton key={i} />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
