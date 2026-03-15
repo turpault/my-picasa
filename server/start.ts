@@ -24,6 +24,14 @@ import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
 import { initUndo } from "./utils/undo";
 import { getExtractionStats, startWorkers } from "./worker-manager";
+import {
+  getGlobalQueuePendingByPriority,
+  getGlobalQueueStats,
+} from "./utils/global-job-queue";
+import {
+  getEntriesDbContents,
+  getPoiDbContents,
+} from "./routes/stats-db";
 
 import indexHtml from "../public/index.html";
 import statsHTML from "../public/stats.html";
@@ -121,9 +129,32 @@ export async function startServer(p?: number) {
             series: await history(),
             locks: lockedLocks(),
             extraction: getExtractionStats(),
+            globalQueue: {
+              ...getGlobalQueueStats(),
+              pendingByPriority: getGlobalQueuePendingByPriority(),
+            },
+            memory: process.memoryUsage(),
             cpuLoad: getCpuLoad(),
             activity: getActivityStatus(),
           }),
+        "/stats/db/entries": async (req) => {
+          const url = new URL(req.url);
+          const limit = Math.min(
+            500,
+            parseInt(url.searchParams.get("limit") ?? "200", 10) || 200
+          );
+          const data = await getEntriesDbContents(limit);
+          return Response.json(data);
+        },
+        "/stats/db/poi": async (req) => {
+          const url = new URL(req.url);
+          const limit = Math.min(
+            500,
+            parseInt(url.searchParams.get("limit") ?? "200", 10) || 200
+          );
+          const data = await getPoiDbContents(limit);
+          return Response.json(data);
+        },
         "/encode/:context/:mime": async (req) =>
           httpRequestQueue.add(async () => {
             const { context, mime } = req.params;

@@ -4,46 +4,175 @@ declare const Plotly: any;
 
 const POLL_INTERVAL_MS = 2000;
 
+type TabId = "queue" | "entries" | "poi" | "memory";
+
 interface StatsResponse {
   locks: string[];
   series: Record<string, { x: number; y: number }[]>;
   extraction?: { pending: number; active: number; done: number };
+  globalQueue?: {
+    pending: number;
+    active: number;
+    done: number;
+    pendingByPriority: Array<{ priority: number; count: number; types: string }>;
+  };
+  memory?: NodeJS.MemoryUsage;
   cpuLoad?: number;
   activity?: { lastActivityMs: number; lockCount: number };
 }
 
-function renderServerActivity(data: StatsResponse) {
-  const container = document.getElementById("server-activity");
-  if (!container) return;
+function renderTabBar(activeTab: TabId, onTab: (id: TabId) => void): HTMLElement {
+  const tabs: { id: TabId; label: string }[] = [
+    { id: "queue", label: "Global queue" },
+    { id: "entries", label: "Entries DB" },
+    { id: "poi", label: "POI DB" },
+    { id: "memory", label: "Memory & CPU" },
+  ];
+  const bar = document.createElement("div");
+  bar.className = "w3-bar w3-green w3-margin-bottom";
+  for (const t of tabs) {
+    const btn = document.createElement("button");
+    btn.className = `w3-bar-item w3-button ${activeTab === t.id ? "w3-white" : ""}`;
+    btn.textContent = t.label;
+    btn.onclick = () => onTab(t.id);
+    bar.appendChild(btn);
+  }
+  return bar;
+}
 
-  const extraction = data.extraction ?? { pending: 0, active: 0, done: 0 };
-  const cpuLoad = data.cpuLoad ?? 0;
+function renderQueueTab(data: StatsResponse): HTMLElement {
+  const div = document.createElement("div");
+  const q = data.globalQueue ?? {
+    pending: 0,
+    active: 0,
+    done: 0,
+    pendingByPriority: [],
+  };
+  const total = q.pending + q.active;
+
+  let contentsHtml = "";
+  if (q.pendingByPriority.length > 0) {
+    contentsHtml = `
+      <h4 class="w3-padding">Contents by job type</h4>
+      <table class="w3-table w3-bordered w3-striped">
+        <tr><th>Priority</th><th>Job types</th><th>Count</th></tr>
+        ${q.pendingByPriority
+          .map(
+            (p) =>
+              `<tr><td>${p.priority}</td><td>${p.types}</td><td>${p.count}</td></tr>`
+          )
+          .join("")}
+      </table>
+    `;
+  } else {
+    contentsHtml = "<p class='w3-padding'>Queue is empty.</p>";
+  }
+
+  div.innerHTML = `
+    <div class="w3-cell-row w3-padding">
+      <div class="w3-cell" style="width:25%">
+        <strong>Size</strong><br>
+        <span class="w3-xlarge">${total}</span>
+        <small class="w3-text-grey"> total (${q.active} active, ${q.pending} queued)</small>
+      </div>
+      <div class="w3-cell" style="width:25%">
+        <strong>Done</strong><br>
+        <span class="w3-xlarge">${q.done}</span>
+      </div>
+    </div>
+    ${contentsHtml}
+  `;
+  return div;
+}
+
+function renderDbTable(tableName: string, rows: unknown[]): string {
+  if (rows.length === 0) return `<p>Table <code>${tableName}</code>: 0 rows</p>`;
+  const first = rows[0] as Record<string, unknown>;
+  const keys = Object.keys(first).filter((k) => !k.startsWith("_"));
+  const header = keys.map((k) => `<th>${k}</th>`).join("");
+  const body = rows
+    .map((r) => {
+      const row = r as Record<string, unknown>;
+      return `<tr>${keys.map((k) => `<td>${String(row[k] ?? "")}</td>`).join("")}</tr>`;
+    })
+    .join("");
+  return `
+    <h4 class="w3-padding">${tableName}</h4>
+    <div class="w3-responsive w3-margin-bottom">
+      <table class="w3-table w3-bordered w3-striped w3-small">
+        <thead><tr>${header}</tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderEntriesTab(entriesData: Record<string, unknown[]> | null): HTMLElement {
+  const div = document.createElement("div");
+  if (!entriesData) {
+    div.innerHTML = "<p class='w3-padding'>Loading...</p>";
+    return div;
+  }
+  div.innerHTML = Object.entries(entriesData)
+    .map(([name, rows]) => renderDbTable(name, rows))
+    .join("");
+  return div;
+}
+
+function renderPoiTab(poiData: Record<string, unknown[]> | null): HTMLElement {
+  const div = document.createElement("div");
+  if (!poiData) {
+    div.innerHTML = "<p class='w3-padding'>Loading...</p>";
+    return div;
+  }
+  div.innerHTML = Object.entries(poiData)
+    .map(([name, rows]) => renderDbTable(name, rows))
+    .join("");
+  return div;
+}
+
+function renderMemoryTab(data: StatsResponse): HTMLElement {
+  const div = document.createElement("div");
+  const mem = data.memory ?? {};
+  const memMb = (bytes: number) => ((bytes || 0) / 1024 / 1024).toFixed(2);
+
   const activity = data.activity ?? { lastActivityMs: 0, lockCount: 0 };
-
-  const pending = extraction.pending + extraction.active;
   const lastActivity = activity.lastActivityMs
     ? new Date(activity.lastActivityMs).toLocaleTimeString()
     : "—";
   const status = activity.lockCount > 0 ? "busy" : "idle";
 
-  container.innerHTML = `
+  div.innerHTML = `
     <div class="w3-cell-row w3-padding">
-      <div class="w3-cell" style="width:33%">
-        <strong>Pending jobs</strong><br>
-        <span class="w3-xlarge">${pending}</span>
-        <small class="w3-text-grey"> (${extraction.active} active, ${extraction.pending} queued)</small>
+      <div class="w3-cell" style="width:20%">
+        <strong>RSS</strong><br>
+        <span class="w3-large">${memMb((mem as any).rss)} MB</span>
       </div>
-      <div class="w3-cell" style="width:33%">
+      <div class="w3-cell" style="width:20%">
+        <strong>Heap used</strong><br>
+        <span class="w3-large">${memMb((mem as any).heapUsed)} MB</span>
+      </div>
+      <div class="w3-cell" style="width:20%">
+        <strong>Heap total</strong><br>
+        <span class="w3-large">${memMb((mem as any).heapTotal)} MB</span>
+      </div>
+      <div class="w3-cell" style="width:20%">
         <strong>CPU load</strong><br>
-        <span class="w3-xlarge">${cpuLoad.toFixed(1)}%</span>
+        <span class="w3-large">${((data.cpuLoad ?? 0).toFixed(1))}%</span>
       </div>
-      <div class="w3-cell" style="width:33%">
-        <strong>Server activity</strong><br>
-        <span class="w3-xlarge">${status}</span>
-        <small class="w3-text-grey"> (last: ${lastActivity}, locks: ${activity.lockCount})</small>
+      <div class="w3-cell" style="width:20%">
+        <strong>Server</strong><br>
+        <span class="w3-large">${status}</span>
+        <small class="w3-text-grey"> (last: ${lastActivity})</small>
       </div>
     </div>
+    <div id="memory-series-container" class="w3-padding"></div>
+    <div class="w3-padding">
+      <h4>Locks</h4>
+      ${(data.locks ?? []).length ? (data.locks as string[]).map((l) => `<p>${l}</p>`).join("") : "<p>None</p>"}
+    </div>
   `;
+  return div;
 }
 
 async function fetchStats(): Promise<StatsResponse> {
@@ -51,17 +180,33 @@ async function fetchStats(): Promise<StatsResponse> {
   return res.json();
 }
 
+async function fetchEntriesDb(): Promise<Record<string, unknown[]>> {
+  const res = await fetch("/stats/db/entries?limit=200");
+  return res.json();
+}
+
+async function fetchPoiDb(): Promise<Record<string, unknown[]>> {
+  const res = await fetch("/stats/db/poi?limit=200");
+  return res.json();
+}
+
 async function init() {
-  const container = $('<div id="server-activity" class="w3-theme-l4 w3-margin-bottom"></div>');
-  document.body.appendChild(
-    $(`<h3 class="w3-bar w3-green w3-padding">Server activity (live)</h3>`).get()
-  );
-  document.body.appendChild(container.get());
+  let activeTab: TabId = "queue";
+  let statsData: StatsResponse | null = null;
+  let entriesData: Record<string, unknown[]> | null = null;
+  let poiData: Record<string, unknown[]> | null = null;
+
+  const tabContent = document.createElement("div");
+  tabContent.id = "tab-content";
+  tabContent.className = "w3-theme-l4 w3-padding";
 
   const poll = async () => {
     try {
       const data = await fetchStats();
-      renderServerActivity(data);
+      statsData = data;
+      if (activeTab === "queue" || activeTab === "memory") {
+        renderActiveTab();
+      }
       return data;
     } catch (e) {
       console.error("Stats fetch failed:", e);
@@ -69,32 +214,72 @@ async function init() {
     }
   };
 
+  function renderActiveTab() {
+    const container = document.getElementById("tab-content");
+    if (!container) return;
+    container.innerHTML = "";
+    if (activeTab === "queue" && statsData) {
+      container.appendChild(renderQueueTab(statsData));
+    } else if (activeTab === "entries") {
+      container.appendChild(renderEntriesTab(entriesData));
+    } else if (activeTab === "poi") {
+      container.appendChild(renderPoiTab(poiData));
+    } else if (activeTab === "memory" && statsData) {
+      container.appendChild(renderMemoryTab(statsData));
+      // Render series charts after DOM is ready
+      setTimeout(() => renderSeriesCharts(statsData!), 0);
+    }
+  }
+
+  function renderSeriesCharts(data: StatsResponse) {
+    const container = document.getElementById("memory-series-container");
+    if (!container || !data.series) return;
+    for (const [index, pairs] of Object.entries(data.series)) {
+      const chartDiv = document.createElement("div");
+      chartDiv.className = "series";
+      container.appendChild(chartDiv);
+      const x = (pairs as { x: number; y: number }[]).map(
+        (v) => new Date(v.x * 1000).toISOString()
+      );
+      const y = (pairs as { x: number; y: number }[]).map((v) => v.y);
+      Plotly.newPlot(chartDiv, [{ x, y }], { margin: { t: 0 } });
+    }
+  }
+
+  function setTab(id: TabId) {
+    activeTab = id;
+    const bar = document.getElementById("tab-bar");
+    if (bar) {
+      bar.innerHTML = "";
+      bar.appendChild(renderTabBar(activeTab, setTab));
+    }
+    if (id === "entries" && !entriesData) {
+      fetchEntriesDb().then((d) => {
+        entriesData = d;
+        renderActiveTab();
+      });
+    } else if (id === "poi" && !poiData) {
+      fetchPoiDb().then((d) => {
+        poiData = d;
+        renderActiveTab();
+      });
+    }
+    renderActiveTab();
+  }
+
+  document.body.appendChild(
+    $('<h3 class="w3-bar w3-green w3-padding">Stats</h3>').get()
+  );
+  const tabBar = document.createElement("div");
+  tabBar.id = "tab-bar";
+  tabBar.appendChild(renderTabBar(activeTab, setTab));
+  document.body.appendChild(tabBar);
+  document.body.appendChild(tabContent);
+
   let data = await poll();
   setInterval(poll, POLL_INTERVAL_MS);
 
-  if (data) {
-    document.body.appendChild(
-      $(`<h3 class="w3-bar w3-green w3-padding">Locks</h3>`).get()
-    );
-    (data.locks as string[]).forEach((lock) => {
-      document.body.appendChild($(`<p>${lock}</p>`).get());
-    });
-    for (const index of Object.keys(data.series)) {
-      document.body.appendChild(
-        $(`<h3 class="w3-bar w3-green w3-padding">${index}</h3>`).get()
-      );
-      const e = $('<div class="series"></div');
-      const pairs: { x: number; y: number }[] = data.series[index];
-      const x = pairs.map((v) => new Date(v.x * 1000).toISOString());
-      const y = pairs.map((v) => v.y);
-      document.body.appendChild(e.get());
-      Plotly.newPlot(
-        e.get(),
-        [{ x, y }],
-        { margin: { t: 0 } }
-      );
-    }
-  }
+  renderActiveTab();
 }
 
 window.addEventListener("load", () => {
