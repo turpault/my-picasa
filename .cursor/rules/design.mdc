@@ -1,0 +1,19 @@
+---
+description: Follow DESIGN.md architecture and design rules
+alwaysApply: true
+---
+
+# Design Rules
+
+**Read and follow [DESIGN.md](../../DESIGN.md)** for all code changes.
+
+## Key Rules
+
+1. **Layer boundaries**: Client → shared only. Server → shared + server. Shared → no client/server.
+2. **Service structure**: `server/services/<name>/worker.ts` + `internal/` for implementation. RPC and `queries.ts` import from internal; others use public API.
+3. **Naming**: kebab-case files, PascalCase types, camelCase functions.
+4. **Imports**: Relative paths; no circular imports; no client/server cross-imports.
+5. **Types**: Use `shared/types/`; avoid `any`.
+6. **Databases**: In `internal/`; use prepared statements; close on exit.
+
+When adding services, workers, or RPC handlers, match existing patterns in `server/services/`, `server/rpc/`, and `shared/`.
