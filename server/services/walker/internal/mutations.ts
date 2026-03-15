@@ -59,10 +59,12 @@ export async function updateEntryMetadata(
     }
   }
 
-  // Update database
+  const incrementFilterVersion =
+    field === "filters" || field === "rotate";
+
   const dbPromise = new Promise<void>((resolve, reject) => {
     try {
-      db.updateEntryMetadata(entry, updatedMetadata);
+      db.updateEntryMetadata(entry, updatedMetadata, { incrementFilterVersion });
       resolve();
     } catch (error) {
       reject(error);
@@ -175,13 +177,11 @@ export async function toggleStar(entries: AlbumEntry[]): Promise<void> {
  * Rotate entries
  */
 export async function rotate(entries: AlbumEntry[], direction: string): Promise<void> {
-  // This function is only called from the RPC handler in the worker thread
   await picasaIni.rotate(entries, direction);
-  // Also update database for each entry
   const db = getWalkerDatabase();
   for (const entry of entries) {
     const metadata = await picasaIni.getPicasaEntry(entry);
-    db.updateEntryMetadata(entry, metadata);
+    db.updateEntryMetadata(entry, metadata, { incrementFilterVersion: true });
   }
 }
 

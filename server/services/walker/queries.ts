@@ -11,9 +11,6 @@ import {
 
 // Re-export from picasa-ini for compatibility
 export {
-  cachedFilterKey,
-  dimensionsFilterKey,
-  rotateFilterKey,
   albumFromName,
   albumFromNameAndKind,
   getContactsFromAlbum,

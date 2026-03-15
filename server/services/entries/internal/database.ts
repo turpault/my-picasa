@@ -11,6 +11,7 @@ import {
   AlbumWithData,
   extraFields,
   Shortcut,
+  ThumbnailSize,
 } from "../../../../shared/types/types";
 import { imagesRoot } from "../../../utils/constants";
 import { ensureDbFormatOrRemove, isDev } from "../../../utils/ensure-db-format";
@@ -39,7 +40,10 @@ class EntriesDatabaseAccess {
   constructor() {
     this.dbPath = ENTRIES_DB_PATH;
     const serviceName = workerData?.serviceName;
-    this.isWriter = serviceName === "walker" || serviceName === "extraction";
+    this.isWriter =
+      serviceName === "walker" ||
+      serviceName === "extraction" ||
+      serviceName === "thumbgen";
 
     if (this.isWriter) {
       debugLogger("Opening entries database in READ-WRITE mode (walker worker)");
@@ -68,8 +72,33 @@ class EntriesDatabaseAccess {
     if (this.isWriter) {
       this.checkAndMigrateDatabase();
       this.migrateAlbumEntriesIndexVersion();
+      this.migrateFilterVersion();
       this.migrateChildTablesIfNeeded();
       this.migratePicturesIndexVersion();
+    }
+  }
+
+  private migrateFilterVersion(): void {
+    try {
+      const info = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
+      const hasFilterVersion = info.some((c) => c.name === "filter_version");
+      if (hasFilterVersion) return;
+
+      debugLogger("Adding filter_version and thumb_filter_version columns to album_entries");
+      this.db.run("ALTER TABLE album_entries ADD COLUMN filter_version INTEGER NOT NULL DEFAULT 0");
+      this.db.run("ALTER TABLE album_entries ADD COLUMN thumb_filter_version_small INTEGER NOT NULL DEFAULT -1");
+      this.db.run("ALTER TABLE album_entries ADD COLUMN thumb_filter_version_medium INTEGER NOT NULL DEFAULT -1");
+      this.db.run("ALTER TABLE album_entries ADD COLUMN thumb_filter_version_large INTEGER NOT NULL DEFAULT -1");
+
+      this.db.run("CREATE INDEX IF NOT EXISTS idx_album_entries_filter_version ON album_entries(filter_version)");
+      this.db.run(
+        "CREATE INDEX IF NOT EXISTS idx_album_entries_thumb_version_small ON album_entries(thumb_filter_version_small, filter_version)"
+      );
+      this.db.run(
+        "CREATE INDEX IF NOT EXISTS idx_album_entries_thumb_version_medium ON album_entries(thumb_filter_version_medium, filter_version)"
+      );
+    } catch (e) {
+      debugLogger("migrateFilterVersion error:", e);
     }
   }
 
@@ -401,10 +430,53 @@ class EntriesDatabaseAccess {
     return rows.map((r) => ({ album, name: r.entry_name }));
   }
 
+  getEntriesNeedingThumbnails(
+    sizes: ThumbnailSize[],
+  ): Array<{ album: Album; entry_name: string; size: ThumbnailSize }> {
+    const hasColumns = this.db
+      .prepare("PRAGMA table_info(album_entries)")
+      .all() as Array<{ name: string }>;
+    if (!hasColumns.some((c) => c.name === "filter_version")) {
+      return [];
+    }
+
+    const sizeToColumn: Record<ThumbnailSize, string> = {
+      "th-small": "thumb_filter_version_small",
+      "th-medium": "thumb_filter_version_medium",
+      "th-large": "thumb_filter_version_large",
+    };
+
+    const results: Array<{ album: Album; entry_name: string; size: ThumbnailSize }> = [];
+    const albums = this.getAllAlbums();
+
+    for (const size of sizes) {
+      const col = sizeToColumn[size];
+      const rows = this.db
+        .prepare(
+          `SELECT ae.album_key, a.name AS album_name, ae.entry_name
+           FROM album_entries ae
+           JOIN albums a ON ae.album_key = a.key
+           WHERE ae.${col} < ae.filter_version OR ae.${col} = -1`,
+        )
+        .all() as Array<{ album_key: string; album_name: string; entry_name: string }>;
+
+      for (const r of rows) {
+        const album = albums.find((a) => a.key === r.album_key) ?? {
+          key: r.album_key,
+          name: r.album_name,
+          count: 0,
+        };
+        results.push({ album, entry_name: r.entry_name, size });
+      }
+    }
+    return results;
+  }
+
   getEntryMetadata(entry: AlbumEntry): AlbumEntryMetaData {
     const row = this.db.prepare(`
       SELECT date_taken, photostar, star, star_count, caption, text, textactive,
-        dimensions, dimensions_from_filter, rank, rotate, faces, filters, stats, persons, extra_fields
+        dimensions, dimensions_from_filter, rank, rotate, faces, filters, stats, persons, extra_fields,
+        filter_version, thumb_filter_version_small, thumb_filter_version_medium, thumb_filter_version_large
       FROM album_entries WHERE album_key = ? AND entry_name = ?
     `).get(entry.album.key ?? "", entry.name ?? "") as any;
     if (!row) return {};
@@ -425,9 +497,18 @@ class EntriesDatabaseAccess {
     if (row.filters) metadata.filters = row.filters;
     if (row.stats) metadata.stats = row.stats;
     if (row.persons) metadata.persons = row.persons;
+    if (row.filter_version !== undefined) metadata.filterVersion = row.filter_version;
+    if (row.thumb_filter_version_small !== undefined) metadata.thumbFilterVersionSmall = row.thumb_filter_version_small;
+    if (row.thumb_filter_version_medium !== undefined) metadata.thumbFilterVersionMedium = row.thumb_filter_version_medium;
+    if (row.thumb_filter_version_large !== undefined) metadata.thumbFilterVersionLarge = row.thumb_filter_version_large;
     if (row.extra_fields) {
       try {
-        Object.assign(metadata, JSON.parse(row.extra_fields));
+        const extra = JSON.parse(row.extra_fields);
+        for (const k of Object.keys(extra)) {
+          if (!k.startsWith("cached:") && !k.startsWith("thumb_filter_version:")) {
+            (metadata as Record<string, unknown>)[k] = extra[k];
+          }
+        }
       } catch (e) {
         debugLogger(`Error parsing extra_fields for ${entry.name}:`, e);
       }
@@ -536,7 +617,30 @@ class EntriesDatabaseAccess {
     this.db.prepare(`UPDATE albums SET shortcut = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?`).run(shortcut, albumKey);
   }
 
-  updateEntryMetadata(entry: AlbumEntry, metadata: AlbumEntryMetaData): void {
+  updateThumbFilterVersion(
+    entry: AlbumEntry,
+    size: ThumbnailSize,
+    filterVersion: number,
+  ): void {
+    if (!this.isWriter) throw new Error("updateThumbFilterVersion requires READWRITE");
+    const column =
+      size === "th-small"
+        ? "thumb_filter_version_small"
+        : size === "th-medium"
+          ? "thumb_filter_version_medium"
+          : "thumb_filter_version_large";
+    this.db
+      .prepare(
+        `UPDATE album_entries SET ${column} = ?, updated_at = CURRENT_TIMESTAMP WHERE album_key = ? AND entry_name = ?`,
+      )
+      .run(filterVersion, entry.album.key ?? "", entry.name ?? "");
+  }
+
+  updateEntryMetadata(
+    entry: AlbumEntry,
+    metadata: AlbumEntryMetaData,
+    options?: { incrementFilterVersion?: boolean },
+  ): void {
     if (!this.isWriter) throw new Error("updateEntryMetadata requires READWRITE");
     const standardFields = new Set([
       "dateTaken", "photostar", "star", "starCount", "caption", "text", "textactive",
@@ -550,11 +654,15 @@ class EntriesDatabaseAccess {
     }
     const extraFieldsJson = Object.keys(extra).length > 0 ? JSON.stringify(extra) : null;
 
+    const filterVersionIncrement = options?.incrementFilterVersion
+      ? ", filter_version = filter_version + 1"
+      : "";
+
     this.db.prepare(`
       UPDATE album_entries SET
         date_taken = ?, photostar = ?, star = ?, star_count = ?, caption = ?, text = ?, textactive = ?,
         dimensions = ?, dimensions_from_filter = ?, rank = ?, rotate = ?, faces = ?, filters = ?, stats = ?, persons = ?,
-        extra_fields = ?, index_version = index_version + 1, updated_at = CURRENT_TIMESTAMP
+        extra_fields = ?, index_version = index_version + 1${filterVersionIncrement}, updated_at = CURRENT_TIMESTAMP
       WHERE album_key = ? AND entry_name = ?
     `).run(
       metadata.dateTaken || null, metadata.photostar ? 1 : 0, metadata.star ? 1 : 0,

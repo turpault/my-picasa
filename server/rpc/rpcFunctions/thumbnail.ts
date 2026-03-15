@@ -30,7 +30,7 @@ import {
   readThumbnailBufferFromCache,
   shouldMakeThumbnail,
   thumbnailPathFromEntryAndSize,
-  updateCacheData,
+  updateThumbFilterVersion,
   writeThumbnailToCache,
 } from "./thumbnail-cache";
 
@@ -78,22 +78,20 @@ async function makeImageThumbnail(
   const release = await lock(lockLabel);
   inc("thumbnail");
   try {
-    const picasaEntry = getEntryMetadata(entry);
-
-    const transform = picasaEntry.filters || "";
-    const rotate = picasaEntry.rotate || "";
+    const metadata = getEntryMetadata(entry);
+    const transform = metadata.filters || "";
+    const filterVersion = metadata.filterVersion ?? 0;
     const { path, filename } = thumbnailPathFromEntryAndSize(entry, size, animated);
 
-    const thumbpath = await exportToFolder(entry, path, { label: false, filename, resize: ThumbnailSizes[size], filters: transform, overwrite: true });
+    const thumbpath = await exportToFolder(entry, path, {
+      label: false,
+      filename,
+      resize: ThumbnailSizes[size],
+      filters: transform,
+      overwrite: true,
+    });
 
-
-    updateCacheData(
-      entry,
-      transform,
-      size,
-      `${ThumbnailSizes[size]}`,
-      rotate,
-    );
+    await updateThumbFilterVersion(entry, size, filterVersion);
     return thumbpath;
   } finally {
     dec("thumbnail");
@@ -141,25 +139,16 @@ async function makeVideoThumbnail(
   size: ThumbnailSize = "th-medium",
   animated: boolean,
 ): Promise<undefined | Buffer> {
-  const picasa = getEntryMetadata(entry);
-  const transform = picasa.filters || "";
-  const rotate = picasa.rotate || "";
+  const metadata = getEntryMetadata(entry);
+  const transform = metadata.filters || "";
+  const rotate = metadata.rotate || "";
+  const filterVersion = metadata.filterVersion ?? 0;
   const data = await createGif(entry, ThumbnailSizes[size], animated, {
     rotate: decodeRotate(rotate),
     transform,
   });
-  const imgSize = dimensionsFromFileBuffer(data);
   await writeThumbnailToCache(entry, size, data, animated);
-
-  await Promise.all([
-    updateCacheData(
-      entry,
-      transform,
-      size,
-      `${imgSize.width!}x${imgSize.height!}`,
-      rotate,
-    ),
-  ]);
+  await updateThumbFilterVersion(entry, size, filterVersion);
   return data;
 }
 

@@ -41,17 +41,36 @@ import { rate } from "../../../utils/stats";
 // This import is used in readContacts function
 import { normalizeName } from "../../../operations/faces/faces";
 
+/** Keys with these prefixes are never written to .picasa.ini (DB-only cache data). */
+const CACHE_FIELD_PREFIXES = ["cached:", "thumb_filter_version:"];
+
+function isCacheField(key: string): boolean {
+  return CACHE_FIELD_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
+
+function stripCacheFieldsFromMetadata(metadata: AlbumEntryMetaData): AlbumEntryMetaData {
+  const result: AlbumEntryMetaData = {};
+  for (const key in metadata) {
+    if (!isCacheField(key)) {
+      (result as Record<string, string>)[key] = metadata[key as keyof AlbumEntryMetaData] as string;
+    }
+  }
+  return result;
+}
+
+/** @deprecated Use filter_version / thumb_filter_version columns instead. Kept for migration. */
 export const cachedFilterKey: Record<ThumbnailSize, extraFields> = {
   "th-small": "cached:filters:th-small",
   "th-medium": "cached:filters:th-medium",
   "th-large": "cached:filters:th-large",
 };
+/** @deprecated Use filter_version / thumb_filter_version columns instead. Kept for migration. */
 export const dimensionsFilterKey: Record<ThumbnailSize, extraFields> = {
   "th-small": "cached:dimensions:th-small",
   "th-medium": "cached:dimensions:th-medium",
   "th-large": "cached:dimensions:th-large",
 };
-
+/** @deprecated Use filter_version / thumb_filter_version columns instead. Kept for migration. */
 export const rotateFilterKey: Record<ThumbnailSize, extraFields> = {
   "th-small": "cached:rotate:th-small",
   "th-medium": "cached:rotate:th-medium",
@@ -416,16 +435,18 @@ export async function updatePicasaEntry(
   if (entry.name.normalize() !== entry.name) {
     debugger;
   }
+  if (field !== "*" && isCacheField(field as string)) {
+    return;
+  }
   let hasChanged = true;
   const picasa = await readAlbumIni(entry.album);
   picasa[entry.name] = picasa[entry.name] || ({} as AlbumEntryMetaData);
   if (value === "toggle") {
     value = !picasa[entry.name][field as keyof AlbumEntryMetaData];
   }
-  // Special 'star'
   if (field === "*") {
     if (value) {
-      picasa[entry.name] = value;
+      picasa[entry.name] = stripCacheFieldsFromMetadata(value as AlbumEntryMetaData);
     } else {
       delete picasa[entry.name];
     }
@@ -539,10 +560,18 @@ function dataFix(album: Album, i: AlbumMetaData): boolean {
     changed = true;
   }
 
+  const baseKeys = new Set(Object.values(PicasaBaseKeys));
   for (const key in i) {
+    if (baseKeys.has(key)) continue;
     if (i[key]["star"] && i[key]["starCount"] === undefined) {
       i[key]["starCount"] = "1";
       changed = true;
+    }
+    for (const field of Object.keys(i[key] as object)) {
+      if (isCacheField(field)) {
+        delete (i[key] as Record<string, unknown>)[field];
+        changed = true;
+      }
     }
   }
 

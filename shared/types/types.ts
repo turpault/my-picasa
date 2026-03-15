@@ -5,9 +5,6 @@ export type PartialRecord<K extends keyof any, T> = {
 export type PicasaSection = { [name: string]: string };
 
 export type extraFields =
-  | `cached:filters:${ThumbnailSize}`
-  | `cached:dimensions:${ThumbnailSize}`
-  | `cached:rotate:${ThumbnailSize}`
   | `cached:filters:stats`
   | `originalAlbumName`
   | `originalAlbumKey`
@@ -28,6 +25,10 @@ export type AlbumEntryMetaData = {
   filters?: string; // crop64=1,5a491bc4dd659056;enhance=1;finetune2=1,0.000000,0.000000,0.190877,00000000,0.000000;autolight=1;tilt=1,-0.233232,0.000000;crop64=1,1ef60000fe77df8d;fill=1,0.448598;autolight=1;fill=1,0.177570;finetune2=1,0.000000,0.000000,0.235789,00000000,0.000000;
   stats?: string;
   persons?: string; // a comma-separated list of persons in the picture
+  filterVersion?: number;
+  thumbFilterVersionSmall?: number;
+  thumbFilterVersionMedium?: number;
+  thumbFilterVersionLarge?: number;
 } & PartialRecord<extraFields, string>;
 
 export type GeoPOI = {

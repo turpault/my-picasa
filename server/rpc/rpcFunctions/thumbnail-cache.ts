@@ -1,25 +1,16 @@
 import { copyFile, readFile, rename, stat, unlink } from "fs/promises";
 import { join } from "path";
 import { lock } from "../../../shared/lib/mutex";
-import { decodeRotate, isPicture, isVideo } from "../../../shared/lib/utils";
+import { isVideo } from "../../../shared/lib/utils";
 import {
   AlbumEntry,
   ThumbnailSize,
   ThumbnailSizeVals,
-  idFromKey,
 } from "../../../shared/types/types";
 import { entryRelativePath } from "../../imageOperations/info";
 import { imagesRoot } from "../../utils/constants";
 import { fileExists, pathForAlbum, safeWriteFile } from "../../utils/serverUtils";
-import {
-  cachedFilterKey,
-  dimensionsFilterKey,
-  getEntryMetadata,
-  rotateFilterKey,
-} from "../../services/walker/queries";
-import {
-  getMutationsIfAvailable,
-} from "../../services/walker/queries";
+import { getEntryMetadata } from "../../services/walker/queries";
 
 import Debug from "debug";
 const debug = Debug("thumbnail");
@@ -104,24 +95,13 @@ export async function deleteThumbnailFromCache(
     }
   }
 }
-export async function updateCacheData(
+export async function updateThumbFilterVersion(
   entry: AlbumEntry,
-  transform: string,
   size: ThumbnailSize,
-  dimensions: string,
-  rotate: string,
-) {
-  const mutations = getMutationsIfAvailable();
-  if (!mutations) return;
-
-  const picasaFilterLabel = cachedFilterKey[size];
-  const picasaSizeLabel = dimensionsFilterKey[size];
-  const picasaRotateLabel = rotateFilterKey[size];
-
-  await mutations.updateEntryMetadata(entry, {
-    [picasaFilterLabel]: transform, [picasaSizeLabel]: dimensions,
-    [picasaRotateLabel]: rotate
-  });
+  filterVersion: number,
+): Promise<void> {
+  const db = (await import("../../services/entries/internal/database")).getEntriesDatabase();
+  db.updateThumbFilterVersion(entry, size, filterVersion);
 }
 
 export async function copyThumbnails(
@@ -152,31 +132,39 @@ export async function copyThumbnails(
   }
 }
 
+function getThumbFilterVersionForSize(
+  metadata: { thumbFilterVersionSmall?: number; thumbFilterVersionMedium?: number; thumbFilterVersionLarge?: number },
+  size: ThumbnailSize,
+): number {
+  const v =
+    size === "th-small"
+      ? metadata.thumbFilterVersionSmall
+      : size === "th-medium"
+        ? metadata.thumbFilterVersionMedium
+        : metadata.thumbFilterVersionLarge;
+  return v ?? -1;
+}
+
 export async function shouldMakeThumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize,
   animated: boolean,
 ): Promise<boolean> {
-  const picasa = getEntryMetadata(entry);
+  const metadata = getEntryMetadata(entry);
   const sourceStat = await stat(
     join(imagesRoot, entryRelativePath(entry)),
   ).catch((): undefined => undefined);
 
   if (!sourceStat) {
-    // Source file is gone
     return false;
   }
-  const picasaFilterLabel = cachedFilterKey[size];
-  const picasaSizeLabel = dimensionsFilterKey[size];
-  const picasaRotateLabel = rotateFilterKey[size];
-  const cachedTransform = picasa[picasaFilterLabel] || "";
-  const cachedSize = picasa[picasaSizeLabel];
-  const cachedRotate = decodeRotate(picasa[picasaRotateLabel]);
 
-  const transform = picasa.filters || "";
-  const rotate = decodeRotate(picasa.rotate);
+  const filterVersion = metadata.filterVersion ?? 0;
+  const thumbFilterVersion = getThumbFilterVersionForSize(metadata, size);
+
   const { fullPath } = thumbnailPathFromEntryAndSize(entry, size, animated);
-  const thumbStats = await stat(fullPath).catch((e) => { });
+  const thumbStats = await stat(fullPath).catch(() => undefined);
+
   if (!thumbStats) {
     debug(
       `Thumbnail for media ${entry.album.name}/${entry.name} does not exist (${fullPath})`,
@@ -193,21 +181,9 @@ export async function shouldMakeThumbnail(
     );
     return true;
   }
-  if (cachedSize === undefined && isPicture(entry)) {
+  if (thumbFilterVersion < filterVersion) {
     debug(
-      `Thumbnail for media ${entry.album.name}/${entry.name} has no size data`,
-    );
-    return true;
-  }
-  if (transform !== cachedTransform) {
-    debug(
-      `Thumbnail for media ${entry.album.name}/${entry.name} has different transform data`,
-    );
-    return true;
-  }
-  if (rotate !== cachedRotate) {
-    debug(
-      `Thumbnail for media ${entry.album.name}/${entry.name} has different rotate data`,
+      `Thumbnail for media ${entry.album.name}/${entry.name} has stale filter version (${thumbFilterVersion} < ${filterVersion})`,
     );
     return true;
   }

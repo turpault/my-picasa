@@ -1,63 +1,73 @@
 import Debug from "debug";
 import { parentPort } from "worker_threads";
+import { Queue } from "../../../../shared/lib/queue";
 import { events } from "../../../../shared/server-events";
-import { ThumbnailSizeVals } from "../../../../shared/types/types";
+import { ThumbnailSize } from "../../../../shared/types/types";
 import { imageInfo } from "../../../imageOperations/info";
 import { makeThumbnailIfNeeded } from "../../../rpc/rpcFunctions/thumbnail";
-import { getAlbumEntries, getAllFolders } from "../../search/queries";
+import { getEntriesDatabase } from "../../entries/internal/database";
+
 const debug = Debug("app:bg-thumbgen");
 
-// Cache thumbnail sizes to avoid recalculating
-const thumbnailSizes = ThumbnailSizeVals.filter((f) => !f.includes("large"))
-  .map((size) => [
-    { size, animated: true },
-    { size, animated: false },
-  ])
-  .flat();
+const THUMBNAIL_QUEUE_CONCURRENCY = 4;
+const STARTUP_SIZES = ["th-small", "th-medium"] as const;
+
+const thumbnailQueue = new Queue(THUMBNAIL_QUEUE_CONCURRENCY, { fifo: true });
+
+function enqueueThumbnail(
+  entry: { album: { key: string; name: string }; name: string },
+  size: ThumbnailSize,
+): void {
+  thumbnailQueue.add(async () => {
+    try {
+      await makeThumbnailIfNeeded(entry, size, true);
+      await makeThumbnailIfNeeded(entry, size, false);
+    } catch (error) {
+      debug(`Error generating thumbnail for ${entry.album.name}/${entry.name} (${size}):`, error);
+    }
+  });
+}
 
 export async function buildThumbs() {
-  // Access database to ensure it's initialized (lazy initialization)
-  const albums = getAllFolders();
-  
-  // Send ready message after database is initialized
+  const db = getEntriesDatabase();
+
   if (parentPort) {
     parentPort.postMessage({ type: "ready" });
   }
-  
-  // Sort albums in reverse order (most recent first)
-  albums.sort((a, b) => b.name.localeCompare(a.name));
-  for (const album of albums) {
-    const entries = await getAlbumEntries(album);
-    for (const entry of entries) {
-      await Promise.all(
-        thumbnailSizes.map(({ size, animated }) =>
-          makeThumbnailIfNeeded(entry, size, animated),
-        ),
-      );
-    }
+
+  const needingThumbnails = db.getEntriesNeedingThumbnails([...STARTUP_SIZES]);
+  for (const { album, entry_name, size } of needingThumbnails) {
+    enqueueThumbnail({ album, name: entry_name }, size);
   }
-  // Set up event-driven thumbnail generation instead of batch processing
+  debug(`Queued ${needingThumbnails.length} thumbnail tasks for startup`);
+
   setupEventDrivenThumbnailGeneration();
   debug("Thumbnail generation setup complete");
 }
 
-/**
- * Set up event-driven thumbnail generation that processes files as they are found
- */
 function setupEventDrivenThumbnailGeneration(): void {
   debug("Setting up event-driven thumbnail generation");
 
-  // Listen for files found during walk
   events.on("albumEntryAdded", async (entry) => {
     try {
       await imageInfo(entry);
-      await Promise.all(
-        thumbnailSizes.map(({ size, animated }) =>
-          makeThumbnailIfNeeded(entry, size, animated),
-        ),
-      );
+      for (const size of STARTUP_SIZES) {
+        enqueueThumbnail(entry, size);
+      }
     } catch (error) {
-      debug(`Error generating thumbnails for ${entry.name}:`, error);
+      debug(`Error queueing thumbnails for ${entry.name}:`, error);
+    }
+  });
+
+  events.on("filtersChanged", (event: { entry: { album: { key: string; name: string }; name: string } }) => {
+    for (const size of STARTUP_SIZES) {
+      enqueueThumbnail(event.entry, size);
+    }
+  });
+
+  events.on("rotateChanged", (event: { entry: { album: { key: string; name: string }; name: string } }) => {
+    for (const size of STARTUP_SIZES) {
+      enqueueThumbnail(event.entry, size);
     }
   });
 
