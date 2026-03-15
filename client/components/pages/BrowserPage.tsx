@@ -186,19 +186,6 @@ function PhotoList({
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const headerRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
-  const topSentinelRef = useRef<HTMLDivElement>(null);
-  const bottomSentinelRef = useRef<HTMLDivElement>(null);
-
-  // Suppress onVisibleAlbumChange during programmatic scrolls
-  const suppressVisibleChangeRef = useRef(false);
-
-  // Build an index for fast lookup
-  const albumIndex = useMemo(() => {
-    const map = new Map<string, number>();
-    orderedAlbums.forEach((a, i) => map.set(a.key, i));
-    return map;
-  }, [orderedAlbums]);
-
   const mountedRef = useRef(true);
 
   // Fetch entries for a single album
@@ -235,152 +222,30 @@ function PhotoList({
     };
   }, []);
 
-  // Ensure an album is loaded (no-op if already loaded)
-  const ensureLoaded = useCallback(
-    (album: AlbumWithData) => {
-      const key = album.key;
-      if (entriesMap.has(key) || loadingSet.has(key)) return;
-      setLoadedKeys((prev) => new Set(prev).add(key));
-      fetchAlbumEntries(album);
-    },
-    [entriesMap, loadingSet, fetchAlbumEntries],
-  );
-
-  // Load an album and its immediate neighbors
-  const loadAlbumWindow = useCallback(
-    (album: Album) => {
-      const idx = albumIndex.get(album.key);
-      if (idx === undefined) return;
-
-      const toLoad: AlbumWithData[] = [];
-      if (idx > 0) toLoad.push(orderedAlbums[idx - 1]);
-      toLoad.push(orderedAlbums[idx]);
-      if (idx < orderedAlbums.length - 1) toLoad.push(orderedAlbums[idx + 1]);
-
-      for (const a of toLoad) {
-        ensureLoaded(a);
-      }
-    },
-    [albumIndex, orderedAlbums, ensureLoaded],
-  );
-
-  // When selectedAlbum changes (user clicked in sidebar), load it and scroll to it
+  // Load only the selected album; clear selection when switching
   useEffect(() => {
     if (!selectedAlbum) return;
-    loadAlbumWindow(selectedAlbum);
-  }, [selectedAlbum?.key, loadAlbumWindow]);
-
-  // Scroll to the selected album header once it's rendered
-  useEffect(() => {
-    if (!selectedAlbum) return;
+    setSelected(new Set());
+    setActiveEntryKey(null);
     const key = selectedAlbum.key;
+    if (entriesMap.has(key) || loadingSet.has(key)) return;
+    setLoadedKeys((prev) => new Set(prev).add(key));
+    fetchAlbumEntries(selectedAlbum);
+  }, [selectedAlbum?.key, entriesMap, loadingSet, fetchAlbumEntries]);
 
-    // Wait for the header to be in the DOM
-    const raf = requestAnimationFrame(() => {
-      const header = headerRefsMap.current.get(key);
-      if (header && scrollContainerRef.current) {
-        suppressVisibleChangeRef.current = true;
-        header.scrollIntoView({ behavior: "smooth", block: "start" });
-        // Release suppression after scroll completes
-        setTimeout(() => {
-          suppressVisibleChangeRef.current = false;
-        }, 600);
-      }
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [selectedAlbum?.key, entriesMap]);
-
-  // Ordered list of loaded albums (in the correct order)
+  // Only the selected album is visible
   const visibleAlbums = useMemo(
-    () => orderedAlbums.filter((a) => loadedKeys.has(a.key)),
-    [orderedAlbums, loadedKeys],
+    () =>
+      selectedAlbum && loadedKeys.has(selectedAlbum.key) ? [selectedAlbum] : [],
+    [selectedAlbum, loadedKeys],
   );
 
-  // IntersectionObserver for bottom sentinel → load next album
+  // Notify parent of visible album (always the selected one when loaded)
   useEffect(() => {
-    const sentinel = bottomSentinelRef.current;
-    const container = scrollContainerRef.current;
-    if (!sentinel || !container || visibleAlbums.length === 0) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries[0]?.isIntersecting) return;
-        const lastLoaded = visibleAlbums[visibleAlbums.length - 1];
-        if (!lastLoaded) return;
-        const idx = albumIndex.get(lastLoaded.key);
-        if (idx !== undefined && idx < orderedAlbums.length - 1) {
-          ensureLoaded(orderedAlbums[idx + 1]);
-        }
-      },
-      { root: container, rootMargin: "400px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [visibleAlbums, albumIndex, orderedAlbums, ensureLoaded]);
-
-  // IntersectionObserver for top sentinel → load previous album
-  useEffect(() => {
-    const sentinel = topSentinelRef.current;
-    const container = scrollContainerRef.current;
-    if (!sentinel || !container || visibleAlbums.length === 0) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries[0]?.isIntersecting) return;
-        const firstLoaded = visibleAlbums[0];
-        if (!firstLoaded) return;
-        const idx = albumIndex.get(firstLoaded.key);
-        if (idx !== undefined && idx > 0) {
-          const prevAlbum = orderedAlbums[idx - 1];
-          // Remember scroll position to avoid jump when prepending
-          const prevScrollTop = container.scrollTop;
-          const prevScrollHeight = container.scrollHeight;
-          ensureLoaded(prevAlbum);
-          // After render, restore scroll position
-          requestAnimationFrame(() => {
-            const c = scrollContainerRef.current;
-            if (!c) return;
-            const newScrollHeight = c.scrollHeight;
-            c.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
-          });
-        }
-      },
-      { root: container, rootMargin: "200px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [visibleAlbums, albumIndex, orderedAlbums, ensureLoaded]);
-
-  // IntersectionObserver on album headers to track visible album
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container || visibleAlbums.length === 0) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (suppressVisibleChangeRef.current) return;
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            const key = entry.target.getAttribute("data-album-key");
-            if (key) {
-              const album = orderedAlbums.find((a) => a.key === key);
-              if (album) onVisibleAlbumChange(album);
-            }
-          }
-        }
-      },
-      {
-        root: container,
-        rootMargin: "-10% 0px -80% 0px",
-        threshold: 0,
-      },
-    );
-
-    for (const [, el] of headerRefsMap.current) {
-      observer.observe(el);
+    if (selectedAlbum && loadedKeys.has(selectedAlbum.key)) {
+      onVisibleAlbumChange(selectedAlbum);
     }
-    return () => observer.disconnect();
-  }, [visibleAlbums, orderedAlbums, onVisibleAlbumChange]);
+  }, [selectedAlbum, loadedKeys, onVisibleAlbumChange]);
 
   // Selection handling
   const allVisibleEntries = useMemo(() => {
@@ -473,7 +338,6 @@ function PhotoList({
 
   return (
     <div className="images-area" ref={scrollContainerRef}>
-      <div ref={topSentinelRef} className="scroll-sentinel" />
       {visibleAlbums.map((album) => (
         <AlbumSection
           key={album.key}
@@ -489,7 +353,6 @@ function PhotoList({
           }}
         />
       ))}
-      <div ref={bottomSentinelRef} className="scroll-sentinel" />
     </div>
   );
 }
