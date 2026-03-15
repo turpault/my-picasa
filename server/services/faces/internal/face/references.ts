@@ -25,6 +25,12 @@ const debug = Debug("app:faces");
 
 let optionsSSDMobileNet: faceapi.SsdMobilenetv1Options;
 
+let faceApiReadyResolve: () => void;
+/** Resolved when setupFaceAPI completes. Event-driven FACE jobs await this before running. */
+export const faceApiReadyPromise = new Promise<void>((r) => {
+  faceApiReadyResolve = r;
+});
+
 export async function setupFaceAPI() {
   await tf.ready;
   optionsSSDMobileNet = new faceapi.SsdMobilenetv1Options({
@@ -42,6 +48,7 @@ export async function setupFaceAPI() {
   await faceapi.nets.faceRecognitionNet.loadFromDisk(modelPath);
   await faceapi.nets.ageGenderNet.loadFromDisk(modelPath);
   await faceapi.nets.faceExpressionNet.loadFromDisk(modelPath);
+  faceApiReadyResolve();
 }
 
 export async function populateAllReferences() {
@@ -90,7 +97,9 @@ async function processFaces(album: Album) {
 
 export const referenceQualifier = "reference";
 
-async function createReferenceFileIfNeeded(entry: AlbumEntry) {
+/** Create face reference file for an entry if needed. Used by event-driven FACE job scheduler. */
+export async function createReferenceFileIfNeeded(entry: AlbumEntry) {
+  await faceApiReadyPromise;
   const imagePath = entryFilePath(entry);
   const exists = await fileExists(imagePath);
   if (isPicture(entry) && !isAnimated(entry)) {

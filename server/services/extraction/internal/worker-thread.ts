@@ -107,25 +107,7 @@ async function runUpdateGeoPOIJob(entry: AlbumEntry): Promise<void> {
 function setupEventListeners(): void {
   debugLogger("Setting up extraction event listeners");
 
-  events.on("albumEntryAdded", async (entry: AlbumEntry) => {
-    try {
-      await waitUntilIdle();
-      debugLogger(`Queueing EXIF extraction for new file: ${entry.name}`);
-      addJob(() => runExifJob(entry), "EXIF");
-    } catch (error) {
-      debugLogger(`Error handling albumEntryAdded for ${entry.name}:`, error);
-    }
-  });
-
-  events.on("albumEntryFileChanged", async (entry: AlbumEntry) => {
-    try {
-      await waitUntilIdle();
-      debugLogger(`Queueing EXIF extraction for changed file: ${entry.name}`);
-      addJob(() => runExifJob(entry), "EXIF");
-    } catch (error) {
-      debugLogger(`Error handling albumEntryFileChanged for ${entry.name}:`, error);
-    }
-  });
+  // EXIF scheduling is handled by global-job-schedulers (albumEntryAdded, albumEntryFileChanged)
 
   events.on("albumEntryRemoved", async (entry: AlbumEntry) => {
     debugLogger(`Queueing removal of ${entry.name} from extraction DBs`);

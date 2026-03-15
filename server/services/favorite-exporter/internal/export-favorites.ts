@@ -1,7 +1,6 @@
 import { mkdir, unlink } from "fs/promises";
 import { extname, join } from "path";
 import debug from "debug";
-import { addJob } from "../../../utils/global-job-queue";
 import { exportToFolder } from "../../../imageOperations/export";
 import { getEntryMetadata, getAllAlbums, getAlbumEntries } from "../../walker/queries";
 import { waitUntilIdle } from "../../../utils/busy";
@@ -11,8 +10,6 @@ import { Queue } from "../../../../shared/lib/queue";
 import { RESIZE_ON_EXPORT_SIZE } from "../../../../shared/lib/shared-constants";
 import { AlbumEntry } from "../../../../shared/types/types";
 import { isVideo, namifyAlbumEntry } from "../../../../shared/lib/utils";
-import { events } from "../../../../shared/server-events";
-import type { JobType } from "../../extraction/job-types";
 
 const debugLogger = debug("app:favorite-exporter");
 
@@ -60,38 +57,9 @@ async function exportAllMissing(): Promise<void> {
 }
 
 function setupEventListeners(): void {
-  debugLogger("Setting up favorite-exporter event listeners");
-
-  events.on("albumEntryAdded", async (entry: AlbumEntry) => {
-    try {
-      const metadata = getEntryMetadata(entry);
-      if (!metadata.star) return;
-      addJob(
-        () => exportStarredEntry(entry),
-        "FAVORITE_EXPORT" as JobType
-      );
-    } catch (error) {
-      debugLogger(`Error handling albumEntryAdded for ${entry.name}:`, error);
-    }
-  });
-
-  events.on("picasaEntryUpdated", async (event: { entry: AlbumEntry; field: string; value: unknown }) => {
-    if (event.field !== "star") return;
-    const entry = event.entry;
-    if (event.value) {
-      addJob(
-        () => exportStarredEntry(entry),
-        "FAVORITE_EXPORT" as JobType
-      );
-    } else {
-      addJob(
-        () => removeFromFavorites(entry),
-        "FAVORITE_EXPORT" as JobType
-      );
-    }
-  });
-
-  debugLogger("Favorite-exporter event listeners set up");
+  // Favorite-export scheduling is handled by global-job-schedulers
+  // (albumEntryAdded, picasaEntryUpdated for star field)
+  debugLogger("Favorite-exporter event listeners delegated to global-job-schedulers");
 }
 
 /**

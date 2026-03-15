@@ -1,8 +1,6 @@
 import Debug from "debug";
 import { addJob } from "../../../utils/global-job-queue";
-import { events } from "../../../../shared/server-events";
 import { ThumbnailSize } from "../../../../shared/types/types";
-import { imageInfo } from "../../../imageOperations/info";
 import { makeThumbnailIfNeeded } from "../../../rpc/rpcFunctions/thumbnail";
 import { getEntriesDatabase } from "../../entries/internal/database";
 
@@ -38,42 +36,8 @@ export async function buildThumbs() {
 }
 
 function setupEventDrivenThumbnailGeneration(): void {
-  debug("Setting up event-driven thumbnail generation");
-
-  events.on("albumEntryAdded", async (entry) => {
-    try {
-      await imageInfo(entry);
-      for (const size of STARTUP_SIZES) {
-        enqueueThumbnail(entry, size);
-      }
-    } catch (error) {
-      debug(`Error queueing thumbnails for ${entry.name}:`, error);
-    }
-  });
-
-  events.on("albumEntryFileChanged", async (entry) => {
-    try {
-      await imageInfo(entry);
-      for (const size of STARTUP_SIZES) {
-        enqueueThumbnail(entry, size);
-      }
-    } catch (error) {
-      debug(`Error queueing thumbnails for changed ${entry.name}:`, error);
-    }
-  });
-
-  events.on("filtersChanged", (event: { entry: { album: { key: string; name: string }; name: string } }) => {
-    for (const size of STARTUP_SIZES) {
-      enqueueThumbnail(event.entry, size);
-    }
-  });
-
-  events.on("rotateChanged", (event: { entry: { album: { key: string; name: string }; name: string } }) => {
-    for (const size of STARTUP_SIZES) {
-      enqueueThumbnail(event.entry, size);
-    }
-  });
-
-  debug("Event-driven thumbnail generation set up successfully");
+  // Thumbnail scheduling is handled by global-job-schedulers (albumEntryAdded,
+  // albumEntryFileChanged, filtersChanged, rotateChanged)
+  debug("Event-driven thumbnail generation delegated to global-job-schedulers");
 }
 

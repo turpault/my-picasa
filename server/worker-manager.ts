@@ -2,6 +2,7 @@ import { join } from "path";
 import { Worker } from "worker_threads";
 import { events } from "../shared/server-events";
 import { initGlobalJobQueue } from "./utils/global-job-queue";
+import { setupGlobalJobSchedulers } from "./utils/global-job-schedulers";
 import { walkFilesystem, setWalkerReadyResolver } from "./services/walker/internal/worker-thread";
 import { runExtractionWorker } from "./services/extraction/internal/worker-thread";
 import { buildThumbs } from "./services/thumbgen/internal/worker-thread";
@@ -36,6 +37,7 @@ export async function startWorkers() {
   initGlobalJobQueue(concurrency, (stats) => {
     extractionStats = stats;
   });
+  setupGlobalJobSchedulers();
 
   setWalkerReadyResolver(() => {
     walkerReadyResolve?.();
