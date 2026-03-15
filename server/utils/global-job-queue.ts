@@ -1,7 +1,9 @@
+import debug from "debug";
 import { PriorityQueue } from "../../shared/lib/queue";
 import { JOB_PRIORITY, type JobType } from "../services/extraction/job-types";
 
 const GLOBAL_QUEUE_CONCURRENCY = 10;
+const debugLogger = debug("app:global-queue");
 
 let globalQueue: PriorityQueue | null = null;
 let extractionStatsCallback: ((stats: { pending: number; active: number; done: number }) => void) | null = null;
@@ -27,7 +29,12 @@ export function addJob<T>(task: () => Promise<T> | T, jobType: JobType): Promise
     throw new Error("Global job queue not initialized");
   }
   const priority = JOB_PRIORITY[jobType] ?? 5;
-  return globalQueue.add(task, priority);
+  const wrappedTask = async () => {
+    const stats = getGlobalQueueStats();
+    debugLogger("Starting job (type=%s), queue: pending=%d active=%d", jobType, stats.pending, stats.active);
+    return Promise.resolve(task());
+  };
+  return globalQueue.add(wrappedTask, priority);
 }
 
 export function getGlobalQueueStats(): { pending: number; active: number; done: number } {
