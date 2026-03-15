@@ -7,6 +7,21 @@ const debugLogger = debug("app:exif-db");
 
 export type OpenMode = "READ" | "READWRITE";
 
+/** Well-known EXIF fields stored as separate columns for querying */
+export type ExifColumns = {
+  date_taken?: string | null;
+  make?: string | null;
+  model?: string | null;
+  image_width?: number | null;
+  image_height?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  iso?: number | null;
+  exposure_time?: number | null;
+  f_number?: number | null;
+  focal_length?: number | null;
+};
+
 /**
  * EXIF database access - uses exif_data table in picisa_entries.db (Phase 3).
  */
@@ -111,21 +126,42 @@ export class ExifDatabaseAccess {
     `).run(entryRow.entry_id, entry.album.key ?? "", entry.name ?? "");
   }
 
-  updateExifData(entry: AlbumEntry, exifData: string | null): void {
+  updateExifData(entry: AlbumEntry, exifData: string | null, columns?: ExifColumns): void {
     if (!this.isWriter) throw new Error("updateExifData requires READWRITE");
     const db = this.getDatabase();
     const hasExif = exifData !== null && exifData.trim().length > 0;
+    const cols = columns ?? {};
     const result = db.prepare(`
-      UPDATE exif_data SET exif_data = ?, has_exif = ?, processed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      UPDATE exif_data SET
+        exif_data = ?, has_exif = ?, processed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP,
+        date_taken = ?, make = ?, model = ?,
+        image_width = ?, image_height = ?,
+        latitude = ?, longitude = ?,
+        iso = ?, exposure_time = ?, f_number = ?, focal_length = ?
       WHERE album_key = ? AND entry_name = ?
-    `).run(exifData, hasExif ? 1 : 0, entry.album.key ?? "", entry.name ?? "");
+    `).run(
+      exifData, hasExif ? 1 : 0,
+      cols.date_taken ?? null, cols.make ?? null, cols.model ?? null,
+      cols.image_width ?? null, cols.image_height ?? null,
+      cols.latitude ?? null, cols.longitude ?? null,
+      cols.iso ?? null, cols.exposure_time ?? null, cols.f_number ?? null, cols.focal_length ?? null,
+      entry.album.key ?? "", entry.name ?? "",
+    );
     if (result.changes === 0) {
       const entryRow = db.prepare("SELECT entry_id FROM album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key ?? "", entry.name ?? "") as { entry_id: string } | undefined;
       if (entryRow) {
         db.prepare(`
-          INSERT INTO exif_data (entry_id, album_key, entry_name, exif_data, has_exif, processed_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `).run(entryRow.entry_id, entry.album.key ?? "", entry.name ?? "", exifData, hasExif ? 1 : 0);
+          INSERT INTO exif_data (entry_id, album_key, entry_name, exif_data, has_exif, processed_at, updated_at,
+            date_taken, make, model, image_width, image_height, latitude, longitude, iso, exposure_time, f_number, focal_length)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          entryRow.entry_id, entry.album.key ?? "", entry.name ?? "", exifData, hasExif ? 1 : 0,
+          cols.date_taken ?? null, cols.make ?? null, cols.model ?? null,
+          cols.image_width ?? null, cols.image_height ?? null,
+          cols.latitude ?? null, cols.longitude ?? null,
+          cols.iso ?? null, cols.exposure_time ?? null, cols.f_number ?? null, cols.focal_length ?? null,
+        );
       }
     }
     debugLogger(`Updated EXIF data for entry ${entry.name}`);

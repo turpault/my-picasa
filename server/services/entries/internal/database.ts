@@ -78,7 +78,42 @@ class EntriesDatabaseAccess {
       this.migrateFileStats();
       this.migrateDropRemovedFields();
       this.migrateChildTablesIfNeeded();
+      this.migrateExifColumns();
       this.migratePicturesIndexVersion();
+    }
+  }
+
+  private migrateExifColumns(): void {
+    const hasExifTable = this.db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='exif_data'"
+    ).get();
+    if (!hasExifTable) return;
+
+    try {
+      const info = this.db.prepare("PRAGMA table_info(exif_data)").all() as Array<{ name: string }>;
+      const cols = new Set(info.map((c) => c.name));
+
+      const exifColumns: Array<{ name: string; type: string }> = [
+        { name: "date_taken", type: "TEXT" },
+        { name: "make", type: "TEXT" },
+        { name: "model", type: "TEXT" },
+        { name: "image_width", type: "INTEGER" },
+        { name: "image_height", type: "INTEGER" },
+        { name: "latitude", type: "REAL" },
+        { name: "longitude", type: "REAL" },
+        { name: "iso", type: "INTEGER" },
+        { name: "exposure_time", type: "REAL" },
+        { name: "f_number", type: "REAL" },
+        { name: "focal_length", type: "REAL" },
+      ];
+
+      for (const { name, type } of exifColumns) {
+        if (cols.has(name)) continue;
+        debugLogger(`Adding exif_data column: ${name}`);
+        this.db.run(`ALTER TABLE exif_data ADD COLUMN ${name} ${type}`);
+      }
+    } catch (e) {
+      debugLogger("migrateExifColumns error:", e);
     }
   }
 
@@ -172,6 +207,10 @@ class EntriesDatabaseAccess {
         entry_id TEXT PRIMARY KEY,
         album_key TEXT NOT NULL, entry_name TEXT NOT NULL,
         exif_data TEXT, has_exif INTEGER DEFAULT 0, processed_at TEXT,
+        date_taken TEXT, make TEXT, model TEXT,
+        image_width INTEGER, image_height INTEGER,
+        latitude REAL, longitude REAL,
+        iso INTEGER, exposure_time REAL, f_number REAL, focal_length REAL,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(album_key, entry_name)
       );

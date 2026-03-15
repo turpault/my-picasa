@@ -10,6 +10,7 @@ import { AlbumEntry, ExifData, ExifTag } from "../../../../shared/types/types";
 import { dimensionsFromFileBuffer } from "../../../imageOperations/sharp-processor";
 import { waitUntilIdle } from "../../../utils/busy";
 import { entryFilePath } from "../../../utils/serverUtils";
+import type { ExifColumns } from "./database";
 import { getExifDatabaseReadWrite } from "./database";
 
 const debugLogger = debug("app:bg-exif");
@@ -61,6 +62,54 @@ function queueExifExtraction(entry: AlbumEntry): void {
     await waitUntilIdle();
     await extractExifData(entry);
   });
+}
+
+/**
+ * Extract well-known EXIF fields for separate DB columns
+ */
+function extractExifColumns(exif: any): ExifColumns {
+  const cols: ExifColumns = {};
+  if (!exif || typeof exif !== "object") return cols;
+
+  const dateVal = exif.DateTimeOriginal ?? exif.CreateDate ?? exif.ModifyDate;
+  if (dateVal) {
+    const d = dateVal instanceof Date ? dateVal : new Date(dateVal);
+    if (!isNaN(d.getTime())) cols.date_taken = d.toISOString();
+  }
+
+  if (exif.Make != null) cols.make = String(exif.Make);
+  if (exif.Model != null) cols.model = String(exif.Model);
+
+  const w = exif.imageWidth ?? exif.ExifImageWidth;
+  const h = exif.imageHeight ?? exif.ExifImageHeight;
+  if (typeof w === "number" && !Number.isNaN(w)) cols.image_width = Math.round(w);
+  if (typeof h === "number" && !Number.isNaN(h)) cols.image_height = Math.round(h);
+
+  const { GPSLatitude, GPSLatitudeRef, GPSLongitude, GPSLongitudeRef } = exif;
+  if (
+    Array.isArray(GPSLatitude) &&
+    GPSLatitudeRef &&
+    Array.isArray(GPSLongitude) &&
+    GPSLongitudeRef
+  ) {
+    const tripletToDecimal = (arr: number[]) =>
+      arr[0] + (arr[1] ?? 0) / 60 + (arr[2] ?? 0) / 3600;
+    cols.latitude =
+      (GPSLatitudeRef === "N" ? 1 : -1) * tripletToDecimal(GPSLatitude);
+    cols.longitude =
+      (GPSLongitudeRef === "E" ? 1 : -1) * tripletToDecimal(GPSLongitude);
+  }
+
+  if (typeof exif.ISO === "number" && !Number.isNaN(exif.ISO))
+    cols.iso = Math.round(exif.ISO);
+  if (typeof exif.ExposureTime === "number" && !Number.isNaN(exif.ExposureTime))
+    cols.exposure_time = exif.ExposureTime;
+  if (typeof exif.FNumber === "number" && !Number.isNaN(exif.FNumber))
+    cols.f_number = exif.FNumber;
+  if (typeof exif.FocalLength === "number" && !Number.isNaN(exif.FocalLength))
+    cols.focal_length = exif.FocalLength;
+
+  return cols;
 }
 
 /**
@@ -141,12 +190,13 @@ export async function extractExifData(entry: AlbumEntry): Promise<void> {
     debugLogger(`Extracting EXIF data for ${entry.name}`);
     const exif = await extractExifDataFromFile(entry, false);
     const exifJson = exif && Object.keys(exif).length > 0 ? JSON.stringify(exif) : "{}";
-    await updateExifWithRetry(db, entry, exifJson);
+    const columns = extractExifColumns(exif);
+    await updateExifWithRetry(db, entry, exifJson, columns);
     events.emit("exifDataProcessed", entry);
   } catch (error) {
     debugLogger(`Error extracting EXIF data for ${entry.name}:`, error);
     try {
-      await updateExifWithRetry(db, entry, "{}");
+      await updateExifWithRetry(db, entry, "{}", {});
     } catch (fallbackError) {
       debugLogger(`Could not mark ${entry.name} as processed (DB may be locked):`, fallbackError);
     }
@@ -155,13 +205,14 @@ export async function extractExifData(entry: AlbumEntry): Promise<void> {
 }
 
 async function updateExifWithRetry(
-  db: { updateExifData: (e: AlbumEntry, d: string) => void },
+  db: { updateExifData: (e: AlbumEntry, d: string, c?: ExifColumns) => void },
   entry: AlbumEntry,
   exifJson: string,
+  columns?: ExifColumns,
 ): Promise<void> {
   for (let attempt = 0; attempt < MAX_DB_RETRIES; attempt++) {
     try {
-      db.updateExifData(entry, exifJson);
+      db.updateExifData(entry, exifJson, columns);
       return;
     } catch (e) {
       if (attempt < MAX_DB_RETRIES - 1 && isSqliteLockError(e)) {
