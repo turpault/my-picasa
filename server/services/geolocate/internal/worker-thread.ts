@@ -1,73 +1,11 @@
 import { AlbumEntry } from "../../../../shared/types/types";
-import { parentPort } from "worker_threads";
 import { getExifData } from "../../../rpc/rpcFunctions/exif";
 import { getLocations } from "./poi/poi-database";
-import { initPOIDB } from "./poi/ingest";
 import { getGeolocateDatabaseReadWrite } from "./database";
 import { events } from "../../../../shared/server-events";
-import { waitUntilIdle } from "../../../utils/busy";
-import { Queue } from "../../../../shared/lib/queue";
 import debug from "debug";
 
 const debugLogger = debug("app:bg-geolocate");
-
-/**
- * Set up event listeners for forwarded ServerEvents
- */
-function setupEventListeners(): void {
-  debugLogger("Setting up event listeners for forwarded ServerEvents");
-  const db = getGeolocateDatabaseReadWrite();
-
-  // Handle albumEntryAdded - entries come from walker database
-  // Entry already exists in walker.album_entries, no need to create it in geo_poi_data
-  // Entry will be created in geo_poi_data when geo POI is processed
-  events.on("albumEntryAdded", async (entry: AlbumEntry) => {
-    try {
-      await waitUntilIdle();
-      debugLogger(`New file added, will process geo POI when EXIF data is available: ${entry.name}`);
-      // Don't queue processing here - wait for exifDataProcessed event
-    } catch (error) {
-      debugLogger(`Error handling albumEntryAdded for ${entry.name}:`, error);
-    }
-  });
-
-  // Handle albumEntryRemoved - remove deleted files
-  events.on("albumEntryRemoved", async (entry: AlbumEntry) => {
-    try {
-      debugLogger(`Removing deleted file from geolocate database: ${entry.name}`);
-      db.removeEntry(entry);
-    } catch (error) {
-      debugLogger(`Error removing ${entry.name} from geolocate database:`, error);
-    }
-  });
-
-  // Handle exifDataProcessed - process geo POI when EXIF data becomes available
-  events.on("exifDataProcessed", async (entry: AlbumEntry) => {
-    try {
-      await waitUntilIdle();
-      debugLogger(`EXIF data processed for ${entry.name}, queuing geo POI processing`);
-      // Queue geo POI processing now that EXIF data is available
-      queueGeoPOIProcessing(entry);
-    } catch (error) {
-      debugLogger(`Error handling exifDataProcessed for ${entry.name}:`, error);
-    }
-  });
-
-  debugLogger("Event listeners set up successfully");
-}
-
-// Queue for processing geo POI extraction
-const geoPOIProcessingQueue = new Queue(3);
-
-/**
- * Queue geo POI processing for an entry
- */
-function queueGeoPOIProcessing(entry: AlbumEntry): void {
-  geoPOIProcessingQueue.add(async () => {
-    await waitUntilIdle();
-    await processGeoPOI(entry);
-  });
-}
 
 /**
  * Process geo POI for an entry and update the database
@@ -122,85 +60,5 @@ export async function processGeoPOI(entry: AlbumEntry): Promise<void> {
     debugLogger(`Error processing geo POI for ${entry.name}:`, error);
     db.updateGeoPOI(entry, null);
   }
-}
-
-/**
- * Initialize geolocate database
- * No longer needed to manually create entries - they come from walker database
- * This function is kept for compatibility but does nothing since entries are sourced from walker.album_entries
- */
-async function initializeGeolocateDatabase(): Promise<void> {
-  debugLogger("Geolocate database initialization - entries are sourced from walker database");
-  // Entries are now sourced from walker.album_entries via joins
-  // No manual entry creation needed
-}
-
-/**
- * Process all unprocessed entries to extract geo POI data
- */
-async function processUnprocessedEntries(): Promise<void> {
-  debugLogger("Starting to process unprocessed geo POI entries...");
-  const db = getGeolocateDatabaseReadWrite();
-  const unprocessed = db.getUnprocessedEntries();
-
-  if (unprocessed.length === 0) {
-    debugLogger("No unprocessed entries to process");
-    return;
-  }
-
-  debugLogger(`Found ${unprocessed.length} unprocessed entries`);
-  const q = new Queue(3);
-
-  // Progress monitoring
-  const progressInterval = setInterval(() => {
-    if (q.total() > 0) {
-      debugLogger(
-        `Processing progress: ${Math.floor((q.done() * 100) / q.total())}% (${q.done()} done)`
-      );
-    }
-  }, 2000);
-
-  for (const { album_key, album_name, entry_name } of unprocessed) {
-    q.add(async () => {
-      await waitUntilIdle();
-      const entry: AlbumEntry = {
-        name: entry_name,
-        album: {
-          key: album_key,
-          name: album_name
-        }
-      };
-      await processGeoPOI(entry);
-    });
-  }
-
-  await q.drain();
-  clearInterval(progressInterval);
-  debugLogger("Finished processing unprocessed geo POI entries");
-}
-
-/**
- * Main entry point for geolocate worker
- */
-export async function buildGeolocation() {
-  await initPOIDB();
-
-  // Initialize database (read-write in geolocate worker)
-  // This will trigger database creation and migration
-  const db = getGeolocateDatabaseReadWrite();
-  
-  // Send ready message after database initialization
-  if (parentPort) {
-    parentPort.postMessage({ type: "ready" });
-  }
-
-  // Initialize database with all album entries (create rows with no geo POI data)
-  await initializeGeolocateDatabase();
-
-  // Start processing unprocessed entries
-  await processUnprocessedEntries();
-
-  // Set up event listeners for forwarded ServerEvents
-  setupEventListeners();
 }
 
