@@ -126,7 +126,7 @@ export class IndexingDatabaseAccess {
         SELECT ae.album_key, a.name AS album_name, ae.entry_name
         FROM album_entries ae
         LEFT JOIN pictures p ON ae.album_key = p.album_key AND ae.entry_name = p.entry_name
-        LEFT JOIN albums a ON ae.album_key = a.key
+        LEFT JOIN albums a ON ae.album_id = a.album_id
         WHERE ae.index_version != COALESCE(p.index_version, -1)
       `).all() as Array<{ album_key: string; album_name: string; entry_name: string }>;
       return rows;

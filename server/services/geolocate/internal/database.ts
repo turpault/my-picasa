@@ -81,7 +81,7 @@ export class GeolocateDatabaseAccess {
         .prepare(
           `SELECT ae.album_key, a.name AS album_name, ae.entry_name
            FROM album_entries ae
-           LEFT JOIN albums a ON ae.album_key = a.key
+           LEFT JOIN albums a ON ae.album_id = a.album_id
            LEFT JOIN geo_poi_data g ON ae.album_key = g.album_key AND ae.entry_name = g.entry_name
            WHERE g.album_key IS NULL
            ORDER BY ae.created_at ASC`

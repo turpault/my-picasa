@@ -9,7 +9,6 @@ import {
   AlbumEntryMetaData,
   AlbumMetaData,
   AlbumWithData,
-  extraFields,
   Shortcut,
   ThumbnailSize,
 } from "../../../../shared/types/types";
@@ -20,7 +19,7 @@ import { uuid } from "../../../../shared/lib/utils";
 
 const debugLogger = debug("app:entries-db");
 
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 const ENTRIES_DB_PATH = join(imagesRoot, "picisa_entries.db");
 const WALKER_DB_PATH = join(imagesRoot, "picisa_walker.db");
 const EXIF_DB_PATH = join(imagesRoot, "picisa_exif.db");
@@ -29,7 +28,8 @@ const INDEX_DB_PATH = join(imagesRoot, "picisa_index.db");
 
 /**
  * Unified entries database (picisa_entries.db).
- * Contains albums and album_entries with stable entry_id.
+ * Contains albums and album_entries with stable album_id and entry_id.
+ * Joins album_entries to albums via album_id (uuid).
  * Replaces picisa_walker.db for Phase 2+.
  */
 class EntriesDatabaseAccess {
@@ -82,6 +82,38 @@ class EntriesDatabaseAccess {
       this.migrateExifColumns();
       this.migrateExifDropAlbumKeyEntryName();
       this.migratePicturesIndexVersion();
+      this.migrateAlbumId();
+    }
+  }
+
+  private migrateAlbumId(): void {
+    try {
+      const albumsInfo = this.db.prepare("PRAGMA table_info(albums)").all() as Array<{ name: string }>;
+      const albumsHasAlbumId = albumsInfo.some((c) => c.name === "album_id");
+      const entriesInfo = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
+      const entriesHasAlbumId = entriesInfo.some((c) => c.name === "album_id");
+      if (albumsHasAlbumId && entriesHasAlbumId) return;
+
+      if (!albumsHasAlbumId) {
+        debugLogger("Adding album_id to albums");
+        this.db.run("ALTER TABLE albums ADD COLUMN album_id TEXT");
+        const albums = this.db.prepare("SELECT key FROM albums").all() as Array<{ key: string }>;
+        for (const a of albums) {
+          const albumId = uuid();
+          this.db.prepare("UPDATE albums SET album_id = ? WHERE key = ?").run(albumId, a.key);
+        }
+        this.db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_albums_album_id ON albums(album_id)");
+      }
+      if (!entriesHasAlbumId) {
+        debugLogger("Adding album_id to album_entries");
+        this.db.run("ALTER TABLE album_entries ADD COLUMN album_id TEXT");
+        this.db.run(`
+          UPDATE album_entries SET album_id = (SELECT album_id FROM albums WHERE albums.key = album_entries.album_key)
+        `);
+        this.db.run("CREATE INDEX IF NOT EXISTS idx_album_entries_album_id ON album_entries(album_id)");
+      }
+    } catch (e) {
+      debugLogger("migrateAlbumId error:", e);
     }
   }
 
@@ -187,11 +219,13 @@ class EntriesDatabaseAccess {
       const info = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
       const hasTextactive = info.some((c) => c.name === "textactive");
       const hasStats = info.some((c) => c.name === "stats");
-      if (!hasTextactive && !hasStats) return;
+      const hasExtraFields = info.some((c) => c.name === "extra_fields");
+      if (!hasTextactive && !hasStats && !hasExtraFields) return;
 
-      debugLogger("Dropping removed textactive and stats columns from album_entries");
+      debugLogger("Dropping removed columns from album_entries");
       if (hasTextactive) this.db.run("ALTER TABLE album_entries DROP COLUMN textactive");
       if (hasStats) this.db.run("ALTER TABLE album_entries DROP COLUMN stats");
+      if (hasExtraFields) this.db.run("ALTER TABLE album_entries DROP COLUMN extra_fields");
     } catch (e) {
       debugLogger("migrateDropRemovedFields error:", e);
     }
@@ -393,51 +427,58 @@ class EntriesDatabaseAccess {
       CREATE TABLE db_version (version INTEGER PRIMARY KEY, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
       INSERT INTO db_version (version) VALUES (${DATABASE_VERSION});
       CREATE TABLE albums (
-        key TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL,
+        album_id TEXT NOT NULL UNIQUE, key TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL,
         count INTEGER NOT NULL DEFAULT 0, shortcut TEXT, lastModified TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
       CREATE TABLE album_entries (
         entry_id TEXT PRIMARY KEY,
-        album_key TEXT NOT NULL, entry_name TEXT NOT NULL,
+        album_id TEXT NOT NULL, album_key TEXT NOT NULL, entry_name TEXT NOT NULL,
         date_taken TEXT, photostar INTEGER DEFAULT 0, star INTEGER DEFAULT 0,
         star_count TEXT, caption TEXT, text TEXT,
         dimensions TEXT, dimensions_from_filter TEXT, rank TEXT, rotate TEXT,
-        faces TEXT, filters TEXT, persons TEXT, extra_fields TEXT,
+        faces TEXT, filters TEXT, persons TEXT,
         index_version INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (album_key) REFERENCES albums(key) ON DELETE CASCADE,
+        FOREIGN KEY (album_id) REFERENCES albums(album_id) ON DELETE CASCADE,
         UNIQUE(album_key, entry_name)
       );
       CREATE INDEX idx_albums_name ON albums(name);
       CREATE INDEX idx_albums_kind ON albums(kind);
+      CREATE INDEX idx_albums_album_id ON albums(album_id);
       CREATE INDEX idx_album_entries_album_key ON album_entries(album_key);
+      CREATE INDEX idx_album_entries_album_id ON album_entries(album_id);
       CREATE INDEX idx_album_entries_name ON album_entries(entry_name);
     `);
 
     const albums = walkerDb.prepare("SELECT * FROM albums").all() as any[];
+    const albumIdByKey = new Map<string, string>();
     for (const a of albums) {
+      const albumId = uuid();
+      albumIdByKey.set(a.key, albumId);
       entriesDb.prepare(`
-        INSERT INTO albums (key, name, kind, count, shortcut, lastModified, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(a.key, a.name, a.kind, a.count ?? 0, a.shortcut, a.lastModified, a.created_at, a.updated_at);
+        INSERT INTO albums (album_id, key, name, kind, count, shortcut, lastModified, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(albumId, a.key, a.name, a.kind, a.count ?? 0, a.shortcut, a.lastModified, a.created_at, a.updated_at);
     }
 
     const entries = walkerDb.prepare("SELECT * FROM album_entries").all() as any[];
     for (const e of entries) {
       const entryId = uuid();
+      const albumId = albumIdByKey.get(e.album_key) ?? uuid();
       entriesDb.prepare(`
         INSERT INTO album_entries (
-          entry_id, album_key, entry_name, date_taken, photostar, star, star_count,
+          entry_id, album_id, album_key, entry_name, date_taken, photostar, star, star_count,
           caption, text, dimensions, dimensions_from_filter, rank, rotate,
-          faces, filters, persons, extra_fields, index_version, created_at, updated_at
+          faces, filters, persons, index_version, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
       `).run(
-        entryId, e.album_key, e.entry_name, e.date_taken, e.photostar, e.star, e.star_count,
+        entryId, albumId, e.album_key, e.entry_name, e.date_taken, e.photostar, e.star, e.star_count,
         e.caption, e.text, e.dimensions, e.dimensions_from_filter, e.rank, e.rotate,
-        e.faces, e.filters, e.persons, e.extra_fields, e.created_at, e.updated_at
+        e.faces, e.filters, e.persons, e.created_at, e.updated_at
       );
     }
 
@@ -472,7 +513,7 @@ class EntriesDatabaseAccess {
   private initDatabase(): void {
     this.db.run(`
       CREATE TABLE IF NOT EXISTS albums (
-        key TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL,
+        album_id TEXT NOT NULL UNIQUE, key TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL,
         count INTEGER NOT NULL DEFAULT 0, shortcut TEXT, lastModified TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -481,22 +522,25 @@ class EntriesDatabaseAccess {
     this.db.run(`
       CREATE TABLE IF NOT EXISTS album_entries (
         entry_id TEXT PRIMARY KEY,
-        album_key TEXT NOT NULL, entry_name TEXT NOT NULL,
+        album_id TEXT NOT NULL, album_key TEXT NOT NULL, entry_name TEXT NOT NULL,
         date_taken TEXT, photostar INTEGER DEFAULT 0, star INTEGER DEFAULT 0,
         star_count TEXT, caption TEXT, text TEXT,
         dimensions TEXT, dimensions_from_filter TEXT, rank TEXT, rotate TEXT,
-        faces TEXT, filters TEXT, persons TEXT, extra_fields TEXT,
+        faces TEXT, filters TEXT, persons TEXT,
         index_version INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (album_key) REFERENCES albums(key) ON DELETE CASCADE,
+        FOREIGN KEY (album_id) REFERENCES albums(album_id) ON DELETE CASCADE,
         UNIQUE(album_key, entry_name)
       )
     `);
     this.db.run(`
       CREATE INDEX IF NOT EXISTS idx_albums_name ON albums(name);
       CREATE INDEX IF NOT EXISTS idx_albums_kind ON albums(kind);
+      CREATE INDEX IF NOT EXISTS idx_albums_album_id ON albums(album_id);
       CREATE INDEX IF NOT EXISTS idx_album_entries_album_key ON album_entries(album_key);
+      CREATE INDEX IF NOT EXISTS idx_album_entries_album_id ON album_entries(album_id);
       CREATE INDEX IF NOT EXISTS idx_album_entries_name ON album_entries(entry_name);
     `);
   }
@@ -585,7 +629,7 @@ class EntriesDatabaseAccess {
           .prepare(
             `SELECT ae.album_key, a.name AS album_name, ae.entry_name
              FROM album_entries ae
-             JOIN albums a ON ae.album_key = a.key
+             JOIN albums a ON ae.album_id = a.album_id
              WHERE ae.${col} < ae.filter_version OR ae.${col} = -1`,
           )
           .all() as Array<{ album_key: string; album_name: string; entry_name: string }>;
@@ -607,7 +651,7 @@ class EntriesDatabaseAccess {
     return deferSync(() => {
       const row = this.db.prepare(`
       SELECT date_taken, photostar, star, star_count, caption, text,
-        dimensions, dimensions_from_filter, rank, rotate, faces, filters, persons, extra_fields,
+        dimensions, dimensions_from_filter, rank, rotate, faces, filters, persons,
         filter_version, thumb_filter_version_small, thumb_filter_version_medium, thumb_filter_version_large
       FROM album_entries WHERE album_key = ? AND entry_name = ?
     `).get(entry.album.key ?? "", entry.name ?? "") as any;
@@ -631,23 +675,6 @@ class EntriesDatabaseAccess {
     if (row.thumb_filter_version_small !== undefined) metadata.thumbFilterVersionSmall = row.thumb_filter_version_small;
     if (row.thumb_filter_version_medium !== undefined) metadata.thumbFilterVersionMedium = row.thumb_filter_version_medium;
     if (row.thumb_filter_version_large !== undefined) metadata.thumbFilterVersionLarge = row.thumb_filter_version_large;
-    if (row.extra_fields) {
-      try {
-        const extra = JSON.parse(row.extra_fields);
-        const removedKeys = ["textactive", "stats", "originalAlbumName", "originalAlbumKey", "originalName"];
-        for (const k of Object.keys(extra)) {
-          if (
-            !k.startsWith("cached:") &&
-            !k.startsWith("thumb_filter_version:") &&
-            !removedKeys.includes(k)
-          ) {
-            (metadata as Record<string, unknown>)[k] = extra[k];
-          }
-        }
-      } catch (e) {
-        debugLogger(`Error parsing extra_fields for ${entry.name}:`, e);
-      }
-    }
     return metadata;
     });
   }
@@ -675,7 +702,7 @@ class EntriesDatabaseAccess {
     return deferSync(() => {
       const rows = this.db.prepare(`
       SELECT entry_name, date_taken, photostar, star, star_count, caption, text,
-        dimensions, dimensions_from_filter, rank, rotate, faces, filters, persons, extra_fields
+        dimensions, dimensions_from_filter, rank, rotate, faces, filters, persons
       FROM album_entries WHERE album_key = ? ORDER BY entry_name
     `).all(album.key) as any[];
     const metadata: AlbumMetaData = {};
@@ -694,23 +721,6 @@ class EntriesDatabaseAccess {
       if (row.faces) entryMetadata.faces = row.faces;
       if (row.filters) entryMetadata.filters = row.filters;
       if (row.persons) entryMetadata.persons = row.persons;
-      if (row.extra_fields) {
-        try {
-          const extra = JSON.parse(row.extra_fields);
-          const removedKeys = ["textactive", "stats", "originalAlbumName", "originalAlbumKey", "originalName"];
-          for (const k of Object.keys(extra)) {
-            if (
-              !k.startsWith("cached:") &&
-              !k.startsWith("thumb_filter_version:") &&
-              !removedKeys.includes(k)
-            ) {
-              (entryMetadata as Record<string, unknown>)[k] = extra[k];
-            }
-          }
-        } catch (e) {
-          debugLogger(`Error parsing extra_fields for ${row.entry_name}:`, e);
-        }
-      }
       metadata[row.entry_name] = entryMetadata;
     }
     return metadata;
@@ -722,10 +732,14 @@ class EntriesDatabaseAccess {
   async upsertAlbum(album: AlbumWithData): Promise<void> {
     return deferSync(() => {
       if (!this.isWriter) throw new Error("upsertAlbum requires READWRITE");
+      const existing = this.db.prepare("SELECT album_id FROM albums WHERE key = ?").get(album.key) as
+        | { album_id: string }
+        | undefined;
+      const albumId = existing?.album_id ?? uuid();
       this.db.prepare(`
-        INSERT OR REPLACE INTO albums (key, name, kind, count, shortcut, lastModified, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `).run(album.key, album.name, "folder", album.count, album.shortcut || null, album.lastModified || null);
+        INSERT OR REPLACE INTO albums (album_id, key, name, kind, count, shortcut, lastModified, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `).run(albumId, album.key, album.name, "folder", album.count, album.shortcut || null, album.lastModified || null);
     });
   }
 
@@ -740,26 +754,30 @@ class EntriesDatabaseAccess {
     return deferSync(() => {
       if (!this.isWriter) throw new Error("upsertEntry requires READWRITE");
       const existing = this.db.prepare(`
-      SELECT entry_id FROM album_entries WHERE album_key = ? AND entry_name = ?
-    `).get(entry.album.key, entry.name) as { entry_id: string } | undefined;
+      SELECT entry_id, album_id FROM album_entries WHERE album_key = ? AND entry_name = ?
+    `).get(entry.album.key, entry.name) as { entry_id: string; album_id?: string } | undefined;
 
     const entryId = existing?.entry_id ?? uuid();
+    const albumRow = this.db.prepare("SELECT album_id FROM albums WHERE key = ?").get(entry.album.key) as
+      | { album_id: string }
+      | undefined;
+    const albumId = existing?.album_id ?? albumRow?.album_id ?? uuid();
     const hasFileStats = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
     if (hasFileStats.some((c) => c.name === "file_mtime") && fileStats) {
       this.db.prepare(`
-        INSERT INTO album_entries (entry_id, album_key, entry_name, file_mtime, file_size, updated_at)
-        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO album_entries (entry_id, album_id, album_key, entry_name, file_mtime, file_size, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(album_key, entry_name) DO UPDATE SET
           file_mtime = excluded.file_mtime,
           file_size = excluded.file_size,
           updated_at = CURRENT_TIMESTAMP
-      `).run(entryId, entry.album.key, entry.name, fileStats.mtime, fileStats.size);
+      `).run(entryId, albumId, entry.album.key, entry.name, fileStats.mtime, fileStats.size);
     } else {
       this.db.prepare(`
         INSERT OR REPLACE INTO album_entries (
-          entry_id, album_key, entry_name, updated_at
-        ) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-      `).run(entryId, entry.album.key, entry.name);
+          entry_id, album_id, album_key, entry_name, updated_at
+        ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `).run(entryId, albumId, entry.album.key, entry.name);
     }
     });
   }
@@ -793,10 +811,21 @@ class EntriesDatabaseAccess {
   async updateEntryLocation(entryId: string, albumKey: string, entryName: string): Promise<void> {
     return deferSync(() => {
       if (!this.isWriter) throw new Error("updateEntryLocation requires READWRITE");
-      this.db.prepare(`
-        UPDATE album_entries SET album_key = ?, entry_name = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE entry_id = ?
-      `).run(albumKey, entryName, entryId);
+      const albumRow = this.db.prepare("SELECT album_id FROM albums WHERE key = ?").get(albumKey) as
+        | { album_id: string }
+        | undefined;
+      const albumId = albumRow?.album_id;
+      if (albumId) {
+        this.db.prepare(`
+          UPDATE album_entries SET album_id = ?, album_key = ?, entry_name = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE entry_id = ?
+        `).run(albumId, albumKey, entryName, entryId);
+      } else {
+        this.db.prepare(`
+          UPDATE album_entries SET album_key = ?, entry_name = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE entry_id = ?
+        `).run(albumKey, entryName, entryId);
+      }
     });
   }
 
@@ -845,19 +874,6 @@ class EntriesDatabaseAccess {
   ): Promise<void> {
     return deferSync(() => {
       if (!this.isWriter) throw new Error("updateEntryMetadata requires READWRITE");
-    const standardFields = new Set([
-      "dateTaken", "photostar", "star", "starCount", "caption", "text",
-      "dimensions", "dimensionsFromFilter", "rank", "rotate", "faces", "filters", "persons",
-    ]);
-    const removedFields = new Set(["textactive", "stats", "originalAlbumName", "originalAlbumKey", "originalName"]);
-    const extra: Partial<Record<extraFields, string>> = {};
-    for (const key in metadata) {
-      if (!standardFields.has(key) && !removedFields.has(key)) {
-        extra[key as extraFields] = metadata[key as keyof AlbumEntryMetaData] as string;
-      }
-    }
-    const extraFieldsJson = Object.keys(extra).length > 0 ? JSON.stringify(extra) : null;
-
     const filterVersionIncrement = options?.incrementFilterVersion
       ? ", filter_version = filter_version + 1"
       : "";
@@ -866,14 +882,14 @@ class EntriesDatabaseAccess {
       UPDATE album_entries SET
         date_taken = ?, photostar = ?, star = ?, star_count = ?, caption = ?, text = ?,
         dimensions = ?, dimensions_from_filter = ?, rank = ?, rotate = ?, faces = ?, filters = ?, persons = ?,
-        extra_fields = ?, index_version = index_version + 1${filterVersionIncrement}, updated_at = CURRENT_TIMESTAMP
+        index_version = index_version + 1${filterVersionIncrement}, updated_at = CURRENT_TIMESTAMP
       WHERE album_key = ? AND entry_name = ?
     `).run(
       metadata.dateTaken || null, metadata.photostar ? 1 : 0, metadata.star ? 1 : 0,
       metadata.starCount || null, metadata.caption || null, metadata.text || null,
       metadata.dimensions || null, metadata.dimensionsFromFilter || null, metadata.rank || null,
       metadata.rotate || null, metadata.faces || null, metadata.filters || null,
-      metadata.persons || null, extraFieldsJson, entry.album.key ?? "", entry.name ?? ""
+      metadata.persons || null, entry.album.key ?? "", entry.name ?? ""
     );
     });
   }

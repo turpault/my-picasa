@@ -103,7 +103,7 @@ export class ExifDatabaseAccess {
         .prepare(
           `SELECT ae.album_key, a.name AS album_name, ae.entry_name
            FROM album_entries ae
-           LEFT JOIN albums a ON ae.album_key = a.key
+           LEFT JOIN albums a ON ae.album_id = a.album_id
            LEFT JOIN exif_data e ON ae.entry_id = e.entry_id
            WHERE e.entry_id IS NULL
            ORDER BY ae.created_at ASC`
