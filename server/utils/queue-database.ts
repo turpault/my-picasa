@@ -45,7 +45,7 @@ export function addToQueueBatch(
   if (items.length === 0) return Promise.resolve();
   return deferSync(() => {
     const insert = db!.prepare(
-      "INSERT INTO queue (id, priority, job_type) VALUES (?, ?, ?)"
+      "INSERT OR IGNORE INTO queue (id, priority, job_type) VALUES (?, ?, ?)"
     );
     const batch = db!.transaction((rows: typeof items) => {
       for (const { id, priority, jobType } of rows) {

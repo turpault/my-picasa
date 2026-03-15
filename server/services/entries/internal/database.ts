@@ -231,6 +231,7 @@ class EntriesDatabaseAccess {
       const hasKind = albumsInfo.some((c) => c.name === "kind");
       if (hasKind) {
         debugLogger("Dropping dead kind column from albums");
+        this.db.run("DROP INDEX IF EXISTS idx_albums_kind");
         this.db.run("ALTER TABLE albums DROP COLUMN kind");
       }
     } catch (e) {
@@ -543,7 +544,6 @@ class EntriesDatabaseAccess {
     `);
     this.db.run(`
       CREATE INDEX IF NOT EXISTS idx_albums_name ON albums(name);
-      CREATE INDEX IF NOT EXISTS idx_albums_kind ON albums(kind);
       CREATE INDEX IF NOT EXISTS idx_albums_album_id ON albums(album_id);
       CREATE INDEX IF NOT EXISTS idx_album_entries_album_key ON album_entries(album_key);
       CREATE INDEX IF NOT EXISTS idx_album_entries_album_id ON album_entries(album_id);
