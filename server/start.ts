@@ -7,6 +7,7 @@ import { RPCAdaptorInterface } from "../shared/rpc-transport/rpc-adaptor-interfa
 import { WsAdaptor } from "../shared/rpc-transport/ws-adaptor";
 import { closePoiDb } from "./services/geolocate/internal/poi/poi-database";
 import { closeWalkerDatabase } from "./services/walker/internal/database";
+import { closeQueueDatabase } from "./utils/queue-database";
 import { parseLUTs } from "./imageOperations/image-filters";
 import { encode } from "./imageOperations/sharp-processor";
 import { startAlbumUpdateNotification } from "./rpc/fileAndFolders";
@@ -18,7 +19,14 @@ import { albumWithData } from "./rpc/rpcFunctions/albumUtils";
 import { info } from "console";
 import { loadFaceAlbums } from "./operations/faces/faces";
 import { startSentry } from "./sentry";
-import { busy, getActivityStatus, getCpuLoad, measureCPULoad } from "./utils/busy";
+import {
+  busy,
+  beginInteractiveRequest,
+  endInteractiveRequest,
+  getActivityStatus,
+  getCpuLoad,
+  measureCPULoad,
+} from "./utils/busy";
 import { imagesRoot, rootPath } from "./utils/constants";
 import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
@@ -53,6 +61,18 @@ const DEFAULT_PORT = 5500;
 
 /** LIFO queue so most recent requests are served first for faster response when scrolling. */
 const httpRequestQueue = new Queue(64, { fifo: false });
+
+/** Wraps a route handler to track interactive requests so job workers pause while requests are in-flight. */
+function withInteractiveTracking<T>(handler: (...args: any[]) => T): (...args: any[]) => T {
+  return (async (...args: any[]) => {
+    beginInteractiveRequest();
+    try {
+      return await handler(...args);
+    } finally {
+      endInteractiveRequest();
+    }
+  }) as (...args: any[]) => T;
+}
 
 function resolvePort(p?: number): number {
   if (typeof p === "number" && !Number.isNaN(p)) {
@@ -123,21 +143,26 @@ export async function startServer(p?: number) {
       routes: {
         "/": indexHtml,
         "/stat": statsHTML,
-        "/ping": () => Response.json({ pong: "it worked!" }),
-        "/stats": async () =>
+        "/ping": withInteractiveTracking(() => Response.json({ pong: "it worked!" })),
+        "/env.js": () =>
+          new Response(
+            `window.__PICISA_DEV__=${process.env.NODE_ENV === "development"};`,
+            { headers: { "Content-Type": "application/javascript" } },
+          ),
+        "/stats": withInteractiveTracking(async () =>
           Response.json({
             series: await history(),
             locks: lockedLocks(),
             extraction: getExtractionStats(),
             globalQueue: {
-              ...getGlobalQueueStats(),
-              pendingByPriority: getGlobalQueuePendingByPriority(),
+              ...(await getGlobalQueueStats()),
+              pendingByPriority: await getGlobalQueuePendingByPriority(),
             },
             memory: process.memoryUsage(),
             cpuLoad: getCpuLoad(),
             activity: getActivityStatus(),
-          }),
-        "/stats/db/entries": async (req) => {
+          })),
+        "/stats/db/entries": withInteractiveTracking(async (req) => {
           const url = new URL(req.url);
           const limit = Math.min(
             500,
@@ -145,8 +170,8 @@ export async function startServer(p?: number) {
           );
           const data = await getEntriesDbContents(limit);
           return Response.json(data);
-        },
-        "/stats/db/poi": async (req) => {
+        }),
+        "/stats/db/poi": withInteractiveTracking(async (req) => {
           const url = new URL(req.url);
           const limit = Math.min(
             500,
@@ -154,8 +179,8 @@ export async function startServer(p?: number) {
           );
           const data = await getPoiDbContents(limit);
           return Response.json(data);
-        },
-        "/encode/:context/:mime": async (req) =>
+        }),
+        "/encode/:context/:mime": withInteractiveTracking(async (req) =>
           httpRequestQueue.add(async () => {
             const { context, mime } = req.params;
             const r = await encode(
@@ -167,8 +192,8 @@ export async function startServer(p?: number) {
             return new Response(body, {
               headers: { "Content-Type": mime },
             });
-          }),
-        "/thumbnail/:albumkey/:name/:resolution": async (req) =>
+          })),
+        "/thumbnail/:albumkey/:name/:resolution": withInteractiveTracking(async (req) =>
           httpRequestQueue.add(async () => {
             const { albumkey, name, resolution } = req.params;
             const album = await albumWithData(albumkey);
@@ -189,8 +214,8 @@ export async function startServer(p?: number) {
                 "Cache-Control": "no-cache",
               },
             });
-          }),
-        "/thumbnail/:albumkey/:resolution": async (req) =>
+          })),
+        "/thumbnail/:albumkey/:resolution": withInteractiveTracking(async (req) =>
           httpRequestQueue.add(async () => {
             const { albumkey, resolution } = req.params;
             const album = await albumWithData(albumkey);
@@ -210,8 +235,8 @@ export async function startServer(p?: number) {
                 "Cache-Control": "no-cache",
               },
             });
-          }),
-        "/asset/:albumkey/:name": async (req) =>
+          })),
+        "/asset/:albumkey/:name": withInteractiveTracking(async (req) =>
           httpRequestQueue.add(async () => {
             const { albumkey, name } = req.params;
             const album = await albumWithData(albumkey);
@@ -228,31 +253,40 @@ export async function startServer(p?: number) {
                   : "image/jpeg",
               },
             });
-          }),
+          })),
       },
       async fetch(req, server) {
-        busy();
-        const pathname = new URL(req.url).pathname;
+        beginInteractiveRequest();
+        let didUpgrade = false;
+        try {
+          busy();
+          const pathname = new URL(req.url).pathname;
 
-        if (req.headers.get("upgrade") === "websocket" && pathname === "/cmd") {
-          const success = server.upgrade(req);
-          if (success) return undefined as unknown as Response;
-          return new Response("Expected WebSocket", { status: 400 });
-        }
-
-        const distRel = pathname.replace(/^\/+/, "").replace(/\/+/g, "/");
-        if (distRel && !distRel.includes("..")) {
-          const distPath = resolve(distDir, distRel);
-          if (distPath.startsWith(resolve(distDir)) && existsSync(distPath)) {
-            return new Response(Bun.file(distPath));
+          if (req.headers.get("upgrade") === "websocket" && pathname === "/cmd") {
+            const success = server.upgrade(req);
+            if (success) {
+              didUpgrade = true;
+              return undefined as unknown as Response;
+            }
+            return new Response("Expected WebSocket", { status: 400 });
           }
-        }
 
-        const filePath = safePublicPath(pathname);
-        if (filePath && existsSync(filePath)) {
-          return new Response(Bun.file(filePath));
+          const distRel = pathname.replace(/^\/+/, "").replace(/\/+/g, "/");
+          if (distRel && !distRel.includes("..")) {
+            const distPath = resolve(distDir, distRel);
+            if (distPath.startsWith(resolve(distDir)) && existsSync(distPath)) {
+              return new Response(Bun.file(distPath));
+            }
+          }
+
+          const filePath = safePublicPath(pathname);
+          if (filePath && existsSync(filePath)) {
+            return new Response(Bun.file(filePath));
+          }
+          return new Response("Not Found", { status: 404 });
+        } finally {
+          if (!didUpgrade) endInteractiveRequest();
         }
-        return new Response("Not Found", { status: 404 });
       },
       websocket: {
         open(ws) {
@@ -281,6 +315,7 @@ export async function startServer(p?: number) {
             w.readyState = 3;
             w.onclose?.();
           }
+          endInteractiveRequest();
         },
       },
     });
@@ -295,6 +330,7 @@ export async function startServer(p?: number) {
 process.on("exit", () => {
   closePoiDb();
   closeWalkerDatabase();
+  closeQueueDatabase();
 });
 
 export async function startServices() {

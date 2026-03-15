@@ -50,6 +50,19 @@ async function main() {
     throw new Error("Client build failed");
   }
 
+  // Re-inject env.js script (stripped by bundler) so client can detect dev mode
+  const distDir = join(root, "public/dist");
+  const distIndexPath = join(distDir, "index.html");
+  const distIndex = readFileSync(distIndexPath, "utf-8");
+  writeFileSync(
+    distIndexPath,
+    distIndex.replace(
+      /(<head[^>]*>)/,
+      "$1<script src=\"/env.js\"></script>",
+    ),
+  );
+  cpSync(join(root, "public/env.js"), join(distDir, "env.js"));
+
   console.log("[build] Icons…");
   const pngInput = readFileSync(join(root, "resources/picisa.png"));
 

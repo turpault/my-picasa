@@ -1,6 +1,13 @@
 import * as Sentry from "@sentry/browser";
 
+declare global {
+  var __PICISA_DEV__: boolean | undefined;
+}
+
 export function initClientSentry() {
+  if (typeof globalThis.__PICISA_DEV__ === "boolean" && globalThis.__PICISA_DEV__) {
+    return;
+  }
   if (isElectron()) {
     Sentry.init({
       dsn:
