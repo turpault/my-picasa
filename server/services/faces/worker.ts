@@ -1,4 +1,5 @@
 const serviceName = process.env.PICISA_SERVICE_NAME ?? "faces";
+process.title = `picisa-faces`;
 
 function send(msg: { type: string; data?: unknown }): void {
   if (typeof process.send === "function") process.send(msg);

@@ -2,6 +2,7 @@ import { runFtsWorker } from "./internal/run-fts-worker";
 import { startWorkerStatsReporter, stopWorkerStatsReporter } from "../../utils/worker-stats";
 
 const serviceName = process.env.PICISA_SERVICE_NAME ?? "fts";
+process.title = "picisa-search";
 
 function send(msg: { type: string; data?: unknown }): void {
   if (typeof process.send === "function") process.send(msg);
