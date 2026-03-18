@@ -51,6 +51,20 @@ server/services/<serviceName>/
 3. **Database access**: Databases live in `internal/` (e.g. `internal/database.ts`, `internal/poi/poi-database.ts`). Use `getXxxDb()` or `getXxxDatabaseReadOnly()` singletons.
 4. **Cross-service imports**: Prefer RPC or events over direct imports. If a service needs another, import only its public API (`queries.ts` or exported functions from the service root).
 
+### Worker Service Reader/Writer Split
+
+Each worker service (faces, geolocate, search, favorite-exporter) has two separate components:
+
+| Component | Purpose | Location | Used by |
+|-----------|---------|----------|---------|
+| **Reader** | Runs database queries only. Read-only access. | `queries.ts`, `internal/database.ts` (read path) | Main process **only** |
+| **Writer** | Runs the process and writes to the database (or filesystem for favorite-exporter). May use reader for queries. | `worker.ts`, `internal/worker-database.ts`, `internal/run-*-worker.ts`, `internal/worker-thread.ts`, `internal/export-favorites.ts` | Worker thread only |
+
+**Rules:**
+- The main process **only** accesses the reader component.
+- The reader component **never** imports from: `worker-database`, `run-*-worker`, `worker-thread` (writer logic), or `worker.ts`.
+- The writer may import from the reader (e.g. `getGeoPOI` from geolocate queries).
+
 ## RPC Layer
 
 - RPC handlers live in `server/rpc/` and `server/rpc/rpcFunctions/`.
@@ -62,7 +76,7 @@ server/services/<serviceName>/
 
 | Kind | Convention | Example |
 |------|------------|---------|
-| Files | kebab-case | `face-db.ts`, `poi-database.ts` |
+| Files | kebab-case | `face-db-reader.ts`, `poi-database.ts` |
 | Types/Interfaces | PascalCase | `AlbumEntry`, `GeoPOI` |
 | Functions | camelCase | `getPicasaFeatures`, `addFaceRectToEntry` |
 | Constants | camelCase or UPPER_SNAKE | `imagesRoot`, `POI_TYPE` |

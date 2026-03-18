@@ -63,18 +63,10 @@ function setupEventListeners(): void {
 }
 
 /**
- * Initialize favorite-exporter: set up event listeners and run initial export when walker is ready.
+ * Initialize favorite-exporter: set up event listeners.
+ * Export logic runs only in the worker thread (reader/writer split).
  * Called from worker-manager.
  */
-export function setupFavoriteExporter(getWalkerReadyPromise: () => Promise<void>): void {
+export function setupFavoriteExporter(_getWalkerReadyPromise: () => Promise<void>): void {
   setupEventListeners();
-  getWalkerReadyPromise().then(async () => {
-    try {
-      await mkdir(favoritesFolder, { recursive: true });
-      await exportAllMissing();
-      debugLogger("Initial favorites export completed");
-    } catch (error) {
-      debugLogger("Error in initial favorites export:", error);
-    }
-  });
 }
