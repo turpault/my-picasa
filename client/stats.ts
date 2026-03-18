@@ -227,6 +227,8 @@ async function init() {
     container.innerHTML = "";
     if (activeTab === "queue" && statsData) {
       container.appendChild(renderQueueTab(statsData));
+    } else if (activeTab === "queue") {
+      container.innerHTML = "<p class='w3-padding'>Loading stats…</p>";
     } else if (activeTab === "entries") {
       container.appendChild(renderEntriesTab(entriesData));
     } else if (activeTab === "poi") {
@@ -235,6 +237,8 @@ async function init() {
       container.appendChild(renderMemoryTab(statsData));
       // Render series charts after DOM is ready
       setTimeout(() => renderSeriesCharts(statsData!), 0);
+    } else if (activeTab === "memory") {
+      container.innerHTML = "<p class='w3-padding'>Loading stats…</p>";
     }
   }
 

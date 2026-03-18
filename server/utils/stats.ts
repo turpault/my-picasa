@@ -1,5 +1,6 @@
 import { WriteStream, createWriteStream } from "fs";
 import { readFile } from "fs/promises";
+import { existsSync } from "fs";
 import { join } from "path";
 import { uuid } from "../../shared/lib/utils";
 import { imagesRoot } from "./constants";
@@ -46,6 +47,7 @@ export function set(counter: string, value: string | number) {
 }
 
 export async function history(): Promise<object> {
+  if (!existsSync(statFile)) return {};
   let data = (await readFile(statFile, { encoding: "utf-8" }))
     .split("\n")
     .filter((v) => v);
