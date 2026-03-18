@@ -66,11 +66,21 @@ export class ExifDatabaseAccess {
     return row?.entry_id ?? null;
   }
 
+  private getExifTable(): string {
+    try {
+      this.getDatabase().prepare("SELECT 1 FROM exif.exif_data LIMIT 1").get();
+      return "exif.exif_data";
+    } catch {
+      return "exif_data";
+    }
+  }
+
   getExifData(entry: AlbumEntry): string | null {
     const entryId = this.resolveEntryId(entry);
     if (!entryId) return null;
+    const table = this.getExifTable();
     const result = this.getDatabase()
-      .prepare(`SELECT exif_data FROM exif_data WHERE entry_id = ?`)
+      .prepare(`SELECT exif_data FROM ${table} WHERE entry_id = ?`)
       .get(entryId) as { exif_data: string | null } | undefined;
     return result?.exif_data ?? null;
   }
@@ -78,8 +88,9 @@ export class ExifDatabaseAccess {
   hasExifData(entry: AlbumEntry): boolean {
     const entryId = this.resolveEntryId(entry);
     if (!entryId) return false;
+    const table = this.getExifTable();
     const result = this.getDatabase()
-      .prepare(`SELECT has_exif FROM exif_data WHERE entry_id = ?`)
+      .prepare(`SELECT has_exif FROM ${table} WHERE entry_id = ?`)
       .get(entryId) as { has_exif: number } | undefined;
     return (result?.has_exif ?? 0) === 1;
   }
@@ -88,8 +99,9 @@ export class ExifDatabaseAccess {
     try {
       const entryId = this.resolveEntryId(entry);
       if (!entryId) return false;
+      const table = this.getExifTable();
       const result = this.getDatabase()
-        .prepare(`SELECT processed_at FROM exif_data WHERE entry_id = ?`)
+        .prepare(`SELECT processed_at FROM ${table} WHERE entry_id = ?`)
         .get(entryId) as { processed_at: string | null } | undefined;
       return result !== undefined && result.processed_at !== null;
     } catch {
@@ -99,12 +111,13 @@ export class ExifDatabaseAccess {
 
   getUnprocessedEntries(): Array<{ album_key: string; album_name: string; entry_name: string }> {
     try {
+      const table = this.getExifTable();
       return this.getDatabase()
         .prepare(
           `SELECT ae.album_key, a.name AS album_name, ae.entry_name
            FROM album_entries ae
            LEFT JOIN albums a ON ae.album_id = a.album_id
-           LEFT JOIN exif_data e ON ae.entry_id = e.entry_id
+           LEFT JOIN ${table} e ON ae.entry_id = e.entry_id
            WHERE e.entry_id IS NULL
            ORDER BY ae.created_at ASC`
         )
@@ -116,6 +129,7 @@ export class ExifDatabaseAccess {
 
   getStats(): { totalEntries: number; processedEntries: number; unprocessedEntries: number; lastProcessed: string } {
     const db = this.getDatabase();
+    const table = this.getExifTable();
     let totalEntries = 0;
     let unprocessedEntries = 0;
     try {
@@ -123,17 +137,17 @@ export class ExifDatabaseAccess {
     } catch {
       /* */
     }
-    const processedEntries = (db.prepare("SELECT COUNT(*) as count FROM exif_data WHERE processed_at IS NOT NULL").get() as { count: number }).count;
+    const processedEntries = (db.prepare(`SELECT COUNT(*) as count FROM ${table} WHERE processed_at IS NOT NULL`).get() as { count: number }).count;
     try {
       unprocessedEntries = (db.prepare(`
         SELECT COUNT(*) as count FROM album_entries ae
-        LEFT JOIN exif_data e ON ae.entry_id = e.entry_id
+        LEFT JOIN ${table} e ON ae.entry_id = e.entry_id
         WHERE e.entry_id IS NULL
       `).get() as { count: number }).count;
     } catch {
       /* */
     }
-    const lastProcessed = (db.prepare("SELECT MAX(processed_at) as last_processed FROM exif_data WHERE processed_at IS NOT NULL").get() as { last_processed: string | null }).last_processed || "Never";
+    const lastProcessed = (db.prepare(`SELECT MAX(processed_at) as last_processed FROM ${table} WHERE processed_at IS NOT NULL`).get() as { last_processed: string | null }).last_processed || "Never";
     return { totalEntries, processedEntries, unprocessedEntries, lastProcessed };
   }
 
@@ -141,8 +155,9 @@ export class ExifDatabaseAccess {
     if (!this.isWriter) throw new Error("upsertEntry requires READWRITE");
     const entryId = this.resolveEntryId(entry);
     if (!entryId) return;
+    const table = this.getExifTable();
     this.getDatabase().prepare(`
-      INSERT OR REPLACE INTO exif_data (entry_id, exif_data, has_exif, updated_at)
+      INSERT OR REPLACE INTO ${table} (entry_id, exif_data, has_exif, updated_at)
       VALUES (?, NULL, 0, CURRENT_TIMESTAMP)
     `).run(entryId);
   }
@@ -152,6 +167,7 @@ export class ExifDatabaseAccess {
     const db = this.getDatabase();
     const entryId = this.resolveEntryId(entry);
     if (!entryId) return;
+    const table = this.getExifTable();
     const hasExif = exifData !== null && exifData.trim().length > 0;
     const cols = columns ?? {};
     const colVals = [
@@ -166,7 +182,7 @@ export class ExifDatabaseAccess {
       cols.gps_img_direction ?? null, cols.gps_img_direction_ref ?? null, cols.gps_timestamp ?? null,
     ];
     const result = db.prepare(`
-      UPDATE exif_data SET
+      UPDATE ${table} SET
         exif_data = ?, has_exif = ?, processed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP,
         date_taken = ?, make = ?, model = ?,
         image_width = ?, image_height = ?,
@@ -181,7 +197,7 @@ export class ExifDatabaseAccess {
     `).run(exifData, hasExif ? 1 : 0, ...colVals, entryId);
     if (result.changes === 0) {
       db.prepare(`
-        INSERT INTO exif_data (entry_id, exif_data, has_exif, processed_at, updated_at,
+        INSERT INTO ${table} (entry_id, exif_data, has_exif, processed_at, updated_at,
           date_taken, make, model, image_width, image_height, latitude, longitude, iso, exposure_time, f_number, focal_length,
           person_in_image, acceleration_vector, photo_identifier, image_unique_id, lens_model, lens_info, focal_length_35mm,
           gps_altitude, gps_altitude_ref, gps_date_stamp, gps_img_direction, gps_img_direction_ref, gps_timestamp)
@@ -202,7 +218,8 @@ export class ExifDatabaseAccess {
     if (!this.isWriter) throw new Error("removeEntry requires READWRITE");
     const entryId = this.resolveEntryId(entry);
     if (entryId) {
-      this.getDatabase().prepare(`DELETE FROM exif_data WHERE entry_id = ?`).run(entryId);
+      const table = this.getExifTable();
+      this.getDatabase().prepare(`DELETE FROM ${table} WHERE entry_id = ?`).run(entryId);
     }
     debugLogger(`Removed entry ${entry.name} from EXIF database`);
   }

@@ -1,6 +1,7 @@
 import { mkdir, readFile, readdir } from "fs/promises";
 import { basename, join } from "path";
 import ini from "../../../../shared/lib/ini";
+import { deferSync } from "../../../utils/defer-sync";
 import { lock } from "../../../../shared/lib/mutex";
 import { MAX_STAR } from "../../../../shared/lib/shared-constants";
 import {
@@ -221,7 +222,7 @@ async function readAlbumIni(album: Album): Promise<AlbumMetaData> {
     const iniData = await readFile(target, {
       encoding: "utf8",
     });
-    const i = ini.parse(iniData);
+    const i = await deferSync(() => ini.parse(iniData), `picasa.ini.parse(${album.key})`);
     // Read&fix data
     if (dataFix(album, i)) {
       writePicasaIni(album, i);

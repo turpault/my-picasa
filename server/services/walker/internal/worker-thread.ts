@@ -358,7 +358,13 @@ export async function walkFilesystem(): Promise<void> {
       }),
     "WALK"
   );
+  // #region agent log
+  fetch('http://127.0.0.1:7687/ingest/e59d8d66-a3fc-4141-b136-eb6275298101',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'402b95'},body:JSON.stringify({sessionId:'402b95',location:'worker-thread.ts:walkFilesystem',message:'H4: before drainGlobalQueue',data:{hypothesisId:'H4',step:'beforeDrain'},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   await drainGlobalQueue();
+  // #region agent log
+  fetch('http://127.0.0.1:7687/ingest/e59d8d66-a3fc-4141-b136-eb6275298101',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'402b95'},body:JSON.stringify({sessionId:'402b95',location:'worker-thread.ts:walkFilesystem',message:'H4: after drainGlobalQueue',data:{hypothesisId:'H4',step:'afterDrain'},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
 
   // Find deleted albums
   for (const oldAlbum of oldAlbums) {

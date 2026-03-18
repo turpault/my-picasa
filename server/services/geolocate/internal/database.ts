@@ -30,26 +30,38 @@ export class GeolocateDatabaseAccess {
     return this.isWriter;
   }
 
+  private getGeoTable(): string {
+    try {
+      this.getDatabase().prepare("SELECT 1 FROM geo.geo_poi_data LIMIT 1").get();
+      return "geo.geo_poi_data";
+    } catch {
+      return "geo_poi_data";
+    }
+  }
+
   getGeoPOI(entry: AlbumEntry): string | null {
+    const table = this.getGeoTable();
     const result = this.getDatabase()
-      .prepare(`SELECT geo_poi FROM geo_poi_data WHERE album_key = ? AND entry_name = ?`)
+      .prepare(`SELECT geo_poi FROM ${table} WHERE album_key = ? AND entry_name = ?`)
       .get(entry.album.key ?? "", entry.name ?? "") as { geo_poi: string | null } | undefined;
     return result?.geo_poi ?? null;
   }
 
   hasGeoPOI(entry: AlbumEntry): boolean {
+    const table = this.getGeoTable();
     const result = this.getDatabase()
-      .prepare(`SELECT has_geo_poi FROM geo_poi_data WHERE album_key = ? AND entry_name = ?`)
+      .prepare(`SELECT has_geo_poi FROM ${table} WHERE album_key = ? AND entry_name = ?`)
       .get(entry.album.key ?? "", entry.name ?? "") as { has_geo_poi: number } | undefined;
     return (result?.has_geo_poi ?? 0) === 1;
   }
 
   isProcessed(entry: AlbumEntry): boolean {
     try {
+      const table = this.getGeoTable();
       const result = this.getDatabase()
         .prepare(
           `SELECT g.processed_at FROM album_entries ae
-           LEFT JOIN geo_poi_data g ON ae.album_key = g.album_key AND ae.entry_name = g.entry_name
+           LEFT JOIN ${table} g ON ae.album_key = g.album_key AND ae.entry_name = g.entry_name
            WHERE ae.album_key = ? AND ae.entry_name = ?`
         )
         .get(entry.album.key ?? "", entry.name ?? "") as { processed_at: string | null } | undefined;
@@ -77,12 +89,13 @@ export class GeolocateDatabaseAccess {
 
   getUnprocessedEntries(): Array<{ album_key: string; album_name: string; entry_name: string }> {
     try {
+      const table = this.getGeoTable();
       return this.getDatabase()
         .prepare(
           `SELECT ae.album_key, a.name AS album_name, ae.entry_name
            FROM album_entries ae
            LEFT JOIN albums a ON ae.album_id = a.album_id
-           LEFT JOIN geo_poi_data g ON ae.album_key = g.album_key AND ae.entry_name = g.entry_name
+           LEFT JOIN ${table} g ON ae.album_key = g.album_key AND ae.entry_name = g.entry_name
            WHERE g.album_key IS NULL
            ORDER BY ae.created_at ASC`
         )
@@ -95,10 +108,11 @@ export class GeolocateDatabaseAccess {
   upsertEntry(entry: AlbumEntry): void {
     if (!this.isWriter) throw new Error("upsertEntry requires READWRITE");
     const db = this.getDatabase();
+    const table = this.getGeoTable();
     const entryRow = db.prepare("SELECT entry_id FROM album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key ?? "", entry.name ?? "") as { entry_id: string } | undefined;
     if (!entryRow) return;
     db.prepare(`
-      INSERT OR REPLACE INTO geo_poi_data (entry_id, album_key, entry_name, geo_poi, has_geo_poi, updated_at)
+      INSERT OR REPLACE INTO ${table} (entry_id, album_key, entry_name, geo_poi, has_geo_poi, updated_at)
       VALUES (?, ?, ?, NULL, 0, CURRENT_TIMESTAMP)
     `).run(entryRow.entry_id, entry.album.key ?? "", entry.name ?? "");
   }
@@ -106,16 +120,17 @@ export class GeolocateDatabaseAccess {
   updateGeoPOI(entry: AlbumEntry, geoPOI: string | null): void {
     if (!this.isWriter) throw new Error("updateGeoPOI requires READWRITE");
     const db = this.getDatabase();
+    const table = this.getGeoTable();
     const hasGeoPOI = geoPOI !== null && geoPOI.trim().length > 0 && geoPOI !== "{}" && geoPOI !== "[]";
     const result = db.prepare(`
-      UPDATE geo_poi_data SET geo_poi = ?, has_geo_poi = ?, processed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      UPDATE ${table} SET geo_poi = ?, has_geo_poi = ?, processed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
       WHERE album_key = ? AND entry_name = ?
     `).run(geoPOI, hasGeoPOI ? 1 : 0, entry.album.key ?? "", entry.name ?? "");
     if (result.changes === 0) {
       const entryRow = db.prepare("SELECT entry_id FROM album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key ?? "", entry.name ?? "") as { entry_id: string } | undefined;
       if (entryRow) {
         db.prepare(`
-          INSERT INTO geo_poi_data (entry_id, album_key, entry_name, geo_poi, has_geo_poi, processed_at, updated_at)
+          INSERT INTO ${table} (entry_id, album_key, entry_name, geo_poi, has_geo_poi, processed_at, updated_at)
           VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `).run(entryRow.entry_id, entry.album.key ?? "", entry.name ?? "", geoPOI, hasGeoPOI ? 1 : 0);
       }
@@ -124,7 +139,8 @@ export class GeolocateDatabaseAccess {
 
   removeEntry(entry: AlbumEntry): void {
     if (!this.isWriter) throw new Error("removeEntry requires READWRITE");
-    this.getDatabase().prepare(`DELETE FROM geo_poi_data WHERE album_key = ? AND entry_name = ?`).run(entry.album.key ?? "", entry.name ?? "");
+    const table = this.getGeoTable();
+    this.getDatabase().prepare(`DELETE FROM ${table} WHERE album_key = ? AND entry_name = ?`).run(entry.album.key ?? "", entry.name ?? "");
   }
 }
 

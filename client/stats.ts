@@ -4,12 +4,20 @@ declare const Plotly: any;
 
 const POLL_INTERVAL_MS = 2000;
 
-type TabId = "queue" | "entries" | "poi" | "memory";
+type TabId = "queue" | "entries" | "poi" | "memory" | "workers";
+
+interface WorkerStats {
+  memoryMB: number;
+  cpuPercent: number;
+  maxMemoryMB: number;
+  avgCpuPercent: number;
+}
 
 interface StatsResponse {
   locks: string[];
   series: Record<string, { x: number; y: number }[]>;
   extraction?: { pending: number; active: number; done: number };
+  workers?: Record<string, WorkerStats>;
   globalQueue?: {
     pending: number;
     active: number;
@@ -25,6 +33,7 @@ interface StatsResponse {
 function renderTabBar(activeTab: TabId, onTab: (id: TabId) => void): HTMLElement {
   const tabs: { id: TabId; label: string }[] = [
     { id: "queue", label: "Global queue" },
+    { id: "workers", label: "Workers" },
     { id: "entries", label: "Entries DB" },
     { id: "poi", label: "POI DB" },
     { id: "memory", label: "Memory & CPU" },
@@ -138,6 +147,47 @@ function renderPoiTab(poiData: Record<string, unknown[]> | null): HTMLElement {
   return div;
 }
 
+function renderWorkersTab(data: StatsResponse): HTMLElement {
+  const div = document.createElement("div");
+  const workers = data.workers ?? {};
+  const entries = Object.entries(workers);
+  if (entries.length === 0) {
+    div.innerHTML = "<p class='w3-padding'>No worker stats (workers may not have run yet).</p>";
+    return div;
+  }
+  div.innerHTML = `
+    <div class="w3-padding">
+      <h4>Background workers</h4>
+      <table class="w3-table w3-bordered w3-striped">
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Memory (MB)</th>
+            <th>Max memory (MB)</th>
+            <th>CPU %</th>
+            <th>Avg CPU %</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${entries
+            .map(
+              ([name, s]) =>
+                `<tr>
+                  <td>${name}</td>
+                  <td>${s.memoryMB.toFixed(2)}</td>
+                  <td>${s.maxMemoryMB.toFixed(2)}</td>
+                  <td>${s.cpuPercent.toFixed(1)}</td>
+                  <td>${s.avgCpuPercent.toFixed(1)}</td>
+                </tr>`
+            )
+            .join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+  return div;
+}
+
 function renderMemoryTab(data: StatsResponse): HTMLElement {
   const div = document.createElement("div");
   const mem = data.memory ?? {};
@@ -211,7 +261,7 @@ async function init() {
     try {
       const data = await fetchStats();
       statsData = data;
-      if (activeTab === "queue" || activeTab === "memory") {
+      if (activeTab === "queue" || activeTab === "memory" || activeTab === "workers") {
         renderActiveTab();
       }
       return data;
@@ -228,6 +278,10 @@ async function init() {
     if (activeTab === "queue" && statsData) {
       container.appendChild(renderQueueTab(statsData));
     } else if (activeTab === "queue") {
+      container.innerHTML = "<p class='w3-padding'>Loading stats…</p>";
+    } else if (activeTab === "workers" && statsData) {
+      container.appendChild(renderWorkersTab(statsData));
+    } else if (activeTab === "workers") {
       container.innerHTML = "<p class='w3-padding'>Loading stats…</p>";
     } else if (activeTab === "entries") {
       container.appendChild(renderEntriesTab(entriesData));

@@ -29,6 +29,7 @@ import {
   getEntryMetadata,
   getMutations,
 } from "../../../walker/queries";
+import { getFacesWorkerStorage } from "./faces-worker-storage";
 
 type PicasaFeatures = {
   contacts: ContactByHash;
@@ -129,6 +130,18 @@ export async function addCandidateFaceRectToEntry(
   referenceId: string,
   strategy: string,
 ) {
+  const ws = getFacesWorkerStorage();
+  if (ws) {
+    await ws.addContact(entry.album, referenceId, contact);
+    await addReferenceToFaceAlbum(
+      { hash, rect },
+      referenceId,
+      contact,
+    );
+    await ws.addFaceRect(entry, hash, rect);
+    return;
+  }
+
   const name = `candidateFaces-${strategy}`;
   const current = getEntryMetadata(entry);
   const iniFaces = (current[name as keyof AlbumEntryMetaData] as string) || "";

@@ -1,18 +1,14 @@
 import { parentPort, workerData } from "worker_threads";
+import { runGeolocateWorker } from "./internal/worker-thread";
+import { startWorkerStatsReporter, stopWorkerStatsReporter } from "../../utils/worker-stats";
 
-if (workerData?.imagesRoot) {
-  process.env.PICISA_PICTURE_FOLDER = workerData.imagesRoot;
-}
-
-const serviceName = workerData?.serviceName ?? "faces";
+const serviceName = workerData?.serviceName ?? "geolocate";
 
 async function main(): Promise<void> {
   parentPort?.postMessage({ type: "ready" });
-  const { startWorkerStatsReporter, stopWorkerStatsReporter } = await import("../../utils/worker-stats");
-  const { runFacesWorker } = await import("./internal/run-faces-worker");
   startWorkerStatsReporter();
   try {
-    await runFacesWorker();
+    await runGeolocateWorker();
   } finally {
     stopWorkerStatsReporter();
   }

@@ -1,0 +1,6 @@
+{
+  "faces": { "intervalMinutes": 1440, "enabled": true },
+  "geolocate": { "intervalMinutes": 60, "enabled": true },
+  "favoriteExporter": { "intervalMinutes": 30, "enabled": true },
+  "fts": { "intervalMinutes": 120, "enabled": true }
+}

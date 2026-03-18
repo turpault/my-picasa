@@ -31,7 +31,7 @@ import { imagesRoot, rootPath } from "./utils/constants";
 import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
 import { initUndo } from "./utils/undo";
-import { getExtractionStats, startWorkers } from "./worker-manager";
+import { getExtractionStats, getWorkerStats, startWorkers } from "./worker-manager";
 import {
   getGlobalQueuePendingByPriority,
   getGlobalQueueStats,
@@ -155,6 +155,7 @@ export async function startServer(p?: number) {
             series: await history(),
             locks: lockedLocks(),
             extraction: getExtractionStats(),
+            workers: getWorkerStats(),
             globalQueue: {
               ...(await getGlobalQueueStats()),
               pendingByPriority: await getGlobalQueuePendingByPriority(),
@@ -292,6 +293,9 @@ export async function startServer(p?: number) {
       },
       websocket: {
         open(ws) {
+          // Balance beginInteractiveRequest from fetch upgrade; WebSocket connection
+          // is long-lived and should not block background workers.
+          endInteractiveRequest();
           console.info("[socket]: Client has connected...");
           const wrapper = createBunWsWrapper(ws);
           const socket = socketAdaptorInit(wrapper);
@@ -317,7 +321,9 @@ export async function startServer(p?: number) {
             w.readyState = 3;
             w.onclose?.();
           }
-          endInteractiveRequest();
+          // #region agent log
+          fetch('http://127.0.0.1:7687/ingest/e59d8d66-a3fc-4141-b136-eb6275298101',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'402b95'},body:JSON.stringify({sessionId:'402b95',location:'start.ts:websocket.close',message:'H1: websocket closed',data:{hypothesisId:'H1'},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
         },
       },
     });

@@ -39,18 +39,19 @@ export class IndexingDatabaseAccess {
     if (!this.isWriter) return;
 
     const db = this.getDatabase();
-    const tablesExist = db.prepare(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('pictures','pictures_fts')"
-    ).all() as { name: string }[];
-    if (tablesExist.length < 2) {
+    const { pictures, pictures_fts } = this.getSearchTables();
+    try {
+      db.prepare(`SELECT 1 FROM ${pictures} LIMIT 1`).get();
+      db.prepare(`SELECT 1 FROM ${pictures_fts} LIMIT 1`).get();
+    } catch {
       debugLogger("pictures or pictures_fts table not yet created, skipping FTS integrity check");
       return;
     }
 
     debugLogger("Checking FTS integrity...");
     try {
-      const pictureCount = db.prepare("SELECT COUNT(*) as count FROM pictures").get() as { count: number };
-      const ftsCount = db.prepare("SELECT COUNT(*) as count FROM pictures_fts").get() as { count: number };
+      const pictureCount = db.prepare(`SELECT COUNT(*) as count FROM ${pictures}`).get() as { count: number };
+      const ftsCount = db.prepare(`SELECT COUNT(*) as count FROM ${pictures_fts}`).get() as { count: number };
 
       debugLogger(`Pictures: ${pictureCount.count}, FTS entries: ${ftsCount.count}`);
 
@@ -74,9 +75,10 @@ export class IndexingDatabaseAccess {
       throw new Error("rebuildFTSIndex can only be called on a READWRITE database instance");
     }
 
+    const { pictures_fts } = this.getSearchTables();
     debugLogger("Rebuilding FTS index to fix orphaned entries...");
     try {
-      this.getDatabase().run(`INSERT INTO pictures_fts(pictures_fts) VALUES('rebuild');`);
+      this.getDatabase().run(`INSERT INTO ${pictures_fts}(pictures_fts) VALUES('rebuild');`);
       debugLogger("FTS index rebuilt successfully");
     } catch (error) {
       debugLogger("Error rebuilding FTS index:", error);
@@ -95,15 +97,25 @@ export class IndexingDatabaseAccess {
     return this.isWriter;
   }
 
+  private getSearchTables(): { pictures: string; pictures_fts: string } {
+    try {
+      this.getDatabase().prepare("SELECT 1 FROM search.pictures LIMIT 1").get();
+      return { pictures: "search.pictures", pictures_fts: "search.pictures_fts" };
+    } catch {
+      return { pictures: "pictures", pictures_fts: "pictures_fts" };
+    }
+  }
+
   // ========== QUERY METHODS (Read-only operations) ==========
 
   /**
    * Get all entries for an album
    */
   getAlbumEntries(album: Album): AlbumEntry[] {
+    const { pictures } = this.getSearchTables();
     const entries = this.getDatabase()
       .prepare(
-        `SELECT * FROM pictures WHERE album_key = ?`,
+        `SELECT * FROM ${pictures} WHERE album_key = ?`,
       )
       .all(album.key ?? "") as any[];
     return entries.map(e => ({ album, name: e.entry_name }));
@@ -114,19 +126,20 @@ export class IndexingDatabaseAccess {
    */
   getEntriesNeedingReindex(): Array<{ album_key: string; album_name: string; entry_name: string }> {
     const db = this.getDatabase();
+    const { pictures } = this.getSearchTables();
     try {
       const hasIndexVersion = db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
       if (!hasIndexVersion.some((c) => c.name === "index_version")) {
         return [];
       }
-      const hasPicturesIndexVersion = db.prepare("PRAGMA table_info(pictures)").all() as Array<{ name: string }>;
+      const hasPicturesIndexVersion = db.prepare(`PRAGMA table_info(${pictures})`).all() as Array<{ name: string }>;
       if (!hasPicturesIndexVersion.some((c) => c.name === "index_version")) {
         return [];
       }
       const rows = db.prepare(`
         SELECT ae.album_key, a.name AS album_name, ae.entry_name
         FROM album_entries ae
-        LEFT JOIN pictures p ON ae.album_key = p.album_key AND ae.entry_name = p.entry_name
+        LEFT JOIN ${pictures} p ON ae.album_key = p.album_key AND ae.entry_name = p.entry_name
         LEFT JOIN albums a ON ae.album_id = a.album_id
         WHERE ae.index_version != COALESCE(p.index_version, -1)
       `).all() as Array<{ album_key: string; album_name: string; entry_name: string }>;
@@ -141,9 +154,10 @@ export class IndexingDatabaseAccess {
    * Check if an entry is indexed
    */
   isIndexed(entry: AlbumEntry): boolean {
+    const { pictures } = this.getSearchTables();
     const exists = this.getDatabase()
       .prepare(
-        `SELECT COUNT(*) as count FROM pictures WHERE album_key = ? AND entry_name = ?`,
+        `SELECT COUNT(*) as count FROM ${pictures} WHERE album_key = ? AND entry_name = ?`,
       )
       .get(entry.album.key ?? "", entry.name ?? "") as { count?: number } | undefined;
     if (exists === undefined || exists === null) {
@@ -161,12 +175,13 @@ export class IndexingDatabaseAccess {
     const whereConditions: string[] = [];
     const params: any[] = [];
 
+    const { pictures, pictures_fts } = this.getSearchTables();
     // Text search filter
     if (filters.text && filters.text.trim().length > 0) {
       const searchTerms = filters.text.trim().split(/\s+/).filter(term => term.length > 0);
       if (searchTerms.length > 0) {
         const ftsSearchTerms = searchTerms.map(term => `"${normalizeText(term)}"`).join(' OR ');
-        whereConditions.push('pictures_fts MATCH ?');
+        whereConditions.push(`${pictures_fts} MATCH ?`);
         params.push(ftsSearchTerms);
       }
     }
@@ -228,7 +243,7 @@ export class IndexingDatabaseAccess {
 
     // If no filters are applied, return all folders
     if (whereConditions.length === 0) {
-      const query = `SELECT p.album_key,p.album_name,COUNT(*) as match_count FROM pictures p GROUP BY p.album_key, p.album_name ORDER BY p.album_name DESC`;
+      const query = `SELECT p.album_key,p.album_name,COUNT(*) as match_count FROM ${pictures} p GROUP BY p.album_key, p.album_name ORDER BY p.album_name DESC`;
 
       try {
         const stmt = db.prepare(query);
@@ -251,11 +266,11 @@ export class IndexingDatabaseAccess {
     }
 
     // Build the main query with filters
-    let query = `SELECT p.album_key,p.album_name,COUNT(*) as match_count FROM pictures p `;
+    let query = `SELECT p.album_key,p.album_name,COUNT(*) as match_count FROM ${pictures} p `;
 
     // Add FTS join only if text search is used
     if (filters.text && filters.text.trim().length > 0) {
-      query += `JOIN pictures_fts fts ON p.id = fts.rowid `;
+      query += `JOIN ${pictures_fts} fts ON p.id = fts.rowid `;
     }
 
     query += `WHERE ${whereConditions.join(' AND ')} GROUP BY p.album_key, p.album_name ORDER BY p.album_name DESC `;
@@ -285,6 +300,7 @@ export class IndexingDatabaseAccess {
    */
   searchPicturesByFilters(filters: Filters, limit?: number, albumId?: string): AlbumEntry[] {
     const db = this.getDatabase();
+    const { pictures, pictures_fts } = this.getSearchTables();
     // Build WHERE conditions based on filters
     const whereConditions: string[] = [];
     const params: any[] = [];
@@ -294,7 +310,7 @@ export class IndexingDatabaseAccess {
       const searchTerms = filters.text.trim().split(/\s+/).filter(term => term.length > 0);
       if (searchTerms.length > 0) {
         const ftsSearchTerms = searchTerms.map(term => `"${normalizeText(term)}"`).join(' AND ');
-        whereConditions.push('pictures_fts MATCH ?');
+        whereConditions.push(`${pictures_fts} MATCH ?`);
         params.push(ftsSearchTerms);
       }
     }
@@ -369,8 +385,8 @@ export class IndexingDatabaseAccess {
     }
 
     const query = `
-      SELECT p.* FROM pictures p
-      ${filters.text && filters.text.trim().length > 0 ? 'JOIN pictures_fts fts ON p.id = fts.rowid' : ''}
+      SELECT p.* FROM ${pictures} p
+      ${filters.text && filters.text.trim().length > 0 ? `JOIN ${pictures_fts} fts ON p.id = fts.rowid` : ''}
       WHERE ${whereConditions.join(' AND ')}
       ORDER BY p.entry_name ASC
       ${limit ? 'LIMIT ?' : ''}
@@ -411,6 +427,7 @@ export class IndexingDatabaseAccess {
     }
 
     const db = this.getDatabase();
+    const { pictures, pictures_fts } = this.getSearchTables();
     // Create search terms for FTS with normalized text
     const searchTerms = matchingStrings.map(term => `"${normalizeText(term)}"`).join(' OR ');
 
@@ -419,9 +436,9 @@ export class IndexingDatabaseAccess {
         p.entry_name,
         p.album_key,
         p.album_name
-      FROM pictures p
-      JOIN pictures_fts fts ON p.id = fts.rowid
-      WHERE p.album_key = ? AND pictures_fts MATCH ?
+      FROM ${pictures} p
+      JOIN ${pictures_fts} fts ON p.id = fts.rowid
+      WHERE p.album_key = ? AND ${pictures_fts} MATCH ?
       ORDER BY p.entry_name ASC
     `;
 
@@ -453,12 +470,13 @@ export class IndexingDatabaseAccess {
    */
   getAllFolders(): AlbumWithData[] {
     const db = this.getDatabase();
+    const { pictures } = this.getSearchTables();
     const query = `
       SELECT 
         p.album_key,
         p.album_name,
         COUNT(*) as match_count
-      FROM pictures p
+      FROM ${pictures} p
       GROUP BY p.album_key, p.album_name
       ORDER BY p.album_name ASC
     `;
@@ -488,9 +506,10 @@ export class IndexingDatabaseAccess {
    */
   getStats(): { totalPictures: number; totalFolders: number; lastUpdated: string } {
     const db = this.getDatabase();
-    const totalPictures = db.prepare("SELECT COUNT(*) as count FROM pictures").get() as { count: number };
-    const totalFolders = db.prepare("SELECT COUNT(DISTINCT album_key) as count FROM pictures").get() as { count: number };
-    const lastUpdated = db.prepare("SELECT MAX(updated_at) as last_updated FROM pictures").get() as { last_updated: string };
+    const { pictures } = this.getSearchTables();
+    const totalPictures = db.prepare(`SELECT COUNT(*) as count FROM ${pictures}`).get() as { count: number };
+    const totalFolders = db.prepare(`SELECT COUNT(DISTINCT album_key) as count FROM ${pictures}`).get() as { count: number };
+    const lastUpdated = db.prepare(`SELECT MAX(updated_at) as last_updated FROM ${pictures}`).get() as { last_updated: string };
 
     return {
       totalPictures: totalPictures.count,
@@ -549,8 +568,9 @@ export class IndexingDatabaseAccess {
         const entryId = entryRow?.entry_id ?? "";
         const indexVersion = entryRow?.index_version ?? 0;
 
+        const { pictures } = this.getSearchTables();
         const insertStmt = db.prepare(`
-          INSERT OR REPLACE INTO pictures (
+          INSERT OR REPLACE INTO ${pictures} (
             entry_id, album_key, album_name, entry_name,
             persons, star_count, geo_poi, photostar, text_content, caption, entry_type, marked,
             index_version, updated_at
@@ -606,8 +626,9 @@ export class IndexingDatabaseAccess {
       throw new Error("clearAllMarks can only be called on a READWRITE database instance");
     }
 
+    const { pictures } = this.getSearchTables();
     debugLogger("Clearing all marks from database...");
-    this.getDatabase().run("UPDATE pictures SET marked = 0");
+    this.getDatabase().run(`UPDATE ${pictures} SET marked = 0`);
   }
 
   /**
@@ -619,17 +640,18 @@ export class IndexingDatabaseAccess {
     }
 
     const db = this.getDatabase();
+    const { pictures } = this.getSearchTables();
     debugLogger("Sweeping unmarked records...");
 
     // Count unmarked records before deletion
-    const countStmt = db.prepare("SELECT COUNT(*) as count FROM pictures WHERE marked = 0");
+    const countStmt = db.prepare(`SELECT COUNT(*) as count FROM ${pictures} WHERE marked = 0`);
     const count = countStmt.get() as { count: number };
 
     if (count.count > 0) {
       debugLogger(`Removing ${count.count} unmarked records...`);
 
       // Delete unmarked records
-      const deleteStmt = db.prepare("DELETE FROM pictures WHERE marked = 0");
+      const deleteStmt = db.prepare(`DELETE FROM ${pictures} WHERE marked = 0`);
       deleteStmt.run();
 
       // Clean up FTS index (this will be handled automatically by SQLite)
@@ -652,7 +674,8 @@ export class IndexingDatabaseAccess {
     return enqueueDb(
       () => {
         const db = this.getDatabase();
-        db.prepare(`DELETE FROM pictures WHERE album_key = ? AND entry_name = ?`).run(entry.album.key || "", entry.name || "");
+        const { pictures } = this.getSearchTables();
+        db.prepare(`DELETE FROM ${pictures} WHERE album_key = ? AND entry_name = ?`).run(entry.album.key || "", entry.name || "");
         debugLogger(`Removed entry ${entry.name} from database`);
       },
       `indexing.removePicture(${entry.name})`
@@ -674,8 +697,9 @@ export class IndexingDatabaseAccess {
           // Get geo POI from geolocate service
           const geoPOI = getGeoPOI(entry) || '';
 
+      const { pictures } = this.getSearchTables();
       const updateStmt = db.prepare(`
-        UPDATE pictures SET
+        UPDATE ${pictures} SET
           geo_poi = ?,
           updated_at = CURRENT_TIMESTAMP
         WHERE album_key = ? AND entry_name = ?
@@ -741,8 +765,9 @@ export class IndexingDatabaseAccess {
       const aeRow = db.prepare("SELECT index_version FROM album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key || '', entry.name || '') as { index_version?: number } | undefined;
       const indexVersion = aeRow?.index_version ?? 0;
 
+      const { pictures, pictures_fts } = this.getSearchTables();
       const updateStmt = db.prepare(`
-        UPDATE pictures SET
+        UPDATE ${pictures} SET
           persons = ?, star_count = ?, geo_poi = ?, photostar = ?, 
           text_content = ?, caption = ?, entry_type = ?, marked = 1,
           index_version = ?, updated_at = CURRENT_TIMESTAMP
@@ -758,10 +783,10 @@ export class IndexingDatabaseAccess {
       if (result.changes > 0) {
         // Update FTS index
         const ftsUpdateStmt = db.prepare(`
-          UPDATE pictures_fts SET
+          UPDATE ${pictures_fts} SET
             persons = ?, text_content = ?, caption = ?
           WHERE rowid = (
-            SELECT id FROM pictures WHERE album_key = ? AND entry_name = ?
+            SELECT id FROM ${pictures} WHERE album_key = ? AND entry_name = ?
           )
         `);
 
