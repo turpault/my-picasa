@@ -5,7 +5,7 @@ import { getEntryMetadata } from "../../walker/queries";
 import { isPicture, isVideo } from "../../../../shared/lib/utils";
 import { getGeoPOI } from "../../geolocate/queries";
 import { getEntriesDatabase } from "../../entries/internal/database";
-import { deferSync } from "../../../utils/defer-sync";
+import { enqueueDb } from "../../../utils/db-queue";
 
 const debugLogger = debug("app:indexing-db");
 
@@ -510,8 +510,9 @@ export class IndexingDatabaseAccess {
     }
 
     const picasaEntry = await getEntryMetadata(entry);
-    return deferSync(() => {
-      const db = this.getDatabase();
+    return enqueueDb(
+      () => {
+        const db = this.getDatabase();
 
       // Extract metadata from picasa entry
       const persons = picasaEntry.persons || '';
@@ -592,7 +593,9 @@ export class IndexingDatabaseAccess {
         });
         throw error;
       }
-    });
+    },
+      `indexing.indexPicture(${entry.name})`
+    );
   }
 
   /**
@@ -646,11 +649,14 @@ export class IndexingDatabaseAccess {
       throw new Error("removePicture can only be called on a READWRITE database instance");
     }
 
-    return deferSync(() => {
-      const db = this.getDatabase();
-      db.prepare(`DELETE FROM pictures WHERE album_key = ? AND entry_name = ?`).run(entry.album.key || "", entry.name || "");
-      debugLogger(`Removed entry ${entry.name} from database`);
-    });
+    return enqueueDb(
+      () => {
+        const db = this.getDatabase();
+        db.prepare(`DELETE FROM pictures WHERE album_key = ? AND entry_name = ?`).run(entry.album.key || "", entry.name || "");
+        debugLogger(`Removed entry ${entry.name} from database`);
+      },
+      `indexing.removePicture(${entry.name})`
+    );
   }
 
   /**
@@ -661,11 +667,12 @@ export class IndexingDatabaseAccess {
       throw new Error("updateGeoPOI can only be called on a READWRITE database instance");
     }
 
-    return deferSync(() => {
-      const db = this.getDatabase();
-    try {
-      // Get geo POI from geolocate service
-      const geoPOI = getGeoPOI(entry) || '';
+    return enqueueDb(
+      () => {
+        const db = this.getDatabase();
+        try {
+          // Get geo POI from geolocate service
+          const geoPOI = getGeoPOI(entry) || '';
 
       const updateStmt = db.prepare(`
         UPDATE pictures SET
@@ -689,7 +696,9 @@ export class IndexingDatabaseAccess {
       debugLogger(`Error updating geo POI for entry ${entry.name}:`, error);
       throw error;
     }
-    });
+    },
+      `indexing.updateGeoPOI(${entry.name})`
+    );
   }
 
   /**
@@ -700,10 +709,11 @@ export class IndexingDatabaseAccess {
       throw new Error("updateEntry can only be called on a READWRITE database instance");
     }
 
-    return deferSync(() => {
-      const db = this.getDatabase();
-      try {
-      // Extract metadata from picasa entry
+    return enqueueDb(
+      () => {
+        const db = this.getDatabase();
+        try {
+          // Extract metadata from picasa entry
       const persons = metadata.persons || '';
       const starCount = metadata.starCount || '';
       const photostar = metadata.photostar || false;
@@ -768,7 +778,9 @@ export class IndexingDatabaseAccess {
       debugLogger(`Error updating entry ${entry.name}:`, error);
       throw error;
     }
-    });
+    },
+      `indexing.updateEntry(${entry.name})`
+    );
   }
 }
 

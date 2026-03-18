@@ -14,7 +14,7 @@ import {
 } from "../../../../shared/types/types";
 import { imagesRoot } from "../../../utils/constants";
 import { ensureDbFormatOrRemove, isDev } from "../../../utils/ensure-db-format";
-import { deferSync } from "../../../utils/defer-sync";
+import { enqueueDb } from "../../../utils/db-queue";
 import { uuid } from "../../../../shared/lib/utils";
 
 const debugLogger = debug("app:entries-db");
@@ -570,7 +570,7 @@ class EntriesDatabaseAccess {
   // ========== Query methods (mirror walker API) ==========
 
   async getAllAlbums(): Promise<AlbumWithData[]> {
-    return deferSync(() => {
+    return enqueueDb(() => {
       const rows = this.db.prepare(`
         SELECT key, name, count, shortcut, lastModified FROM albums ORDER BY key
       `).all() as Array<{ key: string; name: string; count: number; shortcut: string | null; lastModified: string | null }>;
@@ -585,7 +585,7 @@ class EntriesDatabaseAccess {
   }
 
   async getAlbum(albumKey: string): Promise<AlbumWithData | undefined> {
-    return deferSync(() => {
+    return enqueueDb(() => {
       const row = this.db.prepare(`
         SELECT key, name, count, shortcut, lastModified FROM albums WHERE key = ?
       `).get(albumKey) as { key: string; name: string; count: number; shortcut: string | null; lastModified: string | null } | undefined;
@@ -601,7 +601,7 @@ class EntriesDatabaseAccess {
   }
 
   async getAlbumEntries(album: Album): Promise<AlbumEntry[]> {
-    return deferSync(() => {
+    return enqueueDb(() => {
       const rows = this.db.prepare(`
         SELECT entry_name FROM album_entries WHERE album_key = ? ORDER BY entry_name
       `).all(album.key) as Array<{ entry_name: string }>;
@@ -612,7 +612,7 @@ class EntriesDatabaseAccess {
   async getEntriesNeedingThumbnails(
     sizes: ThumbnailSize[],
   ): Promise<Array<{ album: Album; entry_name: string; size: ThumbnailSize }>> {
-    return deferSync(async () => {
+    return enqueueDb(async () => {
       const hasColumns = this.db
         .prepare("PRAGMA table_info(album_entries)")
         .all() as Array<{ name: string }>;
@@ -654,8 +654,9 @@ class EntriesDatabaseAccess {
   }
 
   async getEntryMetadata(entry: AlbumEntry): Promise<AlbumEntryMetaData> {
-    return deferSync(() => {
-      const row = this.db.prepare(`
+    return enqueueDb(
+      () => {
+        const row = this.db.prepare(`
       SELECT date_taken, photostar, star, star_count, caption, text,
         dimensions, dimensions_from_filter, rank, rotate, faces, filters, persons,
         filter_version, thumb_filter_version_small, thumb_filter_version_medium, thumb_filter_version_large
@@ -682,11 +683,13 @@ class EntriesDatabaseAccess {
     if (row.thumb_filter_version_medium !== undefined) metadata.thumbFilterVersionMedium = row.thumb_filter_version_medium;
     if (row.thumb_filter_version_large !== undefined) metadata.thumbFilterVersionLarge = row.thumb_filter_version_large;
     return metadata;
-    });
+    },
+      `entries.getEntryMetadata(${entry.name})`
+    );
   }
 
   async getShortcuts(): Promise<Shortcut[]> {
-    return deferSync(() => {
+    return enqueueDb(() => {
       const rows = this.db.prepare(`
         SELECT key, name, shortcut FROM albums WHERE shortcut IS NOT NULL AND shortcut != ''
       `).all() as Array<{ key: string; name: string; shortcut: string }>;
@@ -698,14 +701,14 @@ class EntriesDatabaseAccess {
   }
 
   async getAlbumShortcut(albumKey: string): Promise<string | undefined> {
-    return deferSync(() => {
+    return enqueueDb(() => {
       const row = this.db.prepare(`SELECT shortcut FROM albums WHERE key = ?`).get(albumKey) as { shortcut: string | null } | undefined;
       return row?.shortcut || undefined;
     });
   }
 
   async getAlbumMetaData(album: Album): Promise<AlbumMetaData> {
-    return deferSync(() => {
+    return enqueueDb(() => {
       const rows = this.db.prepare(`
       SELECT entry_name, date_taken, photostar, star, star_count, caption, text,
         dimensions, dimensions_from_filter, rank, rotate, faces, filters, persons
@@ -736,7 +739,7 @@ class EntriesDatabaseAccess {
   // ========== Write methods ==========
 
   async upsertAlbum(album: AlbumWithData): Promise<void> {
-    return deferSync(() => {
+    return enqueueDb(() => {
       if (!this.isWriter) throw new Error("upsertAlbum requires READWRITE");
       const existing = this.db.prepare("SELECT album_id FROM albums WHERE key = ?").get(album.key) as
         | { album_id: string }
@@ -750,14 +753,14 @@ class EntriesDatabaseAccess {
   }
 
   async deleteAlbum(albumKey: string): Promise<void> {
-    return deferSync(() => {
+    return enqueueDb(() => {
       if (!this.isWriter) throw new Error("deleteAlbum requires READWRITE");
       this.db.prepare(`DELETE FROM albums WHERE key = ?`).run(albumKey);
     });
   }
 
   async upsertEntry(entry: AlbumEntry, fileStats?: { mtime: string; size: number }): Promise<void> {
-    return deferSync(() => {
+    return enqueueDb(() => {
       if (!this.isWriter) throw new Error("upsertEntry requires READWRITE");
       const existing = this.db.prepare(`
       SELECT entry_id, album_id FROM album_entries WHERE album_key = ? AND entry_name = ?
@@ -789,7 +792,7 @@ class EntriesDatabaseAccess {
   }
 
   async getEntryFileStats(entry: AlbumEntry): Promise<{ mtime: string; size: number } | null> {
-    return deferSync(() => {
+    return enqueueDb(() => {
       const hasFileStats = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
       if (!hasFileStats.some((c) => c.name === "file_mtime")) return null;
 
@@ -802,7 +805,7 @@ class EntriesDatabaseAccess {
   }
 
   async updateEntryFileStats(entry: AlbumEntry, mtime: string, size: number): Promise<void> {
-    return deferSync(() => {
+    return enqueueDb(() => {
       if (!this.isWriter) throw new Error("updateEntryFileStats requires READWRITE");
       const hasFileStats = this.db.prepare("PRAGMA table_info(album_entries)").all() as Array<{ name: string }>;
       if (!hasFileStats.some((c) => c.name === "file_mtime")) return;
@@ -815,7 +818,7 @@ class EntriesDatabaseAccess {
   }
 
   async updateEntryLocation(entryId: string, albumKey: string, entryName: string): Promise<void> {
-    return deferSync(() => {
+    return enqueueDb(() => {
       if (!this.isWriter) throw new Error("updateEntryLocation requires READWRITE");
       const albumRow = this.db.prepare("SELECT album_id FROM albums WHERE key = ?").get(albumKey) as
         | { album_id: string }
@@ -836,14 +839,14 @@ class EntriesDatabaseAccess {
   }
 
   async deleteEntry(entry: AlbumEntry): Promise<void> {
-    return deferSync(() => {
+    return enqueueDb(() => {
       if (!this.isWriter) throw new Error("deleteEntry requires READWRITE");
       this.db.prepare(`DELETE FROM album_entries WHERE album_key = ? AND entry_name = ?`).run(entry.album.key, entry.name);
     });
   }
 
   async updateAlbumShortcut(albumKey: string, shortcut: string | null): Promise<void> {
-    return deferSync(() => {
+    return enqueueDb(() => {
       if (!this.isWriter) throw new Error("updateAlbumShortcut requires READWRITE");
       if (shortcut) {
         this.db.prepare(`UPDATE albums SET shortcut = NULL, updated_at = CURRENT_TIMESTAMP WHERE shortcut = ? AND key != ?`).run(shortcut, albumKey);
@@ -857,7 +860,7 @@ class EntriesDatabaseAccess {
     size: ThumbnailSize,
     filterVersion: number,
   ): Promise<void> {
-    return deferSync(() => {
+    return enqueueDb(() => {
       if (!this.isWriter) throw new Error("updateThumbFilterVersion requires READWRITE");
       const column =
         size === "th-small"
@@ -878,7 +881,7 @@ class EntriesDatabaseAccess {
     metadata: AlbumEntryMetaData,
     options?: { incrementFilterVersion?: boolean },
   ): Promise<void> {
-    return deferSync(() => {
+    return enqueueDb(() => {
       if (!this.isWriter) throw new Error("updateEntryMetadata requires READWRITE");
     const filterVersionIncrement = options?.incrementFilterVersion
       ? ", filter_version = filter_version + 1"

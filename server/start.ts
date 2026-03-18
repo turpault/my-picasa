@@ -36,6 +36,7 @@ import {
   getGlobalQueuePendingByPriority,
   getGlobalQueueStats,
 } from "./utils/global-job-queue";
+import { getDbQueueStats } from "./utils/db-queue";
 import {
   getEntriesDbContents,
   getPoiDbContents,
@@ -158,6 +159,7 @@ export async function startServer(p?: number) {
               ...(await getGlobalQueueStats()),
               pendingByPriority: await getGlobalQueuePendingByPriority(),
             },
+            dbQueue: getDbQueueStats(),
             memory: process.memoryUsage(),
             cpuLoad: getCpuLoad(),
             activity: getActivityStatus(),

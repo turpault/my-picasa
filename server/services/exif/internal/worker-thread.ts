@@ -6,6 +6,7 @@ import { isPicture, isVideo, sleep } from "../../../../shared/lib/utils";
 import { events } from "../../../../shared/server-events";
 import { AlbumEntry, ExifData, ExifTag } from "../../../../shared/types/types";
 import { deferSync } from "../../../utils/defer-sync";
+import { enqueueDb } from "../../../utils/db-queue";
 import { dimensionsFromFileBuffer } from "../../../imageOperations/sharp-processor";
 import { entryFilePath } from "../../../utils/serverUtils";
 import type { ExifColumns } from "./database";
@@ -176,7 +177,10 @@ async function extractExifDataFromFile(entry: AlbumEntry, withStats = false): Pr
         }
         return {};
       });
-      const dimensions = await deferSync(() => dimensionsFromFileBuffer(fileData));
+      const dimensions = await deferSync(
+        () => dimensionsFromFileBuffer(fileData),
+        "exif.dimensionsFromFileBuffer"
+      );
       const filtered: ExifData = {
         ...filterExifTags(tags || {}),
         imageWidth: dimensions.width,
@@ -216,12 +220,15 @@ function isSqliteLockError(e: unknown): boolean {
  */
 export async function extractExifData(entry: AlbumEntry): Promise<void> {
   const db = getExifDatabaseReadWrite();
+  const start = performance.now();
   try {
     debugLogger(`Extracting EXIF data for ${entry.name}`);
     const exif = await extractExifDataFromFile(entry, false);
     const exifJson = exif && Object.keys(exif).length > 0 ? JSON.stringify(exif) : "{}";
     const columns = extractExifColumns(exif);
     await updateExifWithRetry(db, entry, exifJson, columns);
+    const elapsed = performance.now() - start;
+    if (elapsed > 200) debugLogger(`EXIF ${entry.name} done in %.0fms`, elapsed);
     events.emit("exifDataProcessed", entry);
   } catch (error) {
     debugLogger(`Error extracting EXIF data for ${entry.name}:`, error);
@@ -242,7 +249,10 @@ async function updateExifWithRetry(
 ): Promise<void> {
   for (let attempt = 0; attempt < MAX_DB_RETRIES; attempt++) {
     try {
-      await deferSync(() => db.updateExifData(entry, exifJson, columns));
+      await enqueueDb(
+        () => db.updateExifData(entry, exifJson, columns),
+        `exif.updateExifData(${entry.name})`
+      );
       return;
     } catch (e) {
       if (attempt < MAX_DB_RETRIES - 1 && isSqliteLockError(e)) {

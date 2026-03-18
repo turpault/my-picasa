@@ -1,6 +1,7 @@
 /**
  * Stats DB routes - list contents of picisa_entries and poi databases for the stats UI.
  */
+import { enqueueDb } from "../utils/db-queue";
 
 const DEFAULT_LIMIT = 200;
 
@@ -29,19 +30,23 @@ function getTableContents(
 export async function getEntriesDbContents(
   limit: number = DEFAULT_LIMIT
 ): Promise<Record<string, unknown[]>> {
-  const { getWalkerDatabase } = await import(
-    "../services/walker/internal/database"
-  );
-  const db = getWalkerDatabase().getDatabase();
-  return getTableContents(db, limit);
+  return enqueueDb(async () => {
+    const { getWalkerDatabase } = await import(
+      "../services/walker/internal/database"
+    );
+    const db = getWalkerDatabase().getDatabase();
+    return getTableContents(db, limit);
+  }, "stats.getEntriesDbContents");
 }
 
 export async function getPoiDbContents(
   limit: number = DEFAULT_LIMIT
 ): Promise<Record<string, unknown[]>> {
-  const { getPoiDb } = await import(
-    "../services/geolocate/internal/poi/poi-database"
-  );
-  const db = getPoiDb();
-  return getTableContents(db, limit);
+  return enqueueDb(async () => {
+    const { getPoiDb } = await import(
+      "../services/geolocate/internal/poi/poi-database"
+    );
+    const db = getPoiDb();
+    return getTableContents(db, limit);
+  }, "stats.getPoiDbContents");
 }

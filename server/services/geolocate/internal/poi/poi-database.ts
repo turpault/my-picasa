@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { join } from "path";
 import { imagesRoot } from "../../../../utils/constants";
 import { ensureDbFormatOrRemove, isDev } from "../../../../utils/ensure-db-format";
-import { deferSync } from "../../../../utils/defer-sync";
+import { enqueueDb } from "../../../../utils/db-queue";
 import { info } from "console";
 import { GeoPOI } from "../../../../../shared/types/types";
 import { POI_TYPE } from "./poi-types";
@@ -88,7 +88,7 @@ export function closePoiDb() {
 export async function getProcessedFileInfo(
   filename: string
 ): Promise<{ last_modified: string } | null> {
-  return deferSync(() => {
+  return enqueueDb(() => {
     const db = getPoiDb();
     const result = db
       .prepare("SELECT last_modified FROM processed_files WHERE filename = ?")
@@ -106,7 +106,7 @@ export async function insertPoiBatch(
 ): Promise<number> {
   if (items.length === 0) return 0;
 
-  return deferSync(() => {
+  return enqueueDb(() => {
     const db = getPoiDb();
     const insertStmt = db.prepare("INSERT INTO poi (type, lat, lon, label) VALUES (?, ?, ?, ?)");
 
@@ -131,7 +131,7 @@ export async function markFileAsProcessed(
   filename: string,
   lastModified: string
 ): Promise<void> {
-  return deferSync(() => {
+  return enqueueDb(() => {
     const db = getPoiDb();
     db.prepare("INSERT OR REPLACE INTO processed_files (filename, last_modified) VALUES (?, ?)")
       .run(filename, lastModified);
@@ -145,7 +145,8 @@ export async function getLocations(
   lat: number,
   long: number,
 ): Promise<GeoPOI[]> {
-  return deferSync(() => {
+  return enqueueDb(
+    () => {
     const db = getPoiDb();
     const idsFromTypes = Object.fromEntries(
       Object.keys(POI_TYPE).map((v) => [POI_TYPE[v as any], v]),
@@ -250,7 +251,9 @@ export async function getLocations(
 
     finalRes.sort((a, b) => a.distance - b.distance);
     return finalRes;
-  });
+  },
+    "poi.getLocations"
+  );
 }
 
 /**

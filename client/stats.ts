@@ -16,6 +16,7 @@ interface StatsResponse {
     done: number;
     pendingByPriority: Array<{ priority: number; count: number; types: string }>;
   };
+  dbQueue?: { pending: number; active: number };
   memory?: NodeJS.MemoryUsage;
   cpuLoad?: number;
   activity?: { lastActivityMs: number; lockCount: number };
@@ -49,6 +50,7 @@ function renderQueueTab(data: StatsResponse): HTMLElement {
     pendingByPriority: [],
   };
   const total = q.pending + q.active;
+  const dbq = data.dbQueue ?? { pending: 0, active: 0 };
 
   let contentsHtml = "";
   if (q.pendingByPriority.length > 0) {
@@ -78,6 +80,11 @@ function renderQueueTab(data: StatsResponse): HTMLElement {
       <div class="w3-cell" style="width:25%">
         <strong>Done</strong><br>
         <span class="w3-xlarge">${q.done}</span>
+      </div>
+      <div class="w3-cell" style="width:25%">
+        <strong>DB queue</strong><br>
+        <span class="w3-xlarge">${dbq.pending}</span>
+        <small class="w3-text-grey"> pending (${dbq.active} active)</small>
       </div>
     </div>
     ${contentsHtml}
