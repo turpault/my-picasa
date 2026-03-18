@@ -2,8 +2,8 @@ import debug from "debug";
 import { addJob } from "../../../utils/global-job-queue";
 import { waitUntilIdle } from "../../../utils/busy";
 import { AlbumEntry } from "../../../../shared/types/types";
-import { getExifDatabaseReadWrite } from "../../exif/internal/database";
-import { getGeolocateDatabaseReadWrite } from "../../geolocate/internal/database";
+import { getExifDatabaseReadOnly, getExifDatabaseReadWrite } from "../../exif/internal/database";
+import { getGeolocateDatabaseReadOnly, getGeolocateDatabaseReadWrite } from "../../geolocate/internal/database";
 import { getIndexingDatabaseReadWrite } from "../../search/internal/database";
 import { extractExifData } from "../../exif/internal/worker-thread";
 import { initPOIDB } from "../../geolocate/internal/poi/ingest";
@@ -53,7 +53,7 @@ function setupEventListeners(): void {
 }
 
 async function processUnprocessedExif(): Promise<void> {
-  const db = getExifDatabaseReadWrite();
+  const db = getExifDatabaseReadOnly();
   const unprocessed = db.getUnprocessedEntries();
   if (unprocessed.length === 0) return;
 
@@ -72,8 +72,9 @@ async function processUnprocessedExif(): Promise<void> {
 export async function runExtractionWorker(): Promise<void> {
   await initPOIDB();
 
-  getExifDatabaseReadWrite();
-  getGeolocateDatabaseReadWrite();
+  // Open DBs (read-only for exif/geo; indexing needs read-write for FTS integrity check)
+  getExifDatabaseReadOnly();
+  getGeolocateDatabaseReadOnly();
   getIndexingDatabaseReadWrite();
 
   await processUnprocessedExif();
