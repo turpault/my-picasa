@@ -1,8 +1,8 @@
 /**
- * Helper for workers to report memory/CPU stats to main process.
+ * Helper for child processes to report memory/CPU stats to parent via Bun IPC.
  * Call startWorkerStatsReporter() at the beginning of a worker run.
+ * Uses process.send() (available when spawned with Bun.spawn ipc).
  */
-import { parentPort } from "worker_threads";
 
 export interface WorkerStatsPayload {
   memoryMB: number;
@@ -44,15 +44,17 @@ export function startWorkerStatsReporter(): void {
       ? cpuSamples.reduce((a, b) => a + b, 0) / cpuSamples.length
       : 0;
 
-    parentPort?.postMessage({
-      type: "stats",
-      data: {
-        memoryMB: Math.round(memMB * 100) / 100,
-        cpuPercent: Math.round(cpuPercent * 10) / 10,
-        maxMemoryMB: Math.round(maxMemoryMB * 100) / 100,
-        avgCpuPercent: Math.round(avgCpu * 10) / 10,
-      } as WorkerStatsPayload,
-    });
+    if (typeof process.send === "function") {
+      process.send({
+        type: "stats",
+        data: {
+          memoryMB: Math.round(memMB * 100) / 100,
+          cpuPercent: Math.round(cpuPercent * 10) / 10,
+          maxMemoryMB: Math.round(maxMemoryMB * 100) / 100,
+          avgCpuPercent: Math.round(avgCpu * 10) / 10,
+        } as WorkerStatsPayload,
+      });
+    }
   }, STATS_INTERVAL_MS);
 }
 

@@ -1,13 +1,11 @@
-import { parentPort, workerData } from "worker_threads";
+const serviceName = process.env.PICISA_SERVICE_NAME ?? "faces";
 
-if (workerData?.imagesRoot) {
-  process.env.PICISA_PICTURE_FOLDER = workerData.imagesRoot;
+function send(msg: { type: string; data?: unknown }): void {
+  if (typeof process.send === "function") process.send(msg);
 }
 
-const serviceName = workerData?.serviceName ?? "faces";
-
 async function main(): Promise<void> {
-  parentPort?.postMessage({ type: "ready" });
+  send({ type: "ready" });
   const { startWorkerStatsReporter, stopWorkerStatsReporter } = await import("../../utils/worker-stats");
   const { runFacesWorker } = await import("./internal/run-faces-worker");
   startWorkerStatsReporter();
@@ -16,7 +14,7 @@ async function main(): Promise<void> {
   } finally {
     stopWorkerStatsReporter();
   }
-  parentPort?.postMessage({ type: "done" });
+  send({ type: "done" });
 }
 
 main().catch((err) => {

@@ -46,7 +46,7 @@ server/services/<serviceName>/
 
 ### Rules
 
-1. **Worker entry**: Each service has a `worker.ts` that imports from `./internal/worker-thread` and exposes a `ready` message.
+1. **Worker entry**: Each service has a `worker.ts` that is spawned via `Bun.spawn` and communicates via IPC (`process.send`). Parent uses `Bun.spawn([process.execPath, workerPath], { ipc, env })`.
 2. **Internal visibility**: Code in `internal/` is implementation detail. Only `worker.ts`, `queries.ts`, and RPC handlers should import from `internal/`.
 3. **Database access**: Databases live in `internal/` (e.g. `internal/database.ts`, `internal/poi/poi-database.ts`). Use `getXxxDb()` or `getXxxDatabaseReadOnly()` singletons.
 4. **Cross-service imports**: Prefer RPC or events over direct imports. If a service needs another, import only its public API (`queries.ts` or exported functions from the service root).
@@ -58,7 +58,7 @@ Each worker service (faces, geolocate, search, favorite-exporter) has two separa
 | Component | Purpose | Location | Used by |
 |-----------|---------|----------|---------|
 | **Reader** | Runs database queries only. Read-only access. | `queries.ts`, `internal/database.ts` (read path) | Main process **only** |
-| **Writer** | Runs the process and writes to the database (or filesystem for favorite-exporter). May use reader for queries. | `worker.ts`, `internal/worker-database.ts`, `internal/run-*-worker.ts`, `internal/worker-thread.ts`, `internal/export-favorites.ts` | Worker thread only |
+| **Writer** | Runs the process and writes to the database (or filesystem for favorite-exporter). May use reader for queries. | `worker.ts`, `internal/worker-database.ts`, `internal/run-*-worker.ts`, `internal/worker-thread.ts`, `internal/export-favorites.ts` | Child process only (Bun.spawn) |
 
 **Rules:**
 - The main process **only** accesses the reader component.

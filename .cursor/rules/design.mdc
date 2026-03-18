@@ -17,5 +17,9 @@ alwaysApply: true
 6. **Databases**: In `internal/`; use prepared statements; close on exit.
 7. **Picture deletion**: Never delete for real; move to a hidden folder when user triggers deletion.
 8. **Source of truth**: `.picasa.ini` for user edits; databases are derived from it and pictures, and may be write-through caches.
+9. **Worker service reader/writer split**: Each worker service has two separate components:
+   - **Reader**: `queries.ts` and read-only database access. Runs queries only. The main process **only** accesses the reader. Never imports writer code.
+   - **Writer**: `worker.ts`, `internal/worker-database.ts`, `internal/run-*-worker.ts`, `internal/worker-thread.ts`. Runs the process and writes to the database. May import from the reader. Runs in a child process (Bun.spawn).
+   - The reader component **never** imports from: `worker-database`, `run-*-worker`, `worker-thread` (writer logic), or `worker.ts`.
 
 When adding services, workers, or RPC handlers, match existing patterns in `server/services/`, `server/rpc/`, and `shared/`.

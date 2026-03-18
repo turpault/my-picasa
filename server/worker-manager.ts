@@ -1,4 +1,4 @@
-import { Worker } from "worker_threads";
+/// <reference types="bun-types" />
 import { join } from "path";
 import { initGlobalJobQueue } from "./utils/global-job-queue";
 import { setupGlobalJobSchedulers } from "./utils/global-job-schedulers";
@@ -79,32 +79,25 @@ async function runBackgroundWorker(serviceName: string): Promise<void> {
   if (!svcConfig?.enabled) return;
 
   const workerPath = getWorkerPath(serviceName);
-  return new Promise<void>((resolve, reject) => {
-    const worker = new Worker(workerPath, {
-      workerData: { serviceName, imagesRoot },
-      execArgv: process.execArgv,
-    });
-
-    worker.on("message", (msg: { type: string; data?: WorkerStatsPayload }) => {
-      if (msg.type === "stats" && msg.data) {
-        updateWorkerStats(serviceName, msg.data);
+  const child = Bun.spawn([process.execPath, workerPath], {
+    cwd: join(__dirname, ".."),
+    env: {
+      ...process.env,
+      PICISA_SERVICE_NAME: serviceName,
+      PICISA_PICTURE_FOLDER: imagesRoot,
+    },
+    ipc(message: { type: string; data?: WorkerStatsPayload }) {
+      if (message?.type === "stats" && message.data) {
+        updateWorkerStats(serviceName, message.data);
       }
-    });
-
-    worker.on("error", (err) => {
-      console.error(`Worker ${serviceName} error:`, err);
-      reject(err);
-    });
-
-    worker.on("exit", (code) => {
-      if (code !== 0) {
-        reject(new Error(`Worker ${serviceName} exited with code ${code}`));
-      } else {
-        lastRunByService[serviceName] = Date.now();
-        resolve();
-      }
-    });
+    },
   });
+
+  const code = await child.exited;
+  if (code !== 0) {
+    throw new Error(`Worker ${serviceName} exited with code ${code}`);
+  }
+  lastRunByService[serviceName] = Date.now();
 }
 
 async function runAllBackgroundWorkers(): Promise<void> {

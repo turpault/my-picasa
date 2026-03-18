@@ -1,18 +1,21 @@
-import { parentPort, workerData } from "worker_threads";
 import { runFtsWorker } from "./internal/run-fts-worker";
 import { startWorkerStatsReporter, stopWorkerStatsReporter } from "../../utils/worker-stats";
 
-const serviceName = workerData?.serviceName ?? "fts";
+const serviceName = process.env.PICISA_SERVICE_NAME ?? "fts";
+
+function send(msg: { type: string; data?: unknown }): void {
+  if (typeof process.send === "function") process.send(msg);
+}
 
 async function main(): Promise<void> {
-  parentPort?.postMessage({ type: "ready" });
+  send({ type: "ready" });
   startWorkerStatsReporter();
   try {
     await runFtsWorker();
   } finally {
     stopWorkerStatsReporter();
   }
-  parentPort?.postMessage({ type: "done" });
+  send({ type: "done" });
 }
 
 main().catch((err) => {
