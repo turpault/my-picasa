@@ -4,7 +4,6 @@ import { AlbumEntry, AlbumEntryMetaData } from "../../../../shared/types/types";
 import { getExifDatabaseReadOnly, getExifDatabaseReadWrite } from "../../exif/database";
 import { getGeolocateDatabaseReadOnly, getGeolocateDatabaseReadWrite } from "../../geolocate/database";
 import { getIndexingDatabaseReadWrite } from "../../search/database";
-import { initPOIDB } from "../../geolocate/poi";
 const debugLogger = debug("app:bg-extraction");
 
 export async function runRemoveJob(entry: AlbumEntry): Promise<void> {
@@ -32,8 +31,6 @@ export async function runUpdateEntryJob(entry: AlbumEntry, metadata: AlbumEntryM
 }
 
 export async function runExtractionWorker(): Promise<void> {
-  await initPOIDB();
-
   // Open DBs (read-only for exif/geo; indexing needs read-write for FTS integrity check)
   getExifDatabaseReadOnly();
   getGeolocateDatabaseReadOnly();
