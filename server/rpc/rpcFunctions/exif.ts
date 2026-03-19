@@ -3,6 +3,7 @@ import { stat } from "fs/promises";
 import { AlbumEntry } from "../../../shared/types/types";
 import { entryFilePath } from "../../utils/serverUtils";
 import { getExifData as getExifDataFromService, isExifProcessed } from "../../services/exif/queries";
+import { extractExifData } from "../../services/exif/internal/extract";
 
 export function toExifDate(isoDate: string) {
   // exif is YYYY:MM:DD HH:MM:SS
@@ -17,32 +18,25 @@ export function toExifDate(isoDate: string) {
 }
 
 /**
- * Get EXIF data for an entry from the EXIF service database
- * Returns null if the entry has not been processed yet
- * Returns an empty object {} if the entry has been processed but has no EXIF data
+ * Get EXIF data for an entry. Lazy, on-demand: extracts from file if not yet processed.
+ * Returns null if the entry cannot be processed (e.g. not a picture)
+ * Returns an empty object {} if processed but has no EXIF data
  * Returns the parsed EXIF data object if available
  */
-export function getExifData(entry: AlbumEntry): any {
-  // Check if the entry has been processed
+export async function getExifData(entry: AlbumEntry): Promise<any> {
   if (!isExifProcessed(entry)) {
-    // Not processed yet - return null
-    return null;
+    await extractExifData(entry);
   }
 
-  // Entry has been processed - get the data
   const exifJson = getExifDataFromService(entry);
 
   if (!exifJson || exifJson === "{}" || exifJson.trim() === "") {
-    // Processed but no EXIF data - return empty object
     return {};
   }
 
   try {
-    const exif = JSON.parse(exifJson);
-    // If parsing results in an empty object, return it
-    return exif;
+    return JSON.parse(exifJson);
   } catch (e) {
-    // If parsing fails, return empty object
     return {};
   }
 }

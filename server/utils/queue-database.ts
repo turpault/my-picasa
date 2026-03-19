@@ -11,14 +11,16 @@ import { enqueueDb } from "./db-queue";
 
 const debugLogger = debug("app:queue-db");
 
-const QUEUE_DB_PATH = join(imagesRoot, "picisa_queue.db");
+const DEFAULT_QUEUE_DB_PATH = join(imagesRoot, "picisa_queue.db");
 
 let db: Database | null = null;
 
-export function initQueueDatabase(): void {
+export function initQueueDatabase(customPath?: string): void {
   if (db) return;
-  db = new Database(QUEUE_DB_PATH);
+  const path = customPath ?? DEFAULT_QUEUE_DB_PATH;
+  db = new Database(path);
   db.run("PRAGMA journal_mode=WAL");
+  db.run("PRAGMA busy_timeout=10000");
   db.run(`
     CREATE TABLE IF NOT EXISTS queue (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,7 +30,7 @@ export function initQueueDatabase(): void {
     )
   `);
   db.run("CREATE INDEX IF NOT EXISTS idx_queue_pick ON queue(priority, created_at)");
-  debugLogger("Queue database initialized at %s", QUEUE_DB_PATH);
+  debugLogger("Queue database initialized at %s", path);
 }
 
 export function clearQueueDatabase(): void {

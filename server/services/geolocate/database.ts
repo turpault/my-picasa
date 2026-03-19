@@ -1,8 +1,9 @@
-import { AlbumEntry } from "../../../../shared/types/types";
-import { getExifData } from "../../../rpc/rpcFunctions/exif";
-import { getEntriesDatabase } from "../../entries/internal/database";
+import { Database } from "bun:sqlite";
+import debug from "debug";
+import { AlbumEntry } from "../../../shared/types/types";
+import { getEntriesDatabase } from "../entries/internal/database";
 
-const debugLogger = require("debug")("app:geolocate-db");
+const debugLogger = debug("app:geolocate-db");
 
 export type OpenMode = "READ" | "READWRITE";
 
@@ -10,7 +11,7 @@ export type OpenMode = "READ" | "READWRITE";
  * Geolocate database access - uses geo_poi_data table in picisa_entries.db (Phase 3).
  */
 export class GeolocateDatabaseAccess {
-  private getDb: () => ReturnType<typeof getEntriesDatabase>["getDatabase"];
+  private getDb: () => Database;
   private isWriter: boolean;
 
   constructor(openMode: OpenMode = "READ") {
@@ -18,7 +19,7 @@ export class GeolocateDatabaseAccess {
     this.getDb = () => getEntriesDatabase().getDatabase();
   }
 
-  getDatabase() {
+  getDatabase(): Database {
     return this.getDb();
   }
 
@@ -36,6 +37,15 @@ export class GeolocateDatabaseAccess {
       return "geo.geo_poi_data";
     } catch {
       return "geo_poi_data";
+    }
+  }
+
+  private getExifTable(): string {
+    try {
+      this.getDatabase().prepare("SELECT 1 FROM exif.exif_data LIMIT 1").get();
+      return "exif.exif_data";
+    } catch {
+      return "exif_data";
     }
   }
 
@@ -71,15 +81,26 @@ export class GeolocateDatabaseAccess {
     }
   }
 
+  /**
+   * Read latitude/longitude from exif_data table (entries DB, read-only).
+   * Returns null if entry has no GPS data in the database.
+   */
   getCoordinates(entry: AlbumEntry): { latitude: number; longitude: number } | null {
-    const exif = getExifData(entry);
-    if (exif === null || Object.keys(exif).length === 0) return null;
     try {
-      const { GPSLatitude, GPSLatitudeRef, GPSLongitudeRef, GPSLongitude } = exif;
-      if (GPSLatitude && GPSLatitudeRef && GPSLongitudeRef && GPSLongitude) {
-        const latitude = (GPSLatitudeRef === "N" ? 1 : -1) * (GPSLatitude[0] + GPSLatitude[1] / 60 + GPSLatitude[2] / 3600);
-        const longitude = (GPSLongitudeRef === "E" ? 1 : -1) * (GPSLongitude[0] + GPSLongitude[1] / 60 + GPSLongitude[2] / 3600);
-        return { latitude, longitude };
+      const table = this.getExifTable();
+      const result = this.getDatabase()
+        .prepare(
+          `SELECT e.latitude, e.longitude
+           FROM album_entries ae
+           JOIN ${table} e ON ae.entry_id = e.entry_id
+           WHERE ae.album_key = ? AND ae.entry_name = ?
+             AND e.latitude IS NOT NULL AND e.longitude IS NOT NULL`
+        )
+        .get(entry.album.key ?? "", entry.name ?? "") as
+        | { latitude: number; longitude: number }
+        | undefined;
+      if (result && typeof result.latitude === "number" && typeof result.longitude === "number") {
+        return result;
       }
     } catch {
       /* */

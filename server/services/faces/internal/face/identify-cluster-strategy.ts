@@ -22,7 +22,7 @@ import {
   isUsefulReference,
   rectOfReference,
 } from "../../../../operations/faces/face-utils";
-import { addCandidateFaceRectToEntry } from "./face-db";
+import { addCandidateFaceRectToEntry } from "./face-db-writer";
 const debug = Debug("app:face-db");
 
 type Cluster = {

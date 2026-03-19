@@ -52,7 +52,7 @@ async function sortAssetsByRank(entries: AlbumEntry[]) {
     Object.assign(entry, { rank: meta.rank });
   }
 
-  sortByKey(entries as (AlbumEntry & { rank: any })[], ["rank"], ["numeric"]);
+  sortByKey(entries as (AlbumEntry & { rank?: string | number })[], ["rank"], ["numeric"]);
 }
 
 async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {

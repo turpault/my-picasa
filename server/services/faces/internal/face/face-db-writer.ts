@@ -1,72 +1,29 @@
+/**
+ * Faces writer component - runs in worker thread only. Writes to picisa_faces.db or .picasa.ini.
+ * May import from face-db-reader. Never imported by main process.
+ */
 import {
   decodeFaces,
   encodeFaces,
-  idFromAlbumEntry,
 } from "../../../../../shared/lib/utils";
 import {
-  Album,
   AlbumEntry,
   AlbumEntryMetaData,
   Contact,
-  ContactByHash,
   Face,
-  FaceList,
-  Reference,
 } from "../../../../../shared/types/types";
 import {
   addReferenceToFaceAlbum,
   removeReferenceToFaceAlbum,
 } from "../../../../operations/faces/faces";
-import { readReferencesOfEntry } from "../../../../rpc/referenceFiles";
 import {
   updateContactInAlbum,
 } from "../../../walker/internal/picasa-ini";
 import {
-  getAlbumEntries,
-  getAllAlbums,
   getAlbumPicasaContactByHash,
-  getContactsFromAlbum,
   getEntryMetadata,
   getMutations,
 } from "../../../walker/queries";
-import { getFacesWorkerStorage } from "./faces-worker-storage";
-
-type PicasaFeatures = {
-  contacts: ContactByHash;
-  facesByEntry: {
-    [entryId: string]: FaceList;
-  };
-};
-
-export async function getPicasaFeatures(): Promise<PicasaFeatures> {
-  const self = getPicasaFeatures as any;
-  if (self._features) {
-    return self._features;
-  }
-  self._features = {
-    contacts: {},
-    facesByEntry: {},
-  } as PicasaFeatures;
-  // Scan all the contacts
-  const albums = await getAllAlbums();
-  await Promise.all(
-    albums.map(async (album) => {
-      const entries = await getAlbumEntries(album);
-      const contacts = await getContactsFromAlbum(album);
-      self._features.contacts = {
-        ...self._features.contacts,
-        ...contacts,
-      };
-      for (const entry of entries) {
-        const entryMeta = getEntryMetadata(entry);
-        const faceString = entryMeta.faces;
-        const faces = faceString ? decodeFaces(faceString) : [];
-        self._features.facesByEntry[idFromAlbumEntry(entry)] = faces;
-      }
-    }),
-  );
-  return self._features;
-}
 
 export async function addFaceRectToEntry(
   entry: AlbumEntry,
@@ -75,7 +32,7 @@ export async function addFaceRectToEntry(
   referenceId: string,
 ) {
   const name = "faces";
-  const current = getEntryMetadata(entry);
+  const current = await getEntryMetadata(entry);
   const iniFaces = current[name] || "";
   const faces = decodeFaces(iniFaces);
   if (faces.find((f) => f.hash === referenceId)) {
@@ -94,34 +51,6 @@ export async function addFaceRectToEntry(
   return;
 }
 
-export async function getFaceDataFromAlbumEntry(entry: AlbumEntry) {
-  const names = { faces: true, candidateFaces: false };
-  const promises: Promise<{
-    face: Face;
-    contact: Contact;
-    isCandidate?: boolean;
-    referenceData?: Reference;
-  }>[] = [];
-  const current = getEntryMetadata(entry);
-  const referenceData = await readReferencesOfEntry(entry);
-  for (const [name, isCandidate] of Object.entries(names)) {
-    const iniFaces = (current as any)[name] || "";
-    const faces = decodeFaces(iniFaces);
-    promises.push(
-      ...faces.map(async (face) => {
-        const contact = await getContact(entry.album, face.hash);
-        return {
-          face,
-          contact,
-          isCandidate,
-          referenceData: referenceData?.find((r) => r.id === face.hash),
-        };
-      }),
-    );
-  }
-  return Promise.all(promises);
-}
-
 export async function addCandidateFaceRectToEntry(
   entry: AlbumEntry,
   rect: string,
@@ -130,6 +59,7 @@ export async function addCandidateFaceRectToEntry(
   referenceId: string,
   strategy: string,
 ) {
+  const { getFacesWorkerStorage } = await import("./faces-worker-storage");
   const ws = getFacesWorkerStorage();
   if (ws) {
     await ws.addContact(entry.album, referenceId, contact);
@@ -143,7 +73,7 @@ export async function addCandidateFaceRectToEntry(
   }
 
   const name = `candidateFaces-${strategy}`;
-  const current = getEntryMetadata(entry);
+  const current = await getEntryMetadata(entry);
   const iniFaces = (current[name as keyof AlbumEntryMetaData] as string) || "";
   const faces = decodeFaces(iniFaces);
   if (faces.find((f) => f.hash === hash)) {
@@ -167,7 +97,7 @@ export async function removeFaceFromEntry(
   face: Face,
   contact: Contact,
 ) {
-  const current = getEntryMetadata(entry);
+  const current = await getEntryMetadata(entry);
   for (const name of [
     "faces",
     "candidateFaces",
@@ -186,8 +116,3 @@ export async function removeFaceFromEntry(
 async function addContact(album: Album, hash: string, contact: Contact) {
   await updateContactInAlbum(album, hash, contact);
 }
-
-async function getContact(album: Album, hash: string): Promise<Contact> {
-  return await getAlbumPicasaContactByHash(album, hash);
-}
-

@@ -1,8 +1,7 @@
 import { AlbumEntry } from "../../../../shared/types/types";
-import { getExifData } from "../../../rpc/rpcFunctions/exif";
 import { enqueueDb } from "../../../utils/db-queue";
 import { getLocations } from "./poi/poi-database";
-import { getGeolocateDatabaseReadWrite } from "./database";
+import { getGeolocateDatabaseReadWrite } from "../database";
 import { events } from "../../../../shared/server-events";
 import debug from "debug";
 import { getGeolocateWorkerDatabase } from "./worker-database";
@@ -19,53 +18,32 @@ export async function processGeoPOI(entry: AlbumEntry): Promise<void> {
   const db = getGeolocateDatabaseReadWrite();
   try {
     debugLogger(`Processing geo POI for ${entry.name}`);
-    const exif = getExifData(entry);
+    const coords = db.getCoordinates(entry);
 
-    // Since we're called from exifDataProcessed event, EXIF should always be processed
-    // But check anyway to be safe
-    if (exif === null) {
-      debugLogger(`EXIF data still not available for ${entry.name}, skipping...`);
-      return;
-    }
-
-    // exif is now either an empty object {} (processed but no EXIF) or has data
-    const { GPSLatitude, GPSLatitudeRef, GPSLongitudeRef, GPSLongitude } = exif;
-
-    if (
-      GPSLatitude &&
-      GPSLatitudeRef &&
-      GPSLongitudeRef &&
-      GPSLongitude
-    ) {
-      const latitude =
-        (GPSLatitudeRef === "N" ? 1 : -1) *
-        (GPSLatitude[0] + GPSLatitude[1] / 60 + GPSLatitude[2] / 3600);
-      const longitude =
-        (GPSLongitudeRef === "E" ? 1 : -1) *
-        (GPSLongitude[0] + GPSLongitude[1] / 60 + GPSLongitude[2] / 3600);
-      try {
-        const geoPOI = await getLocations(latitude, longitude);
-        const geoPOIJson = JSON.stringify(geoPOI);
-        await enqueueDb(
-          () => db.updateGeoPOI(entry, geoPOIJson),
-          `geolocate.updateGeoPOI(${entry.name})`
-        );
-        // Emit event that geo data was found (only if POI data exists)
-        if (geoPOI && geoPOI.length > 0) {
-          events.emit("geoDataFound", entry);
-        }
-      } catch (e) {
-        debugLogger(`Error geolocating ${entry.name}:`, e);
-        await enqueueDb(
-          () => db.updateGeoPOI(entry, null),
-          `geolocate.updateGeoPOI(${entry.name},null)`
-        );
-      }
-    } else {
-      // Processed but no GPS coordinates - mark as processed with no POI
+    if (!coords) {
+      // No GPS in exif_data - mark as processed with no POI
       await enqueueDb(
         () => db.updateGeoPOI(entry, null),
         `geolocate.updateGeoPOI(${entry.name},noGPS)`
+      );
+      return;
+    }
+
+    try {
+      const geoPOI = await getLocations(coords.latitude, coords.longitude);
+      const geoPOIJson = JSON.stringify(geoPOI);
+      await enqueueDb(
+        () => db.updateGeoPOI(entry, geoPOIJson),
+        `geolocate.updateGeoPOI(${entry.name})`
+      );
+      if (geoPOI && geoPOI.length > 0) {
+        events.emit("geoDataFound", entry);
+      }
+    } catch (e) {
+      debugLogger(`Error geolocating ${entry.name}:`, e);
+      await enqueueDb(
+        () => db.updateGeoPOI(entry, null),
+        `geolocate.updateGeoPOI(${entry.name},null)`
       );
     }
   } catch (error) {
@@ -87,8 +65,8 @@ export async function runGeolocateWorker(): Promise<void> {
 
   const unprocessed = db.prepare(`
     SELECT ae.album_key, a.name AS album_name, ae.entry_name
-    FROM main.album_entries ae
-    LEFT JOIN main.albums a ON ae.album_id = a.album_id
+    FROM entries.album_entries ae
+    LEFT JOIN entries.albums a ON ae.album_id = a.album_id
     LEFT JOIN geo_poi_data g ON ae.album_key = g.album_key AND ae.entry_name = g.entry_name
     WHERE g.album_key IS NULL
     AND EXISTS (SELECT 1 FROM exif.exif_data e WHERE e.entry_id = ae.entry_id AND e.processed_at IS NOT NULL)
@@ -103,7 +81,7 @@ export async function runGeolocateWorker(): Promise<void> {
       album: { key: row.album_key, name: row.album_name },
     };
     const exifRow = db.prepare(
-      "SELECT e.exif_data FROM exif.exif_data e JOIN main.album_entries ae ON e.entry_id = ae.entry_id WHERE ae.album_key = ? AND ae.entry_name = ?"
+      "SELECT e.exif_data FROM exif.exif_data e JOIN entries.album_entries ae ON e.entry_id = ae.entry_id WHERE ae.album_key = ? AND ae.entry_name = ?"
     ).get(entry.album.key, entry.name) as { exif_data: string | null } | undefined;
     let exifData: Record<string, unknown> | null = null;
     if (exifRow?.exif_data && exifRow.exif_data.trim()) {
@@ -117,7 +95,7 @@ export async function runGeolocateWorker(): Promise<void> {
 
     const { GPSLatitude, GPSLatitudeRef, GPSLongitudeRef, GPSLongitude } = exifData as Record<string, unknown>;
     if (!GPSLatitude || !GPSLatitudeRef || !GPSLongitudeRef || !GPSLongitude) {
-      const entryRow = db.prepare("SELECT entry_id FROM main.album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key, entry.name) as { entry_id: string } | undefined;
+      const entryRow = db.prepare("SELECT entry_id FROM entries.album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key, entry.name) as { entry_id: string } | undefined;
       if (entryRow) {
         db.prepare(`
           INSERT OR REPLACE INTO geo_poi_data (entry_id, album_key, entry_name, geo_poi, has_geo_poi, processed_at, updated_at)
@@ -134,7 +112,7 @@ export async function runGeolocateWorker(): Promise<void> {
     try {
       const geoPOI = await getLocations(latitude, longitude);
       const geoPOIJson = JSON.stringify(geoPOI);
-      const entryRow = db.prepare("SELECT entry_id FROM main.album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key, entry.name) as { entry_id: string } | undefined;
+      const entryRow = db.prepare("SELECT entry_id FROM entries.album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key, entry.name) as { entry_id: string } | undefined;
       if (entryRow) {
         db.prepare(`
           INSERT OR REPLACE INTO geo_poi_data (entry_id, album_key, entry_name, geo_poi, has_geo_poi, processed_at, updated_at)
@@ -143,7 +121,7 @@ export async function runGeolocateWorker(): Promise<void> {
       }
     } catch (e) {
       debugLogger(`Error geolocating ${entry.name}:`, e);
-      const entryRow = db.prepare("SELECT entry_id FROM main.album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key, entry.name) as { entry_id: string } | undefined;
+      const entryRow = db.prepare("SELECT entry_id FROM entries.album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key, entry.name) as { entry_id: string } | undefined;
       if (entryRow) {
         db.prepare(`
           INSERT OR REPLACE INTO geo_poi_data (entry_id, album_key, entry_name, geo_poi, has_geo_poi, processed_at, updated_at)

@@ -18,9 +18,9 @@ export async function runFtsWorker(): Promise<void> {
 
   const entriesNeedingReindex = db.prepare(`
     SELECT ae.album_key, a.name AS album_name, ae.entry_name
-    FROM main.album_entries ae
+    FROM entries.album_entries ae
     LEFT JOIN pictures p ON ae.album_key = p.album_key AND ae.entry_name = p.entry_name
-    LEFT JOIN main.albums a ON ae.album_id = a.album_id
+    LEFT JOIN entries.albums a ON ae.album_id = a.album_id
     WHERE ae.index_version != COALESCE(p.index_version, -1)
   `).all() as Array<{ album_key: string; album_name: string; entry_name: string }>;
 
@@ -36,9 +36,9 @@ export async function runFtsWorker(): Promise<void> {
 
   const l = await lock("indexAllPictures");
   db.run("UPDATE pictures SET marked = 0");
-  const albums = db.prepare("SELECT key, name FROM main.albums ORDER BY name DESC").all() as Array<{ key: string; name: string }>;
+  const albums = db.prepare("SELECT key, name FROM entries.albums ORDER BY name DESC").all() as Array<{ key: string; name: string }>;
   for (const album of albums) {
-    const entries = db.prepare("SELECT entry_name FROM main.album_entries WHERE album_key = ?").all(album.key) as Array<{ entry_name: string }>;
+    const entries = db.prepare("SELECT entry_name FROM entries.album_entries WHERE album_key = ?").all(album.key) as Array<{ entry_name: string }>;
     for (const e of entries) {
       const entry: AlbumEntry = { name: e.entry_name, album: { key: album.key, name: album.name } };
       await indexEntry(db, entry);
@@ -69,7 +69,7 @@ async function indexEntry(db: ReturnType<typeof getSearchWorkerDatabase>, entry:
   if (isPicture(entry)) entryType = "picture";
   else if (isVideo(entry)) entryType = "video";
 
-  const entryRow = db.prepare("SELECT entry_id, index_version FROM main.album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key, entry.name) as { entry_id: string; index_version?: number } | undefined;
+  const entryRow = db.prepare("SELECT entry_id, index_version FROM entries.album_entries WHERE album_key=? AND entry_name=?").get(entry.album.key, entry.name) as { entry_id: string; index_version?: number } | undefined;
   const entryId = entryRow?.entry_id ?? "";
   const indexVersion = entryRow?.index_version ?? 0;
 

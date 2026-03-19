@@ -1,11 +1,11 @@
-import { Album, AlbumEntry, AlbumEntryMetaData, AlbumMetaData, AlbumWithData, Contact, ContactByHash, PicasaSection, Shortcut, ThumbnailSize } from "../../../shared/types/types";
+import { Album, AlbumEntry, AlbumEntryMetaData, AlbumMetaData, AlbumWithData, Contact, ContactByHash, Face, PicasaSection, Shortcut, ThumbnailSize } from "../../../shared/types/types";
 import { getWalkerDatabase } from "./internal/database";
 import {
   refreshAlbumKeys as refreshAlbumKeysImpl,
   refreshAlbums as refreshAlbumsImpl,
   onRenamedAlbums as onRenamedAlbumsImpl,
   reindexAlbums as reindexAlbumsImpl,
-} from "./internal/worker-thread";
+} from "./internal/walk";
 import {
   updateEntryMetadata,
   setCaption,
@@ -130,7 +130,7 @@ export function getMutations(): WalkerWorkerClientApi {
  * Get identified references (faces with contacts) for an entry
  * This is an RPC call to the walker worker.
  */
-export async function getPicasaIdentifiedReferences(entry: AlbumEntry): Promise<Array<{ face: any; contact: Contact }>> {
+export async function getPicasaIdentifiedReferences(entry: AlbumEntry): Promise<Array<{ face: Face; contact: Contact }>> {
   const client = getMutations();
   return await client.getPicasaIdentifiedReferences(entry);
 }

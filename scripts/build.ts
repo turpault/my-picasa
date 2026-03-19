@@ -20,6 +20,9 @@ function run(cmd: string[], cwd: string = root): Promise<number> {
 }
 
 async function main() {
+  console.log("[build] Check: no main→worker internal imports…");
+  await run(["bun", "run", "scripts/check-no-internal-imports.ts"]);
+
   console.log("[build] Clean…");
   rmSync(join(root, "dist"), { recursive: true, force: true });
   try {

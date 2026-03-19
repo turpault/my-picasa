@@ -14,10 +14,11 @@ export function getFacesWorkerDatabase(): Database {
   if (!existsSync(FACES_DB_PATH)) {
     throw new Error("picisa_faces.db does not exist - run main process first to create split DBs");
   }
-  workerDb = new Database(FACES_DB_PATH, { readonly: false });
+  workerDb = new Database(FACES_DB_PATH, { readwrite: true });
   workerDb.run("PRAGMA journal_mode=WAL");
+  workerDb.run("PRAGMA busy_timeout=10000");
   const escape = (p: string) => p.replace(/'/g, "''");
-  workerDb.run(`ATTACH DATABASE '${escape(ENTRIES_DB_PATH)}' AS main`);
+  workerDb.run(`ATTACH DATABASE '${escape(ENTRIES_DB_PATH)}' AS entries`);
   return workerDb;
 }
 
@@ -73,7 +74,7 @@ export function upsertFaceRect(
  */
 export function getEntryId(db: Database, albumKey: string, entryName: string): string | null {
   const row = db.prepare(
-    "SELECT entry_id FROM main.album_entries WHERE album_key = ? AND entry_name = ?"
+    "SELECT entry_id FROM entries.album_entries WHERE album_key = ? AND entry_name = ?"
   ).get(albumKey, entryName) as { entry_id: string } | undefined;
   return row?.entry_id ?? null;
 }

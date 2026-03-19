@@ -175,7 +175,7 @@ async function sortAssetsByRank(entries: AlbumEntry[]) {
     }),
   );
 
-  sortByKey(entries as (AlbumEntry & { rank: any })[], ["rank"], ["numeric"]);
+  sortByKey(entries as (AlbumEntry & { rank?: string | number })[], ["rank"], ["numeric"]);
 }
 
 export async function albumWithData(

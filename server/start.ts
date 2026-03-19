@@ -5,7 +5,7 @@ import { Queue } from "../shared/lib/queue";
 import { lockedLocks, startLockMonitor } from "../shared/lib/mutex";
 import { RPCAdaptorInterface } from "../shared/rpc-transport/rpc-adaptor-interface";
 import { WsAdaptor } from "../shared/rpc-transport/ws-adaptor";
-import { closePoiDb } from "./services/geolocate/internal/poi/poi-database";
+import { closePoiDb } from "./services/geolocate/poi";
 import { closeWalkerDatabase } from "./services/walker/internal/database";
 import { closeQueueDatabase } from "./utils/queue-database";
 import { parseLUTs } from "./imageOperations/image-filters";
@@ -31,7 +31,15 @@ import { imagesRoot, rootPath } from "./utils/constants";
 import { addSocket, removeSocket } from "./utils/socketList";
 import { history } from "./utils/stats";
 import { initUndo } from "./utils/undo";
-import { getExtractionStats, getWorkerStats, startWorkers } from "./worker-manager";
+import {
+  BACKGROUND_SERVICE_ORDER,
+  getExtractionStats,
+  getWorkerStats,
+  isWorkerRunning,
+  startAllBackgroundWorkersManually,
+  startBackgroundWorkerManually,
+  startWorkers,
+} from "./worker-manager";
 import {
   getGlobalQueuePendingByPriority,
   getGlobalQueueStats,
@@ -143,19 +151,40 @@ export async function startServer(p?: number) {
       development: process.env.NODE_ENV !== "production",
       routes: {
         "/": indexHtml,
-        "/stat": statsHTML,
+        "/management": statsHTML,
+        "/stat": () => Response.redirect("/management", 301),
         "/ping": withInteractiveTracking(() => Response.json({ pong: "it worked!" })),
         "/env.js": () =>
           new Response(
             `window.__PICISA_DEV__=${process.env.NODE_ENV === "development"};`,
             { headers: { "Content-Type": "application/javascript" } },
           ),
+        "/management/workers/start": withInteractiveTracking(async (req) => {
+          if (req.method !== "POST") {
+            return new Response("Method not allowed", { status: 405 });
+          }
+          const body = (await req.json().catch(() => ({}))) as { serviceName?: string; all?: boolean };
+          if (body.all) {
+            startAllBackgroundWorkersManually();
+            return Response.json({ started: "all" });
+          }
+          const serviceName = body.serviceName;
+          if (!serviceName || typeof serviceName !== "string") {
+            return Response.json({ error: "Missing serviceName" }, { status: 400 });
+          }
+          const started = startBackgroundWorkerManually(serviceName);
+          return Response.json({ started, serviceName });
+        }),
         "/stats": withInteractiveTracking(async () =>
           Response.json({
             series: await history(),
             locks: lockedLocks(),
             extraction: getExtractionStats(),
             workers: getWorkerStats(),
+            workersRunning: BACKGROUND_SERVICE_ORDER.reduce(
+              (acc, name) => ({ ...acc, [name]: isWorkerRunning(name) }),
+              {} as Record<string, boolean>,
+            ),
             globalQueue: {
               ...(await getGlobalQueueStats()),
               pendingByPriority: await getGlobalQueuePendingByPriority(),
@@ -321,9 +350,6 @@ export async function startServer(p?: number) {
             w.readyState = 3;
             w.onclose?.();
           }
-          // #region agent log
-          fetch('http://127.0.0.1:7687/ingest/e59d8d66-a3fc-4141-b136-eb6275298101',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'402b95'},body:JSON.stringify({sessionId:'402b95',location:'start.ts:websocket.close',message:'H1: websocket closed',data:{hypothesisId:'H1'},timestamp:Date.now()})}).catch(()=>{});
-          // #endregion
         },
       },
     });

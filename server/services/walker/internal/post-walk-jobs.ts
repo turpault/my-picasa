@@ -16,14 +16,8 @@ import {
   ThumbnailSize,
 } from "../../../../shared/types/types";
 import { isPicture, isVideo } from "../../../../shared/lib/utils";
-import { runExifJob } from "../../extraction/internal/worker-thread";
 import { makeThumbnailIfNeeded } from "../../../rpc/rpcFunctions/thumbnail";
-import { isExifProcessed } from "../../exif/queries";
 import { shouldMakeThumbnail } from "../../../rpc/rpcFunctions/thumbnail-cache";
-import {
-  createReferenceFileIfNeeded,
-  entryHasReferences,
-} from "../../faces/internal/face/references";
 import type { JobType } from "../../extraction/job-types";
 import { unlink } from "fs/promises";
 import { extname, join } from "path";
@@ -32,7 +26,7 @@ import { favoritesFolder } from "../../../utils/constants";
 import { fileExists } from "../../../utils/serverUtils";
 import { namifyAlbumEntry } from "../../../../shared/lib/utils";
 import { RESIZE_ON_EXPORT_SIZE } from "../../../../shared/lib/shared-constants";
-import { runRemoveJob, runUpdateEntryJob } from "../../extraction/internal/worker-thread";
+import { runRemoveJob, runUpdateEntryJob } from "../../extraction/internal/operations";
 import { getEntryMetadata } from "../queries";
 
 const debugLogger = debug("app:post-walk-jobs");
@@ -41,12 +35,6 @@ const STARTUP_THUMB_SIZES: readonly ThumbnailSize[] = ["th-small", "th-medium"];
 
 function isMediaEntry(entry: AlbumEntry): boolean {
   return isPicture(entry) || isVideo(entry);
-}
-
-/** Add EXIF extraction job. On completion, GEO and INDEX are scheduled. */
-export function scheduleExifJob(entry: AlbumEntry, options?: { force?: boolean }): void {
-  if (!options?.force && isExifProcessed(entry)) return;
-  addJob(() => runExifJob(entry), "EXIF");
 }
 
 /** Add thumbnail generation job for entry. */
@@ -120,19 +108,13 @@ export async function scheduleJobsForEntries(entries: AlbumEntry[]): Promise<voi
   for (const entry of entries) {
     if (!isMediaEntry(entry)) continue;
 
-    if (!isExifProcessed(entry)) {
-      scheduleExifJob(entry);
-    }
-
     const needsAnimated = await shouldMakeThumbnail(entry, "th-small", true);
     const needsStatic = await shouldMakeThumbnail(entry, "th-small", false);
     if (needsAnimated || needsStatic) {
       scheduleThumbnailJob(entry);
     }
 
-    if (isPicture(entry) && !(await entryHasReferences(entry))) {
-      scheduleFaceJob(entry);
-    }
+    // Face reference creation is handled by the faces worker (batch), not in main process
 
     const metadata = await getEntryMetadata(entry);
     if (metadata.star) {

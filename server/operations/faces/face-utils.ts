@@ -16,7 +16,7 @@ import {
   ReferenceData,
 } from "../../../shared/types/types";
 import { getContactsFromAlbum, getPicasaIdentifiedReferences } from "../../services/walker/queries";
-import { IdentifiedContact } from "../../services/faces/internal/face/types";
+import { IdentifiedContact } from "../../../shared/types/types";
 
 export function rectOfReference(feature: ReferenceData) {
   const left = Math.max(

@@ -9,7 +9,7 @@ import {
   updateAlbumShortcut,
   touchPicasaEntry,
 } from "./mutations";
-import { refreshAlbumKeys, refreshAlbums, onRenamedAlbums, reindexAlbums } from "./worker-thread";
+import { refreshAlbumKeys, refreshAlbums, onRenamedAlbums, reindexAlbums } from "./walk";
 import {
   getPicasaIdentifiedReferences,
   getAlbumPicasaContactByHash,

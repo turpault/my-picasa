@@ -34,6 +34,7 @@
     "reset": "rimraf node_modules dist",
     "prebuild": "bun run clean; mkdir dist ; cp -R public dist",
     "build": "bun run scripts/build.ts",
+    "check:no-internal-imports": "bun run scripts/check-no-internal-imports.ts",
     "build:client": "bun build public/index.html --minify --outdir=public/dist",
     "build:icons": "png2icons resources/picisa.png resources/picisa -icns",
     "build:ico": "png2icons resources/picisa.png public/favicon -ico",

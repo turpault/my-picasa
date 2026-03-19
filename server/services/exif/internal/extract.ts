@@ -9,8 +9,8 @@ import { deferSync } from "../../../utils/defer-sync";
 import { enqueueDb } from "../../../utils/db-queue";
 import { dimensionsFromFileBuffer } from "../../../imageOperations/sharp-processor";
 import { entryFilePath } from "../../../utils/serverUtils";
-import type { ExifColumns } from "./database";
-import { getExifDatabaseReadWrite } from "./database";
+import type { ExifColumns } from "../database";
+import { getExifDatabaseReadWrite } from "../database";
 
 const debugLogger = debug("app:bg-exif");
 

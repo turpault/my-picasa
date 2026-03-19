@@ -1,5 +1,5 @@
 import { Album, AlbumEntry, AlbumWithData, Filters } from "../../../shared/types/types";
-import { getIndexingDatabaseReadOnly } from "./internal/database";
+import { getIndexingDatabaseReadOnly } from "./database";
 
 /**
  * Search Database Queries (Read-Only)

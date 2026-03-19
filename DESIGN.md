@@ -38,17 +38,23 @@ Background services live under `server/services/<serviceName>/`:
 server/services/<serviceName>/
   worker.ts           # Entry point; started by worker-manager
   queries.ts          # (optional) Public read-only API
-  internal/           # Private implementation
-    worker-thread.ts  # Heavy work runs here
-    database.ts       # SQLite or other persistence
+  database.ts         # (optional) Reader database access - read-only path
+  face-db-reader.ts   # (faces only) Reader for face data
+  internal/           # Writer implementation only
+    worker-thread.ts  # (child process only) Heavy work in spawned process
+    extract.ts        # (exif) EXIF extraction, runs in main process
+    operations.ts    # (extraction) Remove/update jobs, runs in main process
+    build-thumbs.ts  # (thumbgen) Thumbnail scheduling, runs in main process
+    walk.ts          # (walker) Filesystem walk, runs in main process
+    worker-database.ts # Standalone DB for worker process
     <domain>/         # Domain-specific modules (e.g. poi/, face/)
 ```
 
 ### Rules
 
 1. **Worker entry**: Each service has a `worker.ts` that is spawned via `Bun.spawn` and communicates via IPC (`process.send`). Parent uses `Bun.spawn([process.execPath, workerPath], { ipc, env })`.
-2. **Internal visibility**: Code in `internal/` is implementation detail. Only `worker.ts`, `queries.ts`, and RPC handlers should import from `internal/`.
-3. **Database access**: Databases live in `internal/` (e.g. `internal/database.ts`, `internal/poi/poi-database.ts`). Use `getXxxDb()` or `getXxxDatabaseReadOnly()` singletons.
+2. **Internal visibility**: Code in `internal/` is writer implementation only. Reader components (`queries.ts`, `database.ts`, `face-db-reader.ts`) live at service root, not in `internal/`.
+3. **Database access**: Reader database access lives at service root (`database.ts`). Writer/worker databases live in `internal/` (e.g. `internal/worker-database.ts`, `internal/poi/poi-database.ts`). Use `getXxxDatabaseReadOnly()` / `getXxxDatabaseReadWrite()` singletons.
 4. **Cross-service imports**: Prefer RPC or events over direct imports. If a service needs another, import only its public API (`queries.ts` or exported functions from the service root).
 
 ### Worker Service Reader/Writer Split
@@ -57,11 +63,13 @@ Each worker service (faces, geolocate, search, favorite-exporter) has two separa
 
 | Component | Purpose | Location | Used by |
 |-----------|---------|----------|---------|
-| **Reader** | Runs database queries only. Read-only access. | `queries.ts`, `internal/database.ts` (read path) | Main process **only** |
+| **Reader** | Runs database queries only. Read-only access. | `queries.ts`, `database.ts`, `face-db-reader.ts` (at service root) | Main process **only** |
 | **Writer** | Runs the process and writes to the database (or filesystem for favorite-exporter). May use reader for queries. | `worker.ts`, `internal/worker-database.ts`, `internal/run-*-worker.ts`, `internal/worker-thread.ts`, `internal/export-favorites.ts` | Child process only (Bun.spawn) |
 
 **Rules:**
 - The main process **only** accesses the reader component.
+- The main process **must not** import from `internal/` of worker services. Use public APIs: `queries.ts`, `database.ts`, `setup.ts`, `poi.ts`, etc.
+- Run `bun run check:no-internal-imports` to enforce this; the build should fail if violated.
 - The reader component **never** imports from: `worker-database`, `run-*-worker`, `worker-thread` (writer logic), or `worker.ts`.
 - The writer may import from the reader (e.g. `getGeoPOI` from geolocate queries).
 

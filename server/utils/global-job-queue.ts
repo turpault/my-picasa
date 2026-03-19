@@ -106,6 +106,7 @@ async function runWorker(): Promise<void> {
       {} as Record<string, number>
     );
     const dbStats = await getQueueStats();
+    const taskStart = performance.now();
     debugLogger(
       "Starting job (id=%d), queue: pending=%d active=%d, pendingByType=%o",
       id,
@@ -116,6 +117,10 @@ async function runWorker(): Promise<void> {
 
     try {
       const result = await Promise.resolve(item.task());
+      const taskElapsed = performance.now() - taskStart;
+      if (taskElapsed > 500) {
+        debugLogger("Job id=%d completed in %.0fms", id, taskElapsed);
+      }
       item.resolve(result);
     } catch (e) {
       item.reject(e);
@@ -123,6 +128,8 @@ async function runWorker(): Promise<void> {
       activeCount--;
       doneCount++;
       notifyStats();
+      // Explicit yield so HTTP and other I/O can run between jobs
+      await new Promise<void>((r) => setImmediate(r));
     }
   }
 }
@@ -137,11 +144,12 @@ function startWorkers(concurrency: number): void {
 
 export function initGlobalJobQueue(
   concurrency: number = GLOBAL_QUEUE_CONCURRENCY,
-  onStats?: (stats: { pending: number; active: number; done: number }) => void
+  onStats?: (stats: { pending: number; active: number; done: number }) => void,
+  options?: { queuePath?: string }
 ): void {
   if (taskMap !== null) return;
 
-  initQueueDatabase();
+  initQueueDatabase(options?.queuePath);
   clearQueueDatabase();
   taskMap = new Map();
   nextId = 1;

@@ -43,9 +43,7 @@ export async function getPoiDbContents(
   limit: number = DEFAULT_LIMIT
 ): Promise<Record<string, unknown[]>> {
   return enqueueDb(async () => {
-    const { getPoiDb } = await import(
-      "../services/geolocate/internal/poi/poi-database"
-    );
+    const { getPoiDb } = await import("../services/geolocate/poi");
     const db = getPoiDb();
     return getTableContents(db, limit);
   }, "stats.getPoiDbContents");

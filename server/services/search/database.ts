@@ -1,11 +1,11 @@
 import { Database } from "bun:sqlite";
 import debug from "debug";
-import { Album, AlbumEntry, AlbumWithData, Filters } from "../../../../shared/types/types";
-import { getEntryMetadata } from "../../walker/queries";
-import { isPicture, isVideo } from "../../../../shared/lib/utils";
-import { getGeoPOI } from "../../geolocate/queries";
-import { getEntriesDatabase } from "../../entries/internal/database";
-import { enqueueDb } from "../../../utils/db-queue";
+import { Album, AlbumEntry, AlbumEntryMetaData, AlbumWithData, Filters } from "../../../shared/types/types";
+import { getEntryMetadata } from "../walker/queries";
+import { isPicture, isVideo } from "../../../shared/lib/utils";
+import { getGeoPOI } from "../geolocate/queries";
+import { getEntriesDatabase } from "../entries/internal/database";
+import { enqueueDb } from "../../utils/db-queue";
 
 const debugLogger = debug("app:indexing-db");
 
@@ -173,7 +173,7 @@ export class IndexingDatabaseAccess {
     const db = this.getDatabase();
     // Build WHERE conditions based on filters
     const whereConditions: string[] = [];
-    const params: any[] = [];
+    const params: (string | number | boolean)[] = [];
 
     const { pictures, pictures_fts } = this.getSearchTables();
     // Text search filter
@@ -303,7 +303,7 @@ export class IndexingDatabaseAccess {
     const { pictures, pictures_fts } = this.getSearchTables();
     // Build WHERE conditions based on filters
     const whereConditions: string[] = [];
-    const params: any[] = [];
+    const params: (string | number | boolean)[] = [];
 
     // Add text search condition if provided
     if (filters.text && filters.text.trim().length > 0) {
@@ -594,11 +594,12 @@ export class IndexingDatabaseAccess {
 
         // FTS index is automatically updated via triggers
 
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as Error & { code?: string; sql?: string };
         debugLogger(`Error indexing picture ${entry.name}:`);
-        debugLogger(`  Error message: ${error.message}`);
-        debugLogger(`  Error code: ${error.code}`);
-        debugLogger(`  SQL: ${error.sql || 'N/A'}`);
+        debugLogger(`  Error message: ${err.message}`);
+        debugLogger(`  Error code: ${err.code}`);
+        debugLogger(`  SQL: ${err.sql || 'N/A'}`);
         debugLogger(`  Entry data with types:`, {
           album_key: `${typeof entry.album.key} = ${entry.album.key}`,
           album_name: `${typeof entry.album.name} = ${entry.album.name}`,
@@ -611,7 +612,7 @@ export class IndexingDatabaseAccess {
           caption: `${typeof caption} = ${caption?.substring(0, 50)}`,
           entryType: `${typeof entryType} = ${entryType}`
         });
-        throw error;
+        throw err;
       }
     },
       `indexing.indexPicture(${entry.name})`
@@ -728,7 +729,7 @@ export class IndexingDatabaseAccess {
   /**
    * Update a single entry's metadata in the database
    */
-  async updateEntry(entry: AlbumEntry, metadata: any): Promise<void> {
+  async updateEntry(entry: AlbumEntry, metadata: AlbumEntryMetaData): Promise<void> {
     if (!this.isWriter) {
       throw new Error("updateEntry can only be called on a READWRITE database instance");
     }

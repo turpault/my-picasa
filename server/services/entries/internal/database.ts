@@ -498,9 +498,6 @@ class EntriesDatabaseAccess {
     sizes: ThumbnailSize[],
   ): Promise<Array<{ album: Album; entry_name: string; size: ThumbnailSize }>> {
     return enqueueDb(async () => {
-      // #region agent log
-      fetch('http://127.0.0.1:7687/ingest/e59d8d66-a3fc-4141-b136-eb6275298101',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'402b95'},body:JSON.stringify({sessionId:'402b95',location:'entries/database.ts:getEntriesNeedingThumbnails',message:'H2: inside enqueueDb, about to await getAllAlbums (nested)',data:{hypothesisId:'H2',nested:true},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       const hasColumns = this.db
         .prepare("PRAGMA table_info(album_entries)")
         .all() as Array<{ name: string }>;

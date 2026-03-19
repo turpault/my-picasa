@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/camelcase */
 import { Exceptions } from "../../shared/types/exceptions";
-import { getFaceDataFromAlbumEntry } from "../services/faces/internal/face/face-db";
+import { getFaceDataFromAlbumEntry } from "../services/faces/face-db-reader";
 import {
   getConvolutionKernelNames,
   getFilterGroups,
@@ -20,7 +20,7 @@ import {
 } from "../imageOperations/sharp-processor";
 import { undo, undoList } from "../utils/undo";
 import { getAlbums } from "../media";
-import { Filters, AlbumWithData } from "../../shared/types/types";
+import { AlbumEntry, Filters, AlbumWithData } from "../../shared/types/types";
 import { getContacts } from "../services/faces/queries";
 import {
   createProject,
@@ -179,14 +179,14 @@ export const PicisaClient: ServiceMap = {
       arguments: ["entry:object"],
     },
     setFilters: {
-      handler: async (entry: any, filters: string) => {
+      handler: async (entry: AlbumEntry, filters: string) => {
         const mutations = getMutations();
         return await mutations.setFilters(entry, filters);
       },
       arguments: ["entry:object", "filters:string"],
     },
     setCaption: {
-      handler: async (entry: any, caption: string) => {
+      handler: async (entry: AlbumEntry, caption: string) => {
         const mutations = getMutations();
         return await mutations.setCaption(entry, caption);
       },
@@ -263,14 +263,14 @@ export const PicisaClient: ServiceMap = {
       arguments: ["entry:object"],
     },
     rotate: {
-      handler: async (entries: any, direction: string) => {
+      handler: async (entries: AlbumEntry[], direction: string) => {
         const mutations = getMutations();
         return await mutations.rotate(entries, direction);
       },
       arguments: ["entries:object", "direction:string"],
     },
     toggleStar: {
-      handler: async (entries: any) => {
+      handler: async (entries: AlbumEntry[]) => {
         const mutations = getMutations();
         return await mutations.toggleStar(entries);
       },

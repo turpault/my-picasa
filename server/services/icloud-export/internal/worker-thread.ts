@@ -14,7 +14,7 @@ import { albumEntryFromId, namifyAlbumEntry, removeExtension } from "../../../..
 import { RESIZE_ON_EXPORT_SIZE } from "../../../../shared/lib/shared-constants";
 import { walkAbsolutePath } from "../../../rpc/rpcFunctions/fs";
 import { getEntryMetadata } from "../../walker/queries";
-import { getExifData } from "../../exif/queries";
+import { getExifData } from "../../rpc/rpcFunctions/exif";
 const debugLogger = debug("app:bg-icloud-export");
 
 export async function buildExportsFolder() {
@@ -66,17 +66,12 @@ async function exportAllMissing() {
 
 async function shouldExport(entry: AlbumEntry) {
   const meta = getEntryMetadata(entry);
-  const exifJson = getExifData(entry);
-  if (!exifJson || exifJson === "{}") {
+  const exif = await getExifData(entry);
+  if (!exif || Object.keys(exif).length === 0) {
     return !meta.star;
   }
-  try {
-    const exif = JSON.parse(exifJson);
-    const make = exif.Make || exif.make;
-    return !meta.star || make?.toLowerCase() === "apple";
-  } catch (e) {
-    return !meta.star;
-  }
+  const make = exif.Make || exif.make;
+  return !meta.star || make?.toLowerCase() === "apple";
 }
 
 async function exportToICloudFolder(entry: AlbumEntry, overwrite: boolean) {

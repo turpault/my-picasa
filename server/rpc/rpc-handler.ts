@@ -150,10 +150,10 @@ export function registerServices(
             console.info(errMessage, exception.stack);
             try {
               callback(errMessage);
-            } catch (e: any) {
+            } catch (e: unknown) {
               // Ignore errors on the callback
               console.error(e);
-              captureException(e);
+              captureException(e as Error);
             }
           } finally {
             releaseIdleWorkers();

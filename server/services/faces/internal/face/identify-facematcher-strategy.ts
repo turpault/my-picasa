@@ -12,7 +12,7 @@ import {
   isIdentifiedContactInReferences,
   isUsefulReference,
   rectOfReference,
-} from "./face-utils";
+} from "../../../../operations/faces/face-utils";
 import {
   getContactByContactKey,
   getContacts,
@@ -20,7 +20,7 @@ import {
 import {
   addCandidateFaceRectToEntry,
   removeFaceFromEntry,
-} from "./face-db";
+} from "./face-db-writer";
 import { readReferencesOfEntry } from "../../../../rpc/referenceFiles";
 import { join } from "path";
 

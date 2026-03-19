@@ -13,11 +13,14 @@ interface WorkerStats {
   avgCpuPercent: number;
 }
 
+const BACKGROUND_SERVICES = ["faces", "geolocate", "favoriteExporter", "fts"] as const;
+
 interface StatsResponse {
   locks: string[];
   series: Record<string, { x: number; y: number }[]>;
   extraction?: { pending: number; active: number; done: number };
   workers?: Record<string, WorkerStats>;
+  workersRunning?: Record<string, boolean>;
   globalQueue?: {
     pending: number;
     active: number;
@@ -147,17 +150,46 @@ function renderPoiTab(poiData: Record<string, unknown[]> | null): HTMLElement {
   return div;
 }
 
+async function startWorker(serviceName: string): Promise<boolean> {
+  const res = await fetch("/management/workers/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ serviceName }),
+  });
+  const json = await res.json();
+  return json.started === true;
+}
+
+async function startAllWorkers(): Promise<void> {
+  await fetch("/management/workers/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ all: true }),
+  });
+}
+
 function renderWorkersTab(data: StatsResponse): HTMLElement {
   const div = document.createElement("div");
   const workers = data.workers ?? {};
+  const workersRunning = data.workersRunning ?? {};
   const entries = Object.entries(workers);
-  if (entries.length === 0) {
-    div.innerHTML = "<p class='w3-padding'>No worker stats (workers may not have run yet).</p>";
-    return div;
-  }
-  div.innerHTML = `
-    <div class="w3-padding">
-      <h4>Background workers</h4>
+  const hasAnyStats = entries.length > 0;
+
+  const startButtonsHtml = BACKGROUND_SERVICES.map(
+    (name) => {
+      const running = workersRunning[name] ?? false;
+      return `
+        <button class="w3-button w3-small w3-green w3-margin-right w3-margin-bottom" 
+          data-service="${name}" ${running ? "disabled" : ""}>
+          ${running ? `${name} (running…)` : `Start ${name}`}
+        </button>`;
+    }
+  ).join("");
+
+  let tableHtml = "";
+  if (hasAnyStats) {
+    tableHtml = `
+      <h4 class="w3-padding">Last run stats</h4>
       <table class="w3-table w3-bordered w3-striped">
         <thead>
           <tr>
@@ -182,9 +214,36 @@ function renderWorkersTab(data: StatsResponse): HTMLElement {
             )
             .join("")}
         </tbody>
-      </table>
+      </table>`;
+  } else {
+    tableHtml = "<p class='w3-padding'>No worker stats yet. Start a worker to see stats after it completes.</p>";
+  }
+
+  div.innerHTML = `
+    <div class="w3-padding">
+      <h4>Background workers</h4>
+      <p class="w3-margin-bottom">Start workers manually:</p>
+      <div class="w3-margin-bottom">
+        ${startButtonsHtml}
+        <button class="w3-button w3-small w3-teal w3-margin-bottom" id="start-all-workers">
+          Start all
+        </button>
+      </div>
+      ${tableHtml}
     </div>
   `;
+
+  div.querySelectorAll("[data-service]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const name = (btn as HTMLElement).dataset.service!;
+      await startWorker(name);
+      // Poll will refresh the UI
+    });
+  });
+  div.querySelector("#start-all-workers")?.addEventListener("click", () => {
+    startAllWorkers();
+  });
+
   return div;
 }
 
@@ -333,7 +392,7 @@ async function init() {
   }
 
   document.body.appendChild(
-    $('<h3 class="w3-bar w3-green w3-padding">Stats</h3>').get()
+    $('<h3 class="w3-bar w3-green w3-padding">Management</h3>').get()
   );
   const tabBar = document.createElement("div");
   tabBar.id = "tab-bar";

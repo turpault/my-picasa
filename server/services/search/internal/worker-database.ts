@@ -18,10 +18,11 @@ export function getSearchWorkerDatabase(): Database {
   if (!existsSync(SEARCH_DB_PATH)) {
     throw new Error("picisa_search.db does not exist - run main process first to create split DBs");
   }
-  workerDb = new Database(SEARCH_DB_PATH, { readonly: false });
+  workerDb = new Database(SEARCH_DB_PATH, { readwrite: true });
   workerDb.run("PRAGMA journal_mode=WAL");
+  workerDb.run("PRAGMA busy_timeout=10000");
   const escape = (p: string) => p.replace(/'/g, "''");
-  workerDb.run(`ATTACH DATABASE '${escape(ENTRIES_DB_PATH)}' AS main`);
+  workerDb.run(`ATTACH DATABASE '${escape(ENTRIES_DB_PATH)}' AS entries`);
   workerDb.run(`ATTACH DATABASE '${escape(EXIF_DB_PATH)}' AS exif`);
   workerDb.run(`ATTACH DATABASE '${escape(GEO_DB_PATH)}' AS geo`);
   return workerDb;

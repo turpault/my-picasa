@@ -1,5 +1,4 @@
 import * as faceapi from "@vladmandic/face-api";
-import { Contact, Face } from "../../../shared/types/types";
 
 export type FaceLandmarkData = { hash?: string } & faceapi.WithAge<
   faceapi.WithGender<
@@ -16,4 +15,5 @@ export type FaceLandmarkData = { hash?: string } & faceapi.WithAge<
   >
 >;
 
-export type IdentifiedContact = { face: Face; contact: Contact };
+/** Re-export for internal use; public API uses shared/types */
+export type { IdentifiedContact } from "../../../../shared/types/types";

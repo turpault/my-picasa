@@ -30,7 +30,8 @@ async function start() {
     `Starting standalone server on port ${port} in folder ${rootPath}. Photos root is ${imagesRoot}`,
   );
   await startServer(port);
-  await startServices();
+  // Defer services so /ping responds immediately; heavy work runs after first tick
+  setImmediate(() => void startServices());
 }
 
 start();

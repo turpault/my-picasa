@@ -2,15 +2,12 @@
 import { join } from "path";
 import { initGlobalJobQueue } from "./utils/global-job-queue";
 import { setupGlobalJobSchedulers } from "./utils/global-job-schedulers";
-import { walkFilesystem, setWalkerReadyResolver } from "./services/walker/internal/worker-thread";
-import { runExtractionWorker } from "./services/extraction/internal/worker-thread";
-import { buildThumbs } from "./services/thumbgen/internal/worker-thread";
-import { setupFavoriteExporter } from "./services/favorite-exporter/internal/export-favorites";
+import { walkFilesystem, setWalkerReadyResolver } from "./services/walker/internal/walk";
+import { runExtractionWorker } from "./services/extraction/internal/operations";
+import { buildThumbs } from "./services/thumbgen/internal/build-thumbs";
+import { setupFavoriteExporter } from "./services/favorite-exporter/setup";
 import { getBackgroundServicesConfig } from "./config/background-services-loader";
-import {
-  hasImageChangesSinceLastRun,
-  updateLastRunTimestamp,
-} from "./utils/change-detection";
+import { updateLastRunTimestamp } from "./utils/change-detection";
 import type { WorkerStatsPayload } from "./utils/worker-stats";
 import { imagesRoot } from "./utils/constants";
 
@@ -58,7 +55,10 @@ export function getWalkerReadyPromise(): Promise<void> {
   return walkerReadyPromise;
 }
 
-const BACKGROUND_SERVICE_ORDER = ["faces", "geolocate", "favoriteExporter", "fts"] as const;
+export const BACKGROUND_SERVICE_ORDER = ["faces", "geolocate", "favoriteExporter", "fts"] as const;
+
+/** Tracks which workers are currently running to avoid duplicate starts. */
+const runningWorkers = new Set<string>();
 
 function getWorkerPath(serviceName: string): string {
   const base = join(__dirname, "services");
@@ -94,10 +94,12 @@ async function runBackgroundWorker(serviceName: string): Promise<void> {
   });
 
   const code = await child.exited;
+  runningWorkers.delete(serviceName);
   if (code !== 0) {
     throw new Error(`Worker ${serviceName} exited with code ${code}`);
   }
   lastRunByService[serviceName] = Date.now();
+  updateLastRunTimestamp();
 }
 
 async function runAllBackgroundWorkers(): Promise<void> {
@@ -112,29 +114,33 @@ async function runAllBackgroundWorkers(): Promise<void> {
   updateLastRunTimestamp();
 }
 
-function schedulePeriodicBackgroundWorkers(): void {
+/** Start a background worker manually. Returns false if already running or disabled. */
+export function startBackgroundWorkerManually(serviceName: string): boolean {
+  if (runningWorkers.has(serviceName)) return false;
   const config = getBackgroundServicesConfig();
-  const intervalMs = 60 * 1000;
+  const svcConfig = config[serviceName as keyof typeof config];
+  if (!svcConfig?.enabled) return false;
+  if (!BACKGROUND_SERVICE_ORDER.includes(serviceName as any)) return false;
 
-  setInterval(async () => {
-    if (!hasImageChangesSinceLastRun()) return;
+  runningWorkers.add(serviceName);
+  void runBackgroundWorker(serviceName).catch((e) => {
+    console.error(`[worker-manager] Manual ${serviceName} failed:`, e);
+   });
+  return true;
+}
 
-    for (const serviceName of BACKGROUND_SERVICE_ORDER) {
-      const svcConfig = config[serviceName as keyof typeof config];
-      if (!svcConfig?.enabled) continue;
-      const mins = svcConfig.intervalMinutes;
-      const lastRun = lastRunByService[serviceName] ?? 0;
-      if (Date.now() - lastRun < mins * 60 * 1000) continue;
+/** Start all enabled background workers manually. */
+export function startAllBackgroundWorkersManually(): void {
+  const config = getBackgroundServicesConfig();
+  for (const serviceName of BACKGROUND_SERVICE_ORDER) {
+    const svcConfig = config[serviceName as keyof typeof config];
+    if (!svcConfig?.enabled) continue;
+    startBackgroundWorkerManually(serviceName);
+  }
+}
 
-      try {
-        console.info(`[worker-manager] Periodic run: ${serviceName}...`);
-        await runBackgroundWorker(serviceName);
-        updateLastRunTimestamp();
-      } catch (e) {
-        console.error(`[worker-manager] Periodic ${serviceName} failed:`, e);
-      }
-    }
-  }, intervalMs);
+export function isWorkerRunning(serviceName: string): boolean {
+  return runningWorkers.has(serviceName);
 }
 
 export async function startWorkers() {
@@ -158,18 +164,6 @@ export async function startWorkers() {
 
   setupFavoriteExporter(getWalkerReadyPromise);
 
-  getWalkerReadyPromise().then(async () => {
-    if (!hasImageChangesSinceLastRun()) {
-      console.info("[worker-manager] No image changes since last run, skipping background workers.");
-      return;
-    }
-    try {
-      await runAllBackgroundWorkers();
-      console.info("[worker-manager] All background workers completed.");
-    } catch (e) {
-      console.error("[worker-manager] Background workers failed:", e);
-    }
-  });
-
-  schedulePeriodicBackgroundWorkers();
+  // Background workers (faces, geolocate, favoriteExporter, fts) are not auto-started.
+  // Start them manually from the Management page (/management).
 }

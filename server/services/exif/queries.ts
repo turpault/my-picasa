@@ -1,5 +1,5 @@
 import { AlbumEntry } from "../../../shared/types/types";
-import { getExifDatabaseReadOnly } from "./internal/database";
+import { getExifDatabaseReadOnly } from "./database";
 
 /**
  * EXIF Database Queries (Read-Only)

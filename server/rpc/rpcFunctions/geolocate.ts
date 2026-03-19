@@ -9,9 +9,9 @@ export async function geoPOI(entry: AlbumEntry): Promise<string | null> {
 }
 
 /**
- * Get GPS coordinates (latitude, longitude) for an entry from EXIF data
+ * Get GPS coordinates (latitude, longitude) for an entry from exif_data table
  */
-export async function getExifCoordinates(entry: AlbumEntry): Promise<{ latitude: number; longitude: number } | null> {
+export function getExifCoordinates(entry: AlbumEntry): { latitude: number; longitude: number } | null {
   return getCoordinates(entry);
 }
 

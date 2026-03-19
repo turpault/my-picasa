@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import debug from "debug";
-import { AlbumEntry } from "../../../../shared/types/types";
-import { getEntriesDatabase } from "../../entries/internal/database";
+import { AlbumEntry } from "../../../shared/types/types";
+import { getEntriesDatabase } from "../entries/internal/database";
 
 const debugLogger = debug("app:exif-db");
 

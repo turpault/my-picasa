@@ -1,6 +1,5 @@
-import { Album, AlbumEntry, Contact } from "../../../../shared/types/types";
+import { Album, AlbumEntry, Contact, Face, IdentifiedContact } from "../../../../shared/types/types";
 import { decodeFaces } from "../../../../shared/lib/utils";
-import { Face } from "../../../../shared/types/types";
 import { getContactsFromAlbum } from "./picasa-ini";
 import { getWalkerDatabase } from "./database";
 
@@ -11,11 +10,6 @@ import { getWalkerDatabase } from "./database";
  * These functions are ONLY called from walker-worker-rpc.ts (RPC handler in worker thread).
  * In the worker thread, they perform the actual operations directly on picasa-ini.
  */
-
-export interface IdentifiedContact {
-  face: Face;
-  contact: Contact;
-}
 
 /**
  * Get identified references (faces with contacts) for an entry

@@ -1,5 +1,5 @@
 import { AlbumEntry } from "../../../shared/types/types";
-import { getGeolocateDatabaseReadOnly } from "./internal/database";
+import { getGeolocateDatabaseReadOnly } from "./database";
 
 /**
  * Geolocate Database Queries (Read-Only)
@@ -34,7 +34,7 @@ export function isProcessed(entry: AlbumEntry): boolean {
 }
 
 /**
- * Get GPS coordinates (latitude, longitude) from EXIF data for an entry
+ * Get GPS coordinates (latitude, longitude) from exif_data table for an entry
  */
 export function getCoordinates(entry: AlbumEntry): { latitude: number; longitude: number } | null {
   const db = getGeolocateDatabaseReadOnly();
