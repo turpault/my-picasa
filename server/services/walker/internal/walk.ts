@@ -133,14 +133,11 @@ async function addOrRefreshOrDeleteAlbum(
         await db.upsertAlbum(updated);
       } else {
         if (options !== "SkipCheckInfo") {
-          const [count, shortcut] = await Promise.all([
-            mediaCount(album),
-            readShortcut(album),
-          ]);
+          // Use existing DB data when available - don't read picasa-ini
           const updated: AlbumWithData = {
             ...album,
-            ...count,
-            shortcut,
+            count: existing.count,
+            shortcut: existing.shortcut,
             lastModified: folderMtime,
           };
 
@@ -181,12 +178,19 @@ async function walk(
   // Check if album is stale before processing
   const isStale = await isDBAlbumStale(album);
   if (!isStale) {
-    // Album is up to date, skip processing
+    // Album is up to date, skip processing (DB is source of truth)
     debugLogger(`Skipping album ${album.key} - not stale (lastModified matches folder mtime)`);
     return;
   }
 
-  const m = await assetsInFolderAlbum(album);
+  let m: { entries: AlbumEntry[]; folders: string[] };
+  try {
+    m = await assetsInFolderAlbum(album);
+  } catch (error) {
+    // Folder may have been deleted - skip; "Find deleted albums" loop will remove it
+    debugLogger(`Folder gone for album ${album.key}:`, error);
+    return;
+  }
   await reindexAlbumsFromList([album], { skipEntryEvents: true });
 
 
@@ -227,7 +231,26 @@ async function reindexAlbumsFromList(
         const existingEntries = await getWalkerAlbumEntries(album);
         const existingEntryNames = new Set(existingEntries.map((e) => e.name));
 
-        const { entries } = await assetsInFolderAlbum(album);
+        let entries: AlbumEntry[];
+        try {
+          const result = await assetsInFolderAlbum(album);
+          entries = result.entries;
+        } catch (error) {
+          // Folder disappeared from filesystem - delete album and entries from DB
+          debugLogger(`Folder gone for album ${album.key}, removing from DB:`, error);
+          const existing = await getAlbum(album.key);
+          if (existing) {
+            queueNotification({ type: "albumDeleted", album: existing });
+            events.emit("albumRemoved", album);
+            const db = getWalkerDatabase();
+            for (const entry of existingEntries) {
+              scheduleRemoveJob(entry);
+              await db.deleteEntry(entry);
+            }
+            await db.deleteAlbum(album.key);
+          }
+          continue;
+        }
         const newEntryNames = new Set(entries.map((e) => e.name));
 
         let folderMtime: string | undefined;
