@@ -9,7 +9,6 @@ import { GEO_DB_PATH, ENTRIES_DB_PATH, EXIF_DB_PATH } from "../../../utils/db-pa
 let workerDb: Database | null = null;
 
 export function getGeolocateWorkerDatabase(): Database {
-  throw new Error("Should not be called");
   if (!existsSync(GEO_DB_PATH)) {
     throw new Error("picisa_geo.db does not exist - run main process first to create split DBs");
   }
