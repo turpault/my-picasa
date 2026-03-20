@@ -5,7 +5,6 @@ import { events } from "../../../../shared/server-events";
 import { imageInfo } from "../../../imageOperations/info";
 import {
   scheduleThumbnailJob,
-  scheduleFavoriteExportJob,
   scheduleUpdateEntryJob,
 } from "./post-walk-jobs";
 
@@ -171,7 +170,6 @@ export async function toggleStar(entries: AlbumEntry[]): Promise<void> {
     events.emit("favoriteChanged", {
       entry: { ...entry, metadata: finalMetadata } as AlbumEntryPicasa,
     });
-    scheduleFavoriteExportJob(entry, star ? "export" : "remove");
   }
 }
 

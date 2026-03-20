@@ -3,13 +3,12 @@
  * Jobs are added only during:
  * 1. Post-walk scan (missing exif, thumbnails)
  * 2. Reindex (new/changed entries, removed entries)
- * 3. Mutations (filter/rotation changes → thumbnail; star changes → favorite export)
+ * 3. Mutations (filter/rotation changes → thumbnail; favorites sync is periodic favorite-exporter worker only)
  *
  * No jobs are added from events.
  */
 import debug from "debug";
 import { addJob } from "../../../utils/global-job-queue";
-import { waitUntilIdle } from "../../../utils/busy";
 import {
   AlbumEntry,
   AlbumEntryMetaData,
@@ -18,16 +17,7 @@ import {
 import { isPicture, isVideo } from "../../../../shared/lib/utils";
 import { makeThumbnailIfNeeded } from "../../../rpc/rpcFunctions/thumbnail";
 import { shouldMakeThumbnail } from "../../../rpc/rpcFunctions/thumbnail-cache";
-import type { JobType } from "../../extraction/job-types";
-import { unlink } from "fs/promises";
-import { extname, join } from "path";
-import { exportToFolder } from "../../../imageOperations/export";
-import { favoritesFolder } from "../../../utils/constants";
-import { fileExists } from "../../../utils/serverUtils";
-import { namifyAlbumEntry } from "../../../../shared/lib/utils";
-import { RESIZE_ON_EXPORT_SIZE } from "../../../../shared/lib/shared-constants";
 import { runRemoveJob, runUpdateEntryJob } from "../../extraction/internal/operations";
-import { getEntryMetadata } from "../queries";
 
 const debugLogger = debug("app:post-walk-jobs");
 
@@ -67,33 +57,8 @@ export function scheduleUpdateEntryJob(entry: AlbumEntry, metadata: AlbumEntryMe
   addJob(() => runUpdateEntryJob(entry, metadata), "UPDATE_ENTRY");
 }
 
-/** Add favorite export job. */
-export function scheduleFavoriteExportJob(entry: AlbumEntry, action: "export" | "remove"): void {
-  addJob(
-    async () => {
-      await waitUntilIdle();
-      if (action === "export") {
-        await exportToFolder(entry, favoritesFolder, {
-          label: true,
-          resize: RESIZE_ON_EXPORT_SIZE,
-        });
-      } else {
-        const targetPath = join(
-          favoritesFolder,
-          namifyAlbumEntry(entry) + (isVideo(entry) ? extname(entry.name) : ".jpg")
-        );
-        if (await fileExists(targetPath)) {
-          await unlink(targetPath);
-          debugLogger(`Removed from favorites: ${entry.name}`);
-        }
-      }
-    },
-    "FAVORITE_EXPORT" as JobType
-  );
-}
-
 /**
- * Scan entries and add jobs for missing thumbnails and favorite exports.
+ * Scan entries and add jobs for missing thumbnails.
  * Called after walk and after reindex.
  */
 export async function scheduleJobsForEntries(entries: AlbumEntry[]): Promise<void> {
@@ -107,10 +72,6 @@ export async function scheduleJobsForEntries(entries: AlbumEntry[]): Promise<voi
     }
 
     // Face reference creation is handled by the faces worker (batch), not in main process
-
-    const metadata = await getEntryMetadata(entry);
-    if (metadata.star) {
-      scheduleFavoriteExportJob(entry, "export");
-    }
+    // Favorites folder sync is handled by the favorite-exporter worker (periodic)
   }
 }

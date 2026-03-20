@@ -3,7 +3,7 @@
  * Jobs are added only during:
  * 1. Post-walk scan (walker/internal/post-walk-jobs.ts)
  * 2. Reindex (file watcher triggers reindex, post-walk-jobs schedules)
- * 3. Mutations (setFilters, setRotate, toggleStar call scheduleThumbnailJob/scheduleFavoriteExportJob)
+ * 3. Mutations (setFilters, setRotate call scheduleThumbnailJob; favorites via favorite-exporter worker)
  */
 import debug from "debug";
 
