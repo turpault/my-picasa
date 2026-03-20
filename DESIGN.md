@@ -123,6 +123,7 @@ Each worker service (faces, geolocate, search, favorite-exporter) has two separa
 
 ## Build & Runtime
 
+- **Prefer Bun built-ins**: Use Bun’s native APIs and `bun:*` modules first; reach for npm packages only when Bun does not offer a good fit. Examples: `bun:sqlite` (`Database`), `Bun.file` / `Bun.write`, `Bun.spawn`, `Bun.serve`, global `fetch`, `import.meta.main`. This keeps the stack aligned with the runtime and avoids redundant dependencies.
 - Build: `bun run build` (runs `scripts/build.ts`).
 - Dev: `bun run dev` or `bun --hot server/index.ts`.
 - Public assets: `public/`; built output: `public/dist/`.

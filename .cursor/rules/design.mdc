@@ -21,5 +21,6 @@ alwaysApply: true
    - **Reader**: `queries.ts`, `database.ts`, `face-db-reader.ts` (at service root, not in `internal/`). Runs queries only. The main process **only** accesses the reader. Never imports writer code.
    - **Writer**: `worker.ts`, `internal/worker-database.ts`, `internal/run-*-worker.ts`, `internal/worker-thread.ts`. Runs the process and writes to the database. May import from the reader. Runs in a child process (Bun.spawn).
    - The reader component **never** imports from: `worker-database`, `run-*-worker`, `worker-thread` (writer logic), or `worker.ts`.
+10. **Bun first**: Prefer Bun built-in APIs and `bun:*` modules over Node polyfills or extra npm packages when they cover the same need (e.g. `bun:sqlite`, `Bun.file`, `Bun.write`, `Bun.spawn`, `Bun.serve`, built-in `fetch`, `import.meta.main`). Add a dependency only when Bun does not provide a suitable API.
 
 When adding services, workers, or RPC handlers, match existing patterns in `server/services/`, `server/rpc/`, and `shared/`.
