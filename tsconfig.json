@@ -33,6 +33,7 @@
   ],
   "exclude": [
     "dist",
-    "public"
+    "public",
+    "client/app.ts"
   ]
 }

@@ -57,14 +57,6 @@ export function scheduleThumbnailJob(
   }
 }
 
-/** Add face reference job. */
-export function scheduleFaceJob(entry: AlbumEntry, options?: { force?: boolean }): void {
-  addJob(async () => {
-    if (!options?.force && (await entryHasReferences(entry))) return;
-    await createReferenceFileIfNeeded(entry);
-  }, "FACE");
-}
-
 /** Add removal job - removes entry from exif, geo, search DBs. */
 export function scheduleRemoveJob(entry: AlbumEntry): void {
   addJob(() => runRemoveJob(entry), "REMOVE");
@@ -101,7 +93,7 @@ export function scheduleFavoriteExportJob(entry: AlbumEntry, action: "export" | 
 }
 
 /**
- * Scan entries and add jobs for missing exif, thumbnails, faces.
+ * Scan entries and add jobs for missing thumbnails and favorite exports.
  * Called after walk and after reindex.
  */
 export async function scheduleJobsForEntries(entries: AlbumEntry[]): Promise<void> {

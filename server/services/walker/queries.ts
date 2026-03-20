@@ -17,8 +17,8 @@ import {
   touchPicasaEntry,
 } from "./internal/mutations";
 import {
-  getPicasaIdentifiedReferences,
-  getAlbumPicasaContactByHash,
+  getPicasaIdentifiedReferences as readPicasaIdentifiedReferences,
+  getAlbumPicasaContactByHash as readAlbumPicasaContactByHash,
 } from "./internal/picasa-read-queries";
 import type { WalkerWorkerClientApi } from "../../../shared/rpc-contracts";
 
@@ -113,8 +113,8 @@ const mutationsClient: WalkerWorkerClientApi = {
   refreshAlbums: refreshAlbumsImpl,
   onRenamedAlbums: onRenamedAlbumsImpl,
   reindexAlbums: reindexAlbumsImpl,
-  getPicasaIdentifiedReferences,
-  getAlbumPicasaContactByHash,
+  getPicasaIdentifiedReferences: readPicasaIdentifiedReferences,
+  getAlbumPicasaContactByHash: readAlbumPicasaContactByHash,
   on: () => () => {},
 };
 
