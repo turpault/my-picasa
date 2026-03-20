@@ -2,7 +2,7 @@ import debug from "debug";
 import { Stats } from "fs";
 import { stat } from "fs/promises";
 import { join, relative } from "path";
-import { addJob, drainGlobalQueue } from "../../../utils/global-job-queue";
+import { addJob, drainGlobalQueue } from "../../../utils/main-process-job-queue";
 import {
   alphaSorter,
   differs,

@@ -3,10 +3,10 @@
  * service processes so only one runs at a time, reducing contention.
  *
  * On the primary server process (main thread, no PICISA_SERVICE_NAME), `enqueueDb`
- * runs operations immediately. The global job-queue SQLite still serializes via
- * `enqueueSerializedDb` because many workers call it concurrently.
+ * runs operations immediately. `enqueueSerializedDb` is for code that still needs a
+ * mutex (e.g. the faces worker's SQLite job-queue file, parallel pickers).
  *
- * Separate from the global job queue (walk/thumbnail/extraction jobs).
+ * Separate from the main in-memory job queue (walk/thumbnail/remove/update-entry).
  */
 import debug from "debug";
 import { isMainThread } from "worker_threads";
@@ -111,7 +111,7 @@ function pushToSerialQueue<T>(fn: () => T | Promise<T>, label?: string): Promise
 }
 
 /**
- * Always one-at-a-time (e.g. picisa_queue.db touched by parallel global job workers).
+ * Always one-at-a-time (e.g. faces worker SQLite job queue with concurrent pickers).
  */
 export function enqueueSerializedDb<T>(fn: () => T | Promise<T>, label?: string): Promise<T> {
   return pushToSerialQueue(fn, label);
@@ -127,7 +127,7 @@ export function enqueueDb<T>(fn: () => T | Promise<T>, label?: string): Promise<
   return pushToSerialQueue(fn, label);
 }
 
-/** Pending / active for the serial queue (job-queue DB ops on primary; all DB ops in workers). */
+/** Pending / active for the serial db-queue (workers; faces SQLite job store on main child process). */
 export function getDbQueueStats(): { pending: number; active: number } {
   return {
     pending: queue.length,

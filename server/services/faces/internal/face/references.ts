@@ -4,7 +4,7 @@ import Debug from "debug";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { lock } from "../../../../../shared/lib/mutex";
-import { addJob } from "../../../../utils/global-job-queue";
+import { addFacesJob } from "../../../../utils/faces-job-queue";
 import { AlbumEntry, Reference, ReferenceData } from "../../../../../shared/types/types";
 import { isUsefulReference } from "../../../../operations/faces/face-utils";
 import {
@@ -127,7 +127,7 @@ export async function createReferenceFileIfNeeded(entry: AlbumEntry) {
       );
       if (!detectedReferences) {
         debug(`Will generate references of file ${imagePath}`);
-        await addJob(async () => {
+        await addFacesJob(async () => {
           const l = await lock(`createReferenceFileIfNeeded:${imagePath}`);
           try {
             const buffer = await readFile(imagePath);

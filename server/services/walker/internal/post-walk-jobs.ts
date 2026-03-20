@@ -8,7 +8,7 @@
  * No jobs are added from events.
  */
 import debug from "debug";
-import { addJob } from "../../../utils/global-job-queue";
+import { addJob } from "../../../utils/main-process-job-queue";
 import {
   AlbumEntry,
   AlbumEntryMetaData,

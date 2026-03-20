@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { join } from "path";
-import { initGlobalJobQueue } from "./utils/global-job-queue";
+import { initMainProcessJobQueue } from "./utils/main-process-job-queue";
 import { setupGlobalJobSchedulers } from "./utils/global-job-schedulers";
 import { walkFilesystem, setWalkerReadyResolver } from "./services/walker/internal/walk";
 import { runExtractionWorker } from "./services/extraction/internal/operations";
@@ -145,7 +145,7 @@ export function isWorkerRunning(serviceName: string): boolean {
 
 export async function startWorkers() {
   const concurrency = parseInt(process.env.PICISA_GLOBAL_QUEUE_CONCURRENCY || "3", 10);
-  initGlobalJobQueue(concurrency, (stats) => {
+  await initMainProcessJobQueue(concurrency, (stats) => {
     extractionStats = stats;
   });
   setupGlobalJobSchedulers();

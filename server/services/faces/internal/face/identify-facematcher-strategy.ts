@@ -1,6 +1,10 @@
 import * as faceapi from "@vladmandic/face-api";
 import Debug from "debug";
-import { addJob } from "../../../../utils/global-job-queue";
+import {
+  addFacesJob,
+  drainFacesJobQueue,
+  getFacesJobQueueStats,
+} from "../../../../utils/faces-job-queue";
 
 import { Album, Reference } from "../../../shared/types/types";
 import { media } from "../../../../rpc/rpcFunctions/albumUtils";
@@ -147,23 +151,22 @@ async function populateCandidates() {
   }
   const matcher = new faceapi.FaceMatcher(references);
 
-  const { drainGlobalQueue, getGlobalQueueStats } = await import("../../../../utils/global-job-queue");
   const albums = await getFolderAlbums();
   for (const album of albums.sort((a, b) => -a.name.localeCompare(b.name))) {
-    addJob(async () => {
+    addFacesJob(async () => {
       await populateCandidatesOfAlbum(album, matcher).catch(debug);
     }, "FACE");
   }
   const t = setInterval(
     async () => {
-      const stats = await getGlobalQueueStats();
+      const stats = await getFacesJobQueueStats();
       debug(
         `populateCandidates: Remaining ${stats.pending + stats.active} albums to process.`,
       );
     },
     2000,
   );
-  await drainGlobalQueue();
+  await drainFacesJobQueue();
   clearInterval(t);
 }
 

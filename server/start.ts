@@ -7,7 +7,6 @@ import { RPCAdaptorInterface } from "../shared/rpc-transport/rpc-adaptor-interfa
 import { WsAdaptor } from "../shared/rpc-transport/ws-adaptor";
 import { closePoiDb } from "./services/geolocate/poi";
 import { closeWalkerDatabase } from "./services/walker/internal/database";
-import { closeQueueDatabase } from "./utils/queue-database";
 import { parseLUTs } from "./imageOperations/image-filters";
 import { encode } from "./imageOperations/sharp-processor";
 import { startAlbumUpdateNotification } from "./rpc/fileAndFolders";
@@ -43,7 +42,7 @@ import {
 import {
   getGlobalQueuePendingByPriority,
   getGlobalQueueStats,
-} from "./utils/global-job-queue";
+} from "./utils/main-process-job-queue";
 import { getDbQueueStats } from "./utils/db-queue";
 import {
   getEntriesDbContents,
@@ -364,7 +363,6 @@ export async function startServer(p?: number) {
 process.on("exit", () => {
   closePoiDb();
   closeWalkerDatabase();
-  closeQueueDatabase();
 });
 
 export async function startServices() {
