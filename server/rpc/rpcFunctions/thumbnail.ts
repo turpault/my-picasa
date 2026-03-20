@@ -51,13 +51,12 @@ export async function makeThumbnailIfNeeded(
   entry: AlbumEntry,
   size: ThumbnailSize = "th-medium",
   animated: boolean = true,
-  options?: { assumeExistingIsFresh?: boolean },
 ) {
   try {
     if (isPicture(entry)) {
-      return await makeImageThumbnailIfNeeded(entry, size, animated, options);
+      return await makeImageThumbnailIfNeeded(entry, size, animated);
     } else {
-      return await makeVideoThumbnailIfNeeded(entry, size, animated, options);
+      return await makeVideoThumbnailIfNeeded(entry, size, animated);
     }
   } catch (e) {
     console.error(
@@ -80,7 +79,7 @@ async function makeImageThumbnail(
   const release = await lock(lockLabel);
   inc("thumbnail");
   try {
-    const metadata = getEntryMetadata(entry);
+    const metadata = await getEntryMetadata(entry);
     const transform = metadata.filters || "";
     const filterVersion = metadata.filterVersion ?? 0;
     const { path, filename } = thumbnailPathFromEntryAndSize(entry, size, animated);
@@ -105,11 +104,10 @@ async function makeImageThumbnailIfNeeded(
   entry: AlbumEntry,
   size: ThumbnailSize,
   animated: boolean,
-  options?: { assumeExistingIsFresh?: boolean },
 ) {
   inc("thumbnail");
   try {
-    if (await shouldMakeThumbnail(entry, size, animated, options)) {
+    if (await shouldMakeThumbnail(entry, size, animated)) {
       await makeImageThumbnail(entry, size, animated);
       events.emit("thumbnailRebuilt", { entry, size, animated });
     }
@@ -143,7 +141,7 @@ async function makeVideoThumbnail(
   size: ThumbnailSize = "th-medium",
   animated: boolean,
 ): Promise<undefined | Buffer> {
-  const metadata = getEntryMetadata(entry);
+  const metadata = await getEntryMetadata(entry);
   const transform = metadata.filters || "";
   const rotate = metadata.rotate || "";
   const filterVersion = metadata.filterVersion ?? 0;
@@ -160,7 +158,6 @@ async function makeVideoThumbnailIfNeeded(
   entry: AlbumEntry,
   size: ThumbnailSize,
   animated: boolean,
-  options?: { assumeExistingIsFresh?: boolean },
 ) {
   inc("thumbnail");
   const unlock = await lock(
@@ -173,7 +170,7 @@ async function makeVideoThumbnailIfNeeded(
     (animated ? " animated" : ""),
   );
   try {
-    if (await shouldMakeThumbnail(entry, size, animated, options)) {
+    if (await shouldMakeThumbnail(entry, size, animated)) {
       await makeVideoThumbnail(entry, size, animated);
       events.emit("thumbnailRebuilt", { entry, size, animated });
     }

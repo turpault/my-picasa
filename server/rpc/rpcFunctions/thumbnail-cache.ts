@@ -9,7 +9,7 @@ import {
 } from "../../../shared/types/types";
 import { entryRelativePath } from "../../imageOperations/info";
 import { imagesRoot } from "../../utils/constants";
-import { fileExists, pathForAlbum, safeWriteFile } from "../../utils/serverUtils";
+import { fileExists, pathForAlbum, safeWriteFile, memoStat } from "../../utils/serverUtils";
 import { getEntryMetadata } from "../../services/walker/queries";
 
 import Debug from "debug";
@@ -149,10 +149,9 @@ export async function shouldMakeThumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize,
   animated: boolean,
-  options?: { assumeExistingIsFresh?: boolean },
 ): Promise<boolean> {
   const { fullPath } = thumbnailPathFromEntryAndSize(entry, size, animated);
-  const thumbStats = await stat(fullPath).catch(() => undefined);
+  const thumbStats = await memoStat(fullPath).catch(() => undefined);
 
   if (!thumbStats) {
     debug(
@@ -167,13 +166,8 @@ export async function shouldMakeThumbnail(
     return true;
   }
 
-  /** On startup: if thumbnail exists and has content, assume up-to-date. */
-  if (options?.assumeExistingIsFresh) {
-    return false;
-  }
-
-  const metadata = getEntryMetadata(entry);
-  const sourceStat = await stat(
+  const metadata = await getEntryMetadata(entry);
+  const sourceStat = await memoStat(
     join(imagesRoot, entryRelativePath(entry)),
   ).catch((): undefined => undefined);
 
@@ -182,7 +176,7 @@ export async function shouldMakeThumbnail(
   }
 
   if (thumbStats.mtime < sourceStat.mtime) {
-    debug(`Thumbnail for media ${entry.album.name}/${entry.name} is outdated`);
+    debug(`Thumbnail for media ${entry.album.name}/${entry.name} is outdated ${thumbStats.mtime.toISOString()} < ${sourceStat.mtime.toISOString()}`);
     return true;
   }
 
