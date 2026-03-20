@@ -9,6 +9,8 @@ import {
   AlbumEntryMetaData,
   AlbumMetaData,
   AlbumWithData,
+  animatedPictureExtensions,
+  pictureExtensions,
   Shortcut,
   ThumbnailSize,
 } from "../../../../shared/types/types";
@@ -491,6 +493,77 @@ class EntriesDatabaseAccess {
         SELECT entry_name FROM album_entries WHERE album_key = ? ORDER BY entry_name
       `).all(album.key) as Array<{ entry_name: string }>;
       return rows.map((r) => ({ album, name: r.entry_name }));
+    });
+  }
+
+  /** Non-animated picture extensions for face reference candidate queries. */
+  private pictureLikePatternsForFaceScan(): string[] {
+    const staticExts = pictureExtensions.filter(
+      (e) => !animatedPictureExtensions.includes(e),
+    );
+    return staticExts.map((e) => `%.${e}`);
+  }
+
+  /**
+   * Paginated static-image entries from the entries DB (for faces worker).
+   * Ordered by album_key, entry_name for stable paging.
+   */
+  async listStaticPictureEntriesBatch(
+    limit: number,
+    offset: number,
+  ): Promise<AlbumEntry[]> {
+    return enqueueDb(() => {
+      const patterns = this.pictureLikePatternsForFaceScan();
+      if (patterns.length === 0) return [];
+      const orClause = patterns.map(() => `lower(ae.entry_name) LIKE ?`).join(" OR ");
+      const rows = this.db
+        .prepare(
+          `
+        SELECT ae.album_key, a.name AS album_name, ae.entry_name
+        FROM album_entries ae
+        INNER JOIN albums a ON ae.album_id = a.album_id
+        WHERE (${orClause})
+        ORDER BY ae.album_key, ae.entry_name
+        LIMIT ? OFFSET ?
+      `,
+        )
+        .all(...patterns, limit, offset) as Array<{
+        album_key: string;
+        album_name: string;
+        entry_name: string;
+      }>;
+      return rows.map((r) => ({
+        album: { key: r.album_key, name: r.album_name },
+        name: r.entry_name,
+      }));
+    });
+  }
+
+  /**
+   * Paginated starred entries from the entries DB (for favorite-exporter worker).
+   */
+  async listStarredEntriesBatch(limit: number, offset: number): Promise<AlbumEntry[]> {
+    return enqueueDb(() => {
+      const rows = this.db
+        .prepare(
+          `
+        SELECT ae.album_key, a.name AS album_name, ae.entry_name
+        FROM album_entries ae
+        INNER JOIN albums a ON ae.album_id = a.album_id
+        WHERE ae.star = 1
+        ORDER BY ae.album_key, ae.entry_name
+        LIMIT ? OFFSET ?
+      `,
+        )
+        .all(limit, offset) as Array<{
+        album_key: string;
+        album_name: string;
+        entry_name: string;
+      }>;
+      return rows.map((r) => ({
+        album: { key: r.album_key, name: r.album_name },
+        name: r.entry_name,
+      }));
     });
   }
 

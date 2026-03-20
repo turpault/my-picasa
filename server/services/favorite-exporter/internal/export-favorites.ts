@@ -1,15 +1,20 @@
-import { mkdir, unlink } from "fs/promises";
+import { mkdir, readdir, unlink } from "fs/promises";
 import { extname, join } from "path";
 import debug from "debug";
 import { exportToFolder } from "../../../imageOperations/export";
-import { getEntryMetadata, getAllAlbums, getAlbumEntries } from "../../walker/queries";
-import { waitUntilIdle } from "../../../utils/busy";
+import {
+  getFavoritesDbPageSize,
+  getFavoritesExportConcurrency,
+  getFavoritesRunMaxMs,
+} from "../../../config/worker-batch-config";
 import { favoritesFolder } from "../../../utils/constants";
+import { createRunDeadline } from "../../../utils/run-deadline";
 import { fileExists } from "../../../utils/serverUtils";
 import { Queue } from "../../../../shared/lib/queue";
 import { RESIZE_ON_EXPORT_SIZE } from "../../../../shared/lib/shared-constants";
 import { AlbumEntry } from "../../../../shared/types/types";
 import { isVideo, namifyAlbumEntry } from "../../../../shared/lib/utils";
+import { getEntriesDatabase } from "../../entries/internal/database";
 
 const debugLogger = debug("app:favorite-exporter");
 
@@ -22,44 +27,99 @@ function getFavoritesExportPath(entry: AlbumEntry): string {
 }
 
 async function exportStarredEntry(entry: AlbumEntry): Promise<void> {
-  await waitUntilIdle();
   await exportToFolder(entry, favoritesFolder, {
     label: true,
     resize: RESIZE_ON_EXPORT_SIZE,
   });
 }
 
-async function removeFromFavorites(entry: AlbumEntry): Promise<void> {
-  const targetPath = getFavoritesExportPath(entry);
-  if (await fileExists(targetPath)) {
-    await unlink(targetPath);
-    debugLogger(`Removed from favorites: ${entry.name}`);
-  }
-}
+export type ExportFavoritesOptions = {
+  runMaxMs?: number;
+  exportConcurrency?: number;
+  dbPageSize?: number;
+};
 
-export async function exportAllMissing(): Promise<void> {
+/**
+ * Sync `.favorites` with starred rows in picisa_entries.db: remove orphan files,
+ * export missing starred entries. Bounded by wall time and export concurrency.
+ */
+export async function exportAllMissing(options?: ExportFavoritesOptions): Promise<void> {
+  const runMaxMs = options?.runMaxMs ?? getFavoritesRunMaxMs();
+  const exportConcurrency = options?.exportConcurrency ?? getFavoritesExportConcurrency();
+  const dbPageSize = options?.dbPageSize ?? getFavoritesDbPageSize();
+  const deadline = createRunDeadline(runMaxMs);
+  const db = getEntriesDatabase();
+
   await mkdir(favoritesFolder, { recursive: true });
-  const albums = await getAllAlbums();
-  const q = new Queue(10);
-  for (const album of albums) {
-    q.add(async () => {
-      const entries = await getAlbumEntries(album);
-      for (const entry of entries) {
-        const withMetadata = await getEntryMetadata(entry);
-        if (!withMetadata.star) continue;
-        q.add(async () => {
-          await exportStarredEntry(entry);
-        });
-      }
-    });
+
+  const expectedFilenames = new Set<string>();
+  let off = 0;
+  while (true) {
+    const batch = await db.listStarredEntriesBatch(dbPageSize, off);
+    if (batch.length === 0) break;
+    off += batch.length;
+    for (const entry of batch) {
+      expectedFilenames.add(getFavoritesExportFilename(entry));
+    }
   }
-  await q.drain();
+
+  if (!deadline.isExpired()) {
+    try {
+      const files = await readdir(favoritesFolder);
+      for (const name of files) {
+        if (deadline.isExpired()) break;
+        if (name.startsWith(".")) continue;
+        if (!expectedFilenames.has(name)) {
+          const full = join(favoritesFolder, name);
+          try {
+            await unlink(full);
+            debugLogger(`Removed orphan from favorites: ${name}`);
+          } catch (e) {
+            debugLogger(`Could not remove ${full}:`, e);
+          }
+        }
+      }
+    } catch (e) {
+      debugLogger("readdir favorites folder:", e);
+    }
+  }
+
+  if (deadline.isExpired()) {
+    debugLogger("Favorite export: time budget exhausted after cleanup");
+    return;
+  }
+
+  const exportQueue = new Queue(exportConcurrency, { fifo: true });
+  off = 0;
+  while (!deadline.isExpired()) {
+    const batch = await db.listStarredEntriesBatch(dbPageSize, off);
+    if (batch.length === 0) break;
+    off += batch.length;
+
+    for (const entry of batch) {
+      if (deadline.isExpired()) break;
+      const targetPath = getFavoritesExportPath(entry);
+      if (await fileExists(targetPath)) continue;
+      exportQueue.add(async () => {
+        if (deadline.isExpired()) return;
+        try {
+          await exportStarredEntry(entry);
+        } catch (e) {
+          debugLogger(`Export failed ${entry.album.name}/${entry.name}:`, e);
+        }
+      });
+    }
+  }
+
+  await exportQueue.drain();
+
+  if (deadline.isExpired()) {
+    debugLogger("Favorite export: finished or stopped on time budget");
+  }
 }
 
 function setupEventListeners(): void {
-  // Favorite-export scheduling is handled by global-job-schedulers
-  // (albumEntryAdded, picasaEntryUpdated for star field)
-  debugLogger("Favorite-exporter event listeners delegated to global-job-schedulers");
+  debugLogger("Favorite-exporter batch sync uses entries DB; live star toggles still use main-process jobs.");
 }
 
 /**

@@ -7,7 +7,15 @@ import { runClusterStrategy } from "./face/identify-cluster-strategy";
 import { populateAllReferences, setupFaceAPI } from "./face/references";
 const debug = Debug("app:faces");
 
-export async function buildFaceScan() {
+export type BuildFaceScanOptions = {
+  isExpired: () => boolean;
+  facesBatchSize: number;
+  facesParallelism: number;
+};
+
+export async function buildFaceScan(options: BuildFaceScanOptions) {
+  const { isExpired, facesBatchSize, facesParallelism } = options;
+
   await tf.ready;
 
   // Access database to ensure it's initialized (lazy initialization via queries)
@@ -15,22 +23,40 @@ export async function buildFaceScan() {
 
   debug("Build references");
   await setupFaceAPI();
-  await populateAllReferences();
+  if (isExpired()) {
+    debug("Face scan: time budget exhausted after setupFaceAPI");
+    return;
+  }
+  await populateAllReferences({
+    isExpired,
+    batchSize: facesBatchSize,
+    parallelism: facesParallelism,
+  });
+
+  if (isExpired()) {
+    debug("Face scan: time budget exhausted after reference population");
+    return;
+  }
 
   debug("Running cluster strategy");
   await runClusterStrategy();
   debug("Running face matcher strategy");
   // await runFaceMatcherStrategy();
 
+  if (isExpired()) {
+    debug("Face scan: time budget exhausted after cluster strategy");
+    return;
+  }
+
   debug("Exporting all faces");
-  await exportAllFaces();
+  await exportAllFaces(isExpired);
   debug("Face scan complete");
 }
 
 /**
  * Export all faces to a folder
  */
-async function exportAllFaces() {
+async function exportAllFaces(isExpired: () => boolean) {
   const getFaceImageQueue = new Queue(10, { fifo: false });
 
   const contacts = await getContacts();
@@ -39,16 +65,15 @@ async function exportAllFaces() {
       `Exporting faces. Remaining ${getFaceImageQueue.done()}/${getFaceImageQueue.total()} (${Math.floor((100 * getFaceImageQueue.done()) / getFaceImageQueue.total())}%)`,
     );
   }, 2000);
-  await Promise.all(
-    contacts.map(async (contact) => {
-      const entries = await getEntriesForContact(contact);
-      await Promise.all(
-        entries.map(async (entry) =>
-          getFaceImageQueue.add(() => getFaceImage(entry.name, true)),
-        ),
-      );
-    }),
-  );
+  for (const contact of contacts) {
+    if (isExpired()) break;
+    const entries = await getEntriesForContact(contact);
+    await Promise.all(
+      entries.map(async (entry) =>
+        getFaceImageQueue.add(() => getFaceImage(entry.name, true)),
+      ),
+    );
+  }
   await getFaceImageQueue.drain();
   clearInterval(interval);
 }

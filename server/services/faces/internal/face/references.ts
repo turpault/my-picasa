@@ -5,21 +5,15 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import { lock } from "../../../../../shared/lib/mutex";
 import { addJob } from "../../../../utils/global-job-queue";
-import {
-  Album,
-  AlbumEntry,
-  Reference,
-  ReferenceData,
-} from "../../../../../shared/types/types";
+import { AlbumEntry, Reference, ReferenceData } from "../../../../../shared/types/types";
 import { isUsefulReference } from "../../../../operations/faces/face-utils";
 import {
   readReferencesOfEntry,
   referencePath,
   writeReferencesOfEntry,
 } from "../../../../rpc/referenceFiles";
-import { media } from "../../../../rpc/rpcFunctions/albumUtils";
 import { entryFilePath, fileExists } from "../../../../utils/serverUtils";
-import { getAllAlbums } from "../../../walker/queries";
+import { getEntriesDatabase } from "../../../entries/internal/database";
 import {
   idFromAlbumEntry,
   isAnimated,
@@ -56,58 +50,67 @@ export async function setupFaceAPI() {
   faceApiReadyResolve();
 }
 
-export async function populateAllReferences() {
-  const albums = await getAllAlbums();
-  const { drainGlobalQueue, getGlobalQueueStats } = await import("../../../../utils/global-job-queue");
+export type PopulateReferencesOptions = {
+  isExpired: () => boolean;
+  batchSize: number;
+  parallelism: number;
+};
 
-  for (const album of albums) {
-    const entries = await media(album);
-    let needsWork = false;
-    for (const entry of entries.entries) {
-      if (isPicture(entry) && !isAnimated(entry) && !(await entryHasReferences(entry))) {
-        needsWork = true;
-        break;
-      }
+/**
+ * Build face reference files for static images that lack them.
+ * Sources candidates from picisa_entries.db in stable pages; processes up to `parallelism`
+ * entries at a time (each may enqueue a FACE job on the in-process global queue).
+ */
+export async function populateAllReferences(options: PopulateReferencesOptions): Promise<void> {
+  const db = getEntriesDatabase();
+  const { isExpired, batchSize, parallelism } = options;
+  let offset = 0;
+  let totalScanned = 0;
+  let batchRound = 0;
+
+  while (!isExpired()) {
+    const batch = await db.listStaticPictureEntriesBatch(batchSize, offset);
+    if (batch.length === 0) break;
+    offset += batch.length;
+    totalScanned += batch.length;
+    batchRound++;
+
+    const candidates: AlbumEntry[] = [];
+    for (const entry of batch) {
+      if (!isPicture(entry) || isAnimated(entry)) continue;
+      if (await entryHasReferences(entry)) continue;
+      const imagePath = entryFilePath(entry);
+      if (!(await fileExists(imagePath))) continue;
+      candidates.push(entry);
     }
-    if (!needsWork) continue;
-    addJob(async () => {
-      await processFaces(album).catch(debug);
-    }, "FACE");
+
+    for (let i = 0; i < candidates.length && !isExpired(); i += parallelism) {
+      const slice = candidates.slice(i, i + parallelism);
+      await Promise.all(
+        slice.map((entry) =>
+          createReferenceFileIfNeeded(entry).catch((err) => {
+            debug("createReferenceFileIfNeeded:", entryFilePath(entry), err);
+          }),
+        ),
+      );
+    }
+
+    if (batchRound % 10 === 0) {
+      debug(
+        `populateReferences: scanned ${totalScanned} static-image rows from entries DB (offset ${offset})`,
+      );
+    }
   }
-  const t = setInterval(
-    async () => {
-      const stats = await getGlobalQueueStats();
-      debug(`populateReferences: Remaining ${stats.pending + stats.active} albums to process.`);
-    },
-    2000,
-  );
-  await drainGlobalQueue();
-  clearInterval(t);
+
+  if (isExpired()) {
+    debug("populateReferences: stopped early (time budget)");
+  }
 }
 
 /** Check if entry already has face reference file. Used by job schedulers to skip unnecessary jobs. */
 export async function entryHasReferences(entry: AlbumEntry): Promise<boolean> {
   const p = referencePath(entry);
   return fileExists(join(p.path, p.file));
-}
-
-async function processFaces(album: Album) {
-  const entries = await media(album);
-
-  await Promise.all(
-    entries.entries.map(async (entry) => {
-      if (await entryHasReferences(entry)) {
-        return;
-      }
-
-      const imagePath = entryFilePath(entry);
-      const exists = await fileExists(imagePath);
-      if (!exists) {
-        return;
-      }
-      await createReferenceFileIfNeeded(entry);
-    }),
-  );
 }
 
 export const referenceQualifier = "reference";
