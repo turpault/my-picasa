@@ -5,12 +5,15 @@
 import { Database } from "bun:sqlite";
 import { existsSync } from "fs";
 import { FACES_DB_PATH, ENTRIES_DB_PATH } from "../../../utils/db-paths";
+import { validateSqliteFileOrQuarantine } from "../../../utils/sqlite-validate";
 import type { Album, AlbumEntry, Contact } from "../../../../shared/types/types";
 
 let workerDb: Database | null = null;
 
 export function getFacesWorkerDatabase(): Database {
   if (workerDb) return workerDb;
+  validateSqliteFileOrQuarantine(FACES_DB_PATH, "picisa_faces (worker)");
+  validateSqliteFileOrQuarantine(ENTRIES_DB_PATH, "picisa_entries (faces worker attach)");
   if (!existsSync(FACES_DB_PATH)) {
     throw new Error("picisa_faces.db does not exist - run main process first to create split DBs");
   }

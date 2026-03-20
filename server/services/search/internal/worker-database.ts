@@ -10,11 +10,16 @@ import {
   EXIF_DB_PATH,
   GEO_DB_PATH,
 } from "../../../utils/db-paths";
+import { validateSqliteFileOrQuarantine } from "../../../utils/sqlite-validate";
 
 let workerDb: Database | null = null;
 
 export function getSearchWorkerDatabase(): Database {
   if (workerDb) return workerDb;
+  validateSqliteFileOrQuarantine(SEARCH_DB_PATH, "picisa_search (worker)");
+  validateSqliteFileOrQuarantine(ENTRIES_DB_PATH, "picisa_entries (search worker attach)");
+  validateSqliteFileOrQuarantine(EXIF_DB_PATH, "picisa_exif (search worker attach)");
+  validateSqliteFileOrQuarantine(GEO_DB_PATH, "picisa_geo (search worker attach)");
   if (!existsSync(SEARCH_DB_PATH)) {
     throw new Error("picisa_search.db does not exist - run main process first to create split DBs");
   }

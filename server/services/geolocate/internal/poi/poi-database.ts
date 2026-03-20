@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
-import { join } from "path";
-import { imagesRoot } from "../../../../utils/constants";
+import { POI_DB_PATH } from "../../../../utils/db-paths";
 import { ensureDbFormatOrRemove, isDev } from "../../../../utils/ensure-db-format";
+import { validateSqliteFileOrQuarantine } from "../../../../utils/sqlite-validate";
 import { enqueueDb } from "../../../../utils/db-queue";
 import { info } from "console";
 import { GeoPOI } from "../../../../../shared/types/types";
@@ -14,7 +14,8 @@ let dbInstance: Database | null = null;
  */
 export function getPoiDb(): Database {
   if (!dbInstance) {
-    const dbPath = join(imagesRoot, "poi.db");
+    const dbPath = POI_DB_PATH;
+    validateSqliteFileOrQuarantine(dbPath, "poi");
     if (isDev()) {
       ensureDbFormatOrRemove(dbPath, (db) => {
         const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='poi'").get();

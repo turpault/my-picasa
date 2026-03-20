@@ -3,10 +3,9 @@
  * Parallel FACE workers serialize access via enqueueSerializedDb.
  */
 import { Database } from "bun:sqlite";
-import { join } from "path";
 import debug from "debug";
 import { enqueueSerializedDb } from "./db-queue";
-import { imagesRoot } from "./constants";
+import { FACES_JOB_QUEUE_DB_PATH } from "./db-paths";
 import type { JobQueueStore, JobQueuePendingRow } from "./job-queue-store";
 
 const debugLogger = debug("app:faces-job-queue-sqlite");
@@ -14,7 +13,7 @@ const debugLogger = debug("app:faces-job-queue-sqlite");
 /** Human-readable name for logs and debugging. */
 export const FACES_JOB_QUEUE_SQLITE_NAME = "faces-worker (SQLite)";
 
-export const DEFAULT_FACES_JOB_QUEUE_DB_PATH = join(imagesRoot, "picisa_queue_faces.db");
+export const DEFAULT_FACES_JOB_QUEUE_DB_PATH = FACES_JOB_QUEUE_DB_PATH;
 
 export class FacesJobQueueSqliteStore implements JobQueueStore {
   private db: Database;

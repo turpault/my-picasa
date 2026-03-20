@@ -1,6 +1,5 @@
 import { Database } from "bun:sqlite";
 import debug from "debug";
-import { join } from "path";
 import { existsSync, unlinkSync } from "fs";
 import { isMainThread, workerData } from "worker_threads";
 import {
@@ -14,12 +13,13 @@ import {
   Shortcut,
   ThumbnailSize,
 } from "../../../../shared/types/types";
-import { imagesRoot } from "../../../utils/constants";
 import {
+  ENTRIES_DB_PATH,
   EXIF_DB_PATH,
-  GEO_DB_PATH,
   FACES_DB_PATH,
+  GEO_DB_PATH,
   SEARCH_DB_PATH,
+  WALKER_DB_PATH,
 } from "../../../utils/db-paths";
 import {
   ensureSplitDatabasesExist,
@@ -27,13 +27,12 @@ import {
 } from "./migrate-to-split-dbs";
 import { ensureDbFormatOrRemove, isDev } from "../../../utils/ensure-db-format";
 import { enqueueDb } from "../../../utils/db-queue";
+import { validatePicisaCoreSqliteFiles } from "../../../utils/sqlite-validate";
 import { uuid } from "../../../../shared/lib/utils";
 
 const debugLogger = debug("app:entries-db");
 
 const DATABASE_VERSION = 3;
-const ENTRIES_DB_PATH = join(imagesRoot, "picisa_entries.db");
-const WALKER_DB_PATH = join(imagesRoot, "picisa_walker.db");
 
 /**
  * Unified entries database (picisa_entries.db).
@@ -863,9 +862,14 @@ class EntriesDatabaseAccess {
 }
 
 let dbAccess: EntriesDatabaseAccess | null = null;
+let validatedPicisaSqliteAtStartup = false;
 
 export function getEntriesDatabase(): EntriesDatabaseAccess {
   if (!dbAccess) {
+    if (!validatedPicisaSqliteAtStartup) {
+      validatedPicisaSqliteAtStartup = true;
+      validatePicisaCoreSqliteFiles();
+    }
     dbAccess = new EntriesDatabaseAccess();
   }
   return dbAccess;

@@ -1,7 +1,6 @@
 /**
  * Run faces worker: build face scan with picisa_faces.db as write target.
  */
-import { join } from "path";
 import {
   getFacesEntriesBatchSize,
   getFacesQueueConcurrency,
@@ -14,9 +13,9 @@ import {
   createFacesWorkerStorage,
 } from "./face/faces-worker-storage";
 import { buildFaceScan } from "./worker-thread";
+import { FACES_JOB_QUEUE_DB_PATH } from "../../../utils/db-paths";
 import { initFacesJobQueue } from "../../../utils/faces-job-queue";
 import { createRunDeadline } from "../../../utils/run-deadline";
-import { imagesRoot } from "../../../utils/constants";
 
 export async function runFacesWorker(): Promise<void> {
   getEntriesDatabase();
@@ -26,7 +25,7 @@ export async function runFacesWorker(): Promise<void> {
   const concurrency = getFacesQueueConcurrency();
   const deadline = createRunDeadline(getFacesRunMaxMs());
 
-  await initFacesJobQueue(concurrency, join(imagesRoot, "picisa_queue_faces.db"));
+  await initFacesJobQueue(concurrency, FACES_JOB_QUEUE_DB_PATH);
 
   try {
     await buildFaceScan({

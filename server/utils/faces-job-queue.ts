@@ -2,14 +2,14 @@
  * Faces worker process job queue: FACE jobs only. Persisted in SQLite so ordering
  * survives across in-process restarts of the worker loop (same as before).
  */
-import { join } from "path";
 import { createJobQueueRuntime, type JobQueueRuntime } from "./job-queue-runtime";
+import { FACES_JOB_QUEUE_DB_PATH } from "./db-paths";
 import {
   DEFAULT_FACES_JOB_QUEUE_DB_PATH,
   FacesJobQueueSqliteStore,
   FACES_JOB_QUEUE_SQLITE_NAME,
 } from "./faces-job-queue-sqlite-store";
-import { imagesRoot } from "./constants";
+import { validateSqliteFileOrQuarantine } from "./sqlite-validate";
 import type { JobType } from "../services/extraction/job-types";
 
 export { FACES_JOB_QUEUE_SQLITE_NAME, DEFAULT_FACES_JOB_QUEUE_DB_PATH };
@@ -21,9 +21,10 @@ let runtime: JobQueueRuntime | null = null;
 
 export async function initFacesJobQueue(
   concurrency: number = DEFAULT_CONCURRENCY,
-  dbPath: string = join(imagesRoot, "picisa_queue_faces.db"),
+  dbPath: string = FACES_JOB_QUEUE_DB_PATH,
 ): Promise<void> {
   if (runtime) return;
+  validateSqliteFileOrQuarantine(dbPath, "picisa_queue_faces (job queue)");
   sqliteStore = new FacesJobQueueSqliteStore(dbPath);
   runtime = createJobQueueRuntime({
     debugNamespace: "app:faces-job-queue",
