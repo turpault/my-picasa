@@ -13,8 +13,6 @@ import {
   createFacesWorkerStorage,
 } from "./face/faces-worker-storage";
 import { buildFaceScan } from "./worker-thread";
-import { FACES_JOB_QUEUE_DB_PATH } from "../../../utils/db-paths";
-import { initFacesJobQueue } from "../../../utils/faces-job-queue";
 import { createRunDeadline } from "../../../utils/run-deadline";
 
 export async function runFacesWorker(): Promise<void> {
@@ -24,8 +22,6 @@ export async function runFacesWorker(): Promise<void> {
 
   const concurrency = getFacesQueueConcurrency();
   const deadline = createRunDeadline(getFacesRunMaxMs());
-
-  await initFacesJobQueue(concurrency, FACES_JOB_QUEUE_DB_PATH);
 
   try {
     await buildFaceScan({

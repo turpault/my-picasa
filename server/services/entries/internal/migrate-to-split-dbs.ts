@@ -475,9 +475,14 @@ function createFacesDb(): void {
       PRIMARY KEY (entry_id, hash)
     );
     CREATE INDEX idx_face_rects_entry ON face_rects(entry_id);
+
+    CREATE TABLE face_reference_scan (
+      entry_id TEXT PRIMARY KEY,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
-  debugLogger("Created picisa_faces.db with contacts and face_rects");
+  debugLogger("Created picisa_faces.db with contacts, face_rects, face_reference_scan");
   facesDb.close();
 }
 

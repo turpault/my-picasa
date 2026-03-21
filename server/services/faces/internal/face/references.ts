@@ -4,7 +4,6 @@ import Debug from "debug";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { lock } from "../../../../../shared/lib/mutex";
-import { addFacesJob } from "../../../../utils/faces-job-queue";
 import { AlbumEntry, Reference, ReferenceData } from "../../../../../shared/types/types";
 import { isUsefulReference } from "../../../../operations/faces/face-utils";
 import {
@@ -13,7 +12,13 @@ import {
   writeReferencesOfEntry,
 } from "../../../../rpc/referenceFiles";
 import { entryFilePath, fileExists } from "../../../../utils/serverUtils";
-import { getEntriesDatabase } from "../../../entries/internal/database";
+import {
+  ensureFaceReferenceScanSchema,
+  listPictureEntriesNeedingReferenceScan,
+  markFaceReferenceScanDone,
+  pruneFacesDataForRemovedEntries,
+} from "../face-reference-scan";
+import { getFacesWorkerDatabase } from "../worker-database";
 import {
   idFromAlbumEntry,
   isAnimated,
@@ -25,7 +30,7 @@ const debug = Debug("app:faces");
 let optionsSSDMobileNet: faceapi.SsdMobilenetv1Options;
 
 let faceApiReadyResolve: () => void;
-/** Resolved when setupFaceAPI completes. Event-driven FACE jobs await this before running. */
+/** Resolved when setupFaceAPI completes; reference detection awaits this before running. */
 export const faceApiReadyPromise = new Promise<void>((r) => {
   faceApiReadyResolve = r;
 });
@@ -58,56 +63,72 @@ export type PopulateReferencesOptions = {
 
 /**
  * Build face reference files for static images that lack them.
- * Sources candidates from picisa_entries.db in stable pages; processes up to `parallelism`
- * entries at a time (each may enqueue a FACE job on the in-process global queue).
+ * Compares picisa_entries (attached) with face_reference_scan in picisa_faces.db:
+ * one page of not-yet-scanned rows per iteration, then prune face_rects / scan rows for
+ * entries removed from the library.
  */
 export async function populateAllReferences(options: PopulateReferencesOptions): Promise<void> {
-  const db = getEntriesDatabase();
   const { isExpired, batchSize, parallelism } = options;
-  let offset = 0;
-  let totalScanned = 0;
-  let batchRound = 0;
+  const facesDb = getFacesWorkerDatabase();
+  ensureFaceReferenceScanSchema(facesDb);
+  let page = 0;
 
   while (!isExpired()) {
-    const batch = await db.listStaticPictureEntriesBatch(batchSize, offset);
-    if (batch.length === 0) break;
-    offset += batch.length;
-    totalScanned += batch.length;
-    batchRound++;
+    const rows = listPictureEntriesNeedingReferenceScan(facesDb, batchSize);
+    if (rows.length === 0) break;
+    page++;
 
-    const candidates: AlbumEntry[] = [];
-    for (const entry of batch) {
-      if (!isPicture(entry) || isAnimated(entry)) continue;
-      if (await entryHasReferences(entry)) continue;
+    type Work = { entry: AlbumEntry; entryId: string };
+    const toProcess: Work[] = [];
+    for (const row of rows) {
+      const entry: AlbumEntry = {
+        album: { key: row.album_key, name: row.album_name },
+        name: row.entry_name,
+      };
+      if (!isPicture(entry) || isAnimated(entry)) {
+        await markFaceReferenceScanDone(facesDb, row.entry_id);
+        continue;
+      }
+      if (await entryHasReferences(entry)) {
+        await markFaceReferenceScanDone(facesDb, row.entry_id);
+        continue;
+      }
       const imagePath = entryFilePath(entry);
-      if (!(await fileExists(imagePath))) continue;
-      candidates.push(entry);
+      if (!(await fileExists(imagePath))) {
+        await markFaceReferenceScanDone(facesDb, row.entry_id);
+        continue;
+      }
+      toProcess.push({ entry, entryId: row.entry_id });
     }
 
-    for (let i = 0; i < candidates.length && !isExpired(); i += parallelism) {
-      const slice = candidates.slice(i, i + parallelism);
+    for (let i = 0; i < toProcess.length && !isExpired(); i += parallelism) {
+      const slice = toProcess.slice(i, i + parallelism);
       await Promise.all(
-        slice.map((entry) =>
-          createReferenceFileIfNeeded(entry).catch((err) => {
-            debug("createReferenceFileIfNeeded:", entryFilePath(entry), err);
-          }),
-        ),
+        slice.map(async ({ entry, entryId }) => {
+          try {
+            await runFaceReferenceDetectionForEntry(entry);
+          } catch (err) {
+            debug("runFaceReferenceDetectionForEntry:", entryFilePath(entry), err);
+          } finally {
+            await markFaceReferenceScanDone(facesDb, entryId);
+          }
+        }),
       );
     }
 
-    if (batchRound % 10 === 0) {
-      debug(
-        `populateReferences: scanned ${totalScanned} static-image rows from entries DB (offset ${offset})`,
-      );
+    if (page % 10 === 0) {
+      debug(`populateReferences: ${page} page(s) of entries not yet in face_reference_scan`);
     }
   }
+
+  await pruneFacesDataForRemovedEntries(facesDb);
 
   if (isExpired()) {
     debug("populateReferences: stopped early (time budget)");
   }
 }
 
-/** Check if entry already has face reference file. Used by job schedulers to skip unnecessary jobs. */
+/** Check if entry already has face reference file. */
 export async function entryHasReferences(entry: AlbumEntry): Promise<boolean> {
   const p = referencePath(entry);
   return fileExists(join(p.path, p.file));
@@ -115,67 +136,59 @@ export async function entryHasReferences(entry: AlbumEntry): Promise<boolean> {
 
 export const referenceQualifier = "reference";
 
-/** Create face reference file for an entry if needed. Used by event-driven FACE job scheduler. */
-export async function createReferenceFileIfNeeded(entry: AlbumEntry) {
+async function runFaceReferenceDetectionForEntry(entry: AlbumEntry): Promise<void> {
+  await faceApiReadyPromise;
+  const imagePath = entryFilePath(entry);
+  const l = await lock(`createReferenceFileIfNeeded:${imagePath}`);
+  try {
+    const buffer = await readFile(imagePath);
+    const tensor = tf.tidy(() =>
+      tf.node
+        .decodeImage(buffer as unknown as Uint8Array<ArrayBufferLike>, 3, undefined, true)
+        .toFloat()
+        .expandDims(),
+    );
+    const faceReferences = await faceapi
+      .detectAllFaces(tensor as any, optionsSSDMobileNet)
+      .withFaceLandmarks()
+      .withFaceExpressions()
+      .withAgeAndGender()
+      .withFaceDescriptors();
+    tf.dispose(tensor);
+
+    const detectedReferences = (
+      jsonifyObject(faceReferences) as ReferenceData[]
+    )
+      .map((data, index) => ({
+        data,
+        id: `${idFromAlbumEntry(entry, referenceQualifier)}:${index}`,
+      }))
+      .filter((reference: Reference) => isUsefulReference(reference, "child"));
+    writeReferencesOfEntry(entry, detectedReferences);
+  } catch (e) {
+    debug("Warning:", imagePath, e, entry);
+    writeReferencesOfEntry(entry, [] as Reference[]);
+  } finally {
+    l();
+  }
+}
+
+/** Create face reference file for an entry if needed (runs detection inline when missing). */
+export async function createReferenceFileIfNeeded(entry: AlbumEntry): Promise<Reference[]> {
   await faceApiReadyPromise;
   const imagePath = entryFilePath(entry);
   const exists = await fileExists(imagePath);
-  if (isPicture(entry) && !isAnimated(entry)) {
-    if (exists) {
-      let detectedReferences = (await readReferencesOfEntry(entry))?.filter(
-        (r) => isUsefulReference(r, "child"),
-      );
-      if (!detectedReferences) {
-        debug(`Will generate references of file ${imagePath}`);
-        await addFacesJob(async () => {
-          const l = await lock(`createReferenceFileIfNeeded:${imagePath}`);
-          try {
-            const buffer = await readFile(imagePath);
-            // Load image
-            const tensor = tf.tidy(() =>
-              tf.node
-                .decodeImage(buffer as unknown as Uint8Array<ArrayBufferLike>, 3, undefined, true)
-                .toFloat()
-                .expandDims(),
-            );
-            //const tensor = tf.node.decodeImage(buffer, undefined, undefined, true);
-            //const expandT = tf.expandDims(tensor, 0); // add batch dimension to tensor
-            const faceReferences = await faceapi
-              .detectAllFaces(
-                tensor as any, // as any because of some input issues
-                optionsSSDMobileNet,
-              )
-              .withFaceLandmarks()
-              .withFaceExpressions()
-              .withAgeAndGender()
-              .withFaceDescriptors();
-            tf.dispose(tensor);
-
-            const detectedReferences = (
-              jsonifyObject(
-                // Only bigger mugshots !
-                faceReferences,
-              ) as ReferenceData[]
-            )
-              .map((data, index) => ({
-                data,
-                id: `${idFromAlbumEntry(entry, referenceQualifier)}:${index}`,
-              }))
-              .filter((reference: Reference) =>
-                isUsefulReference(reference, "child"),
-              );
-            writeReferencesOfEntry(entry, detectedReferences);
-          } catch (e) {
-            debug("Warning:", imagePath, e, entry);
-            detectedReferences = [] as Reference[];
-            writeReferencesOfEntry(entry, detectedReferences);
-          } finally {
-            l();
-          }
-        }, "FACE");
-      }
-      return detectedReferences;
+  if (isPicture(entry) && !isAnimated(entry) && exists) {
+    let detectedReferences = (await readReferencesOfEntry(entry))?.filter((r) =>
+      isUsefulReference(r, "child"),
+    );
+    if (!detectedReferences) {
+      debug(`Will generate references of file ${imagePath}`);
+      await runFaceReferenceDetectionForEntry(entry);
+      detectedReferences =
+        (await readReferencesOfEntry(entry))?.filter((r) => isUsefulReference(r, "child")) ?? [];
     }
+    return detectedReferences ?? [];
   }
-  return [] as Reference[];
+  return [];
 }

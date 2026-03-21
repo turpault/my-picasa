@@ -1,8 +1,7 @@
 import type { JobType } from "../services/extraction/job-types";
 
 /**
- * Persistence / ordering layer for a job queue. Main process uses in-memory;
- * faces worker uses SQLite (`picisa_queue_faces.db`).
+ * Persistence / ordering layer for a job queue. Main process uses in-memory.
  */
 export type JobQueuePendingRow = {
   id: number;

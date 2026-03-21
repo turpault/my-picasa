@@ -4,7 +4,7 @@
  *
  * On the primary server process (main thread, no PICISA_SERVICE_NAME), `enqueueDb`
  * runs operations immediately. `enqueueSerializedDb` is for code that still needs a
- * mutex (e.g. the faces worker's SQLite job-queue file, parallel pickers).
+ * mutex (e.g. parallel writers to the same worker SQLite connection).
  *
  * Separate from the main in-memory job queue (walk/thumbnail/remove/update-entry).
  */
@@ -127,7 +127,7 @@ export function enqueueDb<T>(fn: () => T | Promise<T>, label?: string): Promise<
   return pushToSerialQueue(fn, label);
 }
 
-/** Pending / active for the serial db-queue (workers; faces SQLite job store on main child process). */
+/** Pending / active for the serial db-queue (workers / service processes). */
 export function getDbQueueStats(): { pending: number; active: number } {
   return {
     pending: queue.length,

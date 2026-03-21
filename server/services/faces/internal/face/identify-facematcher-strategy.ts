@@ -1,11 +1,5 @@
 import * as faceapi from "@vladmandic/face-api";
 import Debug from "debug";
-import {
-  addFacesJob,
-  drainFacesJobQueue,
-  getFacesJobQueueStats,
-} from "../../../../utils/faces-job-queue";
-
 import { Album, Reference } from "../../../shared/types/types";
 import { media } from "../../../../rpc/rpcFunctions/albumUtils";
 import { getFolderAlbums } from "../../../../media";
@@ -153,21 +147,8 @@ async function populateCandidates() {
 
   const albums = await getFolderAlbums();
   for (const album of albums.sort((a, b) => -a.name.localeCompare(b.name))) {
-    addFacesJob(async () => {
-      await populateCandidatesOfAlbum(album, matcher).catch(debug);
-    }, "FACE");
+    await populateCandidatesOfAlbum(album, matcher).catch(debug);
   }
-  const t = setInterval(
-    async () => {
-      const stats = await getFacesJobQueueStats();
-      debug(
-        `populateCandidates: Remaining ${stats.pending + stats.active} albums to process.`,
-      );
-    },
-    2000,
-  );
-  await drainFacesJobQueue();
-  clearInterval(t);
 }
 
 async function populateCandidatesOfAlbum(

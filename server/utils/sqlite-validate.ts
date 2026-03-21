@@ -9,7 +9,6 @@ import {
   ENTRIES_DB_PATH,
   EXIF_DB_PATH,
   FACES_DB_PATH,
-  FACES_JOB_QUEUE_DB_PATH,
   GEO_DB_PATH,
   POI_DB_PATH,
   SEARCH_DB_PATH,
@@ -133,7 +132,6 @@ export function validatePicisaCoreSqliteFiles(): void {
     [FACES_DB_PATH, "picisa_faces"],
     [SEARCH_DB_PATH, "picisa_search"],
     [POI_DB_PATH, "poi"],
-    [FACES_JOB_QUEUE_DB_PATH, "picisa_queue_faces"],
   ];
   for (const [p, label] of paths) {
     validateSqliteFileOrQuarantine(p, label);
