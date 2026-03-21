@@ -13,6 +13,11 @@ import {
   FACES_DB_PATH,
   SEARCH_DB_PATH,
 } from "../../../utils/db-paths";
+import {
+  isRecoverableSqliteFilesystemError,
+  removeOrphanSqliteSidecars,
+  removeSqliteDatabaseArtifacts,
+} from "../../../utils/sqlite-validate";
 
 const debugLogger = debug("app:entries-db-split");
 const OLD_EXIF_PATH = join(imagesRoot, "picisa_exif.db");
@@ -225,7 +230,7 @@ function createSearchDbFromOldFile(mainDb: Database): void {
   searchDb.close();
 }
 
-function createEmptySplitDbs(): void {
+function createEmptySplitDbsOnce(): void {
   const exifDb = new Database(EXIF_DB_PATH, { create: true });
   exifDb.run("PRAGMA journal_mode=WAL");
   exifDb.run(`
@@ -263,6 +268,22 @@ function createEmptySplitDbs(): void {
   createEmptySearchDb();
   createFacesDb();
   debugLogger("Created empty split DBs");
+}
+
+function createEmptySplitDbs(): void {
+  const splitPaths = [EXIF_DB_PATH, GEO_DB_PATH, SEARCH_DB_PATH, FACES_DB_PATH];
+  for (const p of splitPaths) removeOrphanSqliteSidecars(p);
+  try {
+    createEmptySplitDbsOnce();
+  } catch (e) {
+    if (!isRecoverableSqliteFilesystemError(e)) throw e;
+    console.warn(
+      "[picisa] Split DB create failed (I/O or corrupt file); clearing partial split DB files and retrying once.",
+      e,
+    );
+    for (const p of splitPaths) removeSqliteDatabaseArtifacts(p);
+    createEmptySplitDbsOnce();
+  }
 }
 
 function createEmptySearchDb(): void {

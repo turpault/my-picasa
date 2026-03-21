@@ -2,7 +2,7 @@
  * On startup, detect malformed SQLite files (e.g. SQLITE_CORRUPT_INDEX), quarantine them,
  * and let the next open create a fresh derived database where applicable.
  */
-import { existsSync, renameSync, unlinkSync } from "fs";
+import { existsSync, renameSync, statSync, unlinkSync } from "fs";
 import { Database } from "bun:sqlite";
 import debug from "debug";
 import {
@@ -16,6 +16,44 @@ import {
 } from "./db-paths";
 
 const debugLogger = debug("app:sqlite-validate");
+
+/** True for I/O and obvious on-disk corruption; safe to retry after removing DB files. */
+export function isRecoverableSqliteFilesystemError(e: unknown): boolean {
+  if (e && typeof e === "object" && "code" in e) {
+    const code = String((e as { code?: string }).code ?? "");
+    return (
+      code.startsWith("SQLITE_IOERR") ||
+      code === "SQLITE_CORRUPT" ||
+      code === "SQLITE_CORRUPT_INDEX"
+    );
+  }
+  return /SQLITE_IOERR|SHORT_READ|disk I\/O error/i.test(String(e));
+}
+
+/** When the main DB file is missing, drop stale WAL/SHM (common after crashes on USB volumes). */
+export function removeOrphanSqliteSidecars(dbPath: string): void {
+  if (existsSync(dbPath)) return;
+  for (const suffix of ["-wal", "-shm", "-journal"] as const) {
+    const p = `${dbPath}${suffix}`;
+    try {
+      if (existsSync(p)) unlinkSync(p);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** Remove main DB and journal sidecars (recovery before recreate). */
+export function removeSqliteDatabaseArtifacts(dbPath: string): void {
+  for (const suffix of ["", "-wal", "-shm", "-journal"] as const) {
+    const p = suffix === "" ? dbPath : `${dbPath}${suffix}`;
+    try {
+      if (existsSync(p)) unlinkSync(p);
+    } catch {
+      /* ignore */
+    }
+  }
+}
 
 function isQuickCheckOk(db: Database): boolean {
   try {
@@ -53,6 +91,16 @@ function quarantineFile(dbPath: string, label: string, cause: unknown): void {
  */
 export function validateSqliteFileOrQuarantine(dbPath: string, label: string): void {
   if (!existsSync(dbPath)) return;
+  try {
+    if (statSync(dbPath).size === 0) {
+      quarantineFile(dbPath, label, new Error("SQLite file is empty (0 bytes)"));
+      return;
+    }
+  } catch (statErr) {
+    if (!existsSync(dbPath)) return;
+    quarantineFile(dbPath, label, statErr);
+    return;
+  }
   let db: Database | null = null;
   try {
     db = new Database(dbPath, { readonly: true });
