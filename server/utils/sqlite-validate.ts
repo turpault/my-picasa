@@ -13,7 +13,6 @@ import {
   GEO_DB_PATH,
   POI_DB_PATH,
   SEARCH_DB_PATH,
-  WALKER_DB_PATH,
 } from "./db-paths";
 
 const debugLogger = debug("app:sqlite-validate");
@@ -85,7 +84,6 @@ export function validatePicisaCoreSqliteFiles(): void {
     [GEO_DB_PATH, "picisa_geo"],
     [FACES_DB_PATH, "picisa_faces"],
     [SEARCH_DB_PATH, "picisa_search"],
-    [WALKER_DB_PATH, "picisa_walker"],
     [POI_DB_PATH, "poi"],
     [FACES_JOB_QUEUE_DB_PATH, "picisa_queue_faces"],
   ];

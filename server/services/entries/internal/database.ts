@@ -1,6 +1,5 @@
 import { Database } from "bun:sqlite";
 import debug from "debug";
-import { existsSync, unlinkSync } from "fs";
 import { isMainThread, workerData } from "worker_threads";
 import {
   Album,
@@ -19,7 +18,6 @@ import {
   FACES_DB_PATH,
   GEO_DB_PATH,
   SEARCH_DB_PATH,
-  WALKER_DB_PATH,
 } from "../../../utils/db-paths";
 import {
   ensureSplitDatabasesExist,
@@ -38,7 +36,6 @@ const DATABASE_VERSION = 3;
  * Unified entries database (picisa_entries.db).
  * Contains albums and album_entries with stable album_id and entry_id.
  * Joins album_entries to albums via album_id (uuid).
- * Replaces picisa_walker.db for Phase 2+.
  */
 class EntriesDatabaseAccess {
   private db: Database;
@@ -58,7 +55,6 @@ class EntriesDatabaseAccess {
 
     if (this.isWriter) {
       debugLogger("Opening entries database in READ-WRITE mode");
-      this.migrateFromWalkerIfNeeded();
       if (isDev()) {
         ensureDbFormatOrRemove(this.dbPath, (db) => {
           db.prepare("SELECT version FROM db_version ORDER BY version DESC LIMIT 1").get();
@@ -303,82 +299,6 @@ class EntriesDatabaseAccess {
   private migrateChildTablesIfNeeded(): void {
     if (!this.isWriter) return;
     ensureSplitDatabasesExist(this.db);
-  }
-
-  /**
-   * Migrate data from picisa_walker.db if it exists and entries DB is empty
-   */
-  private migrateFromWalkerIfNeeded(): void {
-    if (!existsSync(WALKER_DB_PATH) || existsSync(ENTRIES_DB_PATH)) {
-      return;
-    }
-
-    debugLogger("Migrating from picisa_walker.db to picisa_entries.db");
-    const walkerDb = new Database(WALKER_DB_PATH, { readonly: true });
-    const entriesDb = new Database(ENTRIES_DB_PATH, { create: true });
-
-    entriesDb.run(`
-      CREATE TABLE db_version (version INTEGER PRIMARY KEY, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
-      INSERT INTO db_version (version) VALUES (${DATABASE_VERSION});
-      CREATE TABLE albums (
-        album_id TEXT NOT NULL UNIQUE, key TEXT PRIMARY KEY, name TEXT NOT NULL,
-        count INTEGER NOT NULL DEFAULT 0, shortcut TEXT, lastModified TEXT,
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE album_entries (
-        entry_id TEXT PRIMARY KEY,
-        album_id TEXT NOT NULL, album_key TEXT NOT NULL, entry_name TEXT NOT NULL,
-        date_taken TEXT, photostar INTEGER DEFAULT 0, star INTEGER DEFAULT 0,
-        star_count TEXT, caption TEXT, text TEXT,
-        dimensions TEXT, dimensions_from_filter TEXT, rank TEXT, rotate TEXT,
-        faces TEXT, filters TEXT, persons TEXT,
-        index_version INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (album_key) REFERENCES albums(key) ON DELETE CASCADE,
-        FOREIGN KEY (album_id) REFERENCES albums(album_id) ON DELETE CASCADE,
-        UNIQUE(album_key, entry_name)
-      );
-      CREATE INDEX idx_albums_name ON albums(name);
-      CREATE INDEX idx_albums_album_id ON albums(album_id);
-      CREATE INDEX idx_album_entries_album_key ON album_entries(album_key);
-      CREATE INDEX idx_album_entries_album_id ON album_entries(album_id);
-      CREATE INDEX idx_album_entries_name ON album_entries(entry_name);
-    `);
-
-    const albums = walkerDb.prepare("SELECT * FROM albums").all() as any[];
-    const albumIdByKey = new Map<string, string>();
-    for (const a of albums) {
-      const albumId = uuid();
-      albumIdByKey.set(a.key, albumId);
-      entriesDb.prepare(`
-        INSERT INTO albums (album_id, key, name, count, shortcut, lastModified, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(albumId, a.key, a.name, a.count ?? 0, a.shortcut, a.lastModified, a.created_at, a.updated_at);
-    }
-
-    const entries = walkerDb.prepare("SELECT * FROM album_entries").all() as any[];
-    for (const e of entries) {
-      const entryId = uuid();
-      const albumId = albumIdByKey.get(e.album_key) ?? uuid();
-      entriesDb.prepare(`
-        INSERT INTO album_entries (
-          entry_id, album_id, album_key, entry_name, date_taken, photostar, star, star_count,
-          caption, text, dimensions, dimensions_from_filter, rank, rotate,
-          faces, filters, persons, index_version, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
-      `).run(
-        entryId, albumId, e.album_key, e.entry_name, e.date_taken, e.photostar, e.star, e.star_count,
-        e.caption, e.text, e.dimensions, e.dimensions_from_filter, e.rank, e.rotate,
-        e.faces, e.filters, e.persons, e.created_at, e.updated_at
-      );
-    }
-
-    walkerDb.close();
-    entriesDb.close();
-    unlinkSync(WALKER_DB_PATH);
-    debugLogger("Migration from walker DB completed, removed picisa_walker.db");
   }
 
   private checkAndMigrateDatabase(): void {
