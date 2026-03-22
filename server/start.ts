@@ -174,9 +174,11 @@ export async function startServer(p?: number) {
           const started = startBackgroundWorkerManually(serviceName);
           return Response.json({ started, serviceName });
         }),
-        "/stats": withInteractiveTracking(async () =>
-          Response.json({
-            series: await history(),
+        "/stats": withInteractiveTracking(async (req) => {
+          const url = new URL(req.url);
+          const includeSeries = url.searchParams.get("series") !== "0";
+          return Response.json({
+            series: includeSeries ? await history() : {},
             locks: lockedLocks(),
             extraction: getExtractionStats(),
             workers: getWorkerStats(),
@@ -192,7 +194,8 @@ export async function startServer(p?: number) {
             memory: process.memoryUsage(),
             cpuLoad: getCpuLoad(),
             activity: getActivityStatus(),
-          })),
+          });
+        }),
         "/stats/db/entries": withInteractiveTracking(async (req) => {
           const url = new URL(req.url);
           const limit = Math.min(

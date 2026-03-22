@@ -291,8 +291,9 @@ function renderMemoryTab(data: StatsResponse): HTMLElement {
   return div;
 }
 
-async function fetchStats(): Promise<StatsResponse> {
-  const res = await fetch("/stats");
+async function fetchStats(includeSeries: boolean): Promise<StatsResponse> {
+  const q = includeSeries ? "" : "?series=0";
+  const res = await fetch(`/stats${q}`);
   return res.json();
 }
 
@@ -318,7 +319,7 @@ async function init() {
 
   const poll = async () => {
     try {
-      const data = await fetchStats();
+      const data = await fetchStats(activeTab === "memory");
       statsData = data;
       if (activeTab === "queue" || activeTab === "memory" || activeTab === "workers") {
         renderActiveTab();
@@ -330,9 +331,22 @@ async function init() {
     }
   };
 
+  function purgePlotlyCharts(container: HTMLElement) {
+    const Plotly = (window as unknown as { Plotly?: { purge: (el: Element) => void } }).Plotly;
+    if (!Plotly?.purge) return;
+    for (const el of container.querySelectorAll("#memory-series-container > div")) {
+      try {
+        Plotly.purge(el);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
   function renderActiveTab() {
     const container = document.getElementById("tab-content");
     if (!container) return;
+    purgePlotlyCharts(container);
     container.innerHTML = "";
     if (activeTab === "queue" && statsData) {
       container.appendChild(renderQueueTab(statsData));
@@ -386,6 +400,12 @@ async function init() {
       fetchPoiDb().then((d) => {
         poiData = d;
         renderActiveTab();
+      });
+    }
+    if (id === "memory") {
+      void fetchStats(true).then((d) => {
+        statsData = d;
+        if (activeTab === "memory") renderActiveTab();
       });
     }
     renderActiveTab();
