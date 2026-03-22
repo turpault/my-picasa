@@ -98,8 +98,10 @@ export class IndexingDatabaseAccess {
   }
 
   private getSearchTables(): { pictures: string; pictures_fts: string } {
+    const db = this.getDatabase();
     try {
-      this.getDatabase().prepare("SELECT 1 FROM search.pictures LIMIT 1").get();
+      db.prepare("SELECT 1 FROM search.pictures LIMIT 1").get();
+      db.prepare("SELECT 1 FROM search.pictures_fts LIMIT 1").get();
       return { pictures: "search.pictures", pictures_fts: "search.pictures_fts" };
     } catch {
       return { pictures: "pictures", pictures_fts: "pictures_fts" };
@@ -181,7 +183,8 @@ export class IndexingDatabaseAccess {
       const searchTerms = filters.text.trim().split(/\s+/).filter(term => term.length > 0);
       if (searchTerms.length > 0) {
         const ftsSearchTerms = searchTerms.map(term => `"${normalizeText(term)}"`).join(' OR ');
-        whereConditions.push(`${pictures_fts} MATCH ?`);
+        // Use JOIN alias — qualified `search.pictures_fts MATCH` is parsed as a column ref and fails.
+        whereConditions.push("fts MATCH ?");
         params.push(ftsSearchTerms);
       }
     }
@@ -310,7 +313,7 @@ export class IndexingDatabaseAccess {
       const searchTerms = filters.text.trim().split(/\s+/).filter(term => term.length > 0);
       if (searchTerms.length > 0) {
         const ftsSearchTerms = searchTerms.map(term => `"${normalizeText(term)}"`).join(' AND ');
-        whereConditions.push(`${pictures_fts} MATCH ?`);
+        whereConditions.push("fts MATCH ?");
         params.push(ftsSearchTerms);
       }
     }
@@ -438,7 +441,7 @@ export class IndexingDatabaseAccess {
         p.album_name
       FROM ${pictures} p
       JOIN ${pictures_fts} fts ON p.id = fts.rowid
-      WHERE p.album_key = ? AND ${pictures_fts} MATCH ?
+      WHERE p.album_key = ? AND fts MATCH ?
       ORDER BY p.entry_name ASC
     `;
 
