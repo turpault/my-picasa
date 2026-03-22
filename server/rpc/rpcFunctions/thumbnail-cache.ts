@@ -1,4 +1,5 @@
 import { copyFile, readFile, rename, stat, unlink } from "fs/promises";
+import type { Stats } from "fs";
 import { join } from "path";
 import { lock } from "../../../shared/lib/mutex";
 import { isVideo } from "../../../shared/lib/utils";
@@ -9,7 +10,7 @@ import {
 } from "../../../shared/types/types";
 import { entryRelativePath } from "../../imageOperations/info";
 import { imagesRoot } from "../../utils/constants";
-import { fileExists, pathForAlbum, safeWriteFile, memoStat } from "../../utils/serverUtils";
+import { fileExists, pathForAlbum, safeWriteFile } from "../../utils/serverUtils";
 import { getEntryMetadata } from "../../services/walker/queries";
 
 import Debug from "debug";
@@ -145,13 +146,25 @@ function getThumbFilterVersionForSize(
   return v ?? -1;
 }
 
+/** Second resolution avoids thrash on FAT/exFAT and sub-second mtime noise. */
+function mtimeEpochSec(s: Stats): number {
+  return Math.floor(s.mtimeMs / 1000);
+}
+
 export async function shouldMakeThumbnail(
   entry: AlbumEntry,
   size: ThumbnailSize,
   animated: boolean,
 ): Promise<boolean> {
   const { fullPath } = thumbnailPathFromEntryAndSize(entry, size, animated);
-  const thumbStats = await memoStat(fullPath).catch(() => undefined);
+  // Never use memoStat here: it caches stat() forever, so after writing a thumbnail we would
+  // keep seeing stale pre-write mtimes and regenerate in a loop.
+  let thumbStats: Stats | undefined;
+  try {
+    thumbStats = await stat(fullPath);
+  } catch {
+    thumbStats = undefined;
+  }
 
   if (!thumbStats) {
     debug(
@@ -167,16 +180,23 @@ export async function shouldMakeThumbnail(
   }
 
   const metadata = await getEntryMetadata(entry);
-  const sourceStat = await memoStat(
-    join(imagesRoot, entryRelativePath(entry)),
-  ).catch((): undefined => undefined);
+  let sourceStat: Stats | undefined;
+  try {
+    sourceStat = await stat(join(imagesRoot, entryRelativePath(entry)));
+  } catch {
+    sourceStat = undefined;
+  }
 
   if (!sourceStat) {
     return false;
   }
 
-  if (thumbStats.mtime < sourceStat.mtime) {
-    debug(`Thumbnail for media ${entry.album.name}/${entry.name} is outdated ${thumbStats.mtime.toISOString()} < ${sourceStat.mtime.toISOString()}`);
+  const thumbSec = mtimeEpochSec(thumbStats);
+  const sourceSec = mtimeEpochSec(sourceStat);
+  if (thumbSec < sourceSec) {
+    debug(
+      `Thumbnail for media ${entry.album.name}/${entry.name} is outdated (source newer by ≥1s) thumb=${thumbStats.mtime.toISOString()} source=${sourceStat.mtime.toISOString()}`,
+    );
     return true;
   }
 
