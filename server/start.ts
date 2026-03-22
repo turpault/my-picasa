@@ -48,6 +48,7 @@ import {
   getEntriesDbContents,
   getPoiDbContents,
 } from "./routes/stats-db";
+import { handleStatsRawApi } from "./routes/stats-raw-api";
 
 import indexHtml from "../public/index.html";
 import statsHTML from "../public/stats.html";
@@ -214,6 +215,7 @@ export async function startServer(p?: number) {
           const data = await getPoiDbContents(limit);
           return Response.json(data);
         }),
+        "/stats/raw-api": withInteractiveTracking((req) => handleStatsRawApi(req)),
         "/encode/:context/:mime": withInteractiveTracking(async (req) =>
           httpRequestQueue.add(async () => {
             const { context, mime } = req.params;

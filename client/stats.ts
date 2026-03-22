@@ -4,7 +4,48 @@ declare const Plotly: any;
 
 const POLL_INTERVAL_MS = 2000;
 
-type TabId = "queue" | "entries" | "poi" | "memory" | "workers";
+type TabId =
+  | "queue"
+  | "entries"
+  | "poi"
+  | "memory"
+  | "workers"
+  | "rawTests"
+  | "rawMetrics"
+  | "rawFailures";
+
+type RawApiKey = "foldersFts" | "mediaFts";
+
+interface RollingMsStats {
+  count: number;
+  sumMs: number;
+  minMs: number;
+  maxMs: number;
+}
+
+interface RawFailureRow {
+  t: number;
+  op: RawApiKey | "unknown";
+  message: string;
+  httpStatus?: number;
+  elapsedMs?: number;
+}
+
+function emptyRolling(): RollingMsStats {
+  return { count: 0, sumMs: 0, minMs: 0, maxMs: 0 };
+}
+
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 interface WorkerStats {
   memoryMB: number;
@@ -40,6 +81,9 @@ function renderTabBar(activeTab: TabId, onTab: (id: TabId) => void): HTMLElement
     { id: "entries", label: "Entries DB" },
     { id: "poi", label: "POI DB" },
     { id: "memory", label: "Memory & CPU" },
+    { id: "rawTests", label: "Raw API tests" },
+    { id: "rawMetrics", label: "Raw API stats" },
+    { id: "rawFailures", label: "Raw API errors" },
   ];
   const bar = document.createElement("div");
   bar.className = "w3-bar w3-green w3-margin-bottom";
@@ -313,6 +357,280 @@ async function init() {
   let entriesData: Record<string, unknown[]> | null = null;
   let poiData: Record<string, unknown[]> | null = null;
 
+  const rawRolling: Record<RawApiKey, RollingMsStats> = {
+    foldersFts: emptyRolling(),
+    mediaFts: emptyRolling(),
+  };
+  const rawFailures: RawFailureRow[] = [];
+  let rawForm = { text: "", albumKey: "", albumName: "" };
+  let lastRawResults: {
+    foldersFts: {
+      ok: boolean;
+      ms: number;
+      albumCount?: number;
+      error?: string;
+    } | null;
+    mediaFts: {
+      ok: boolean;
+      ms: number;
+      entryCount?: number;
+      error?: string;
+    } | null;
+  } = { foldersFts: null, mediaFts: null };
+
+  function recordRawSuccess(key: RawApiKey, ms: number) {
+    const s = rawRolling[key];
+    s.count += 1;
+    s.sumMs += ms;
+    if (s.count === 1) {
+      s.minMs = ms;
+      s.maxMs = ms;
+    } else {
+      s.minMs = Math.min(s.minMs, ms);
+      s.maxMs = Math.max(s.maxMs, ms);
+    }
+  }
+
+  function pushRawFailure(row: RawFailureRow) {
+    rawFailures.unshift(row);
+    if (rawFailures.length > 100) rawFailures.pop();
+  }
+
+  async function postRawApi(payload: {
+    op: RawApiKey;
+    text: string;
+    albumKey?: string;
+    albumName?: string;
+  }) {
+    const t0 = performance.now();
+    let res: Response;
+    try {
+      res = await fetch("/stats/raw-api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) {
+      const ms = performance.now() - t0;
+      const msg = e instanceof Error ? e.message : String(e);
+      pushRawFailure({ t: Date.now(), op: payload.op, message: msg, elapsedMs: ms });
+      if (payload.op === "foldersFts") {
+        lastRawResults.foldersFts = { ok: false, ms, error: msg };
+      } else {
+        lastRawResults.mediaFts = { ok: false, ms, error: msg };
+      }
+      renderActiveTab();
+      return;
+    }
+    const ms = performance.now() - t0;
+    let json: {
+      ok?: boolean;
+      error?: string;
+      albumCount?: number;
+      entryCount?: number;
+    };
+    try {
+      json = (await res.json()) as typeof json;
+    } catch {
+      pushRawFailure({
+        t: Date.now(),
+        op: payload.op,
+        message: `Response is not JSON (HTTP ${res.status})`,
+        httpStatus: res.status,
+        elapsedMs: ms,
+      });
+      if (payload.op === "foldersFts") {
+        lastRawResults.foldersFts = { ok: false, ms, error: "Invalid JSON" };
+      } else {
+        lastRawResults.mediaFts = { ok: false, ms, error: "Invalid JSON" };
+      }
+      renderActiveTab();
+      return;
+    }
+    if (res.ok && json.ok === true) {
+      recordRawSuccess(payload.op, ms);
+      if (payload.op === "foldersFts") {
+        lastRawResults.foldersFts = {
+          ok: true,
+          ms,
+          albumCount: json.albumCount,
+        };
+      } else {
+        lastRawResults.mediaFts = {
+          ok: true,
+          ms,
+          entryCount: json.entryCount,
+        };
+      }
+    } else {
+      const err = json.error ?? `HTTP ${res.status}`;
+      pushRawFailure({
+        t: Date.now(),
+        op: payload.op,
+        message: String(err),
+        httpStatus: res.status,
+        elapsedMs: ms,
+      });
+      if (payload.op === "foldersFts") {
+        lastRawResults.foldersFts = { ok: false, ms, error: String(err) };
+      } else {
+        lastRawResults.mediaFts = { ok: false, ms, error: String(err) };
+      }
+    }
+    renderActiveTab();
+  }
+
+  function renderRawTestsPanel(): HTMLElement {
+    const div = document.createElement("div");
+    div.className = "w3-padding";
+    const lf = lastRawResults.foldersFts;
+    const lm = lastRawResults.mediaFts;
+    const foldersLine = lf
+      ? lf.ok
+        ? `Last: ${lf.ms.toFixed(1)} ms — ${lf.albumCount ?? 0} albums`
+        : `Last: ${lf.ms.toFixed(1)} ms — failed (${lf.error ?? ""})`
+      : "No run yet.";
+    const mediaLine = lm
+      ? lm.ok
+        ? `Last: ${lm.ms.toFixed(1)} ms — ${lm.entryCount ?? 0} entries`
+        : `Last: ${lm.ms.toFixed(1)} ms — failed (${lm.error ?? ""})`
+      : "No run yet.";
+
+    div.innerHTML = `
+      <h4>FTS via production handlers</h4>
+      <p class="w3-small w3-text-grey">Same paths as RPC: <code>folders(filters)</code> and <code>media(album, filters)</code> with <code>Filters.text</code> (full-text search).</p>
+      <p>
+        <label class="w3-block"><strong>Search text</strong>
+          <input type="text" id="raw-fts-text" class="w3-input w3-border" style="max-width:40rem" value="${escapeAttr(rawForm.text)}" placeholder="FTS query (Filters.text)" />
+        </label>
+      </p>
+      <p>
+        <label class="w3-block"><strong>Album key</strong> (required for entries test)
+          <input type="text" id="raw-album-key" class="w3-input w3-border" style="max-width:40rem" value="${escapeAttr(rawForm.albumKey)}" placeholder="e.g. folder»…" />
+        </label>
+      </p>
+      <p>
+        <label class="w3-block"><strong>Album name</strong> (optional)
+          <input type="text" id="raw-album-name" class="w3-input w3-border" style="max-width:40rem" value="${escapeAttr(rawForm.albumName)}" />
+        </label>
+      </p>
+      <p>
+        <button type="button" id="raw-run-folders" class="w3-button w3-green w3-margin-right">Run albums (folders + FTS)</button>
+        <button type="button" id="raw-run-media" class="w3-button w3-green w3-margin-right">Run entries (media + FTS)</button>
+        <button type="button" id="raw-run-both" class="w3-button w3-teal">Run both</button>
+      </p>
+      <h5>Album list (folders)</h5>
+      <p>${escapeHtml(foldersLine)}</p>
+      <h5>Entries in album (media)</h5>
+      <p>${escapeHtml(mediaLine)}</p>
+    `;
+
+    const textEl = div.querySelector("#raw-fts-text") as HTMLInputElement;
+    const keyEl = div.querySelector("#raw-album-key") as HTMLInputElement;
+    const nameEl = div.querySelector("#raw-album-name") as HTMLInputElement;
+    const syncForm = () => {
+      rawForm = { text: textEl.value, albumKey: keyEl.value, albumName: nameEl.value };
+    };
+    textEl.addEventListener("input", syncForm);
+    keyEl.addEventListener("input", syncForm);
+    nameEl.addEventListener("input", syncForm);
+
+    div.querySelector("#raw-run-folders")?.addEventListener("click", async () => {
+      syncForm();
+      await postRawApi({ op: "foldersFts", text: rawForm.text });
+    });
+    div.querySelector("#raw-run-media")?.addEventListener("click", async () => {
+      syncForm();
+      if (!rawForm.albumKey.trim()) {
+        alert("Album key is required for the entries test.");
+        return;
+      }
+      await postRawApi({
+        op: "mediaFts",
+        text: rawForm.text,
+        albumKey: rawForm.albumKey.trim(),
+        albumName: rawForm.albumName.trim() || undefined,
+      });
+    });
+    div.querySelector("#raw-run-both")?.addEventListener("click", async () => {
+      syncForm();
+      await postRawApi({ op: "foldersFts", text: rawForm.text });
+      if (!rawForm.albumKey.trim()) {
+        alert("Album key is required for the entries test; only the albums call ran.");
+        return;
+      }
+      await postRawApi({
+        op: "mediaFts",
+        text: rawForm.text,
+        albumKey: rawForm.albumKey.trim(),
+        albumName: rawForm.albumName.trim() || undefined,
+      });
+    });
+
+    return div;
+  }
+
+  function renderRawMetricsPanel(): HTMLElement {
+    const div = document.createElement("div");
+    div.className = "w3-padding";
+    const rows = (["foldersFts", "mediaFts"] as const)
+      .map((key) => {
+        const s = rawRolling[key];
+        const avg = s.count > 0 ? s.sumMs / s.count : 0;
+        const label =
+          key === "foldersFts" ? "Albums (folders + FTS)" : "Entries (media + FTS)";
+        return `<tr>
+        <td>${label}</td>
+        <td>${s.count}</td>
+        <td>${s.count ? avg.toFixed(2) : "—"}</td>
+        <td>${s.count ? s.minMs.toFixed(2) : "—"}</td>
+        <td>${s.count ? s.maxMs.toFixed(2) : "—"}</td>
+      </tr>`;
+      })
+      .join("");
+    div.innerHTML = `
+      <h4>Raw API timing (client round-trip, ms)</h4>
+      <p class="w3-small w3-text-grey">Successful calls only. Average = sum of durations / count (no per-call list stored).</p>
+      <button type="button" id="raw-reset-metrics" class="w3-button w3-orange w3-margin-bottom">Reset statistics</button>
+      <table class="w3-table w3-bordered w3-striped">
+        <thead><tr><th>API</th><th>Calls</th><th>Avg</th><th>Min</th><th>Max</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+    div.querySelector("#raw-reset-metrics")?.addEventListener("click", () => {
+      rawRolling.foldersFts = emptyRolling();
+      rawRolling.mediaFts = emptyRolling();
+      renderActiveTab();
+    });
+    return div;
+  }
+
+  function renderRawFailuresPanel(): HTMLElement {
+    const div = document.createElement("div");
+    div.className = "w3-padding";
+    if (rawFailures.length === 0) {
+      div.innerHTML = "<p>No recorded failures.</p>";
+      return div;
+    }
+    const body = rawFailures
+      .map(
+        (f) =>
+          `<tr><td>${escapeHtml(new Date(f.t).toLocaleString())}</td><td>${escapeHtml(f.op)}</td><td>${escapeHtml(f.message)}</td><td>${f.httpStatus ?? "—"}</td><td>${f.elapsedMs != null ? f.elapsedMs.toFixed(1) : "—"}</td></tr>`,
+      )
+      .join("");
+    div.innerHTML = `
+      <h4>Recent failures (newest first, max 100)</h4>
+      <p class="w3-small w3-text-grey">Network errors, non-OK HTTP, JSON errors, and server exceptions.</p>
+      <div class="w3-responsive">
+        <table class="w3-table w3-bordered w3-striped w3-small">
+          <thead><tr><th>Time</th><th>Op</th><th>Message</th><th>HTTP</th><th>Elapsed ms</th></tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    `;
+    return div;
+  }
+
   const tabContent = document.createElement("div");
   tabContent.id = "tab-content";
   tabContent.className = "w3-theme-l4 w3-padding";
@@ -366,6 +684,12 @@ async function init() {
       setTimeout(() => renderSeriesCharts(statsData!), 0);
     } else if (activeTab === "memory") {
       container.innerHTML = "<p class='w3-padding'>Loading stats…</p>";
+    } else if (activeTab === "rawTests") {
+      container.appendChild(renderRawTestsPanel());
+    } else if (activeTab === "rawMetrics") {
+      container.appendChild(renderRawMetricsPanel());
+    } else if (activeTab === "rawFailures") {
+      container.appendChild(renderRawFailuresPanel());
     }
   }
 
