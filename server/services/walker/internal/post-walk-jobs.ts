@@ -16,8 +16,8 @@ import {
 } from "../../../../shared/types/types";
 import { isPicture, isVideo } from "../../../../shared/lib/utils";
 import { makeThumbnailIfNeeded } from "../../../rpc/rpcFunctions/thumbnail";
-import { shouldMakeThumbnail } from "../../../rpc/rpcFunctions/thumbnail-cache";
 import { runRemoveJob, runUpdateEntryJob } from "../../extraction/internal/operations";
+import { getWalkerDatabase } from "./database";
 
 const debugLogger = debug("app:post-walk-jobs");
 
@@ -58,20 +58,28 @@ export function scheduleUpdateEntryJob(entry: AlbumEntry, metadata: AlbumEntryMe
 }
 
 /**
- * Scan entries and add jobs for missing thumbnails.
- * Called after walk and after reindex.
+ * After a full library walk: enqueue thumbnails only when album_entries says they are stale
+ * (thumb_filter_version_* behind filter_version or still -1). Avoids stat()-scanning every file on
+ * every startup; missing cache files on disk are still rebuilt on demand via readOrMakeThumbnail.
+ */
+export async function schedulePostWalkThumbnailJobsFromDb(): Promise<void> {
+  const db = getWalkerDatabase();
+  const rows = await db.getEntriesNeedingThumbnails([...STARTUP_THUMB_SIZES]);
+  debugLogger("Post-walk thumbnail queue: %d (entry,size) pairs from DB", rows.length);
+  for (const r of rows) {
+    const entry: AlbumEntry = { album: r.album, name: r.entry_name };
+    if (!isMediaEntry(entry)) continue;
+    scheduleThumbnailJob(entry, [r.size]);
+  }
+}
+
+/**
+ * Reindex / file watcher: enqueue thumbnail jobs for touched entries.
+ * makeThumbnailIfNeeded skips work when cache + DB versions are already current.
  */
 export async function scheduleJobsForEntries(entries: AlbumEntry[]): Promise<void> {
   for (const entry of entries) {
     if (!isMediaEntry(entry)) continue;
-
-    const needsAnimated = await shouldMakeThumbnail(entry, "th-small", true);
-    const needsStatic = await shouldMakeThumbnail(entry, "th-small", false);
-    if (needsAnimated || needsStatic) {
-      scheduleThumbnailJob(entry);
-    }
-
-    // Face reference creation is handled by the faces worker (batch), not in main process
-    // Favorites folder sync is handled by the favorite-exporter worker (periodic)
+    scheduleThumbnailJob(entry);
   }
 }

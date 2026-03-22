@@ -17,7 +17,7 @@ import {
   assetsInFolderAlbum,
   queueNotification,
 } from "../../../rpc/fileAndFolders";
-import { pathForAlbumEntry } from "../../../utils/serverUtils";
+import { memoStat, pathForAlbumEntry } from "../../../utils/serverUtils";
 import { mediaCount } from "../../../rpc/rpcFunctions/albumUtils";
 import {
   initializePicasaIniCache,
@@ -29,7 +29,11 @@ import { events } from "../../../../shared/server-events";
 import { getAllAlbums, getAlbum, getAlbumEntries as getWalkerAlbumEntries } from "../queries";
 import { getWalkerDatabase } from "./database";
 import { startFileWatcher } from "./file-watcher";
-import { scheduleJobsForEntries, scheduleRemoveJob } from "./post-walk-jobs";
+import {
+  scheduleJobsForEntries,
+  schedulePostWalkThumbnailJobsFromDb,
+  scheduleRemoveJob,
+} from "./post-walk-jobs";
 
 const debugLogger = debug("app:walker-db");
 
@@ -40,7 +44,7 @@ const ALLOW_EMPTY_ALBUM_CREATED_SINCE = 1000 * 60 * 60; // one hour
  * Returns true if the album should be re-processed, false if it's up to date
  */
 async function isDBAlbumStale(album: Album): Promise<boolean> {
-        const existing = await getAlbum(album.key);
+  const existing = await getAlbum(album.key);
   if (!existing || !existing.lastModified) {
     // Album doesn't exist in DB or has no lastModified, consider it stale
     return true;
@@ -48,7 +52,7 @@ async function isDBAlbumStale(album: Album): Promise<boolean> {
 
   try {
     const folderPath = join(imagesRoot, pathForAlbum(album));
-    const stats = await stat(folderPath);
+    const stats = await memoStat(folderPath);
     const folderMtime = stats.mtime.getTime().toString();
 
     // Compare database lastModified with folder mtime
@@ -63,7 +67,7 @@ async function isDBAlbumStale(album: Album): Promise<boolean> {
 
 async function folderAlbumExists(album: Album): Promise<boolean> {
   const p = join(imagesRoot, pathForAlbum(album));
-  const s = await stat(p).catch(() => false);
+  const s = await memoStat(p).catch(() => false);
   if (s === false) {
     return false;
   }
@@ -91,7 +95,7 @@ async function addOrRefreshOrDeleteAlbum(
   }
 
   try {
-        const existing = await getAlbum(album.key);
+    const existing = await getAlbum(album.key);
 
     if (!added && !(await folderAlbumExists(album))) {
       if (existing) {
@@ -106,7 +110,7 @@ async function addOrRefreshOrDeleteAlbum(
       let folderMtime: string | undefined;
       try {
         const folderPath = join(imagesRoot, pathForAlbum(album));
-        const stats = await stat(folderPath);
+        const stats = await memoStat(folderPath);
         folderMtime = stats.mtime.getTime().toString();
       } catch (error) {
         debugLogger(`Error getting folder mtime for album ${album.key}:`, error);
@@ -256,7 +260,7 @@ async function reindexAlbumsFromList(
         let folderMtime: string | undefined;
         try {
           const folderPath = join(imagesRoot, pathForAlbum(album));
-          const stats = await stat(folderPath);
+          const stats = await memoStat(folderPath);
           folderMtime = stats.mtime.getTime().toString();
         } catch (error) {
           debugLogger(`Error getting folder mtime for album ${album.key} in reindexAlbumsFromList:`, error);
@@ -292,7 +296,7 @@ async function reindexAlbumsFromList(
           const filePath = pathForAlbumEntry(entry);
           let fileStats: { mtime: string; size: number } | undefined;
           try {
-            const s = await stat(filePath);
+            const s = await memoStat(filePath);
             fileStats = {
               mtime: s.mtime.getTime().toString(),
               size: s.size,
@@ -392,17 +396,9 @@ export async function walkFilesystem(): Promise<void> {
 
   console.info("Album list retrieved");
 
-  // Post-walk: scan all entries, add jobs for missing exif, thumbnails, faces
-  const albums = await getAllAlbums();
-  const allEntries: AlbumEntry[] = [];
-  for (const album of albums) {
-    const entries = await getWalkerAlbumEntries(album);
-    for (const e of entries) {
-      allEntries.push({ album, name: e.name });
-    }
-  }
-  await scheduleJobsForEntries(allEntries);
-  console.info("Post-walk jobs scheduled");
+  // Post-walk: thumbnail jobs only where DB versions say cache is stale (not every file stat)
+  await schedulePostWalkThumbnailJobsFromDb();
+  console.info("Post-walk thumbnail jobs scheduled");
 
   walkerReadyResolve?.();
   walkerReadyResolve = null;
