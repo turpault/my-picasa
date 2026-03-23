@@ -86,7 +86,8 @@
   bottom: 0;
 }
 
-.images .thumbnail:hover .thumbnail-hover-overlay {
+.images .thumbnail:hover .thumbnail-hover-overlay,
+.photo-grid .thumbnail:hover .thumbnail-hover-overlay {
   opacity: 1;
 }
 

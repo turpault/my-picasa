@@ -106,6 +106,10 @@ const Thumbnail = React.memo(function Thumbnail({
   );
 
   const showStar = !!picasaData?.star;
+  const dateTime =
+    picasaData?.dateTaken != null
+      ? new Date(picasaData.dateTaken).toLocaleString()
+      : "";
 
   return (
     <div
@@ -126,6 +130,16 @@ const Thumbnail = React.memo(function Thumbnail({
         alt={entry.name}
         onLoad={onImgLoad}
       />
+      <div
+        className={`thumbnail-hover-overlay thumbnail-hover-date${
+          dateTime ? "" : " thumbnail-hover-date--empty"
+        }`}
+      >
+        {dateTime}
+      </div>
+      <div className="thumbnail-hover-overlay thumbnail-hover-name">
+        {entry.name}
+      </div>
       {showStar ? (
         <div
           className="star"
