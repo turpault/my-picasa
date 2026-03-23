@@ -16,6 +16,7 @@ interface BottomSelectionButtonsProps {
   selected: AlbumEntry[];
   activeEntry: AlbumEntry | null;
   activeIndex: number;
+  activeMetaPage: MetaPage | null;
   onMetaPageChange: (page: MetaPage | null) => void;
 }
 
@@ -23,6 +24,7 @@ export function BottomSelectionButtons({
   selected,
   activeEntry,
   activeIndex,
+  activeMetaPage,
   onMetaPageChange,
 }: BottomSelectionButtonsProps) {
   const service = usePicisaService();
@@ -31,7 +33,6 @@ export function BottomSelectionButtons({
   const updateSettings = useUpdateSettings();
   const [info, setInfo] = useState("");
   const [starLabel, setStarLabel] = useState("☆");
-  const [metaPageIdx, setMetaPageIdx] = useState(-1);
 
   const metaPages: MetaPage[] = useMemo(() => ["metadata", "location", "persons"], []);
 
@@ -126,11 +127,14 @@ export function BottomSelectionButtons({
 
   const toggleMetaPage = useCallback(
     (idx: number) => {
-      const newIdx = metaPageIdx === idx ? -1 : idx;
-      setMetaPageIdx(newIdx);
-      onMetaPageChange(newIdx === -1 ? null : metaPages[newIdx]);
+      const target = metaPages[idx];
+      if (activeMetaPage === target) {
+        onMetaPageChange(null);
+      } else {
+        onMetaPageChange(target);
+      }
     },
-    [metaPageIdx, metaPages, onMetaPageChange],
+    [activeMetaPage, metaPages, onMetaPageChange],
   );
 
   const hasSelection = selected.length > 0;
@@ -250,7 +254,8 @@ export function BottomSelectionButtons({
         {metaLabels.map((label, idx) => (
           <button
             key={idx}
-            className={`metadata-mode-btn${metaPageIdx === idx ? " active" : ""}`}
+            type="button"
+            className={`metadata-mode-btn${activeMetaPage === metaPages[idx] ? " active" : ""}`}
             onClick={() => toggleMetaPage(idx)}
           >
             {label}

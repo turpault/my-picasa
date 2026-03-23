@@ -791,6 +791,23 @@ body {
   width: 63px;
 }
 
+.metadata-modes .metadata-mode-btn {
+  font-size: 14px;
+  height: 26px;
+  min-width: 40px;
+  margin-left: 4px;
+  padding: 2px 8px;
+  border: 1px solid #aaa;
+  background: linear-gradient(#f3f3f3, #dddddd);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.metadata-modes .metadata-mode-btn.active {
+  background: linear-gradient(#c5cdd8, #a8b4c4);
+  font-weight: 600;
+}
+
 .zoom-photo-list label {
   display: inline-block;
 }

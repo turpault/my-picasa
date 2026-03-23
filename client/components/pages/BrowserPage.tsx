@@ -28,7 +28,7 @@ import { isFilterEmpty } from "../../lib/settings";
 import { thumbnailUrl } from "../../imageProcess/client";
 import { t } from "../strings";
 import { BottomSelectionButtons } from "../shared/BottomSelectionButtons";
-import type { MetaPage } from "../shared/MetadataViewer";
+import { MetadataViewer, type MetaPage } from "../shared/MetadataViewer";
 
 /** Extract year section from album name: "2025-01-15 Foo" → "2025", "0000 Bar" → "0000" */
 function yearFromAlbumName(name: string): string {
@@ -730,6 +730,9 @@ export default function BrowserPage() {
       setSelectedEntries(entries);
       setActiveEntry(active);
       setActiveIndex(idx);
+      if (entries.length === 0) {
+        setMetaPage(null);
+      }
     },
     [],
   );
@@ -767,6 +770,10 @@ export default function BrowserPage() {
     [],
   );
 
+  const closeMetaPane = useCallback(() => {
+    setMetaPage(null);
+  }, []);
+
   return (
     <div className="browser fill">
       <BrowserHeader />
@@ -787,7 +794,13 @@ export default function BrowserPage() {
         selected={selectedEntries}
         activeEntry={activeEntry}
         activeIndex={activeIndex}
+        activeMetaPage={metaPage}
         onMetaPageChange={setMetaPage}
+      />
+      <MetadataViewer
+        entries={selectedEntries}
+        page={metaPage}
+        onClose={closeMetaPane}
       />
     </div>
   );
