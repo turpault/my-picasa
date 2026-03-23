@@ -90,8 +90,13 @@
   opacity: 1;
 }
 
-.images .thumbnail .star {
-  z-index: 3;
+.images .thumbnail .star,
+.photo-grid .thumbnail .star {
+  top: 4px;
+  right: 4px;
+  bottom: auto;
+  z-index: 4;
+  pointer-events: none;
 }
 
 .thumbnail-drop-area-left {
@@ -166,6 +171,7 @@
   position: absolute;
   bottom: 20px;
   right: 20px;
+  /* Browser / photo-grid thumbnails override to top; see .images .thumbnail .star */
   font-size: 30px;
   width: 20px;
   height: 20px;
@@ -1939,6 +1945,7 @@ body {
 }
 
 .photo-grid .thumbnail img {
+  position: absolute;
   max-width: 100%;
   max-height: 100%;
   pointer-events: none;

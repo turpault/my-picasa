@@ -193,10 +193,13 @@ export function buildThumbnail(
       //width: `${parentSize.width - left * 2}px`,
       //height: `${parentSize.height - top * 2}px`,
     });
-    // position the star at the bottom right
+    const pad = 4;
+    const insetH = ratio > 1 ? 0 : (parentSize.width * (1 - ratio)) / 2;
+    const insetV = ratio > 1 ? (parentSize.height * (1 - 1 / ratio)) / 2 : 0;
     $(".star", e).css({
-      right: `${ratio > 1 ? 0 : (parentSize.width * (1 - ratio)) / 2}px`,
-      bottom: `${ratio < 1 ? 0 : (parentSize.height * (1 - 1 / ratio)) / 2}px`,
+      top: `${insetV + pad}px`,
+      right: `${insetH + pad}px`,
+      bottom: "auto",
     });
   });
   return e;

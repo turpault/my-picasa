@@ -8,9 +8,12 @@ import React, {
 import type {
   Album,
   AlbumEntry,
+  AlbumEntryMetaData,
+  AlbumEntryPicasa,
   AlbumWithData,
 } from "../../../shared/types/types";
 import { ProjectType, personKeyFromName } from "../../../shared/types/types";
+import { events } from "../../../shared/server-events";
 import { useAlbums } from "../../context/caches/AlbumsCacheProvider";
 import { useShortcuts } from "../../context/caches/ShortcutsCacheProvider";
 import { useContacts } from "../../context/caches/ContactsCacheProvider";
@@ -44,6 +47,7 @@ function yearFromAlbumName(name: string): string {
 
 interface ThumbnailProps {
   entry: AlbumEntry;
+  picasaData?: AlbumEntryMetaData;
   isSelected: boolean;
   onSelect: (e: React.MouseEvent) => void;
   onDoubleClick: () => void;
@@ -51,12 +55,34 @@ interface ThumbnailProps {
 
 const Thumbnail = React.memo(function Thumbnail({
   entry,
+  picasaData,
   isSelected,
   onSelect,
   onDoubleClick,
 }: ThumbnailProps) {
   const cacheBust = useCacheBust();
   const url = thumbnailUrl(entry, "th-medium") + `&cb=${cacheBust(entry)}`;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [starInset, setStarInset] = useState({ top: 4, right: 4 });
+
+  const onImgLoad = useCallback(
+    (ev: React.SyntheticEvent<HTMLImageElement>) => {
+      const thumb = ev.currentTarget;
+      const ratio = thumb.naturalWidth / thumb.naturalHeight;
+      const parent = containerRef.current;
+      if (!parent) return;
+      const parentSize = {
+        width: parent.clientWidth,
+        height: parent.clientHeight,
+      };
+      const pad = 4;
+      const insetH = ratio > 1 ? 0 : (parentSize.width * (1 - ratio)) / 2;
+      const insetV =
+        ratio > 1 ? (parentSize.height * (1 - 1 / ratio)) / 2 : 0;
+      setStarInset({ top: insetV + pad, right: insetH + pad });
+    },
+    [],
+  );
 
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
@@ -79,8 +105,11 @@ const Thumbnail = React.memo(function Thumbnail({
     [onDoubleClick],
   );
 
+  const showStar = !!picasaData?.star;
+
   return (
     <div
+      ref={containerRef}
       role="button"
       tabIndex={0}
       aria-label={entry.name}
@@ -91,7 +120,24 @@ const Thumbnail = React.memo(function Thumbnail({
       draggable
       onDragStart={handleDragStart}
     >
-      <img src={url} loading="lazy" alt={entry.name} />
+      <img
+        src={url}
+        loading="lazy"
+        alt={entry.name}
+        onLoad={onImgLoad}
+      />
+      {showStar ? (
+        <div
+          className="star"
+          style={{
+            top: starInset.top,
+            right: starInset.right,
+            bottom: "auto",
+            width: `${20 * parseInt(picasaData!.starCount || "1", 10)}px`,
+          }}
+          aria-hidden
+        />
+      ) : null}
     </div>
   );
 });
@@ -127,10 +173,73 @@ function AlbumSection({
   onDoubleClick,
   headerRef,
 }: AlbumSectionProps) {
+  const service = usePicisaService();
+  const [metaByName, setMetaByName] = useState<
+    Record<string, AlbumEntryMetaData>
+  >({});
+
   const entryKey = useCallback(
     (e: AlbumEntry) => `${e.album.key}/${e.name}`,
     [],
   );
+
+  const entryNamesKey = useMemo(
+    () => entries.map((e) => e.name).join("\0"),
+    [entries],
+  );
+
+  useEffect(() => {
+    if (!service || entries.length === 0) {
+      setMetaByName({});
+      return;
+    }
+    let cancelled = false;
+    service.getAlbumMetadata(album).then((raw) => {
+      if (cancelled) return;
+      const albumMeta = raw as Record<string, unknown>;
+      const next: Record<string, AlbumEntryMetaData> = {};
+      for (const e of entries) {
+        const v = albumMeta[e.name];
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          next[e.name] = v as AlbumEntryMetaData;
+        }
+      }
+      setMetaByName(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [service, album, entryNamesKey]);
+
+  useEffect(() => {
+    const applies = (entry: AlbumEntryPicasa) =>
+      entry.album.key === album.key &&
+      entries.some((e) => e.name === entry.name);
+
+    const onFavorite = ({ entry }: { entry: AlbumEntryPicasa }) => {
+      if (!applies(entry)) return;
+      setMetaByName((prev) => ({ ...prev, [entry.name]: entry.metadata }));
+    };
+
+    const onPicasa = ({
+      entry,
+      field,
+    }: {
+      entry: AlbumEntryPicasa;
+      field: string;
+    }) => {
+      if (field !== "star" && field !== "starCount") return;
+      if (!applies(entry)) return;
+      setMetaByName((prev) => ({ ...prev, [entry.name]: entry.metadata }));
+    };
+
+    const offFav = events.on("favoriteChanged", onFavorite);
+    const offPic = events.on("picasaEntryUpdated", onPicasa);
+    return () => {
+      offFav();
+      offPic();
+    };
+  }, [album.key, entries, entryNamesKey]);
 
   const skeletonCount = Math.min(album.count || 12, 48);
 
@@ -148,6 +257,7 @@ function AlbumSection({
             <Thumbnail
               key={entryKey(entry)}
               entry={entry}
+              picasaData={metaByName[entry.name]}
               isSelected={selected.has(entryKey(entry))}
               onSelect={(e) => onSelect(entry, e)}
               onDoubleClick={() => onDoubleClick(entry)}
