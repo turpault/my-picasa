@@ -54,6 +54,46 @@
   /*border: 1px solid black;*/
 }
 
+.thumbnail-hover-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  padding: 4px 6px;
+  font-size: 11px;
+  line-height: 1.25;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.thumbnail-hover-date {
+  top: 0;
+}
+
+.thumbnail-hover-date.thumbnail-hover-date--empty {
+  display: none;
+}
+
+.thumbnail-hover-name {
+  bottom: 0;
+}
+
+.images .thumbnail:hover .thumbnail-hover-overlay {
+  opacity: 1;
+}
+
+.images .thumbnail .star {
+  z-index: 3;
+}
+
 .thumbnail-drop-area-left {
   position: absolute;
   left: -10px;

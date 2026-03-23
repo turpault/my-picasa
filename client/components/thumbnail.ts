@@ -65,7 +65,9 @@ export function buildThumbnail(
 ): _$ {
   const e = $(
     `<div draggable="true" class="thumbnail thumbnail-size">
-      <img class="th browser-thumbnail" loading="lazy"> 
+      <img class="th browser-thumbnail" loading="lazy">
+      <div class="thumbnail-hover-overlay thumbnail-hover-date thumbnail-hover-date--empty"></div>
+      <div class="thumbnail-hover-overlay thumbnail-hover-name"></div>
       <div class="star"></div>
     </div>
     `,
@@ -235,6 +237,15 @@ export async function thumbnailData(
   let dateTime = "";
   if (picasaData?.dateTaken) {
     dateTime = new Date(picasaData.dateTaken).toLocaleString();
+  }
+  const dateOverlay = $(".thumbnail-hover-date", e);
+  const nameOverlay = $(".thumbnail-hover-name", e);
+  dateOverlay.text(dateTime);
+  nameOverlay.text(label);
+  if (dateTime) {
+    dateOverlay.removeClass("thumbnail-hover-date--empty");
+  } else {
+    dateOverlay.addClass("thumbnail-hover-date--empty");
   }
   e.attr("data-tooltip-above-image", label);
   e.attr("data-tooltip-below-image", dateTime);
