@@ -189,22 +189,21 @@ export class IndexingDatabaseAccess {
       }
     }
 
-    // Star rating filter
-    if (filters.star !== undefined && filters.star > 0) {
-      whereConditions.push('p.star >= ?');
+    // Star rating filter (same column as searchPicturesByFilters / pictures schema)
+    if (filters.star > 0) {
+      whereConditions.push('CAST(p.star_count AS INTEGER) >= ?');
       params.push(filters.star);
     }
 
     // Video filter - only add condition if explicitly set to true
     if (filters.video === true) {
-      whereConditions.push('p.name LIKE ?');
-      params.push('%.mp4%');
+      whereConditions.push('p.entry_type = ?');
+      params.push('video');
     }
 
-    // People filter (has faces) - only add condition if explicitly set to true
+    // People filter (tagged persons in index)
     if (filters.people === true) {
-      whereConditions.push('p.faces IS NOT NULL AND p.faces != ?');
-      params.push('');
+      whereConditions.push('p.persons IS NOT NULL AND p.persons != ""');
     }
 
     // Specific persons filter
@@ -216,9 +215,9 @@ export class IndexingDatabaseAccess {
       });
     }
 
-    // Location filter - only add condition if explicitly set to true
+    // Location filter (geo POI populated in index)
     if (filters.location === true) {
-      whereConditions.push('(p.latitude IS NOT NULL AND p.longitude IS NOT NULL)');
+      whereConditions.push('p.geo_poi IS NOT NULL AND p.geo_poi != ""');
     }
 
     // Favorite photo filter - only add condition if explicitly set to true
@@ -227,20 +226,18 @@ export class IndexingDatabaseAccess {
       params.push(true);
     }
 
-    // Has faces filter - only add condition if explicitly set to true
+    // Has faces filter — index stores persons, not a separate faces column
     if (filters.hasFaces === true) {
-      whereConditions.push('p.faces IS NOT NULL AND p.faces != ?');
-      params.push('');
+      whereConditions.push('p.persons IS NOT NULL AND p.persons != ""');
     }
 
-    // Geo location filter - only add condition if explicitly set to true
     if (filters.hasGeoLocation === true) {
-      whereConditions.push('(p.latitude IS NOT NULL AND p.longitude IS NOT NULL)');
+      whereConditions.push('p.geo_poi IS NOT NULL AND p.geo_poi != ""');
     }
 
     // Star count range filters
     if (filters.minStarCount !== undefined) {
-      whereConditions.push('p.star >= ?');
+      whereConditions.push('CAST(p.star_count AS INTEGER) >= ?');
       params.push(filters.minStarCount);
     }
 
