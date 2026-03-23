@@ -23,12 +23,17 @@ export function CacheBustProvider({ children }: PropsWithChildren) {
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
-    return serverEvents.on("albumEntryAspectChanged", (entry) => {
+    const bump = (entry: AlbumEntry) => {
       const key = entryKey(entry);
       const current = bustMapRef.current.get(key) ?? 0;
       bustMapRef.current.set(key, current + 1);
       setVersion((v) => v + 1);
-    });
+    };
+    const offs = [
+      serverEvents.on("albumEntryAspectChanged", bump),
+      serverEvents.on("thumbnailRebuilt", ({ entry }) => bump(entry)),
+    ];
+    return () => offs.forEach((o) => o());
   }, []);
 
   const getBust = useMemo<CacheBustFn>(

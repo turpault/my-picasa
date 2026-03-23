@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import L from "leaflet";
 import { usePicisaService } from "../../context/AppContext";
+import { events } from "../../../shared/server-events";
 import {
   albumEntriesWithMetadataAndExif,
   albumThumbnailUrl,
@@ -79,9 +80,47 @@ export function MetadataViewer({ entries, page, onClose }: MetadataViewerProps) 
   const service = usePicisaService();
   const [imageData, setImageData] = useState<AlbumEntryWithMetadataAndExif[]>([]);
   const [faces, setFaces] = useState<{ name: string; contactAlbum: any }[]>([]);
+  const [dataTick, setDataTick] = useState(0);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
+
+  const entriesKey = useMemo(
+    () => entries.map((e) => `${e.album.key}/${e.name}`).sort().join("\0"),
+    [entries],
+  );
+
+  useEffect(() => {
+    if (!page || !entriesKey) return;
+    const keySet = new Set(entriesKey.split("\0").filter(Boolean));
+    const match = (e: { album: { key: string }; name: string }) =>
+      keySet.has(`${e.album.key}/${e.name}`);
+    const bump = () => setDataTick((n) => n + 1);
+    const offs = [
+      events.on("favoriteChanged", ({ entry }) => {
+        if (match(entry)) bump();
+      }),
+      events.on("albumEntryAspectChanged", (entry) => {
+        if (match(entry)) bump();
+      }),
+      events.on("picasaEntryUpdated", ({ entry }) => {
+        if (match(entry)) bump();
+      }),
+      events.on("albumEntryUpdated", (entry) => {
+        if (match(entry)) bump();
+      }),
+      events.on("entryChanged", (entry) => {
+        if (match(entry)) bump();
+      }),
+      events.on("exifDataProcessed", (entry) => {
+        if (match(entry)) bump();
+      }),
+      events.on("albumEntryFileChanged", (entry) => {
+        if (match(entry)) bump();
+      }),
+    ];
+    return () => offs.forEach((o) => o());
+  }, [page, entriesKey]);
 
   useEffect(() => {
     if (!page || entries.length === 0) {
@@ -93,7 +132,7 @@ export function MetadataViewer({ entries, page, onClose }: MetadataViewerProps) 
       if (!cancelled) setImageData(data);
     });
     return () => { cancelled = true; };
-  }, [entries, page]);
+  }, [entries, page, dataTick]);
 
   useEffect(() => {
     if (page !== "persons" || imageData.length === 0 || !service) return;

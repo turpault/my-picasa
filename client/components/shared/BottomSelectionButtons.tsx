@@ -7,7 +7,9 @@ import {
   useSettings,
   useUpdateSettings,
 } from "../../context/SettingsProvider";
+import { useCacheBust } from "../../context/CacheBustProvider";
 import { thumbnailUrl, albumEntryMetadata } from "../../imageProcess/client";
+import { events } from "../../../shared/server-events";
 import { t } from "../strings";
 import type { AlbumEntry } from "../../../shared/types/types";
 import type { MetaPage } from "./MetadataViewer";
@@ -29,12 +31,50 @@ export function BottomSelectionButtons({
 }: BottomSelectionButtonsProps) {
   const service = usePicisaService();
   const appEmitter = useAppEmitter();
+  const cacheBust = useCacheBust();
   const settings = useSettings();
   const updateSettings = useUpdateSettings();
   const [info, setInfo] = useState("");
   const [starLabel, setStarLabel] = useState("☆");
+  const [statusTick, setStatusTick] = useState(0);
 
   const metaPages: MetaPage[] = useMemo(() => ["metadata", "location", "persons"], []);
+
+  const activeKey =
+    activeEntry != null
+      ? `${activeEntry.album.key}/${activeEntry.name}`
+      : null;
+
+  useEffect(() => {
+    if (!activeKey) return;
+    const match = (e: { album: { key: string }; name: string }) =>
+      `${e.album.key}/${e.name}` === activeKey;
+    const bump = () => setStatusTick((n) => n + 1);
+    const offs = [
+      events.on("favoriteChanged", ({ entry }) => {
+        if (match(entry)) bump();
+      }),
+      events.on("albumEntryAspectChanged", (entry) => {
+        if (match(entry)) bump();
+      }),
+      events.on("picasaEntryUpdated", ({ entry }) => {
+        if (match(entry)) bump();
+      }),
+      events.on("albumEntryUpdated", (entry) => {
+        if (match(entry)) bump();
+      }),
+      events.on("entryChanged", (entry) => {
+        if (match(entry)) bump();
+      }),
+      events.on("exifDataProcessed", (entry) => {
+        if (match(entry)) bump();
+      }),
+      events.on("albumEntryFileChanged", (entry) => {
+        if (match(entry)) bump();
+      }),
+    ];
+    return () => offs.forEach((o) => o());
+  }, [activeKey]);
 
   useEffect(() => {
     if (!activeEntry) {
@@ -45,8 +85,11 @@ export function BottomSelectionButtons({
     let cancelled = false;
     albumEntryMetadata(activeEntry).then((meta) => {
       if (cancelled) return;
-      const stars = parseInt(meta?.starCount || "0");
-      setStarLabel(stars ? "🌟".repeat(stars) : "☆");
+      const starred = !!meta?.star;
+      const count = starred
+        ? parseInt(meta?.starCount || "1", 10) || 1
+        : 0;
+      setStarLabel(count > 0 ? "🌟".repeat(count) : "☆");
       let text = `${activeEntry.album.name} > ${activeEntry.name}   `;
       if (meta?.dateTaken) {
         text += `    ${new Date(meta.dateTaken).toLocaleString(undefined, {
@@ -65,7 +108,7 @@ export function BottomSelectionButtons({
       setInfo(text);
     });
     return () => { cancelled = true; };
-  }, [activeEntry, activeIndex, selected.length]);
+  }, [activeEntry, activeIndex, selected.length, statusTick]);
 
   const handleZoom = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -151,7 +194,7 @@ export function BottomSelectionButtons({
               key={`${entry.album.key}/${entry.name}`}
               className={`selection-thumb entry${activeIndex === idx ? " selection-thumb-selected" : ""}`}
               style={{
-                backgroundImage: `url(${thumbnailUrl(entry, "th-small")})`,
+                backgroundImage: `url(${thumbnailUrl(entry, "th-small")}&cb=${cacheBust(entry)})`,
               }}
             />
           ))}

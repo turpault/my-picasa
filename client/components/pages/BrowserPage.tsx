@@ -212,32 +212,34 @@ function AlbumSection({
   }, [service, album, entryNamesKey]);
 
   useEffect(() => {
-    const applies = (entry: AlbumEntryPicasa) =>
+    const applies = (entry: { album: Album; name: string }) =>
       entry.album.key === album.key &&
       entries.some((e) => e.name === entry.name);
 
-    const onFavorite = ({ entry }: { entry: AlbumEntryPicasa }) => {
+    const patchMeta = (entry: AlbumEntryPicasa) => {
       if (!applies(entry)) return;
       setMetaByName((prev) => ({ ...prev, [entry.name]: entry.metadata }));
     };
 
-    const onPicasa = ({
-      entry,
-      field,
-    }: {
-      entry: AlbumEntryPicasa;
-      field: string;
-    }) => {
-      if (field !== "star" && field !== "starCount") return;
-      if (!applies(entry)) return;
-      setMetaByName((prev) => ({ ...prev, [entry.name]: entry.metadata }));
+    const onFavorite = ({ entry }: { entry: AlbumEntryPicasa }) => {
+      patchMeta(entry);
+    };
+
+    const onPicasa = ({ entry }: { entry: AlbumEntryPicasa }) => {
+      patchMeta(entry);
+    };
+
+    const onAspect = (entry: AlbumEntryPicasa) => {
+      patchMeta(entry);
     };
 
     const offFav = events.on("favoriteChanged", onFavorite);
     const offPic = events.on("picasaEntryUpdated", onPicasa);
+    const offAspect = events.on("albumEntryAspectChanged", onAspect);
     return () => {
       offFav();
       offPic();
+      offAspect();
     };
   }, [album.key, entries, entryNamesKey]);
 
