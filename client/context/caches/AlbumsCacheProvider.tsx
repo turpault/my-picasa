@@ -15,6 +15,10 @@ import type { AlbumWithData } from "../../../shared/types/types";
 
 const AlbumsCacheContext = createContext<AlbumWithData[]>([]);
 
+const AlbumsRefetchContext = createContext<
+  () => Promise<AlbumWithData[]>
+>(async () => []);
+
 export function AlbumsCacheProvider({ children }: { children: ReactNode }) {
   const service = usePicisaService();
   const reconnectVersion = useReconnectVersion();
@@ -45,17 +49,33 @@ export function AlbumsCacheProvider({ children }: { children: ReactNode }) {
       serverEvents.on("albumAdded", fetchAlbums),
       serverEvents.on("albumUpdated", fetchAlbums),
       serverEvents.on("albumRemoved", fetchAlbums),
+      serverEvents.on("shortcutsUpdated", fetchAlbums),
     ];
     return () => offs.forEach((off) => off());
   }, [fetchAlbums]);
 
+  const refetchAlbums = useCallback(async (): Promise<AlbumWithData[]> => {
+    if (!service) return [];
+    const result = await service.folders(effectiveFilters);
+    const filtered =
+      effectiveFilters ? result.filter((a) => a.count > 0) : result;
+    setAlbums(filtered);
+    return filtered;
+  }, [service, effectiveFilters]);
+
   return (
-    <AlbumsCacheContext.Provider value={albums}>
-      {children}
-    </AlbumsCacheContext.Provider>
+    <AlbumsRefetchContext.Provider value={refetchAlbums}>
+      <AlbumsCacheContext.Provider value={albums}>
+        {children}
+      </AlbumsCacheContext.Provider>
+    </AlbumsRefetchContext.Provider>
   );
 }
 
 export function useAlbums(): AlbumWithData[] {
   return useContext(AlbumsCacheContext);
+}
+
+export function useAlbumsRefetch(): () => Promise<AlbumWithData[]> {
+  return useContext(AlbumsRefetchContext);
 }

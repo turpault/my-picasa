@@ -1,4 +1,8 @@
-export { AlbumsCacheProvider, useAlbums } from "./AlbumsCacheProvider";
+export {
+  AlbumsCacheProvider,
+  useAlbums,
+  useAlbumsRefetch,
+} from "./AlbumsCacheProvider";
 export { ShortcutsCacheProvider, useShortcuts } from "./ShortcutsCacheProvider";
 export { ContactsCacheProvider, useContacts } from "./ContactsCacheProvider";
 export { ProjectsCacheProvider, useProjects } from "./ProjectsCacheProvider";

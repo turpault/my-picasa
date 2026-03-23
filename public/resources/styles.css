@@ -1927,6 +1927,69 @@ body {
   white-space: nowrap;
 }
 
+.album-stream-title-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.album-stream-title-clickable:hover {
+  text-decoration: underline;
+}
+
+.album-name-input {
+  margin: 0;
+  min-width: 120px;
+  max-width: min(420px, 55vw);
+  font-size: 15px;
+  font-weight: bold;
+  padding: 2px 6px;
+  border: 1px solid #888;
+  border-radius: 3px;
+}
+
+.album-stream-header-actions .album-icon-btn {
+  padding: 4px 6px;
+  line-height: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.album-stream-header-actions .album-icon-btn img {
+  display: block;
+}
+
+.album-stream-header-actions .album-icon-btn-danger:hover {
+  background: rgba(200, 60, 60, 0.12);
+}
+
+.album-shortcut-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.album-shortcut-label {
+  color: #555;
+}
+
+.album-shortcut-select {
+  font-size: 12px;
+  padding: 2px 6px;
+  max-width: 4.5rem;
+}
+
+.album-stream-actions-sep {
+  display: inline-block;
+  width: 1px;
+  height: 18px;
+  background: #ccc;
+  margin: 0 2px;
+  align-self: center;
+}
+
 .album-stream-header h2 {
   margin: 0;
   font-size: 15px;

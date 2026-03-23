@@ -12,9 +12,16 @@ import type {
   AlbumEntryPicasa,
   AlbumWithData,
 } from "../../../shared/types/types";
-import { ProjectType, personKeyFromName } from "../../../shared/types/types";
+import {
+  JOBNAMES,
+  ProjectType,
+  personKeyFromName,
+} from "../../../shared/types/types";
 import { events } from "../../../shared/server-events";
-import { useAlbums } from "../../context/caches/AlbumsCacheProvider";
+import {
+  useAlbums,
+  useAlbumsRefetch,
+} from "../../context/caches/AlbumsCacheProvider";
 import { useShortcuts } from "../../context/caches/ShortcutsCacheProvider";
 import { useContacts } from "../../context/caches/ContactsCacheProvider";
 import { useProjects } from "../../context/caches/ProjectsCacheProvider";
@@ -28,6 +35,7 @@ import { isFilterEmpty } from "../../lib/settings";
 import { thumbnailUrl } from "../../imageProcess/client";
 import { dateOfAlbumFromName } from "../../../shared/lib/utils";
 import { t } from "../strings";
+import { message, Button } from "../question";
 import { BottomSelectionButtons } from "../shared/BottomSelectionButtons";
 import { MetadataViewer, type MetaPage } from "../shared/MetadataViewer";
 
@@ -74,6 +82,26 @@ function formatEntryDateTakenHover(
     return fromFolder.toLocaleString();
   }
   return "";
+}
+
+/** Same key update as server renameAlbumJob (last / segment = folder name) */
+function albumKeyAfterRename(oldKey: string, newFolderName: string): string {
+  const parts = oldKey.split("/");
+  if (parts.length === 0) return oldKey;
+  parts[parts.length - 1] = newFolderName;
+  return parts.join("/");
+}
+
+function useDesktopFinePointer(): boolean {
+  const [yes, setYes] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const apply = () => setYes(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  return yes;
 }
 
 // ---------------------------------------------------------------------------
@@ -210,6 +238,9 @@ interface AlbumSectionProps {
   headerRef: (el: HTMLDivElement | null) => void;
   /** Called after sortAlbum completes so the grid reloads persisted ranks */
   onAlbumSorted?: (album: Album) => void;
+  refetchAlbums?: () => Promise<AlbumWithData[]>;
+  onAlbumDeleted?: () => void;
+  onAlbumRenamed?: (album: AlbumWithData) => void;
 }
 
 function AlbumSection({
@@ -221,13 +252,107 @@ function AlbumSection({
   onDoubleClick,
   headerRef,
   onAlbumSorted,
+  refetchAlbums,
+  onAlbumDeleted,
+  onAlbumRenamed,
 }: AlbumSectionProps) {
   const service = usePicisaService();
+  const showOpenInFinder = useDesktopFinePointer();
   const [sorting, setSorting] = useState(false);
   const sortInFlightRef = useRef(false);
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState(album.name);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const skipRenameBlurRef = useRef(false);
   const [metaByName, setMetaByName] = useState<
     Record<string, AlbumEntryMetaData>
   >({});
+
+  useEffect(() => {
+    if (!editingName) setDraftName(album.name);
+  }, [album.name, editingName]);
+
+  const startNameEdit = useCallback(() => {
+    setDraftName(album.name);
+    setEditingName(true);
+    queueMicrotask(() => {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    });
+  }, [album.name]);
+
+  const finishRename = useCallback(async () => {
+    if (skipRenameBlurRef.current) {
+      skipRenameBlurRef.current = false;
+      return;
+    }
+    const trimmed = draftName.trim();
+    setEditingName(false);
+    if (!service || trimmed === "" || trimmed === album.name) return;
+    try {
+      const jobId = await service.createJob(JOBNAMES.RENAME_ALBUM, {
+        source: album,
+        name: trimmed,
+      });
+      await service.waitJob(jobId);
+      const list = (await refetchAlbums?.()) ?? [];
+      const newKey = albumKeyAfterRename(album.key, trimmed);
+      const match = list.find((a) => a.key === newKey);
+      onAlbumRenamed?.(
+        match ?? {
+          name: trimmed,
+          key: newKey,
+          count: album.count,
+        },
+      );
+    } catch (err) {
+      console.error("rename album failed:", err);
+    }
+  }, [
+    draftName,
+    service,
+    album,
+    refetchAlbums,
+    onAlbumRenamed,
+  ]);
+
+  const cancelNameEdit = useCallback(() => {
+    skipRenameBlurRef.current = true;
+    setDraftName(album.name);
+    setEditingName(false);
+  }, [album.name]);
+
+  const openInFinder = useCallback(() => {
+    if (!service) return;
+    void service.openInFinder(album);
+  }, [service, album]);
+
+  const onShortcutChange = useCallback(
+    (value: string) => {
+      if (!service) return;
+      void service.setAlbumShortcut(album, value);
+    },
+    [service, album],
+  );
+
+  const confirmDeleteAlbum = useCallback(async () => {
+    if (!service) return;
+    const res = await message(t("Delete the album $1 ?", album.name), [
+      Button.Ok,
+      Button.Cancel,
+    ]);
+    if (res !== Button.Ok) return;
+    try {
+      const jobId = await service.createJob(JOBNAMES.DELETE_ALBUM, {
+        source: album,
+      });
+      await service.waitJob(jobId);
+      await refetchAlbums?.();
+      onAlbumDeleted?.();
+    } catch (err) {
+      console.error("delete album failed:", err);
+    }
+  }, [service, album, refetchAlbums, onAlbumDeleted]);
 
   const runSort = useCallback(
     async (order: "name" | "date" | "reverse") => {
@@ -318,12 +443,90 @@ function AlbumSection({
     <div className="album-stream-section">
       <div className="album-stream-header" ref={headerRef} data-album-key={album.key}>
         <div className="album-stream-header-titles">
-          <h2>{album.name}</h2>
+          {editingName ? (
+            <input
+              ref={nameInputRef}
+              className="album-name-input"
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+              onBlur={() => void finishRename()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  (e.target as HTMLInputElement).blur();
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  cancelNameEdit();
+                }
+              }}
+              aria-label={t("Edit Album Name")}
+            />
+          ) : (
+            <h2
+              className="album-stream-title-clickable"
+              onClick={startNameEdit}
+              title={t("Edit Album Name")}
+            >
+              {album.name}
+            </h2>
+          )}
           <span className="entry-count">
             {loading && entries.length === 0 ? "…" : entries.length}
           </span>
         </div>
         <div className="album-stream-header-actions">
+          {showOpenInFinder ? (
+            <button
+              type="button"
+              className="btn album-icon-btn"
+              disabled={!service}
+              onClick={openInFinder}
+              title={t("Open in Finder")}
+              aria-label={t("Open in Finder")}
+            >
+              <img
+                src="resources/images/icons/actions/finder.svg"
+                alt=""
+                width={18}
+                height={18}
+              />
+            </button>
+          ) : null}
+          <label className="album-shortcut-field">
+            <span className="album-shortcut-label">{t("Shortcut")}</span>
+            <select
+              className="album-shortcut-select"
+              disabled={!service}
+              value={album.shortcut ?? ""}
+              title={t("Select shortcut for this folder")}
+              aria-label={t("Select shortcut for this folder")}
+              onChange={(e) => onShortcutChange(e.target.value)}
+            >
+              <option value="">{t("None")}</option>
+              {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="btn album-icon-btn album-icon-btn-danger"
+            disabled={!service}
+            onClick={() => void confirmDeleteAlbum()}
+            title={t("Delete Album")}
+            aria-label={t("Delete Album")}
+          >
+            <img
+              src="resources/images/icons/actions/trash.svg"
+              alt=""
+              width={18}
+              height={18}
+            />
+          </button>
+          <span className="album-stream-actions-sep" aria-hidden />
           <button
             type="button"
             className="btn album-sort-btn"
@@ -386,6 +589,9 @@ interface PhotoListProps {
   selectedAlbum: Album | null;
   onVisibleAlbumChange: (album: Album) => void;
   onSelectionChange: (entries: AlbumEntry[], activeEntry: AlbumEntry | null, activeIndex: number) => void;
+  refetchAlbums: () => Promise<AlbumWithData[]>;
+  onAlbumDeleted: () => void;
+  onAlbumRenamed: (album: AlbumWithData) => void;
 }
 
 function PhotoList({
@@ -393,10 +599,23 @@ function PhotoList({
   selectedAlbum,
   onVisibleAlbumChange,
   onSelectionChange,
+  refetchAlbums,
+  onAlbumDeleted,
+  onAlbumRenamed,
 }: PhotoListProps) {
   const service = usePicisaService();
   const settings = useSettings();
   const appEmitter = useAppEmitter();
+
+  const displayedAlbum = useMemo((): AlbumWithData | null => {
+    if (!selectedAlbum) return null;
+    const hit = orderedAlbums.find((a) => a.key === selectedAlbum.key);
+    if (hit) return hit;
+    return {
+      ...selectedAlbum,
+      count: (selectedAlbum as AlbumWithData).count ?? 0,
+    };
+  }, [orderedAlbums, selectedAlbum]);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [activeEntryKey, setActiveEntryKey] = useState<string | null>(null);
@@ -458,19 +677,21 @@ function PhotoList({
     fetchAlbumEntries(selectedAlbum);
   }, [selectedAlbum?.key, entriesMap, loadingSet, fetchAlbumEntries]);
 
-  // Only the selected album is visible
+  // Only the selected album is visible (use list data for shortcut etc.)
   const visibleAlbums = useMemo(
     () =>
-      selectedAlbum && loadedKeys.has(selectedAlbum.key) ? [selectedAlbum] : [],
-    [selectedAlbum, loadedKeys],
+      displayedAlbum && loadedKeys.has(displayedAlbum.key)
+        ? [displayedAlbum]
+        : [],
+    [displayedAlbum, loadedKeys],
   );
 
   // Notify parent of visible album (always the selected one when loaded)
   useEffect(() => {
-    if (selectedAlbum && loadedKeys.has(selectedAlbum.key)) {
-      onVisibleAlbumChange(selectedAlbum);
+    if (displayedAlbum && loadedKeys.has(displayedAlbum.key)) {
+      onVisibleAlbumChange(displayedAlbum);
     }
-  }, [selectedAlbum, loadedKeys, onVisibleAlbumChange]);
+  }, [displayedAlbum, loadedKeys, onVisibleAlbumChange]);
 
   // Selection handling
   const allVisibleEntries = useMemo(() => {
@@ -580,6 +801,9 @@ function PhotoList({
           onSelect={handleSelect}
           onDoubleClick={handleDoubleClick}
           onAlbumSorted={handleAlbumSorted}
+          refetchAlbums={refetchAlbums}
+          onAlbumDeleted={onAlbumDeleted}
+          onAlbumRenamed={onAlbumRenamed}
           headerRef={(el) => {
             if (el) headerRefsMap.current.set(album.key, el);
             else headerRefsMap.current.delete(album.key);
@@ -827,6 +1051,7 @@ function BrowserHeader() {
 
 export default function BrowserPage() {
   const albums = useAlbums();
+  const refetchAlbums = useAlbumsRefetch();
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
 
   // Selection state lifted from PhotoList
@@ -898,6 +1123,9 @@ export default function BrowserPage() {
           selectedAlbum={selectedAlbum}
           onVisibleAlbumChange={handleVisibleAlbumChange}
           onSelectionChange={handleSelectionChange}
+          refetchAlbums={refetchAlbums}
+          onAlbumDeleted={() => setSelectedAlbum(null)}
+          onAlbumRenamed={setSelectedAlbum}
         />
       </div>
       <BottomSelectionButtons
