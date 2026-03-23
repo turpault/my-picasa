@@ -67,6 +67,13 @@ export function SettingsProvider({ children }: PropsWithChildren) {
     });
   }, [fetchSettings]);
 
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--thumbnail-size",
+      `${settings.iconSize}px`,
+    );
+  }, [settings.iconSize]);
+
   const updateSettings = useCallback(
     async (partial: Partial<Settings>) => {
       setSettings((prev) => ({ ...prev, ...partial }));
