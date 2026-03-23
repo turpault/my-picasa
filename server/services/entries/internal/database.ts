@@ -42,6 +42,8 @@ class EntriesDatabaseAccess {
   private dbPath: string;
   private readonly: boolean;
   private isWriter: boolean;
+  /** Set after constructor: split exif DB attached for COALESCE(date) joins */
+  private exifSchemaAttached = false;
 
   constructor() {
     this.dbPath = ENTRIES_DB_PATH;
@@ -88,8 +90,14 @@ class EntriesDatabaseAccess {
       this.migrateChildTablesIfNeeded();
       this.migrateAlbumId();
     }
-    if (!this.isWriter) {
-      attachSplitDatabases(this.db);
+    attachSplitDatabases(this.db);
+    try {
+      const dbs = this.db.prepare("PRAGMA database_list").all() as Array<{
+        name: string;
+      }>;
+      this.exifSchemaAttached = dbs.some((d) => d.name === "exif");
+    } catch {
+      this.exifSchemaAttached = false;
     }
   }
 
@@ -530,14 +538,29 @@ class EntriesDatabaseAccess {
     });
   }
 
+  /** Prefer album_entries.date_taken; fall back to exif.exif_data when split DB is attached */
+  private dateTakenSelectExpr(): string {
+    return this.exifSchemaAttached
+      ? "COALESCE(NULLIF(TRIM(ae.date_taken), ''), ed.date_taken)"
+      : "ae.date_taken";
+  }
+
+  private dateTakenJoinClause(): string {
+    return this.exifSchemaAttached
+      ? "LEFT JOIN exif.exif_data ed ON ed.entry_id = ae.entry_id"
+      : "";
+  }
+
   async getEntryMetadata(entry: AlbumEntry): Promise<AlbumEntryMetaData> {
     return enqueueDb(
       () => {
         const row = this.db.prepare(`
-      SELECT date_taken, photostar, star, star_count, caption, text,
-        dimensions, dimensions_from_filter, rank, rotate, faces, filters, persons,
-        filter_version, thumb_filter_version_small, thumb_filter_version_medium, thumb_filter_version_large
-      FROM album_entries WHERE album_key = ? AND entry_name = ?
+      SELECT ${this.dateTakenSelectExpr()} AS date_taken, ae.photostar, ae.star, ae.star_count, ae.caption, ae.text,
+        ae.dimensions, ae.dimensions_from_filter, ae.rank, ae.rotate, ae.faces, ae.filters, ae.persons,
+        ae.filter_version, ae.thumb_filter_version_small, ae.thumb_filter_version_medium, ae.thumb_filter_version_large
+      FROM album_entries ae
+      ${this.dateTakenJoinClause()}
+      WHERE ae.album_key = ? AND ae.entry_name = ?
     `).get(entry.album.key ?? "", entry.name ?? "") as any;
     if (!row) return {};
 
@@ -587,9 +610,11 @@ class EntriesDatabaseAccess {
   async getAlbumMetaData(album: Album): Promise<AlbumMetaData> {
     return enqueueDb(() => {
       const rows = this.db.prepare(`
-      SELECT entry_name, date_taken, photostar, star, star_count, caption, text,
-        dimensions, dimensions_from_filter, rank, rotate, faces, filters, persons
-      FROM album_entries WHERE album_key = ? ORDER BY entry_name
+      SELECT ae.entry_name, ${this.dateTakenSelectExpr()} AS date_taken, ae.photostar, ae.star, ae.star_count, ae.caption, ae.text,
+        ae.dimensions, ae.dimensions_from_filter, ae.rank, ae.rotate, ae.faces, ae.filters, ae.persons
+      FROM album_entries ae
+      ${this.dateTakenJoinClause()}
+      WHERE ae.album_key = ? ORDER BY ae.entry_name
     `).all(album.key) as any[];
     const metadata: AlbumMetaData = {};
     for (const row of rows) {

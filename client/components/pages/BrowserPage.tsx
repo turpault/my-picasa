@@ -26,6 +26,7 @@ import { useAppEmitter, usePicisaService } from "../../context/AppContext";
 import { useCacheBust } from "../../context/CacheBustProvider";
 import { isFilterEmpty } from "../../lib/settings";
 import { thumbnailUrl } from "../../imageProcess/client";
+import { dateOfAlbumFromName } from "../../../shared/lib/utils";
 import { t } from "../strings";
 import { BottomSelectionButtons } from "../shared/BottomSelectionButtons";
 import { MetadataViewer, type MetaPage } from "../shared/MetadataViewer";
@@ -39,6 +40,40 @@ function yearFromAlbumName(name: string): string {
     return "0000";
   }
   return "0000";
+}
+
+function normalizeRpcEntryMeta(
+  v: Record<string, unknown>,
+): AlbumEntryMetaData {
+  const out = { ...v } as AlbumEntryMetaData;
+  const snake = v.date_taken;
+  if (
+    (out.dateTaken == null || String(out.dateTaken).trim() === "") &&
+    typeof snake === "string" &&
+    snake.trim() !== ""
+  ) {
+    out.dateTaken = snake;
+  }
+  return out;
+}
+
+/** Hover label: DB / EXIF date, or album folder date from name (legacy parity) */
+function formatEntryDateTakenHover(
+  meta: AlbumEntryMetaData | undefined,
+  entry: AlbumEntry,
+): string {
+  const raw =
+    meta?.dateTaken ??
+    (meta as { date_taken?: string } | undefined)?.date_taken;
+  if (raw != null && String(raw).trim() !== "") {
+    const d = new Date(String(raw));
+    if (!Number.isNaN(d.getTime())) return d.toLocaleString();
+  }
+  const fromFolder = dateOfAlbumFromName(entry.album.name);
+  if (fromFolder && !Number.isNaN(fromFolder.getTime())) {
+    return fromFolder.toLocaleString();
+  }
+  return "";
 }
 
 // ---------------------------------------------------------------------------
@@ -106,10 +141,7 @@ const Thumbnail = React.memo(function Thumbnail({
   );
 
   const showStar = !!picasaData?.star;
-  const dateTime =
-    picasaData?.dateTaken != null
-      ? new Date(picasaData.dateTaken).toLocaleString()
-      : "";
+  const dateTime = formatEntryDateTakenHover(picasaData, entry);
 
   return (
     <div
@@ -215,7 +247,7 @@ function AlbumSection({
       for (const e of entries) {
         const v = albumMeta[e.name];
         if (v && typeof v === "object" && !Array.isArray(v)) {
-          next[e.name] = v as AlbumEntryMetaData;
+          next[e.name] = normalizeRpcEntryMeta(v as Record<string, unknown>);
         }
       }
       setMetaByName(next);
