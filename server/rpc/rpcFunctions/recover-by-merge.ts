@@ -1,7 +1,7 @@
 import { readdir, readFile, stat, writeFile } from "fs/promises";
 import { join } from "path";
 import ini from "../../../shared/lib/ini";
-import { fileExists } from "../../utils/serverUtils";
+import { fileExists, memoStat } from "../../utils/serverUtils";
 
 async function walkIniFiles(path: string, cb: (path: string) => {}) {
   const walker = async (p: string, cb: (file: string) => {}) => {
@@ -9,7 +9,7 @@ async function walkIniFiles(path: string, cb: (path: string) => {}) {
     const files = await readdir(fullRelPath);
     for (const file of files) {
       const filePath = join(fullRelPath, file);
-      const stats = await stat(filePath);
+      const stats = await memoStat(filePath);
       const r = join(p, file);
       if (stats.isDirectory() && !file.startsWith(".")) {
         await walker(r, cb);

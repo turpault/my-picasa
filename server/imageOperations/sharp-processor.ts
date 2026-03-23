@@ -139,7 +139,7 @@ function getMimeFromExtension(extension: string) {
 export async function buildRawContext(entry: AlbumEntry) {
   const relPath = entryRelativePath(entry);
 
-  let picasaData = getEntryMetadata(entry);
+  let picasaData = await getEntryMetadata(entry);
   let fileData = await readFile(join(imagesRoot, relPath));
 
   const contextId = namify(relPath) + "-" + uuid();

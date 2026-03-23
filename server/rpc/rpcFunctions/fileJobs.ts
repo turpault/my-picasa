@@ -4,7 +4,7 @@ import { spawn } from "child_process";
 import { tmpdir } from "os";
 import { lock } from "../../../shared/lib/mutex";
 import { debounced, sleep, uuid } from "../../../shared/lib/utils";
-import { pathForAlbum, pathForAlbumEntry } from "../../utils/serverUtils";
+import { pathForAlbum, pathForAlbumEntry, memoStat } from "../../utils/serverUtils";
 
 import {
   Album,
@@ -469,7 +469,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
   for (const s of source) {
     try {
       let targetName = s.source.name;
-      const sourceRank = parseInt(getEntryMetadata(s.source).rank || "0");
+      const sourceRank = parseInt((await getEntryMetadata(s.source)).rank || "0");
       if (s.destination.key !== s.source.album.key) {
         let found = false;
         let destPath = join(
@@ -480,7 +480,7 @@ async function multiMoveJob(job: Job): Promise<Album[]> {
         let idx = 1;
         while (!found) {
           found = true;
-          await stat(destPath)
+          await memoStat(destPath)
             .then((e) => {
               // target already exists
               found = false;
@@ -753,7 +753,7 @@ async function copyMetadata(
   dest: AlbumEntry,
   deleteSource: boolean = false,
 ) {
-  const sourceMetadata = getEntryMetadata(source);
+  const sourceMetadata = await getEntryMetadata(source);
   if (sourceMetadata) {
     const mutations = getWalkerMutations();
     await mutations.updateEntryMetadata(dest, "*", sourceMetadata);

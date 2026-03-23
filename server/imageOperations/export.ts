@@ -61,7 +61,7 @@ export async function exportToFolder(entry: AlbumEntry, targetFolder: string, ex
     return targetFile;
   } else if (isPicture(entry)) {
     const imageLabel = mediaName(entry);
-    const entryMeta = getEntryMetadata(entry);
+    const entryMeta = await getEntryMetadata(entry);
     const transform = entryMeta.filters || "";
     // Build transformation string with proper conditional concatenation
     const parts: string[] = [];

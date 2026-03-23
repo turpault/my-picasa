@@ -9,7 +9,7 @@ import {
 } from "../../shared/types/types";
 import { imagesRoot } from "../utils/constants";
 import { events } from "../../shared/server-events";
-import { pathForAlbum } from "../utils/serverUtils";
+import { pathForAlbum, memoStat } from "../utils/serverUtils";
 
 const notificationQueue: AlbumChangeEvent[] = [];
 
@@ -52,7 +52,7 @@ export async function assetsInFolderAlbum(
           entries.push(entry);
         } else {
           try {
-            const s = await stat(join(imagesRoot, pathForAlbum(album), i));
+            const s = await memoStat(join(imagesRoot, pathForAlbum(album), i));
             if (s.isDirectory()) {
               folders.push(i);
             }

@@ -118,7 +118,7 @@ export async function syncFavoritesFromPhotoApp(
         for (const entry of m.entries) {
           try {
             const imageMetadata = await imageInfo(entry);
-            const picasaMetadata = getEntryMetadata(entry);
+            const picasaMetadata = await getEntryMetadata(entry);
             allPhotos.push({
               metadata: imageMetadata,
               name: removeExtension(entry.name).toLowerCase(),

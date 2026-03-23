@@ -65,7 +65,7 @@ async function exportAllMissing() {
 }
 
 async function shouldExport(entry: AlbumEntry) {
-  const meta = getEntryMetadata(entry);
+  const meta = await getEntryMetadata(entry);
   const exif = await getExifData(entry);
   if (!exif || Object.keys(exif).length === 0) {
     return !meta.star;

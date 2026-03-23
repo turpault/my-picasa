@@ -8,7 +8,7 @@ import { AlbumEntry, ExifData, ExifTag } from "../../../../shared/types/types";
 import { deferSync } from "../../../utils/defer-sync";
 import { enqueueDb } from "../../../utils/db-queue";
 import { dimensionsFromFileBuffer } from "../../../imageOperations/sharp-processor";
-import { entryFilePath } from "../../../utils/serverUtils";
+import { entryFilePath, memoStat } from "../../../utils/serverUtils";
 import type { ExifColumns } from "../database";
 import { getExifDatabaseReadWrite } from "../database";
 
@@ -196,7 +196,7 @@ async function extractExifDataFromFile(entry: AlbumEntry, withStats = false): Pr
 
   if (withStats) {
     const path = entryFilePath(entry);
-    const stats = await stat(path);
+    const stats = await memoStat(path);
     exif = { ...exif, ...stats };
   }
 

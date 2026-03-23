@@ -5,6 +5,7 @@ import { getProcessedFileInfo, insertPoiBatch, markFileAsProcessed } from "./poi
 import { imagesRoot } from "../../../../utils/constants";
 import { join } from "path";
 import { readdir } from "fs/promises";
+import { memoStat } from "../../../../utils/serverUtils";
 
 const CSVLocation = join(imagesRoot, ".locations");
 
@@ -33,7 +34,7 @@ async function ingestFiles(filesToIngest: string[]) {
     // Get file modification time
     let fileMtime: string;
     try {
-      const stats = await stat(file);
+      const stats = await memoStat(file);
       fileMtime = stats.mtime.getTime().toString();
     } catch (e) {
       console.error(`Error getting file stats for ${file}:`, e);

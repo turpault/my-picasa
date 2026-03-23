@@ -42,7 +42,7 @@ export async function generateSlideshowFile(
     if (page.type === "image") {
       const entry = page.entry!;
       if (isPicture(entry)) {
-        const entryMeta = getEntryMetadata(entry);
+        const entryMeta = await getEntryMetadata(entry);
         let filters = entryMeta.filters || "";
         if (page.text && page.border !== "polaroid")
           filters += `;label=1,${encodeURIComponent(page.text!)},${textSize},s`;

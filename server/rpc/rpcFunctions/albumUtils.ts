@@ -64,7 +64,7 @@ async function assignRanks(filesInFolder: AlbumEntry[]): Promise<void> {
   let rank = 0;
   for (const entry of filesInFolder) {
     if (isPicture(entry) || isVideo(entry)) {
-      let current = getEntryMetadata(entry).rank || "0";
+      let current = (await getEntryMetadata(entry)).rank || "0";
       if (rank !== parseInt(current)) {
         const mutations = getMutations();
         await mutations.updateEntryMetadata(entry, "rank", rank);
@@ -102,7 +102,7 @@ export async function sortAlbum(album: Album, order: string): Promise<void> {
         const entriesWithDates = await Promise.all(
           entries.map(async (entry) => ({
             entry,
-            metadata: getEntryMetadata(entry),
+            metadata: await getEntryMetadata(entry),
           })),
         );
         const sorted = entriesWithDates.sort((e1, e2) => {
@@ -170,7 +170,7 @@ export async function media(
 async function sortAssetsByRank(entries: AlbumEntry[]) {
   await Promise.all(
     entries.map(async (entry) => {
-      const meta = getEntryMetadata(entry);
+      const meta = await getEntryMetadata(entry);
       Object.assign(entry, { rank: meta.rank });
     }),
   );

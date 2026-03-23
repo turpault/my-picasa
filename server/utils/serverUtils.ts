@@ -7,9 +7,15 @@ import {
   idFromKey,
 } from "../../shared/types/types";
 import { imagesRoot } from "./constants";
+import { Stats } from "fs";
+import { asyncMemoizer } from "../../shared/lib/memoizer";
+const statMemoizer = asyncMemoizer();
+export async function memoStat(path: string): Promise<Stats> {
+  return statMemoizer([path], () => stat(path));
+}
 
 export async function fileExists(path: string): Promise<boolean> {
-  return stat(path)
+  return memoStat(path)
     .then(() => true)
     .catch(() => false);
 }

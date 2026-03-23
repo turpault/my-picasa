@@ -27,7 +27,7 @@ export async function imageInfo(
   entry: AlbumEntry,
   metadata?: AlbumEntryMetaData,
 ): Promise<AlbumEntryWithMetadata> {
-  metadata ||= getEntryMetadata(entry);
+  metadata ||= await getEntryMetadata(entry);
   const options = metadata;
   const res: AlbumEntryWithMetadata = {
     ...entry,

@@ -41,9 +41,9 @@
     "build:splashbase64url": "bun server/toBase64Url.mjs public/resources/images/splash.png",
     "native-filters": "cd server/imageOperations/native-filters && bun run configure && bun run build",
     "prestart": "bun run native-filters",
-    "dev": "DEBUG=app:* NODE_ENV=development DEBUG='*' PICISA_PICTURE_FOLDER=/Volumes/1TB\\ USB/Photos bun --hot server/index.ts",
+    "dev": "DEBUG=app:* NODE_ENV=development DEBUG='*' PICISA_PICTURE_FOLDER=/Volumes/1TB\\ USB/MiniPhotos bun --hot server/index.ts",
     "start": "bun --watch server/index.ts",
-    "start:server": "DEBUG='*' PICISA_PICTURE_FOLDER=/Volumes/1TB\\ USB/Photos bun --watch server/index.ts",
+    "start:server": "DEBUG='*' PICISA_PICTURE_FOLDER=/Volumes/1TB\\ USB/MiniPhotos bun --watch server/index.ts",
     "predeploy": "bun run build",
     "deploy": "bun x run-p deploy:*",
     "deploy:webapp": "rm -rf deployed ; cp -R public deployed; sudo cp com.turpault.picisa.plist /Library/LaunchDaemons && sudo chmod 600 /Library/LaunchDaemons/com.turpault.picisa.plist ; sudo launchctl unload /Library/LaunchDaemons/com.turpault.picisa.plist ; sudo launchctl load /Library/LaunchDaemons/com.turpault.picisa.plist"

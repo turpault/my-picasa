@@ -11,7 +11,7 @@ import {
   imagesRoot,
   specialFolders,
 } from "../../utils/constants";
-import { safeWriteFile } from "../../utils/serverUtils";
+import { safeWriteFile, memoStat } from "../../utils/serverUtils";
 import { openWithFinder } from "./osascripts";
 import { events } from "../../../shared/server-events";
 import { pathForAlbum, pathForAlbumEntry } from "../../utils/serverUtils";
@@ -35,7 +35,7 @@ export async function folder(
   const data = await readdir(p);
   const stats = await Promise.allSettled(
     data.map((e) =>
-      stat(join(p, e)).then((s) => ({
+      memoStat(join(p, e)).then((s) => ({
         name: e,
         kind: s.isDirectory() ? "directory" : "file",
       })),
@@ -48,7 +48,7 @@ export async function folder(
 
 export async function makeAlbum(name: string): Promise<Album> {
   const p = join(imagesRoot, defaultNewFolder, name);
-  return stat(p)
+  return memoStat(p)
     .catch((e) => mkdir(p, { recursive: true }))
     .then(() => {
       const a: Album = {
@@ -79,7 +79,7 @@ export async function walk(
   const data = await readdir(p);
   for (const f of data) {
     if (!f.startsWith(".")) {
-      const s = await stat(join(p, f));
+      const s = await memoStat(join(p, f));
       if (s.isDirectory()) {
         if (!specialFolders.includes(f)) {
           promises.push(walk(join(folder, f), cb));
@@ -102,7 +102,7 @@ export async function walkAbsolutePath(
   for (const f of data) {
     if (!f.startsWith(".")) {
       const path = join(folder, f);
-      const s = await stat(path);
+      const s = await memoStat(path);
       if (s.isDirectory()) {
         promises.push(walkAbsolutePath(path, cb));
       } else {

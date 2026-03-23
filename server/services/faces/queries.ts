@@ -49,8 +49,8 @@ export function getContacts(): Contact[] {
  * Get faces for a given album entry
  * Returns a list of faces with their associated rectangles
  */
-export function getFacesForEntry(entry: AlbumEntry): FaceList {
-  const metadata = getEntryMetadata(entry);
+export async function getFacesForEntry(entry: AlbumEntry): Promise<FaceList> {
+  const metadata = await getEntryMetadata(entry);
   const facesString = metadata.faces || "";
   return decodeFaces(facesString);
 }

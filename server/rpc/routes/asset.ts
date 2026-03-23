@@ -19,7 +19,7 @@ export async function asset(entry: AlbumEntry): Promise<string> {
     return path;
   }
 
-  const options = getEntryMetadata(entry);
+  const options = await getEntryMetadata(entry);
 
   const context = await buildContext(entry);
   if (options) {

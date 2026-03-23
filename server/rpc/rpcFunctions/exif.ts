@@ -1,9 +1,8 @@
 import { Stats } from "fs";
-import { stat } from "fs/promises";
 import { AlbumEntry } from "../../../shared/types/types";
-import { entryFilePath } from "../../utils/serverUtils";
-import { getExifData as getExifDataFromService, isExifProcessed } from "../../services/exif/queries";
 import { extractExifData } from "../../services/exif/internal/extract";
+import { getExifData as getExifDataFromService, isExifProcessed } from "../../services/exif/queries";
+import { entryFilePath, memoStat } from "../../utils/serverUtils";
 
 export function toExifDate(isoDate: string) {
   // exif is YYYY:MM:DD HH:MM:SS
@@ -46,5 +45,5 @@ export async function getExifData(entry: AlbumEntry): Promise<any> {
  */
 export async function getFileStats(entry: AlbumEntry): Promise<Stats> {
   const path = entryFilePath(entry);
-  return stat(path);
+  return memoStat(path);
 }

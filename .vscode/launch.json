@@ -5,13 +5,12 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch server via npm",
+      "name": "Launch server",
       "request": "launch",
       "runtimeArgs": [
-        "run-script",
-        "start:server"
+        "dev"
       ],
-      "runtimeExecutable": "npm",
+      "runtimeExecutable": "bun",
       "skipFiles": [
         "<node_internals>/**"
       ],
