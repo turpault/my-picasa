@@ -6,6 +6,11 @@ export async function toggleStar(entries: AlbumEntry[]): Promise<void> {
   s.toggleStar(entries);
 }
 
+export async function addStar(entries: AlbumEntry[]): Promise<void> {
+  const s = await getService();
+  s.addStar(entries);
+}
+
 export async function getAlbumMetadata(album: Album): Promise<AlbumMetaData> {
   const s = await getService();
   return s.getAlbumMetadata(album);

@@ -1,7 +1,7 @@
 import { albumEntryMetadata, thumbnailUrl } from "../imageProcess/client";
 import { $, _$, elementFromEntry, setIdForEntry } from "../lib/dom";
 import { Emitter } from "../lib/event";
-import { toggleStar } from "../lib/handles";
+import { addStar } from "../lib/handles";
 import {
   getSettings,
   getSettingsEmitter,
@@ -516,7 +516,7 @@ export function makeButtons(
     );
     $(".quick-actions-star", container).addRemoveClass(
       "disabled",
-      !!selected.length,
+      !selected.length,
     );
     const lst = $(".selection-thumbs-icons", container);
     lst.empty();

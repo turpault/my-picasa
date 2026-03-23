@@ -83,6 +83,11 @@ export function BottomSelectionButtons({
     service.rotate(selected, "right");
   }, [service, selected]);
 
+  const handleAddStar = useCallback(async () => {
+    if (!service || selected.length === 0) return;
+    await service.addStar(selected);
+  }, [service, selected]);
+
   const handleExport = useCallback(async () => {
     if (!service || selected.length === 0) return;
     service.createJob("export" as any, { source: selected });
@@ -154,8 +159,11 @@ export function BottomSelectionButtons({
 
       <div className="quick-actions picasa-button-group">
         <button
+          type="button"
           className={`quick-actions-star${!hasSelection ? " disabled" : ""}`}
           disabled={!hasSelection}
+          onClick={handleAddStar}
+          title={t("Add star")}
         >
           {starLabel}
         </button>

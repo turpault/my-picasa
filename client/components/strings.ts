@@ -63,6 +63,7 @@ const stringTable: { [key: string]: any } = {
     fr: "Déplacer la selection vers un nouvel album",
   },
   "Add/Remove favorite": { fr: "Ajouter/Enlever des préférées" },
+  "Add star": { fr: "Ajouter une étoile" },
   "Rotate Selected Left": { fr: "Tourner l'image a gauche" },
   "Rotate Selected Right": { fr: "Tourner l'image a droite" },
   "Create Mosaic": { fr: "Créer une mosaique" },

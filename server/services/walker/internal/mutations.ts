@@ -174,6 +174,27 @@ export async function toggleStar(entries: AlbumEntry[]): Promise<void> {
 }
 
 /**
+ * Increase star rating by one for each entry (1 … MAX_STAR-1). Does not remove stars or wrap.
+ */
+export async function addStar(entries: AlbumEntry[]): Promise<void> {
+  const { MAX_STAR } = await import("../../../../shared/lib/shared-constants");
+  const maxCount = MAX_STAR - 1;
+  for (const entry of entries) {
+    const metadata = await picasaIni.getPicasaEntry(entry);
+    const current = metadata.star
+      ? parseInt(metadata.starCount || "1", 10)
+      : 0;
+    const newCount = Math.min(current + 1, maxCount);
+    await updateAlbumEntry(entry, "star", true);
+    await updateAlbumEntry(entry, "starCount", String(newCount));
+    const finalMetadata = await picasaIni.getPicasaEntry(entry);
+    events.emit("favoriteChanged", {
+      entry: { ...entry, metadata: finalMetadata } as AlbumEntryPicasa,
+    });
+  }
+}
+
+/**
  * Rotate entries
  */
 export async function rotate(entries: AlbumEntry[], direction: string): Promise<void> {

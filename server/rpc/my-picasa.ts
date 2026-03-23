@@ -56,6 +56,7 @@ import {
   openAlbumInFinder,
   writeFileContents,
 } from "./rpcFunctions/fs";
+import { addStar } from "../services/walker/internal/mutations";
 import {
   getEntryMetadata,
   getShortcuts,
@@ -274,6 +275,10 @@ export const PicisaClient: ServiceMap = {
         const mutations = getMutations();
         return await mutations.toggleStar(entries);
       },
+      arguments: ["entries:object"],
+    },
+    addStar: {
+      handler: async (entries: AlbumEntry[]) => addStar(entries),
       arguments: ["entries:object"],
     },
     getProjects: {
