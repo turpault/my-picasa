@@ -10,7 +10,7 @@ import { buildEmitter, type Emitter } from "../../shared/lib/event";
 import { events as serverEvents } from "../../shared/server-events";
 import type { ServerEvents } from "../../shared/server-events";
 import type { PicisaClientApi } from "../../shared/rpc-contracts";
-import { connect, getServicePort } from "../rpc/connect";
+import { attachServerEventBridge, connect, getServicePort } from "../rpc/connect";
 import type { AlbumEntry } from "../../shared/types/types";
 
 export type TabKind =
@@ -66,12 +66,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let isFirstConnect = true;
 
     connEvents.on("connected", ({ service: svc }) => {
-      svc.on("serverEvent", (serverEvent: { eventType: string; data: any }) => {
-        serverEvents.emit(
-          serverEvent.eventType as keyof ServerEvents,
-          serverEvent.data,
-        );
-      });
+      attachServerEventBridge(svc);
 
       setService(svc);
       setConnected(true);

@@ -71,6 +71,28 @@ export function getServicePort() {
   return _servicePort;
 }
 
+/**
+ * Wire PicisaClient push messages (action "serverEvent") into the shared client event bus.
+ * The transport delivers { payload: { eventType, data }, callback } per incoming RPC envelope.
+ */
+export function attachServerEventBridge(service: PicisaClientApi): void {
+  service.on("serverEvent", (msg: unknown) => {
+    const envelope = msg as {
+      payload?: { eventType?: string; data?: unknown };
+      callback?: (err: string | null, result?: unknown) => void;
+    };
+    const p = envelope.payload;
+    if (p && typeof p.eventType === "string") {
+      events.emit(p.eventType as keyof ServerEvents, p.data as never);
+    }
+    try {
+      envelope.callback?.(null, {});
+    } catch {
+      /* ignore */
+    }
+  });
+}
+
 export async function getService(): Promise<PicisaClientApi> {
   if (!ev) {
     ev = connect(getServicePort(), location.hostname || "localhost", false);
@@ -85,9 +107,7 @@ export async function getService(): Promise<PicisaClientApi> {
   if (!_connected) {
     return new Promise<PicisaClientApi>((resolve) => {
       ev.once("connected", ({ service }) => {
-        service.on("serverEvent", (serverEvent: { eventType: string; data: any }) => {
-          events.emit(serverEvent.eventType as keyof ServerEvents, serverEvent.data);
-        });
+        attachServerEventBridge(service);
         _connected = true;
         resolve(service);
       });

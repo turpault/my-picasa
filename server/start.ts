@@ -27,7 +27,7 @@ import {
   measureCPULoad,
 } from "./utils/busy";
 import { imagesRoot, rootPath } from "./utils/constants";
-import { addSocket, removeSocket } from "./utils/socketList";
+import { addSocket, removeSocket, setupClientEventForwarding } from "./utils/socketList";
 import { history } from "./utils/stats";
 import { initUndo } from "./utils/undo";
 import {
@@ -371,6 +371,7 @@ process.on("exit", () => {
 });
 
 export async function startServices() {
+  setupClientEventForwarding();
   await initUndo();
   info("Starting services...");
 

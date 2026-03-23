@@ -14,7 +14,13 @@ export function removeSocket(socket: RPCAdaptorInterface) {
 export function socketCount() {
   return socketList.length;
 }
+let clientEventForwardingInstalled = false;
+
 export function setupClientEventForwarding() {
+  if (clientEventForwardingInstalled) {
+    return;
+  }
+  clientEventForwardingInstalled = true;
   events.on("*", (eventType: string, data: any) => {
     broadcast("serverEvent", { eventType, data });
   });
