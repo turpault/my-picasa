@@ -208,6 +208,8 @@ interface AlbumSectionProps {
   onSelect: (entry: AlbumEntry, e: React.MouseEvent) => void;
   onDoubleClick: (entry: AlbumEntry) => void;
   headerRef: (el: HTMLDivElement | null) => void;
+  /** Called after sortAlbum completes so the grid reloads persisted ranks */
+  onAlbumSorted?: (album: Album) => void;
 }
 
 function AlbumSection({
@@ -218,11 +220,32 @@ function AlbumSection({
   onSelect,
   onDoubleClick,
   headerRef,
+  onAlbumSorted,
 }: AlbumSectionProps) {
   const service = usePicisaService();
+  const [sorting, setSorting] = useState(false);
+  const sortInFlightRef = useRef(false);
   const [metaByName, setMetaByName] = useState<
     Record<string, AlbumEntryMetaData>
   >({});
+
+  const runSort = useCallback(
+    async (order: "name" | "date" | "reverse") => {
+      if (!service || sortInFlightRef.current) return;
+      sortInFlightRef.current = true;
+      setSorting(true);
+      try {
+        await service.sortAlbum(album, order);
+        onAlbumSorted?.(album);
+      } catch (err) {
+        console.error("sortAlbum failed:", err);
+      } finally {
+        sortInFlightRef.current = false;
+        setSorting(false);
+      }
+    },
+    [service, album, onAlbumSorted],
+  );
 
   const entryKey = useCallback(
     (e: AlbumEntry) => `${e.album.key}/${e.name}`,
@@ -294,10 +317,41 @@ function AlbumSection({
   return (
     <div className="album-stream-section">
       <div className="album-stream-header" ref={headerRef} data-album-key={album.key}>
-        <h2>{album.name}</h2>
-        <span className="entry-count">
-          {loading && entries.length === 0 ? "…" : entries.length}
-        </span>
+        <div className="album-stream-header-titles">
+          <h2>{album.name}</h2>
+          <span className="entry-count">
+            {loading && entries.length === 0 ? "…" : entries.length}
+          </span>
+        </div>
+        <div className="album-stream-header-actions">
+          <button
+            type="button"
+            className="btn album-sort-btn"
+            disabled={!service || sorting || entries.length < 2}
+            onClick={() => void runSort("name")}
+            title={t("Sort by Name")}
+          >
+            {t("Sort by Name")}
+          </button>
+          <button
+            type="button"
+            className="btn album-sort-btn"
+            disabled={!service || sorting || entries.length < 2}
+            onClick={() => void runSort("date")}
+            title={t("Sort by Date")}
+          >
+            {t("Sort by Date")}
+          </button>
+          <button
+            type="button"
+            className="btn album-sort-btn"
+            disabled={!service || sorting || entries.length < 2}
+            onClick={() => void runSort("reverse")}
+            title={t("Reverse Sort")}
+          >
+            {t("Reverse Sort")}
+          </button>
+        </div>
       </div>
       {entries.length > 0 ? (
         <div className="photo-grid">
@@ -480,6 +534,13 @@ function PhotoList({
     [appEmitter],
   );
 
+  const handleAlbumSorted = useCallback(
+    (a: Album) => {
+      void fetchAlbumEntries(a);
+    },
+    [fetchAlbumEntries],
+  );
+
   // Reset entries when filters change
   const filtersKey = JSON.stringify(settings.filters);
   useEffect(() => {
@@ -518,6 +579,7 @@ function PhotoList({
           selected={selected}
           onSelect={handleSelect}
           onDoubleClick={handleDoubleClick}
+          onAlbumSorted={handleAlbumSorted}
           headerRef={(el) => {
             if (el) headerRefsMap.current.set(album.key, el);
             else headerRefsMap.current.delete(album.key);
